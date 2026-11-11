@@ -10,12 +10,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -36,61 +32,57 @@ const (
 )
 
 const (
-	insertDeferredLocationRequestStmt = `INSERT INTO %s (id, supi, ldr_type, method, mode, measurement_quantities, reporting_interval_s, reporting_amount, reporting_infinite, scheduled_loc_time, status, created_at) VALUES ($DeferredLocationRequest.id, $DeferredLocationRequest.supi, $DeferredLocationRequest.ldr_type, $DeferredLocationRequest.method, $DeferredLocationRequest.mode, $DeferredLocationRequest.measurement_quantities, $DeferredLocationRequest.reporting_interval_s, $DeferredLocationRequest.reporting_amount, $DeferredLocationRequest.reporting_infinite, $DeferredLocationRequest.scheduled_loc_time, $DeferredLocationRequest.status, $DeferredLocationRequest.created_at)`
-	getDeferredLocationRequestStmt    = `SELECT &DeferredLocationRequest.*, COALESCE(p.last_seq, 0) AS &deferredLocationProgress.last_seq FROM %[1]s LEFT JOIN (SELECT request_id, MAX(seq) AS last_seq FROM %[2]s GROUP BY request_id) p ON p.request_id = id WHERE id = $DeferredLocationRequest.id`
-	terminateDeferredLocationStmt     = `UPDATE %s SET status = 'TERMINATED', termination_cause = $deferredLocationTermination.termination_cause, termination_reason = $deferredLocationTermination.termination_reason, terminated_at = $deferredLocationTermination.terminated_at WHERE id = $deferredLocationTermination.id AND status = 'ACTIVE'`
-	terminateAllDeferredLocationStmt  = `UPDATE %s SET status = 'TERMINATED', termination_cause = $deferredLocationTermination.termination_cause, termination_reason = $deferredLocationTermination.termination_reason, terminated_at = $deferredLocationTermination.terminated_at WHERE status = 'ACTIVE'`
-	deleteDeferredLocationRequestStmt = `DELETE FROM %s WHERE id = $DeferredLocationRequest.id`
-	deleteEndedDeferredLocationStmt   = `DELETE FROM %s WHERE status = 'TERMINATED' AND terminated_at < $cutoffArgs.cutoff`
-	deleteOrphanLocationReportsStmt   = `DELETE FROM %[2]s WHERE request_id NOT IN (SELECT id FROM %[1]s)`
+	insertDeferredLocationRequestStmt = `INSERT INTO ` + DeferredLocationRequestsTableName + ` (id, supi, ldr_type, method, mode, measurement_quantities, reporting_interval_s, reporting_amount, reporting_infinite, scheduled_loc_time, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	getDeferredLocationRequestStmt    = `SELECT id, supi, ldr_type, method, mode, measurement_quantities, reporting_interval_s, reporting_amount, reporting_infinite, scheduled_loc_time, status, termination_cause, termination_reason, created_at, terminated_at, COALESCE(p.last_seq, 0) FROM ` + DeferredLocationRequestsTableName + ` LEFT JOIN (SELECT request_id, MAX(seq) AS last_seq FROM ` + LocationReportsTableName + ` GROUP BY request_id) p ON p.request_id = id WHERE id = ?`
+	terminateDeferredLocationStmt     = `UPDATE ` + DeferredLocationRequestsTableName + ` SET status = 'TERMINATED', termination_cause = ?, termination_reason = ?, terminated_at = ? WHERE id = ? AND status = 'ACTIVE'`
+	terminateAllDeferredLocationStmt  = `UPDATE ` + DeferredLocationRequestsTableName + ` SET status = 'TERMINATED', termination_cause = ?, termination_reason = ?, terminated_at = ? WHERE status = 'ACTIVE'`
+	deleteDeferredLocationRequestStmt = `DELETE FROM ` + DeferredLocationRequestsTableName + ` WHERE id = ?`
+	deleteEndedDeferredLocationStmt   = `DELETE FROM ` + DeferredLocationRequestsTableName + ` WHERE status = 'TERMINATED' AND terminated_at < ?`
+	deleteOrphanLocationReportsStmt   = `DELETE FROM ` + LocationReportsTableName + ` WHERE request_id NOT IN (SELECT id FROM ` + DeferredLocationRequestsTableName + `)`
 )
 
 const listDeferredLocationRequestsStmt = `
-  SELECT &DeferredLocationRequest.*, COALESCE(p.last_seq, 0) AS &deferredLocationProgress.last_seq, COUNT(*) OVER() AS &NumItems.count
-  FROM %[1]s
-  LEFT JOIN (SELECT request_id, MAX(seq) AS last_seq FROM %[2]s GROUP BY request_id) p ON p.request_id = id
+  SELECT id, supi, ldr_type, method, mode, measurement_quantities, reporting_interval_s, reporting_amount, reporting_infinite, scheduled_loc_time, status, termination_cause, termination_reason, created_at, terminated_at, COALESCE(p.last_seq, 0), COUNT(*) OVER()
+  FROM ` + DeferredLocationRequestsTableName + `
+  LEFT JOIN (SELECT request_id, MAX(seq) AS last_seq FROM ` + LocationReportsTableName + ` GROUP BY request_id) p ON p.request_id = id
   WHERE
-    ($DeferredLocationRequestFilters.supi IS NULL OR supi = $DeferredLocationRequestFilters.supi)
-    AND ($DeferredLocationRequestFilters.status IS NULL OR status = $DeferredLocationRequestFilters.status)
+    (?1 IS NULL OR supi = ?1)
+    AND (?2 IS NULL OR status = ?2)
   ORDER BY created_at DESC, id DESC
-  LIMIT $ListArgs.limit
-  OFFSET $ListArgs.offset
+  LIMIT ?3
+  OFFSET ?4
 `
 
 const countDeferredLocationRequestsStmt = `
-  SELECT COUNT(*) AS &NumItems.count
-  FROM %s
+  SELECT COUNT(*)
+  FROM ` + DeferredLocationRequestsTableName + `
   WHERE
-    ($DeferredLocationRequestFilters.supi IS NULL OR supi = $DeferredLocationRequestFilters.supi)
-    AND ($DeferredLocationRequestFilters.status IS NULL OR status = $DeferredLocationRequestFilters.status)
+    (?1 IS NULL OR supi = ?1)
+    AND (?2 IS NULL OR status = ?2)
 `
 
 type DeferredLocationRequest struct {
-	ID                    string  `db:"id"`
-	SUPI                  string  `db:"supi"`
-	LdrType               string  `db:"ldr_type"`
-	Method                string  `db:"method"`
-	Mode                  *string `db:"mode"`
-	MeasurementQuantities *string `db:"measurement_quantities"`
-	ReportingIntervalS    *int64  `db:"reporting_interval_s"`
-	ReportingAmount       *int64  `db:"reporting_amount"`
-	ReportingInfinite     bool    `db:"reporting_infinite"`
-	ScheduledLocTime      *int64  `db:"scheduled_loc_time"`
-	Status                string  `db:"status"`
-	TerminationCause      *string `db:"termination_cause"`
-	TerminationReason     *string `db:"termination_reason"`
-	CreatedAt             int64   `db:"created_at"`
-	TerminatedAt          *int64  `db:"terminated_at"`
+	ID                    string
+	SUPI                  string
+	LdrType               string
+	Method                string
+	Mode                  *string
+	MeasurementQuantities *string
+	ReportingIntervalS    *int64
+	ReportingAmount       *int64
+	ReportingInfinite     bool
+	ScheduledLocTime      *int64
+	Status                string
+	TerminationCause      *string
+	TerminationReason     *string
+	CreatedAt             int64
+	TerminatedAt          *int64
 	LastReportSeq         int64
 }
 
-type deferredLocationProgress struct {
-	LastSeq int64 `db:"last_seq"`
-}
-
 type DeferredLocationRequestFilters struct {
-	SUPI   *string `db:"supi"`
-	Status *string `db:"status"`
+	SUPI   *string
+	Status *string
 }
 
 type DeferredLocationTermination struct {
@@ -99,35 +91,8 @@ type DeferredLocationTermination struct {
 	At     time.Time
 }
 
-type deferredLocationTermination struct {
-	ID                string  `db:"id"`
-	TerminationCause  string  `db:"termination_cause"`
-	TerminationReason *string `db:"termination_reason"`
-	TerminatedAt      int64   `db:"terminated_at"`
-}
-
-func startLocationQuery(ctx context.Context, table, operation, metric string) (context.Context, trace.Span, *prometheus.Timer) {
-	querySummary := fmt.Sprintf("%s %s", operation, table)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName(operation),
-			semconv.DBCollectionName(table),
-		),
-	)
-
-	DBQueriesTotal.WithLabelValues(table, metric).Inc()
-
-	return ctx, span, prometheus.NewTimer(DBQueryDuration.WithLabelValues(table, metric))
-}
-
 func (db *Database) CreateDeferredLocationRequest(ctx context.Context, r *DeferredLocationRequest) error {
-	ctx, span, timer := startLocationQuery(ctx, DeferredLocationRequestsTableName, "INSERT", "insert")
+	ctx, span, timer := startDBQuery(ctx, DeferredLocationRequestsTableName, "INSERT", "insert")
 	defer span.End()
 	defer timer.ObserveDuration()
 
@@ -151,7 +116,7 @@ func (db *Database) CreateDeferredLocationRequest(ctx context.Context, r *Deferr
 	r.TerminatedAt = nil
 	r.CreatedAt = dbwriter.EpochMillis(time.Now())
 
-	if err := db.conn().Query(ctx, db.insertDeferredLocationRequestStmt, r).Run(); err != nil {
+	if _, err := db.writer().ExecContext(ctx, insertDeferredLocationRequestStmt, r.ID, r.SUPI, r.LdrType, r.Method, r.Mode, r.MeasurementQuantities, r.ReportingIntervalS, r.ReportingAmount, r.ReportingInfinite, r.ScheduledLocTime, r.Status, r.CreatedAt); err != nil {
 		if isUniqueNameError(err) {
 			return ErrAlreadyExists
 		}
@@ -165,7 +130,7 @@ func (db *Database) CreateDeferredLocationRequest(ctx context.Context, r *Deferr
 }
 
 func (db *Database) GetDeferredLocationRequest(ctx context.Context, id string) (*DeferredLocationRequest, error) {
-	ctx, span, timer := startLocationQuery(ctx, DeferredLocationRequestsTableName, "SELECT", "select")
+	ctx, span, timer := startDBQuery(ctx, DeferredLocationRequestsTableName, "SELECT", "select")
 	defer span.End()
 	defer timer.ObserveDuration()
 
@@ -173,12 +138,8 @@ func (db *Database) GetDeferredLocationRequest(ctx context.Context, id string) (
 		return nil, ErrNotFound
 	}
 
-	var (
-		r        DeferredLocationRequest
-		progress deferredLocationProgress
-	)
-
-	if err := db.conn().Query(ctx, db.getDeferredLocationRequestStmt, DeferredLocationRequest{ID: id}).Get(&r, &progress); err != nil {
+	r, err := scanDeferredLocationRequest(db.reader().QueryRowContext(ctx, getDeferredLocationRequestStmt, id))
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -188,13 +149,11 @@ func (db *Database) GetDeferredLocationRequest(ctx context.Context, id string) (
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	r.LastReportSeq = progress.LastSeq
-
 	return &r, nil
 }
 
 func (db *Database) ListDeferredLocationRequests(ctx context.Context, page, perPage int, filters *DeferredLocationRequestFilters) ([]DeferredLocationRequest, int, error) {
-	ctx, span, timer := startLocationQuery(ctx, DeferredLocationRequestsTableName, "SELECT", "select")
+	ctx, span, timer := startDBQuery(ctx, DeferredLocationRequestsTableName, "SELECT", "select")
 	defer span.End()
 	defer timer.ObserveDuration()
 
@@ -206,46 +165,29 @@ func (db *Database) ListDeferredLocationRequests(ctx context.Context, page, perP
 		filters = &DeferredLocationRequestFilters{}
 	}
 
-	args := ListArgs{Limit: perPage, Offset: (page - 1) * perPage}
-
-	var (
-		requests []DeferredLocationRequest
-		progress []deferredLocationProgress
-		counts   []NumItems
-	)
-
-	if err := db.conn().Query(ctx, db.listDeferredLocationRequestsStmt, args, filters).GetAll(&requests, &progress, &counts); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			var total NumItems
-
-			if err := db.conn().Query(ctx, db.countDeferredLocationRequestsStmt, filters).Get(&total); err != nil {
-				recordSpanError(span, err)
-
-				return nil, 0, fmt.Errorf("count failed: %w", err)
-			}
-
-			return nil, total.Count, nil
-		}
-
+	requests, total, err := queryPage(ctx, db.reader(), listDeferredLocationRequestsStmt, scanDeferredLocationRequest, filters.SUPI, filters.Status, perPage, (page-1)*perPage)
+	if err != nil {
 		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	total := 0
-	if len(counts) > 0 {
-		total = counts[0].Count
-	}
+	if len(requests) == 0 {
+		count, err := queryCount(ctx, db.reader(), countDeferredLocationRequestsStmt, filters.SUPI, filters.Status)
+		if err != nil {
+			recordSpanError(span, err)
 
-	for i := range requests {
-		requests[i].LastReportSeq = progress[i].LastSeq
+			return nil, 0, fmt.Errorf("count failed: %w", err)
+		}
+
+		return nil, count, nil
 	}
 
 	return requests, total, nil
 }
 
 func (db *Database) TerminateDeferredLocationRequest(ctx context.Context, id string, t DeferredLocationTermination) error {
-	ctx, span, timer := startLocationQuery(ctx, DeferredLocationRequestsTableName, "UPDATE", "update")
+	ctx, span, timer := startDBQuery(ctx, DeferredLocationRequestsTableName, "UPDATE", "update")
 	defer span.End()
 	defer timer.ObserveDuration()
 
@@ -255,7 +197,7 @@ func (db *Database) TerminateDeferredLocationRequest(ctx context.Context, id str
 		return err
 	}
 
-	n, err := db.execCounting(ctx, db.terminateDeferredLocationStmt, toTerminationRow(id, t))
+	n, err := db.execCounting(ctx, terminateDeferredLocationStmt, t.Cause, t.Reason, dbwriter.EpochMillis(t.At), id)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -270,7 +212,7 @@ func (db *Database) TerminateDeferredLocationRequest(ctx context.Context, id str
 }
 
 func (db *Database) TerminateActiveDeferredLocationRequests(ctx context.Context, t DeferredLocationTermination) (int, error) {
-	ctx, span, timer := startLocationQuery(ctx, DeferredLocationRequestsTableName, "UPDATE", "update")
+	ctx, span, timer := startDBQuery(ctx, DeferredLocationRequestsTableName, "UPDATE", "update")
 	defer span.End()
 	defer timer.ObserveDuration()
 
@@ -278,7 +220,7 @@ func (db *Database) TerminateActiveDeferredLocationRequests(ctx context.Context,
 		return 0, nil
 	}
 
-	n, err := db.execCounting(ctx, db.terminateAllDeferredLocationStmt, toTerminationRow("", t))
+	n, err := db.execCounting(ctx, terminateAllDeferredLocationStmt, t.Cause, t.Reason, dbwriter.EpochMillis(t.At))
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -289,7 +231,7 @@ func (db *Database) TerminateActiveDeferredLocationRequests(ctx context.Context,
 }
 
 func (db *Database) DeleteDeferredLocationRequest(ctx context.Context, id string) error {
-	ctx, span, timer := startLocationQuery(ctx, DeferredLocationRequestsTableName, "DELETE", "delete")
+	ctx, span, timer := startDBQuery(ctx, DeferredLocationRequestsTableName, "DELETE", "delete")
 	defer span.End()
 	defer timer.ObserveDuration()
 
@@ -297,7 +239,7 @@ func (db *Database) DeleteDeferredLocationRequest(ctx context.Context, id string
 		return ErrNotFound
 	}
 
-	n, err := db.execCounting(ctx, db.deleteDeferredLocationRequestStmt, DeferredLocationRequest{ID: id})
+	n, err := db.execCounting(ctx, deleteDeferredLocationRequestStmt, id)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -312,7 +254,7 @@ func (db *Database) DeleteDeferredLocationRequest(ctx context.Context, id string
 }
 
 func (db *Database) DeleteEndedDeferredLocationRequests(ctx context.Context, endedBefore time.Time) error {
-	ctx, span, timer := startLocationQuery(ctx, DeferredLocationRequestsTableName, "DELETE", "delete")
+	ctx, span, timer := startDBQuery(ctx, DeferredLocationRequestsTableName, "DELETE", "delete")
 	defer span.End()
 	defer timer.ObserveDuration()
 
@@ -320,13 +262,13 @@ func (db *Database) DeleteEndedDeferredLocationRequests(ctx context.Context, end
 		return nil
 	}
 
-	if err := db.conn().Query(ctx, db.deleteEndedDeferredLocationStmt, cutoffArgs{Cutoff: dbwriter.EpochMillis(endedBefore)}).Run(); err != nil {
+	if _, err := db.writer().ExecContext(ctx, deleteEndedDeferredLocationStmt, dbwriter.EpochMillis(endedBefore)); err != nil {
 		recordSpanError(span, err)
 
 		return fmt.Errorf("query failed: %w", err)
 	}
 
-	if err := db.conn().Query(ctx, db.deleteOrphanLocationReportsStmt).Run(); err != nil {
+	if _, err := db.writer().ExecContext(ctx, deleteOrphanLocationReportsStmt); err != nil {
 		recordSpanError(span, err)
 
 		return fmt.Errorf("delete orphan reports: %w", err)
@@ -335,14 +277,13 @@ func (db *Database) DeleteEndedDeferredLocationRequests(ctx context.Context, end
 	return nil
 }
 
-func (db *Database) execCounting(ctx context.Context, stmt *sqlair.Statement, args ...any) (int, error) {
-	var outcome sqlair.Outcome
-
-	if err := db.conn().Query(ctx, stmt, args...).Get(&outcome); err != nil {
+func (db *Database) execCounting(ctx context.Context, query string, args ...any) (int, error) {
+	res, err := db.writer().ExecContext(ctx, query, args...)
+	if err != nil {
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	n, err := outcome.Result().RowsAffected()
+	n, err := res.RowsAffected()
 	if err != nil {
 		return 0, fmt.Errorf("rows affected: %w", err)
 	}
@@ -350,11 +291,12 @@ func (db *Database) execCounting(ctx context.Context, stmt *sqlair.Statement, ar
 	return int(n), nil
 }
 
-func toTerminationRow(id string, t DeferredLocationTermination) deferredLocationTermination {
-	return deferredLocationTermination{
-		ID:                id,
-		TerminationCause:  t.Cause,
-		TerminationReason: t.Reason,
-		TerminatedAt:      dbwriter.EpochMillis(t.At),
+func scanDeferredLocationRequest(row scanner) (DeferredLocationRequest, error) {
+	var v DeferredLocationRequest
+
+	if err := row.Scan(&v.ID, &v.SUPI, &v.LdrType, &v.Method, &v.Mode, &v.MeasurementQuantities, &v.ReportingIntervalS, &v.ReportingAmount, &v.ReportingInfinite, &v.ScheduledLocTime, &v.Status, &v.TerminationCause, &v.TerminationReason, &v.CreatedAt, &v.TerminatedAt, &v.LastReportSeq); err != nil {
+		return DeferredLocationRequest{}, err
 	}
+
+	return v, nil
 }

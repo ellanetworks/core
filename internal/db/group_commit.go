@@ -298,7 +298,7 @@ func encodedEntrySize(operation string, changeset []byte) int {
 func (db *Database) captureBatch(batch []*pendingWrite) ([]capturedWrite, int, []*pendingWrite, error) {
 	ctx := context.Background()
 
-	conn, err := db.conn().PlainDB().Conn(ctx)
+	conn, err := db.conn().Conn(ctx)
 	if err != nil {
 		return nil, 0, nil, fmt.Errorf("acquire sqlite conn for capture: %w", err)
 	}

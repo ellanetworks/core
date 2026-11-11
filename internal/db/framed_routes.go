@@ -5,32 +5,27 @@ package db
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"net/netip"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const FramedRoutesTableName = "subscriber_framed_routes"
 
 const (
-	createFramedRouteStmt        = "INSERT INTO %s (id, imsi, dataNetworkID, prefix) VALUES ($SubscriberFramedRoute.id, $SubscriberFramedRoute.imsi, $SubscriberFramedRoute.dataNetworkID, $SubscriberFramedRoute.prefix)"
-	deleteFramedRoutesByPairStmt = "DELETE FROM %s WHERE imsi==$SubscriberFramedRoute.imsi AND dataNetworkID==$SubscriberFramedRoute.dataNetworkID"
-	listFramedRoutesByPairStmt   = "SELECT &SubscriberFramedRoute.* FROM %s WHERE imsi==$SubscriberFramedRoute.imsi AND dataNetworkID==$SubscriberFramedRoute.dataNetworkID ORDER BY prefix"
-	listFramedRoutesByDNStmt     = "SELECT &SubscriberFramedRoute.* FROM %s WHERE dataNetworkID==$SubscriberFramedRoute.dataNetworkID ORDER BY imsi, prefix"
-	listAllFramedRoutesStmt      = "SELECT &SubscriberFramedRoute.* FROM %s ORDER BY prefix"
+	createFramedRouteStmt        = "INSERT INTO " + FramedRoutesTableName + " (id, imsi, dataNetworkID, prefix) VALUES (?, ?, ?, ?)"
+	deleteFramedRoutesByPairStmt = "DELETE FROM " + FramedRoutesTableName + " WHERE imsi==? AND dataNetworkID==?"
+	listFramedRoutesByPairStmt   = "SELECT id, imsi, dataNetworkID, prefix FROM " + FramedRoutesTableName + " WHERE imsi==? AND dataNetworkID==? ORDER BY prefix"
+	listFramedRoutesByDNStmt     = "SELECT id, imsi, dataNetworkID, prefix FROM " + FramedRoutesTableName + " WHERE dataNetworkID==? ORDER BY imsi, prefix"
+	listAllFramedRoutesStmt      = "SELECT id, imsi, dataNetworkID, prefix FROM " + FramedRoutesTableName + " ORDER BY prefix"
 )
 
 type SubscriberFramedRoute struct {
-	ID            string `db:"id"`            // UUIDv7
-	Imsi          string `db:"imsi"`          // FK to subscribers.imsi
-	DataNetworkID string `db:"dataNetworkID"` // FK to data_networks.id
-	Prefix        string `db:"prefix"`        // normalized CIDR, netip.Prefix.Masked().String()
+	ID            string // UUIDv7
+	Imsi          string // FK to subscribers.imsi
+	DataNetworkID string // FK to data_networks.id
+	Prefix        string // normalized CIDR, netip.Prefix.Masked().String()
 }
 
 type framedRoutesPayload struct {
@@ -43,25 +38,9 @@ type framedRoutesPayload struct {
 // framed-route set (delete-then-insert); an empty set clears it. Prefixes are
 // normalized so the UNIQUE(prefix) constraint and overlap checks see one form.
 func (db *Database) ReplaceFramedRoutes(ctx context.Context, imsi, dataNetworkID string, prefixes []netip.Prefix) error {
-	querySummary := fmt.Sprintf("%s %s", "REPLACE", FramedRoutesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("REPLACE"),
-			semconv.DBCollectionName(FramedRoutesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, FramedRoutesTableName, "REPLACE", "replace")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(FramedRoutesTableName, "replace"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(FramedRoutesTableName, "replace").Inc()
 
 	normalized := make([]string, 0, len(prefixes))
 	for _, p := range prefixes {
@@ -88,7 +67,7 @@ func (db *Database) DeleteFramedRoutes(ctx context.Context, imsi, dataNetworkID 
 
 func (db *Database) applyReplaceFramedRoutes(ctx context.Context, payload *framedRoutesPayload) (any, error) {
 	del := SubscriberFramedRoute{Imsi: payload.Imsi, DataNetworkID: payload.DataNetworkID}
-	if err := db.runner(ctx).Query(ctx, db.deleteFramedRoutesByPairStmt, del).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteFramedRoutesByPairStmt, del.Imsi, del.DataNetworkID); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -105,7 +84,7 @@ func (db *Database) applyReplaceFramedRoutes(ctx context.Context, payload *frame
 			Prefix:        prefix,
 		}
 
-		if err := db.runner(ctx).Query(ctx, db.createFramedRouteStmt, fr).Run(); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, createFramedRouteStmt, fr.ID, fr.Imsi, fr.DataNetworkID, fr.Prefix); err != nil {
 			if isUniqueNameError(err) {
 				return nil, ErrAlreadyExists
 			}
@@ -118,116 +97,68 @@ func (db *Database) applyReplaceFramedRoutes(ctx context.Context, payload *frame
 }
 
 func (db *Database) ListFramedRoutesBySubscriberDataNetwork(ctx context.Context, imsi, dataNetworkID string) ([]SubscriberFramedRoute, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", FramedRoutesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(FramedRoutesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, FramedRoutesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(FramedRoutesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(FramedRoutesTableName, "select").Inc()
-
-	var routes []SubscriberFramedRoute
-
-	params := SubscriberFramedRoute{Imsi: imsi, DataNetworkID: dataNetworkID}
-
-	err := db.conn().Query(ctx, db.listFramedRoutesByPairStmt, params).GetAll(&routes)
+	routes, err := queryAll(ctx, db.reader(), listFramedRoutesByPairStmt, scanSubscriberFramedRoute, imsi, dataNetworkID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return []SubscriberFramedRoute{}, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	if routes == nil {
+		return []SubscriberFramedRoute{}, nil
 	}
 
 	return routes, nil
 }
 
 func (db *Database) ListFramedRoutesByDataNetwork(ctx context.Context, dataNetworkID string) ([]SubscriberFramedRoute, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", FramedRoutesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(FramedRoutesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, FramedRoutesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(FramedRoutesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(FramedRoutesTableName, "select").Inc()
-
-	var routes []SubscriberFramedRoute
-
-	params := SubscriberFramedRoute{DataNetworkID: dataNetworkID}
-
-	err := db.conn().Query(ctx, db.listFramedRoutesByDNStmt, params).GetAll(&routes)
+	routes, err := queryAll(ctx, db.reader(), listFramedRoutesByDNStmt, scanSubscriberFramedRoute, dataNetworkID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return []SubscriberFramedRoute{}, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	if routes == nil {
+		return []SubscriberFramedRoute{}, nil
 	}
 
 	return routes, nil
 }
 
 func (db *Database) ListAllFramedRoutes(ctx context.Context) ([]SubscriberFramedRoute, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", FramedRoutesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(FramedRoutesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, FramedRoutesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(FramedRoutesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(FramedRoutesTableName, "select").Inc()
-
-	var routes []SubscriberFramedRoute
-
-	err := db.conn().Query(ctx, db.listAllFramedRoutesStmt).GetAll(&routes)
+	routes, err := queryAll(ctx, db.reader(), listAllFramedRoutesStmt, scanSubscriberFramedRoute)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return []SubscriberFramedRoute{}, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
+	if routes == nil {
+		return []SubscriberFramedRoute{}, nil
+	}
+
 	return routes, nil
+}
+
+func scanSubscriberFramedRoute(row scanner) (SubscriberFramedRoute, error) {
+	var v SubscriberFramedRoute
+
+	if err := row.Scan(&v.ID, &v.Imsi, &v.DataNetworkID, &v.Prefix); err != nil {
+		return SubscriberFramedRoute{}, err
+	}
+
+	return v, nil
 }

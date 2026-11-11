@@ -12,23 +12,20 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const UsersTableName = "users"
 
 const (
-	listUsersPageStmt    = "SELECT &User.*, COUNT(*) OVER() AS &NumItems.count from %s ORDER BY id LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
-	getUserStmt          = "SELECT &User.* from %s WHERE email==$User.email"
-	getUserByIDStmt      = "SELECT &User.* from %s WHERE id==$User.id"
-	createUserStmt       = "INSERT INTO %s (id, email, roleID, hashedPassword) VALUES ($User.id, $User.email, $User.roleID, $User.hashedPassword)"
-	editUserStmt         = "UPDATE %s SET roleID=$User.roleID WHERE email==$User.email"
-	editUserPasswordStmt = "UPDATE %s SET hashedPassword=$User.hashedPassword WHERE email==$User.email" // #nosec: G101
-	deleteUserStmt       = "DELETE FROM %s WHERE email==$User.email"
-	countUsersStmt       = "SELECT COUNT(*) AS &NumItems.count FROM %s"
+	listUsersPageStmt    = "SELECT id, email, roleID, hashedPassword, COUNT(*) OVER() from " + UsersTableName + " ORDER BY id LIMIT ? OFFSET ?"
+	getUserStmt          = "SELECT id, email, roleID, hashedPassword from " + UsersTableName + " WHERE email==?"
+	getUserByIDStmt      = "SELECT id, email, roleID, hashedPassword from " + UsersTableName + " WHERE id==?"
+	createUserStmt       = "INSERT INTO " + UsersTableName + " (id, email, roleID, hashedPassword) VALUES (?, ?, ?, ?)"
+	editUserStmt         = "UPDATE " + UsersTableName + " SET roleID=? WHERE email==?"
+	editUserPasswordStmt = "UPDATE " + UsersTableName + " SET hashedPassword=? WHERE email==?" // #nosec: G101
+	deleteUserStmt       = "DELETE FROM " + UsersTableName + " WHERE email==?"
+	countUsersStmt       = "SELECT COUNT(*) FROM " + UsersTableName
 )
 
 type RoleID int
@@ -40,63 +37,31 @@ const (
 )
 
 type User struct {
-	ID             string `db:"id"` // UUIDv7
-	Email          string `db:"email"`
-	RoleID         RoleID `db:"roleID"`
-	HashedPassword string `db:"hashedPassword"`
+	ID             string // UUIDv7
+	Email          string
+	RoleID         RoleID
+	HashedPassword string
 }
 
 func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]User, int, error) {
-	querySummary := fmt.Sprintf("%s %s (paged)", "SELECT", UsersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(UsersTableName),
-			attribute.Int("ella.db.page", page),
-			attribute.Int("ella.db.page_size", perPage),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+UsersTableName+" (paged)", UsersTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(UsersTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(UsersTableName, "select").Inc()
-
-	args := ListArgs{
-		Limit:  perPage,
-		Offset: (page - 1) * perPage,
-	}
-
-	var users []User
-
-	var counts []NumItems
-
-	err := db.conn().Query(ctx, db.listUsersStmt, args).GetAll(&users, &counts)
+	users, count, err := queryPage(ctx, db.reader(), listUsersPageStmt, scanUser, perPage, (page-1)*perPage)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			fallbackCount, countErr := db.CountUsers(ctx)
-			if countErr != nil {
-				return nil, 0, nil
-			}
-
-			return nil, fallbackCount, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	count := 0
-	if len(counts) > 0 {
-		count = counts[0].Count
+	if len(users) == 0 {
+		fallbackCount, countErr := db.CountUsers(ctx)
+		if countErr != nil {
+			return nil, 0, nil
+		}
+
+		return nil, fallbackCount, nil
 	}
 
 	return users, count, nil
@@ -104,29 +69,11 @@ func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]Use
 
 // GetUser fetches a single user by email with a span named "SELECT users".
 func (db *Database) GetUser(ctx context.Context, email string) (*User, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", UsersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(UsersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, UsersTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(UsersTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(UsersTableName, "select").Inc()
-
-	row := User{Email: email}
-
-	err := db.conn().Query(ctx, db.getUserStmt, row).Get(&row)
+	row, err := scanUser(db.reader().QueryRowContext(ctx, getUserStmt, email))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -142,29 +89,11 @@ func (db *Database) GetUser(ctx context.Context, email string) (*User, error) {
 
 // GetUserByID fetches a single user by ID with a span named "SELECT users".
 func (db *Database) GetUserByID(ctx context.Context, id string) (*User, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", UsersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(UsersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, UsersTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(UsersTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(UsersTableName, "select").Inc()
-
-	row := User{ID: id}
-
-	err := db.conn().Query(ctx, db.getUserByIDStmt, row).Get(&row)
+	row, err := scanUser(db.reader().QueryRowContext(ctx, getUserByIDStmt, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -179,25 +108,9 @@ func (db *Database) GetUserByID(ctx context.Context, id string) (*User, error) {
 }
 
 func (db *Database) CreateUser(ctx context.Context, user *User) (string, error) {
-	querySummary := fmt.Sprintf("%s %s", "INSERT", UsersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			semconv.DBCollectionName(UsersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, UsersTableName, "INSERT", "insert")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(UsersTableName, "insert"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(UsersTableName, "insert").Inc()
 
 	if user.ID == "" {
 		id, err := uuid.NewV7()
@@ -221,25 +134,9 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (string, error) 
 
 // UpdateUser updates a user's role with a span named "UPDATE users".
 func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID) error {
-	querySummary := fmt.Sprintf("%s %s", "UPDATE", UsersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(UsersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, UsersTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(UsersTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(UsersTableName, "update").Inc()
 
 	user := &User{
 		Email:  email,
@@ -258,25 +155,9 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 
 // UpdateUserPassword sets a new password hash with a span named "UPDATE users".
 func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashedPassword string) error {
-	querySummary := fmt.Sprintf("%s %s", "UPDATE", UsersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(UsersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, UsersTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(UsersTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(UsersTableName, "update").Inc()
 
 	user := &User{
 		Email:          email,
@@ -295,25 +176,9 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 
 // DeleteUser removes a user by email with a span named "DELETE users".
 func (db *Database) DeleteUser(ctx context.Context, email string) error {
-	querySummary := fmt.Sprintf("%s %s", "DELETE", UsersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(UsersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, UsersTableName, "DELETE", "delete")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(UsersTableName, "delete"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(UsersTableName, "delete").Inc()
 
 	_, err := opDeleteUser.Invoke(ctx, db, &stringPayload{Value: email})
 	if err != nil {
@@ -327,34 +192,26 @@ func (db *Database) DeleteUser(ctx context.Context, email string) error {
 
 // CountUsers returns user count with a span named "SELECT users".
 func (db *Database) CountUsers(ctx context.Context) (int, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", UsersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(UsersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, UsersTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(UsersTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(UsersTableName, "select").Inc()
-
-	var result NumItems
-
-	err := db.conn().Query(ctx, db.countUsersStmt).Get(&result)
+	count, err := queryCount(ctx, db.reader(), countUsersStmt)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return 0, err
 	}
 
-	return result.Count, nil
+	return count, nil
+}
+
+func scanUser(row scanner) (User, error) {
+	var v User
+
+	if err := row.Scan(&v.ID, &v.Email, &v.RoleID, &v.HashedPassword); err != nil {
+		return User{}, err
+	}
+
+	return v, nil
 }

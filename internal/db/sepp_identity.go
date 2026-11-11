@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/pki"
 	"github.com/prometheus/client_golang/prometheus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
@@ -32,24 +31,24 @@ const (
 )
 
 const (
-	getSEPPCAStmt                 = "SELECT &SEPPCA.* FROM %s WHERE singleton=TRUE"
-	insertSEPPCAIfAbsentStmt      = "INSERT INTO %s (singleton, certPEM, keyPEM) VALUES (TRUE, $SEPPCA.certPEM, $SEPPCA.keyPEM) ON CONFLICT(singleton) DO NOTHING"
-	upsertSEPPCAStmt              = "INSERT INTO %s (singleton, certPEM, keyPEM) VALUES (TRUE, $SEPPCA.certPEM, $SEPPCA.keyPEM) ON CONFLICT(singleton) DO UPDATE SET certPEM=excluded.certPEM, keyPEM=excluded.keyPEM"
-	deleteSEPPCAStmt              = "DELETE FROM %s"
-	getSEPPIdentityStmt           = "SELECT &SEPPIdentity.* FROM %s WHERE seppID==$SEPPIdentity.seppID"
-	listSEPPIdentitiesStmt        = "SELECT &SEPPIdentity.* FROM %s ORDER BY seppID"
-	upsertSEPPIdentityStmt        = "INSERT INTO %s (seppID, fqdn, source, certChainPEM, keyPEM) VALUES ($SEPPIdentity.seppID, $SEPPIdentity.fqdn, $SEPPIdentity.source, $SEPPIdentity.certChainPEM, $SEPPIdentity.keyPEM) ON CONFLICT(seppID) DO UPDATE SET fqdn=excluded.fqdn, source=excluded.source, certChainPEM=excluded.certChainPEM, keyPEM=excluded.keyPEM"
-	deleteSEPPIdentitiesStmt      = "DELETE FROM %s"
-	deleteGeneratedSEPPIdentsStmt = "DELETE FROM %s WHERE source='" + SEPPIdentityGenerated + "'"
-	deleteGeneratedSEPPIdentStmt  = "DELETE FROM %s WHERE seppID==$SEPPIdentity.seppID AND source='" + SEPPIdentityGenerated + "'"
-	getSEPPIdentityByFQDNStmt     = "SELECT &SEPPIdentity.* FROM %s WHERE fqdn==$SEPPIdentity.fqdn"
-	deleteSEPPIdentityStmt        = "DELETE FROM %s WHERE seppID==$SEPPIdentity.seppID"
-	upsertGeneratedSEPPIdentStmt  = "INSERT INTO %s (seppID, fqdn, source, certChainPEM, keyPEM) VALUES ($SEPPIdentity.seppID, $SEPPIdentity.fqdn, $SEPPIdentity.source, $SEPPIdentity.certChainPEM, $SEPPIdentity.keyPEM) ON CONFLICT(seppID) DO UPDATE SET fqdn=excluded.fqdn, certChainPEM=excluded.certChainPEM, keyPEM=excluded.keyPEM WHERE source='" + SEPPIdentityGenerated + "'"
+	getSEPPCAStmt                 = "SELECT certPEM, keyPEM FROM " + SEPPCATableName + " WHERE singleton=TRUE"
+	insertSEPPCAIfAbsentStmt      = "INSERT INTO " + SEPPCATableName + " (singleton, certPEM, keyPEM) VALUES (TRUE, ?, ?) ON CONFLICT(singleton) DO NOTHING"
+	upsertSEPPCAStmt              = "INSERT INTO " + SEPPCATableName + " (singleton, certPEM, keyPEM) VALUES (TRUE, ?, ?) ON CONFLICT(singleton) DO UPDATE SET certPEM=excluded.certPEM, keyPEM=excluded.keyPEM"
+	deleteSEPPCAStmt              = "DELETE FROM " + SEPPCATableName
+	getSEPPIdentityStmt           = "SELECT seppID, fqdn, source, certChainPEM, keyPEM FROM " + SEPPIdentitiesTableName + " WHERE seppID==?"
+	listSEPPIdentitiesStmt        = "SELECT seppID, fqdn, source, certChainPEM, keyPEM FROM " + SEPPIdentitiesTableName + " ORDER BY seppID"
+	upsertSEPPIdentityStmt        = "INSERT INTO " + SEPPIdentitiesTableName + " (seppID, fqdn, source, certChainPEM, keyPEM) VALUES (?, ?, ?, ?, ?) ON CONFLICT(seppID) DO UPDATE SET fqdn=excluded.fqdn, source=excluded.source, certChainPEM=excluded.certChainPEM, keyPEM=excluded.keyPEM"
+	deleteSEPPIdentitiesStmt      = "DELETE FROM " + SEPPIdentitiesTableName
+	deleteGeneratedSEPPIdentsStmt = "DELETE FROM " + SEPPIdentitiesTableName + " WHERE source='" + SEPPIdentityGenerated + "'"
+	deleteGeneratedSEPPIdentStmt  = "DELETE FROM " + SEPPIdentitiesTableName + " WHERE seppID==? AND source='" + SEPPIdentityGenerated + "'"
+	getSEPPIdentityByFQDNStmt     = "SELECT seppID, fqdn, source, certChainPEM, keyPEM FROM " + SEPPIdentitiesTableName + " WHERE fqdn==?"
+	deleteSEPPIdentityStmt        = "DELETE FROM " + SEPPIdentitiesTableName + " WHERE seppID==?"
+	upsertGeneratedSEPPIdentStmt  = "INSERT INTO " + SEPPIdentitiesTableName + " (seppID, fqdn, source, certChainPEM, keyPEM) VALUES (?, ?, ?, ?, ?) ON CONFLICT(seppID) DO UPDATE SET fqdn=excluded.fqdn, certChainPEM=excluded.certChainPEM, keyPEM=excluded.keyPEM WHERE source='" + SEPPIdentityGenerated + "'"
 )
 
 type SEPPCA struct {
-	CertPEM string `db:"certPEM"`
-	KeyPEM  string `db:"keyPEM"`
+	CertPEM string
+	KeyPEM  string
 }
 
 func (c SEPPCA) Validate() error {
@@ -65,11 +64,11 @@ func (c SEPPCA) Certificate() (*x509.Certificate, error) {
 }
 
 type SEPPIdentity struct {
-	SEPPID       int    `db:"seppID"`
-	FQDN         string `db:"fqdn"`
-	Source       string `db:"source"`
-	CertChainPEM string `db:"certChainPEM"`
-	KeyPEM       string `db:"keyPEM"`
+	SEPPID       int
+	FQDN         string
+	Source       string
+	CertChainPEM string
+	KeyPEM       string
 }
 
 func ValidSEPPID(id int) bool {
@@ -105,9 +104,8 @@ func (s SEPPIdentity) Validate() error {
 }
 
 func (db *Database) ownPLMN(ctx context.Context) (pki.PLMN, error) {
-	var op Operator
-
-	if err := db.runner(ctx).Query(ctx, db.getOperatorStmt).Get(&op); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	op, err := getOperator(ctx, db.runner(ctx))
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return pki.PLMN{}, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -124,9 +122,7 @@ func (db *Database) checkSEPPIdentity(ctx context.Context, s *SEPPIdentity) erro
 		return fmt.Errorf("%w: SEPP FQDN %s is not under the home PLMN domain", ErrRoamingConflict, s.FQDN)
 	}
 
-	var other SEPPIdentity
-
-	err = db.runner(ctx).Query(ctx, db.getSEPPIdentityByFQDNStmt, SEPPIdentity{FQDN: s.FQDN}).Get(&other)
+	other, err := scanSEPPIdentity(db.runner(ctx).QueryRowContext(ctx, getSEPPIdentityByFQDNStmt, s.FQDN))
 
 	switch {
 	case err == nil && other.SEPPID != s.SEPPID:
@@ -143,9 +139,8 @@ func (db *Database) checkSEPPIdentity(ctx context.Context, s *SEPPIdentity) erro
 		return fmt.Errorf("%w: a generated SEPP identity must use %s", ErrRoamingConflict, plmn.SEPPFQDN(s.SEPPID))
 	}
 
-	var ca SEPPCA
-
-	if err := db.runner(ctx).Query(ctx, db.getSEPPCAStmt).Get(&ca); err != nil {
+	ca, err := scanSEPPCA(db.runner(ctx).QueryRowContext(ctx, getSEPPCAStmt))
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("%w: no SEPP CA", ErrRoamingConflict)
 		}
@@ -180,9 +175,8 @@ func (db *Database) GetSEPPCA(ctx context.Context) (*SEPPCA, error) {
 		return nil, ErrNotFound
 	}
 
-	var ca SEPPCA
-
-	if err := db.conn().Query(ctx, db.getSEPPCAStmt).Get(&ca); err != nil {
+	ca, err := scanSEPPCA(db.reader().QueryRowContext(ctx, getSEPPCAStmt))
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -208,9 +202,8 @@ func (db *Database) GetSEPPIdentity(ctx context.Context, seppID int) (*SEPPIdent
 		return nil, ErrNotFound
 	}
 
-	var identity SEPPIdentity
-
-	if err := db.conn().Query(ctx, db.getSEPPIdentityStmt, SEPPIdentity{SEPPID: seppID}).Get(&identity); err != nil {
+	identity, err := scanSEPPIdentity(db.reader().QueryRowContext(ctx, getSEPPIdentityStmt, seppID))
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -233,13 +226,8 @@ func (db *Database) ListSEPPIdentities(ctx context.Context) ([]SEPPIdentity, err
 		return nil, nil
 	}
 
-	var identities []SEPPIdentity
-
-	if err := db.conn().Query(ctx, db.listSEPPIdentitiesStmt).GetAll(&identities); err != nil {
-		if errors.Is(err, sqlair.ErrNoRows) {
-			return nil, nil
-		}
-
+	identities, err := queryAll(ctx, db.reader(), listSEPPIdentitiesStmt, scanSEPPIdentity)
+	if err != nil {
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -271,7 +259,7 @@ func (db *Database) applyPutSEPPIdentity(ctx context.Context, s *SEPPIdentity) (
 		return nil, err
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.upsertSEPPIdentityStmt, s).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, upsertSEPPIdentityStmt, s.SEPPID, s.FQDN, s.Source, s.CertChainPEM, s.KeyPEM); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -287,7 +275,7 @@ func (db *Database) applyPutGeneratedSEPPIdentity(ctx context.Context, s *SEPPId
 		return nil, err
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.upsertGeneratedSEPPIdentStmt, s).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, upsertGeneratedSEPPIdentStmt, s.SEPPID, s.FQDN, s.Source, s.CertChainPEM, s.KeyPEM); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -295,7 +283,7 @@ func (db *Database) applyPutGeneratedSEPPIdentity(ctx context.Context, s *SEPPId
 }
 
 func (db *Database) applyDeleteSEPPIdentity(ctx context.Context, s *SEPPIdentity) (any, error) {
-	if err := db.runner(ctx).Query(ctx, db.deleteSEPPIdentityStmt, s).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteSEPPIdentityStmt, s.SEPPID); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -303,13 +291,12 @@ func (db *Database) applyDeleteSEPPIdentity(ctx context.Context, s *SEPPIdentity
 }
 
 func (db *Database) applyInitSEPPCA(ctx context.Context, ca *SEPPCA) (any, error) {
-	var outcome sqlair.Outcome
-
-	if err := db.runner(ctx).Query(ctx, db.insertSEPPCAIfAbsentStmt, ca).Get(&outcome); err != nil {
+	res, err := db.runner(ctx).ExecContext(ctx, insertSEPPCAIfAbsentStmt, ca.CertPEM, ca.KeyPEM)
+	if err != nil {
 		return false, fmt.Errorf("query failed: %w", err)
 	}
 
-	n, err := outcome.Result().RowsAffected()
+	n, err := res.RowsAffected()
 	if err != nil {
 		return false, fmt.Errorf("rows affected: %w", err)
 	}
@@ -318,11 +305,11 @@ func (db *Database) applyInitSEPPCA(ctx context.Context, ca *SEPPCA) (any, error
 }
 
 func (db *Database) applyReplaceSEPPCA(ctx context.Context, ca *SEPPCA) (any, error) {
-	if err := db.runner(ctx).Query(ctx, db.upsertSEPPCAStmt, ca).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, upsertSEPPCAStmt, ca.CertPEM, ca.KeyPEM); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.deleteGeneratedSEPPIdentsStmt).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteGeneratedSEPPIdentsStmt); err != nil {
 		return nil, fmt.Errorf("delete generated SEPP identities: %w", err)
 	}
 
@@ -330,7 +317,7 @@ func (db *Database) applyReplaceSEPPCA(ctx context.Context, ca *SEPPCA) (any, er
 }
 
 func (db *Database) deleteGeneratedSEPPIdentity(ctx context.Context, seppID int) error {
-	if err := db.runner(ctx).Query(ctx, db.deleteGeneratedSEPPIdentStmt, SEPPIdentity{SEPPID: seppID}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteGeneratedSEPPIdentStmt, seppID); err != nil {
 		return fmt.Errorf("delete the generated SEPP identity %d: %w", seppID, err)
 	}
 
@@ -340,14 +327,13 @@ func (db *Database) deleteGeneratedSEPPIdentity(ctx context.Context, seppID int)
 func (db *Database) deleteSEPPIdentities(ctx context.Context) (bool, error) {
 	deleted := false
 
-	for _, stmt := range []*sqlair.Statement{db.deleteSEPPIdentitiesStmt, db.deleteSEPPCAStmt} {
-		var outcome sqlair.Outcome
-
-		if err := db.runner(ctx).Query(ctx, stmt).Get(&outcome); err != nil {
+	for _, query := range []string{deleteSEPPIdentitiesStmt, deleteSEPPCAStmt} {
+		res, err := db.runner(ctx).ExecContext(ctx, query)
+		if err != nil {
 			return false, fmt.Errorf("query failed: %w", err)
 		}
 
-		n, err := outcome.Result().RowsAffected()
+		n, err := res.RowsAffected()
 		if err != nil {
 			return false, fmt.Errorf("rows affected: %w", err)
 		}
@@ -489,4 +475,24 @@ func startSEPPIdentitySpan(ctx context.Context, operation, table string) (contex
 			semconv.DBCollectionName(table),
 		),
 	)
+}
+
+func scanSEPPIdentity(row scanner) (SEPPIdentity, error) {
+	var v SEPPIdentity
+
+	if err := row.Scan(&v.SEPPID, &v.FQDN, &v.Source, &v.CertChainPEM, &v.KeyPEM); err != nil {
+		return SEPPIdentity{}, err
+	}
+
+	return v, nil
+}
+
+func scanSEPPCA(row scanner) (SEPPCA, error) {
+	var v SEPPCA
+
+	if err := row.Scan(&v.CertPEM, &v.KeyPEM); err != nil {
+		return SEPPCA{}, err
+	}
+
+	return v, nil
 }

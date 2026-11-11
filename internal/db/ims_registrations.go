@@ -11,7 +11,6 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/canonical/sqlair"
 	"github.com/prometheus/client_golang/prometheus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
@@ -25,15 +24,15 @@ const (
 const imsRegistrationsSchema = 25
 
 const (
-	getIMSRegistrationStmt         = "SELECT &imsRegistrationRow.* FROM %s WHERE imsi==$imsRegistrationRow.imsi"
-	listAllIMSRegistrationsStmt    = "SELECT &imsRegistrationRow.* FROM %s ORDER BY imsi ASC"
-	upsertIMSRegistrationStmt      = "INSERT INTO %s (imsi, serverName, originHost, originRealm, privateIdentity) VALUES ($imsRegistrationRow.imsi, $imsRegistrationRow.serverName, $imsRegistrationRow.originHost, $imsRegistrationRow.originRealm, $imsRegistrationRow.privateIdentity) ON CONFLICT(imsi) DO UPDATE SET serverName=excluded.serverName, originHost=excluded.originHost, originRealm=excluded.originRealm, privateIdentity=excluded.privateIdentity"
-	deleteIMSRegistrationStmt      = "DELETE FROM %s WHERE imsi==$imsRegistrationRow.imsi"
-	listIMSRegistrationSetsStmt    = "SELECT &imsRegistrationSetRow.* FROM %s WHERE imsi==$imsRegistrationSetRow.imsi ORDER BY registrationSet ASC"
-	listAllIMSRegistrationSetsStmt = "SELECT &imsRegistrationSetRow.* FROM %s ORDER BY imsi ASC, registrationSet ASC"
-	insertIMSRegistrationSetStmt   = "INSERT INTO %s (imsi, registrationSet, state, authPending, defaultIdentity, profileDigest, emergency) VALUES ($imsRegistrationSetRow.imsi, $imsRegistrationSetRow.registrationSet, $imsRegistrationSetRow.state, $imsRegistrationSetRow.authPending, $imsRegistrationSetRow.defaultIdentity, $imsRegistrationSetRow.profileDigest, $imsRegistrationSetRow.emergency)"
-	deleteIMSRegistrationSetsStmt  = "DELETE FROM %s WHERE imsi==$imsRegistrationSetRow.imsi"
-	countIMSRegistrationsStmt      = "SELECT COUNT(DISTINCT imsi) AS &NumItems.count FROM %s WHERE state==$imsRegistrationSetRow.state"
+	getIMSRegistrationStmt         = "SELECT imsi, serverName, originHost, originRealm, privateIdentity FROM " + IMSRegistrationsTableName + " WHERE imsi==?"
+	listAllIMSRegistrationsStmt    = "SELECT imsi, serverName, originHost, originRealm, privateIdentity FROM " + IMSRegistrationsTableName + " ORDER BY imsi ASC"
+	upsertIMSRegistrationStmt      = "INSERT INTO " + IMSRegistrationsTableName + " (imsi, serverName, originHost, originRealm, privateIdentity) VALUES (?, ?, ?, ?, ?) ON CONFLICT(imsi) DO UPDATE SET serverName=excluded.serverName, originHost=excluded.originHost, originRealm=excluded.originRealm, privateIdentity=excluded.privateIdentity"
+	deleteIMSRegistrationStmt      = "DELETE FROM " + IMSRegistrationsTableName + " WHERE imsi==?"
+	listIMSRegistrationSetsStmt    = "SELECT imsi, registrationSet, state, authPending, defaultIdentity, profileDigest, emergency FROM " + IMSRegistrationSetsTableName + " WHERE imsi==? ORDER BY registrationSet ASC"
+	listAllIMSRegistrationSetsStmt = "SELECT imsi, registrationSet, state, authPending, defaultIdentity, profileDigest, emergency FROM " + IMSRegistrationSetsTableName + " ORDER BY imsi ASC, registrationSet ASC"
+	insertIMSRegistrationSetStmt   = "INSERT INTO " + IMSRegistrationSetsTableName + " (imsi, registrationSet, state, authPending, defaultIdentity, profileDigest, emergency) VALUES (?, ?, ?, ?, ?, ?, ?)"
+	deleteIMSRegistrationSetsStmt  = "DELETE FROM " + IMSRegistrationSetsTableName + " WHERE imsi==?"
+	countIMSRegistrationsStmt      = "SELECT COUNT(DISTINCT imsi) FROM " + IMSRegistrationSetsTableName + " WHERE state==?"
 )
 
 type IMSRegistrationState int
@@ -79,21 +78,21 @@ type IMSSetRegistration struct {
 }
 
 type imsRegistrationRow struct {
-	Imsi            string `db:"imsi"`
-	ServerName      string `db:"serverName"`
-	OriginHost      string `db:"originHost"`
-	OriginRealm     string `db:"originRealm"`
-	PrivateIdentity string `db:"privateIdentity"`
+	Imsi            string
+	ServerName      string
+	OriginHost      string
+	OriginRealm     string
+	PrivateIdentity string
 }
 
 type imsRegistrationSetRow struct {
-	Imsi            string `db:"imsi"`
-	RegistrationSet string `db:"registrationSet"`
-	State           int    `db:"state"`
-	AuthPending     bool   `db:"authPending"`
-	DefaultIdentity string `db:"defaultIdentity"`
-	ProfileDigest   string `db:"profileDigest"`
-	Emergency       bool   `db:"emergency"`
+	Imsi            string
+	RegistrationSet string
+	State           int
+	AuthPending     bool
+	DefaultIdentity string
+	ProfileDigest   string
+	Emergency       bool
 }
 
 type imsRegistrationCASPayload struct {
@@ -173,12 +172,7 @@ func (db *Database) ListAllIMSRegistrations(ctx context.Context) ([]IMSRegistrat
 		return nil, nil
 	}
 
-	var (
-		rows    []imsRegistrationRow
-		setRows []imsRegistrationSetRow
-	)
-
-	tx, err := db.conn().Begin(ctx, &sqlair.TXOptions{ReadOnly: true})
+	tx, err := db.writer().BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -187,13 +181,15 @@ func (db *Database) ListAllIMSRegistrations(ctx context.Context) ([]IMSRegistrat
 
 	defer func() { _ = tx.Rollback() }()
 
-	if err := tx.Query(ctx, db.listAllIMSRegistrationsStmt).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	rows, err := queryAll(ctx, tx, listAllIMSRegistrationsStmt, scanIMSRegistrationRow)
+	if err != nil {
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	if err := tx.Query(ctx, db.listAllIMSRegistrationSetsStmt).GetAll(&setRows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	setRows, err := queryAll(ctx, tx, listAllIMSRegistrationSetsStmt, scanIMSRegistrationSetRow)
+	if err != nil {
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -226,7 +222,7 @@ func (db *Database) GetIMSRegistration(ctx context.Context, imsi string) (*IMSRe
 		return nil, nil
 	}
 
-	tx, err := db.conn().Begin(ctx, &sqlair.TXOptions{ReadOnly: true})
+	tx, err := db.writer().BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -258,15 +254,14 @@ func (db *Database) CountIMSRegistrations(ctx context.Context, state IMSRegistra
 		return 0, nil
 	}
 
-	var result NumItems
-
-	if err := db.conn().Query(ctx, db.countIMSRegistrationsStmt, imsRegistrationSetRow{State: int(state)}).Get(&result); err != nil {
+	count, err := queryCount(ctx, db.reader(), countIMSRegistrationsStmt, int(state))
+	if err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	return result.Count, nil
+	return count, nil
 }
 
 func (db *Database) CompareAndSwapIMSRegistration(ctx context.Context, imsi string, expected, next *IMSRegistration) (*IMSRegistration, bool, error) {
@@ -332,12 +327,12 @@ func (db *Database) writeIMSRegistration(ctx context.Context, imsi string, next 
 		}
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.deleteIMSRegistrationSetsStmt, imsRegistrationSetRow{Imsi: imsi}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteIMSRegistrationSetsStmt, imsi); err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
 
 	if next == nil {
-		if err := db.runner(ctx).Query(ctx, db.deleteIMSRegistrationStmt, imsRegistrationRow{Imsi: imsi}).Run(); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, deleteIMSRegistrationStmt, imsi); err != nil {
 			return fmt.Errorf("query failed: %w", err)
 		}
 
@@ -352,7 +347,7 @@ func (db *Database) writeIMSRegistration(ctx context.Context, imsi string, next 
 		PrivateIdentity: next.PrivateIdentity,
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.upsertIMSRegistrationStmt, row).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, upsertIMSRegistrationStmt, row.Imsi, row.ServerName, row.OriginHost, row.OriginRealm, row.PrivateIdentity); err != nil {
 		if isForeignKeyError(err) {
 			return ErrNotFound
 		}
@@ -373,7 +368,7 @@ func (db *Database) writeIMSRegistration(ctx context.Context, imsi string, next 
 			Emergency:       s.Emergency,
 		}
 
-		if err := db.runner(ctx).Query(ctx, db.insertIMSRegistrationSetStmt, setRow).Run(); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, insertIMSRegistrationSetStmt, setRow.Imsi, setRow.RegistrationSet, setRow.State, setRow.AuthPending, setRow.DefaultIdentity, setRow.ProfileDigest, setRow.Emergency); err != nil {
 			return fmt.Errorf("query failed: %w", err)
 		}
 	}
@@ -381,14 +376,9 @@ func (db *Database) writeIMSRegistration(ctx context.Context, imsi string, next 
 	return nil
 }
 
-type sqlairQuerier interface {
-	Query(ctx context.Context, s *sqlair.Statement, inputArgs ...any) *sqlair.Query
-}
-
-func (db *Database) getIMSRegistration(ctx context.Context, q sqlairQuerier, imsi string) (*IMSRegistration, error) {
-	row := imsRegistrationRow{Imsi: imsi}
-
-	if err := q.Query(ctx, db.getIMSRegistrationStmt, row).Get(&row); err != nil {
+func (db *Database) getIMSRegistration(ctx context.Context, q querier, imsi string) (*IMSRegistration, error) {
+	row, err := scanIMSRegistrationRow(q.QueryRowContext(ctx, getIMSRegistrationStmt, imsi))
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
@@ -396,9 +386,8 @@ func (db *Database) getIMSRegistration(ctx context.Context, q sqlairQuerier, ims
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	var sets []imsRegistrationSetRow
-
-	if err := q.Query(ctx, db.listIMSRegistrationSetsStmt, imsRegistrationSetRow{Imsi: imsi}).GetAll(&sets); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	sets, err := queryAll(ctx, q, listIMSRegistrationSetsStmt, scanIMSRegistrationSetRow, imsi)
+	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -419,4 +408,24 @@ func startIMSRegistrationsSpan(ctx context.Context, operation string) (context.C
 			semconv.DBCollectionName(IMSRegistrationsTableName),
 		),
 	)
+}
+
+func scanIMSRegistrationRow(row scanner) (imsRegistrationRow, error) {
+	var v imsRegistrationRow
+
+	if err := row.Scan(&v.Imsi, &v.ServerName, &v.OriginHost, &v.OriginRealm, &v.PrivateIdentity); err != nil {
+		return imsRegistrationRow{}, err
+	}
+
+	return v, nil
+}
+
+func scanIMSRegistrationSetRow(row scanner) (imsRegistrationSetRow, error) {
+	var v imsRegistrationSetRow
+
+	if err := row.Scan(&v.Imsi, &v.RegistrationSet, &v.State, &v.AuthPending, &v.DefaultIdentity, &v.ProfileDigest, &v.Emergency); err != nil {
+		return imsRegistrationSetRow{}, err
+	}
+
+	return v, nil
 }

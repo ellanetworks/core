@@ -8,10 +8,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -21,15 +17,11 @@ const (
 const FlowAccountingSettingsTableName = "flow_accounting_settings"
 
 const upsertFlowAccountingSettingsStmt = `
-INSERT INTO %s (singleton, enabled) VALUES (TRUE, $FlowAccountingSettings.enabled)
-ON CONFLICT(singleton) DO UPDATE SET enabled=$FlowAccountingSettings.enabled;
+INSERT INTO ` + FlowAccountingSettingsTableName + ` (singleton, enabled) VALUES (TRUE, ?)
+ON CONFLICT(singleton) DO UPDATE SET enabled=excluded.enabled;
 `
 
-const getFlowAccountingSettingsStmt = `SELECT &FlowAccountingSettings.* FROM %s WHERE singleton=TRUE;`
-
-type FlowAccountingSettings struct {
-	Enabled bool `db:"enabled"`
-}
+const getFlowAccountingSettingsStmt = `SELECT enabled FROM ` + FlowAccountingSettingsTableName + ` WHERE singleton=TRUE;`
 
 // InitializeFlowAccountingSettings inserts the default flow accounting
 // settings row if the singleton row does not yet exist. Idempotent.
@@ -47,58 +39,26 @@ func (db *Database) InitializeFlowAccountingSettings(ctx context.Context) error 
 }
 
 func (db *Database) IsFlowAccountingEnabled(ctx context.Context) (bool, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", FlowAccountingSettingsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(FlowAccountingSettingsTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, FlowAccountingSettingsTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(FlowAccountingSettingsTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(FlowAccountingSettingsTableName, "select").Inc()
+	var enabled bool
 
-	var flowAccountingSettings FlowAccountingSettings
-
-	err := db.conn().Query(ctx, db.getFlowAccountingSettingsStmt).Get(&flowAccountingSettings)
+	err := db.reader().QueryRowContext(ctx, getFlowAccountingSettingsStmt).Scan(&enabled)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return false, fmt.Errorf("query failed: %w", err)
 	}
 
-	return flowAccountingSettings.Enabled, nil
+	return enabled, nil
 }
 
 func (db *Database) UpdateFlowAccountingSettings(ctx context.Context, enabled bool) error {
-	querySummary := fmt.Sprintf("%s %s", "UPSERT", FlowAccountingSettingsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPSERT"),
-			semconv.DBCollectionName(FlowAccountingSettingsTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, FlowAccountingSettingsTableName, "UPSERT", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(FlowAccountingSettingsTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(FlowAccountingSettingsTableName, "update").Inc()
 
 	_, err := db.applyUpdateFlowAccountingSettings(ctx, &boolPayload{Value: enabled})
 	if err != nil {

@@ -11,79 +11,61 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/dbwriter"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const RadioEventsTableName = "network_logs"
 
 const (
-	insertRadioEventStmt     = "INSERT INTO %s (timestamp, protocol, message_type, direction, local_address, remote_address, radio_name, raw, details) VALUES ($RadioEvent.timestamp, $RadioEvent.protocol, $RadioEvent.message_type, $RadioEvent.direction, $RadioEvent.local_address, $RadioEvent.remote_address, $RadioEvent.radio_name, $RadioEvent.raw, $RadioEvent.details)"
-	getRadioEventByIDStmt    = "SELECT &RadioEvent.* FROM %s WHERE id = $RadioEvent.id"
-	deleteOldRadioEventsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
-	deleteAllRadioEventsStmt = "DELETE FROM %s"
+	insertRadioEventStmt     = "INSERT INTO " + RadioEventsTableName + " (timestamp, protocol, message_type, direction, local_address, remote_address, radio_name, raw, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	getRadioEventByIDStmt    = "SELECT id, timestamp, protocol, message_type, direction, local_address, remote_address, radio_name, raw, details FROM " + RadioEventsTableName + " WHERE id = ?"
+	deleteOldRadioEventsStmt = "DELETE FROM " + RadioEventsTableName + " WHERE timestamp < ?"
+	deleteAllRadioEventsStmt = "DELETE FROM " + RadioEventsTableName
 )
 
 const listRadioEventsPagedFilteredStmt = `
-  SELECT &RadioEvent.*, COUNT(*) OVER() AS &NumItems.count
-  FROM %s
+  SELECT id, timestamp, protocol, message_type, direction, local_address, remote_address, radio_name, raw, details, COUNT(*) OVER()
+  FROM ` + RadioEventsTableName + `
   WHERE
-    ($RadioEventFilters.protocol      IS NULL OR protocol      = $RadioEventFilters.protocol)
-    AND ($RadioEventFilters.direction IS NULL OR direction = $RadioEventFilters.direction)
-    AND ($RadioEventFilters.radio_name IS NULL OR radio_name = $RadioEventFilters.radio_name)
-    AND ($RadioEventFilters.message_type IS NULL OR message_type     = $RadioEventFilters.message_type)
-    AND ($RadioEventFilters.timestamp_from  IS NULL OR timestamp >= $RadioEventFilters.timestamp_from)
-    AND ($RadioEventFilters.timestamp_to    IS NULL OR timestamp <  $RadioEventFilters.timestamp_to)
+    (?1      IS NULL OR protocol      = ?1)
+    AND (?2 IS NULL OR direction = ?2)
+    AND (?3 IS NULL OR radio_name = ?3)
+    AND (?4 IS NULL OR message_type     = ?4)
+    AND (?5  IS NULL OR timestamp >= ?5)
+    AND (?6    IS NULL OR timestamp <  ?6)
   ORDER BY id DESC
-  LIMIT $ListArgs.limit
-  OFFSET $ListArgs.offset
+  LIMIT ?7
+  OFFSET ?8
 `
 
 const countRadioEventsFilteredStmt = `
-  SELECT COUNT(*) AS &NumItems.count
-  FROM %s
+  SELECT COUNT(*)
+  FROM ` + RadioEventsTableName + `
   WHERE
-    ($RadioEventFilters.protocol      IS NULL OR protocol      = $RadioEventFilters.protocol)
-    AND ($RadioEventFilters.direction IS NULL OR direction = $RadioEventFilters.direction)
-    AND ($RadioEventFilters.radio_name IS NULL OR radio_name = $RadioEventFilters.radio_name)
-    AND ($RadioEventFilters.message_type IS NULL OR message_type     = $RadioEventFilters.message_type)
-    AND ($RadioEventFilters.timestamp_from  IS NULL OR timestamp >= $RadioEventFilters.timestamp_from)
-    AND ($RadioEventFilters.timestamp_to    IS NULL OR timestamp <  $RadioEventFilters.timestamp_to)
+    (?1      IS NULL OR protocol      = ?1)
+    AND (?2 IS NULL OR direction = ?2)
+    AND (?3 IS NULL OR radio_name = ?3)
+    AND (?4 IS NULL OR message_type     = ?4)
+    AND (?5  IS NULL OR timestamp >= ?5)
+    AND (?6    IS NULL OR timestamp <  ?6)
 `
 
 type RadioEventFilters struct {
-	Protocol      *string `db:"protocol"`       // exact match
-	Direction     *string `db:"direction"`      // "inbound" | "outbound"
-	RadioName     *string `db:"radio_name"`     // exact match
-	MessageType   *string `db:"message_type"`   // exact match
-	TimestampFrom *int64  `db:"timestamp_from"` // epoch milliseconds, inclusive lower bound
-	TimestampTo   *int64  `db:"timestamp_to"`   // epoch milliseconds, exclusive upper bound
+	Protocol      *string // exact match
+	Direction     *string // "inbound" | "outbound"
+	RadioName     *string // exact match
+	MessageType   *string // exact match
+	TimestampFrom *int64  // epoch milliseconds, inclusive lower bound
+	TimestampTo   *int64  // epoch milliseconds, exclusive upper bound
 }
 
 func (db *Database) InsertRadioEvent(ctx context.Context, radioEvent *dbwriter.RadioEvent) error {
-	querySummary := fmt.Sprintf("%s %s", "INSERT", RadioEventsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			semconv.DBCollectionName(RadioEventsTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, RadioEventsTableName, "INSERT", "insert")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RadioEventsTableName, "insert"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(RadioEventsTableName, "insert").Inc()
-
-	err := db.conn().Query(ctx, db.insertRadioEventStmt, radioEvent).Run()
+	_, err := db.writer().ExecContext(ctx, insertRadioEventStmt, radioEvent.Timestamp, radioEvent.Protocol, radioEvent.MessageType, radioEvent.Direction, radioEvent.LocalAddress, radioEvent.RemoteAddress, radioEvent.RadioName, radioEvent.Raw, radioEvent.Details)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -101,28 +83,11 @@ func (db *Database) InsertRadioEvents(ctx context.Context, radioEvents []*dbwrit
 		return db.InsertRadioEvent(ctx, radioEvents[0])
 	}
 
-	querySummary := fmt.Sprintf("%s %s", "BATCH INSERT", RadioEventsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("BATCH INSERT"),
-			semconv.DBCollectionName(RadioEventsTableName),
-			semconv.DBOperationBatchSize(len(radioEvents)),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, RadioEventsTableName, "BATCH INSERT", "batch_insert", semconv.DBOperationBatchSize(len(radioEvents)))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RadioEventsTableName, "batch_insert"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(RadioEventsTableName, "batch_insert").Inc()
-
-	tx, err := db.conn().Begin(ctx, nil)
+	tx, err := db.writer().BeginTx(ctx, nil)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -130,7 +95,7 @@ func (db *Database) InsertRadioEvents(ctx context.Context, radioEvents []*dbwrit
 	}
 
 	for _, radioEvent := range radioEvents {
-		if err := tx.Query(ctx, db.insertRadioEventStmt, radioEvent).Run(); err != nil {
+		if _, err := tx.ExecContext(ctx, insertRadioEventStmt, radioEvent.Timestamp, radioEvent.Protocol, radioEvent.MessageType, radioEvent.Direction, radioEvent.LocalAddress, radioEvent.RemoteAddress, radioEvent.RadioName, radioEvent.Raw, radioEvent.Details); err != nil {
 			_ = tx.Rollback()
 
 			recordSpanError(span, err)
@@ -149,62 +114,28 @@ func (db *Database) InsertRadioEvents(ctx context.Context, radioEvents []*dbwrit
 }
 
 func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, filters *RadioEventFilters) ([]dbwriter.RadioEvent, int, error) {
-	querySummary := fmt.Sprintf("%s %s (paged+filtered)", "SELECT", RadioEventsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(RadioEventsTableName),
-			attribute.Int("ella.db.page", page),
-			attribute.Int("ella.db.page_size", perPage),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+RadioEventsTableName+" (paged+filtered)", RadioEventsTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RadioEventsTableName, "select"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(RadioEventsTableName, "select").Inc()
 
 	if filters == nil {
 		filters = &RadioEventFilters{}
 	}
 
-	args := ListArgs{
-		Limit:  perPage,
-		Offset: (page - 1) * perPage,
-	}
-
-	var logs []dbwriter.RadioEvent
-
-	var counts []NumItems
-
-	err := db.conn().Query(ctx, db.listRadioEventsStmt, args, filters).GetAll(&logs, &counts)
+	logs, count, err := queryPage(ctx, db.reader(), listRadioEventsPagedFilteredStmt, scanRadioEvent, filters.Protocol, filters.Direction, filters.RadioName, filters.MessageType, filters.TimestampFrom, filters.TimestampTo, perPage, (page-1)*perPage)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			var fallbackCount NumItems
-
-			countErr := db.conn().Query(ctx, db.countRadioEventsStmt, filters).Get(&fallbackCount)
-			if countErr != nil {
-				return nil, 0, nil
-			}
-
-			return nil, fallbackCount.Count, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	count := 0
-	if len(counts) > 0 {
-		count = counts[0].Count
+	if len(logs) == 0 {
+		fallbackCount, countErr := queryCount(ctx, db.reader(), countRadioEventsFilteredStmt, filters.Protocol, filters.Direction, filters.RadioName, filters.MessageType, filters.TimestampFrom, filters.TimestampTo)
+		if countErr != nil {
+			return nil, 0, nil
+		}
+
+		return nil, fallbackCount, nil
 	}
 
 	return logs, count, nil
@@ -212,32 +143,13 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 
 // DeleteOldRadioEvents removes logs older than the specified retention period in days.
 func (db *Database) DeleteOldRadioEvents(ctx context.Context, days int) error {
-	querySummary := fmt.Sprintf("%s %s (retention)", "DELETE", RadioEventsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(RadioEventsTableName),
-			attribute.Int("retention.days", days),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "DELETE "+RadioEventsTableName+" (retention)", RadioEventsTableName, "DELETE", "delete", attribute.Int("retention.days", days))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RadioEventsTableName, "delete"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(RadioEventsTableName, "delete").Inc()
 
 	cutoff := dbwriter.EpochMillis(time.Now().UTC().AddDate(0, 0, -days))
 
-	args := cutoffArgs{Cutoff: cutoff}
-
-	err := db.conn().Query(ctx, db.deleteOldRadioEventsStmt, args).Run()
+	_, err := db.writer().ExecContext(ctx, deleteOldRadioEventsStmt, cutoff)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -248,27 +160,11 @@ func (db *Database) DeleteOldRadioEvents(ctx context.Context, days int) error {
 }
 
 func (db *Database) ClearRadioEvents(ctx context.Context) error {
-	querySummary := fmt.Sprintf("%s %s (all)", "DELETE", RadioEventsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(RadioEventsTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "DELETE "+RadioEventsTableName+" (all)", RadioEventsTableName, "DELETE", "delete")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RadioEventsTableName, "delete"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(RadioEventsTableName, "delete").Inc()
-
-	err := db.conn().Query(ctx, db.deleteAllRadioEventsStmt).Run()
+	_, err := db.writer().ExecContext(ctx, deleteAllRadioEventsStmt)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -279,30 +175,11 @@ func (db *Database) ClearRadioEvents(ctx context.Context) error {
 }
 
 func (db *Database) GetRadioEventByID(ctx context.Context, id int) (*dbwriter.RadioEvent, error) {
-	querySummary := fmt.Sprintf("%s %s (by ID)", "SELECT", RadioEventsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(RadioEventsTableName),
-			attribute.Int("radio_event.id", id),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+RadioEventsTableName+" (by ID)", RadioEventsTableName, "SELECT", "select", attribute.Int("radio_event.id", id))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RadioEventsTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(RadioEventsTableName, "select").Inc()
-
-	log := dbwriter.RadioEvent{ID: id}
-
-	err := db.conn().Query(ctx, db.getRadioEventByIDStmt, log).Get(&log)
+	log, err := scanRadioEvent(db.reader().QueryRowContext(ctx, getRadioEventByIDStmt, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -314,4 +191,14 @@ func (db *Database) GetRadioEventByID(ctx context.Context, id int) (*dbwriter.Ra
 	}
 
 	return &log, nil
+}
+
+func scanRadioEvent(row scanner) (dbwriter.RadioEvent, error) {
+	var v dbwriter.RadioEvent
+
+	if err := row.Scan(&v.ID, &v.Timestamp, &v.Protocol, &v.MessageType, &v.Direction, &v.LocalAddress, &v.RemoteAddress, &v.RadioName, &v.Raw, &v.Details); err != nil {
+		return dbwriter.RadioEvent{}, err
+	}
+
+	return v, nil
 }

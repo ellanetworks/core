@@ -14,12 +14,12 @@ import (
 )
 
 type PolicyRuleInput struct {
-	Description  string  `json:"description" db:"description"`
-	RemotePrefix *string `json:"remote_prefix" db:"remote_prefix"`
-	Protocol     int32   `json:"protocol" db:"protocol"`
-	PortLow      int32   `json:"port_low" db:"port_low"`
-	PortHigh     int32   `json:"port_high" db:"port_high"`
-	Action       string  `json:"action" db:"action"`
+	Description  string  `json:"description"`
+	RemotePrefix *string `json:"remote_prefix"`
+	Protocol     int32   `json:"protocol"`
+	PortLow      int32   `json:"port_low"`
+	PortHigh     int32   `json:"port_high"`
+	Action       string  `json:"action"`
 }
 
 type PolicyRulesInput struct {
@@ -106,12 +106,14 @@ func (db *Database) applyCreatePolicyWithRules(ctx context.Context, payload *pol
 		policy.ID = id.String()
 	}
 
-	stmt, err := db.policyWriteStmt(ctx, &policy, db.createPolicyStmt, db.createPolicyPreV25Stmt)
+	current, err := db.policySchemaCurrent(ctx, &policy)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := db.runner(ctx).Query(ctx, stmt, &policy).Run(); err != nil {
+	query, args := createPolicyQuery(&policy, current)
+
+	if _, err := db.runner(ctx).ExecContext(ctx, query, args...); err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
 		}
@@ -139,7 +141,7 @@ func (db *Database) applyUpdatePolicyWithRules(ctx context.Context, payload *pol
 }
 
 func (db *Database) applyPolicyRulesPayload(ctx context.Context, policyID string, rules *PolicyRulesInput) error {
-	if err := db.runner(ctx).Query(ctx, db.deleteNetworkRulesByPolicyStmt, NetworkRule{PolicyID: policyID}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteNetworkRulesByPolicyStmt, policyID); err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
 
@@ -184,7 +186,7 @@ func (db *Database) insertPolicyRules(ctx context.Context, policyID, direction s
 			nr.ID = id.String()
 		}
 
-		if err := db.runner(ctx).Query(ctx, db.createNetworkRuleStmt, nr).Run(); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, createNetworkRuleStmt, nr.ID, nr.PolicyID, nr.Description, nr.Direction, nr.RemotePrefix, nr.Protocol, nr.PortLow, nr.PortHigh, nr.Action, nr.Precedence, nr.CreatedAt, nr.UpdatedAt); err != nil {
 			if isUniqueNameError(err) {
 				return ErrAlreadyExists
 			}

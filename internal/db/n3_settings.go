@@ -21,14 +21,14 @@ const (
 const N3SettingsTableName = "n3_settings"
 
 const upsertN3SettingsStmt = `
-INSERT INTO %s (singleton, external_address) VALUES (TRUE, $N3Settings.external_address)
-ON CONFLICT(singleton) DO UPDATE SET external_address=$N3Settings.external_address;
+INSERT INTO ` + N3SettingsTableName + ` (singleton, external_address) VALUES (TRUE, ?)
+ON CONFLICT(singleton) DO UPDATE SET external_address=excluded.external_address;
 `
 
-const getN3SettingsStmt = `SELECT &N3Settings.* FROM %s WHERE singleton=TRUE;`
+const getN3SettingsStmt = `SELECT external_address FROM ` + N3SettingsTableName + ` WHERE singleton=TRUE;`
 
 type N3Settings struct {
-	ExternalAddress string `db:"external_address"`
+	ExternalAddress string
 }
 
 // InitializeN3Settings inserts the default N3 settings row if the
@@ -47,25 +47,9 @@ func (db *Database) InitializeN3Settings(ctx context.Context) error {
 }
 
 func (db *Database) UpdateN3Settings(ctx context.Context, externalAddress string) error {
-	querySummary := fmt.Sprintf("%s %s", "UPSERT", N3SettingsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPSERT"),
-			semconv.DBCollectionName(N3SettingsTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, N3SettingsTableName, "UPSERT", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(N3SettingsTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(N3SettingsTableName, "update").Inc()
 
 	_, err := db.applyUpdateN3Settings(ctx, &stringPayload{Value: externalAddress})
 	if err != nil {
@@ -100,7 +84,7 @@ func (db *Database) GetN3Settings(ctx context.Context) (*N3Settings, error) {
 
 	var n3Settings N3Settings
 
-	if err := db.conn().Query(ctx, db.getN3SettingsStmt).Get(&n3Settings); err != nil {
+	if err := db.reader().QueryRowContext(ctx, getN3SettingsStmt).Scan(&n3Settings.ExternalAddress); err != nil {
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)

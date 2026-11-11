@@ -17,8 +17,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/canonical/sqlair"
-	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/osutil"
 	"github.com/ellanetworks/core/internal/pki"
@@ -60,482 +58,11 @@ type Database struct {
 	// next leadership change.
 	migrationCheckCh chan struct{}
 
-	// Subscriber statements. The PreV18 variants omit the description
-	// column for nodes whose schema has not reached v18 yet.
-	listSubscribersStmt                *sqlair.Statement
-	listSubscribersPreV18Stmt          *sqlair.Statement
-	countSubscribersStmt               *sqlair.Statement
-	countSubscribersFilteredStmt       *sqlair.Statement
-	countSubscribersFilteredPreV18Stmt *sqlair.Statement
-	getSubscriberStmt                  *sqlair.Statement
-	getSubscriberPreV18Stmt            *sqlair.Statement
-	listSubscribersPreV22Stmt          *sqlair.Statement
-	countSubscribersFilteredPreV22Stmt *sqlair.Statement
-	getSubscriberPreV22Stmt            *sqlair.Statement
-	getSubscriberByMSISDNStmt          *sqlair.Statement
-	listIMSIsWithMSISDNStmt            *sqlair.Statement
-	listSubscriberMSISDNsStmt          *sqlair.Statement
-	createSubscriberStmt               *sqlair.Statement
-	updateSubscriberProfileStmt        *sqlair.Statement
-	updateSubscriberSqnNumStmt         *sqlair.Statement
-	casSubscriberSqnNumStmt            *sqlair.Statement
-	deleteSubscriberStmt               *sqlair.Statement
-
-	countSubscribersAndVisitorsStmt *sqlair.Statement
-	getVisitorStmt                  *sqlair.Statement
-	listVisitorsPageStmt            *sqlair.Statement
-	countVisitorsPageStmt           *sqlair.Statement
-	insertVisitorStmt               *sqlair.Statement
-	updateVisitorMSISDNStmt         *sqlair.Statement
-	deleteVisitorIfUnregisteredStmt *sqlair.Statement
-	listUnregisteredVisitorsStmt    *sqlair.Statement
-	deleteUERegistrationsOfIMSIStmt *sqlair.Statement
-	deleteLeasesOfIMSIStmt          *sqlair.Statement
-	insertFlowReportOfKnownIMSIStmt *sqlair.Statement
-
-	listRoamingPartnersStmt  *sqlair.Statement
-	getRoamingPartnerStmt    *sqlair.Statement
-	insertRoamingPartnerStmt *sqlair.Statement
-	updateRoamingPartnerStmt *sqlair.Statement
-	deleteRoamingPartnerStmt *sqlair.Statement
-
-	listRoamingPartnerPLMNsStmt    *sqlair.Statement
-	listPLMNsOfRoamingPartnerStmt  *sqlair.Statement
-	insertRoamingPartnerPLMNStmt   *sqlair.Statement
-	updateRoamingPartnerPLMNStmt   *sqlair.Statement
-	deleteRoamingPartnerPLMNStmt   *sqlair.Statement
-	countVisitorsOfPartnerStmt     *sqlair.Statement
-	countAttachedVisitorsOfRATStmt *sqlair.Statement
-	countRoamingPartnersStmt       *sqlair.Statement
-
-	setRoamingPartnerWithdrawingStmt   *sqlair.Statement
-	setVisitorDeregisteringStmt        *sqlair.Statement
-	listVisitorRegistrationsOfNodeStmt *sqlair.Statement
-
-	listDiameterPeersStmt         *sqlair.Statement
-	getDiameterPeerStmt           *sqlair.Statement
-	insertRoamingDiameterPeerStmt *sqlair.Statement
-	updateRoamingDiameterPeerStmt *sqlair.Statement
-	deleteRoamingDiameterPeerStmt *sqlair.Statement
-
-	getSEPPCAStmt                 *sqlair.Statement
-	insertSEPPCAIfAbsentStmt      *sqlair.Statement
-	upsertSEPPCAStmt              *sqlair.Statement
-	deleteSEPPCAStmt              *sqlair.Statement
-	getSEPPIdentityStmt           *sqlair.Statement
-	getSEPPIdentityByFQDNStmt     *sqlair.Statement
-	listSEPPIdentitiesStmt        *sqlair.Statement
-	upsertSEPPIdentityStmt        *sqlair.Statement
-	deleteSEPPIdentitiesStmt      *sqlair.Statement
-	deleteGeneratedSEPPIdentsStmt *sqlair.Statement
-	deleteGeneratedSEPPIdentStmt  *sqlair.Statement
-	upsertGeneratedSEPPIdentStmt  *sqlair.Statement
-	deleteSEPPIdentityStmt        *sqlair.Statement
-
-	// IP Lease statements
-	createLeaseStmt              *sqlair.Statement
-	getDynamicLeaseBySessionStmt *sqlair.Statement
-	getLeaseBySessionStmt        *sqlair.Statement
-	getActiveLeaseByAddressStmt  *sqlair.Statement
-	updateLeaseSessionStmt       *sqlair.Statement
-	updateLeaseNodeStmt          *sqlair.Statement
-	deleteLeaseStmt              *sqlair.Statement
-	deleteAllDynamicLeasesStmt   *sqlair.Statement
-	deleteDynLeasesByNodeStmt    *sqlair.Statement
-	listActiveLeasesStmt         *sqlair.Statement
-	listActiveLeasesByNodeStmt   *sqlair.Statement
-	listLeasesByPoolStmt         *sqlair.Statement
-	listLeaseAddressRangeStmt    *sqlair.Statement
-	getNewestLeaseInPoolStmt     *sqlair.Statement
-	countLeasesByPoolStmt        *sqlair.Statement
-	countIPv4LeasesByPoolStmt    *sqlair.Statement
-	countIPv6LeasesByPoolStmt    *sqlair.Statement
-	countActiveLeasesStmt        *sqlair.Statement
-	countLeasesByIMSIStmt        *sqlair.Statement
-	listLeasesByPoolPageStmt     *sqlair.Statement
-	listAllLeasesStmt            *sqlair.Statement
-	getStaticLeaseStmt           *sqlair.Statement
-	listStaticLeasesByIMSIStmt   *sqlair.Statement
-	listStaticLeasesByDNStmt     *sqlair.Statement
-	updateStaticLeaseAddressStmt *sqlair.Statement
-	deleteStaticLeaseStmt        *sqlair.Statement
-
-	// API Token statements
-	listAPITokensStmt   *sqlair.Statement
-	countAPITokensStmt  *sqlair.Statement
-	createAPITokenStmt  *sqlair.Statement
-	getAPITokenByIDStmt *sqlair.Statement
-	deleteAPITokenStmt  *sqlair.Statement
-
-	// Radio Event statements
-	insertRadioEventStmt     *sqlair.Statement
-	listRadioEventsStmt      *sqlair.Statement
-	countRadioEventsStmt     *sqlair.Statement
-	deleteOldRadioEventsStmt *sqlair.Statement
-	deleteAllRadioEventsStmt *sqlair.Statement
-	getRadioEventByIDStmt    *sqlair.Statement
-
-	// Daily Usage statements
-	incrementDailyUsageStmt               *sqlair.Statement
-	incrementDailyUsagePreV27Stmt         *sqlair.Statement
-	getUsagePerDayStmt                    *sqlair.Statement
-	getUsagePerDayPreV27Stmt              *sqlair.Statement
-	getUsagePerDayByIMSIStmt              *sqlair.Statement
-	getUsagePerDayByIMSIPreV27Stmt        *sqlair.Statement
-	getUsagePerSubscriberStmt             *sqlair.Statement
-	getUsagePerSubscriberPreV27Stmt       *sqlair.Statement
-	getUsagePerSubscriberByIMSIStmt       *sqlair.Statement
-	getUsagePerSubscriberByIMSIPreV27Stmt *sqlair.Statement
-	deleteAllDailyUsageStmt               *sqlair.Statement
-	deleteOldDailyUsageStmt               *sqlair.Statement
-	deleteOldDailyUsagePreV27Stmt         *sqlair.Statement
-
-	// Data Network statements
-	listDataNetworksStmt    *sqlair.Statement
-	listAllDataNetworksStmt *sqlair.Statement
-	getDataNetworkStmt      *sqlair.Statement
-	getDataNetworkByIDStmt  *sqlair.Statement
-
-	listDataNetworksPreV25Stmt    *sqlair.Statement
-	listAllDataNetworksPreV25Stmt *sqlair.Statement
-	getDataNetworkPreV25Stmt      *sqlair.Statement
-	getDataNetworkByIDPreV25Stmt  *sqlair.Statement
-	createDataNetworkPreV25Stmt   *sqlair.Statement
-	editDataNetworkPreV25Stmt     *sqlair.Statement
-	createDataNetworkStmt         *sqlair.Statement
-	editDataNetworkStmt           *sqlair.Statement
-	deleteDataNetworkStmt         *sqlair.Statement
-	countDataNetworksStmt         *sqlair.Statement
-
-	// N3 Settings statements
-	updateN3SettingsStmt *sqlair.Statement
-	getN3SettingsStmt    *sqlair.Statement
-
-	// NAT Settings statements
-	getNATSettingsStmt                 *sqlair.Statement
-	listSliceDataNetworksStmt          *sqlair.Statement
-	getSliceDataNetworkStmt            *sqlair.Statement
-	createSliceDataNetworkStmt         *sqlair.Statement
-	updateSliceDataNetworkStmt         *sqlair.Statement
-	deleteSliceDataNetworkStmt         *sqlair.Statement
-	deleteSliceDataNetworksOfSliceStmt *sqlair.Statement
-	deleteSliceDataNetworksOfDNStmt    *sqlair.Statement
-	countSliceDataNetworkPoliciesStmt  *sqlair.Statement
-
-	// BGP Settings statements
-	getBGPSettingsStmt    *sqlair.Statement
-	upsertBGPSettingsStmt *sqlair.Statement
-
-	insertDeferredLocationRequestStmt *sqlair.Statement
-	getDeferredLocationRequestStmt    *sqlair.Statement
-	listDeferredLocationRequestsStmt  *sqlair.Statement
-	countDeferredLocationRequestsStmt *sqlair.Statement
-	terminateDeferredLocationStmt     *sqlair.Statement
-	terminateAllDeferredLocationStmt  *sqlair.Statement
-	deleteDeferredLocationRequestStmt *sqlair.Statement
-	deleteEndedDeferredLocationStmt   *sqlair.Statement
-	deleteOrphanLocationReportsStmt   *sqlair.Statement
-	insertLocationReportStmt          *sqlair.Statement
-	pruneLocationReportsStmt          *sqlair.Statement
-	listLocationReportsStmt           *sqlair.Statement
-
-	// Cell Positions statements
-	putCellPositionStmt          *sqlair.Statement
-	getCellPositionStmt          *sqlair.Statement
-	getCellPositionByCellStmt    *sqlair.Statement
-	listCellPositionsStmt        *sqlair.Statement
-	deleteCellPositionByCellStmt *sqlair.Statement
-	deleteCellPositionStmt       *sqlair.Statement
-
-	// BGP Peers statements
-	listBGPPeersStmt    *sqlair.Statement
-	listAllBGPPeersStmt *sqlair.Statement
-	getBGPPeerStmt      *sqlair.Statement
-	createBGPPeerStmt   *sqlair.Statement
-	updateBGPPeerStmt   *sqlair.Statement
-	deleteBGPPeerStmt   *sqlair.Statement
-	countBGPPeersStmt   *sqlair.Statement
-
-	// BGP Import Prefixes statements
-	listImportPrefixesByPeerStmt   *sqlair.Statement
-	createImportPrefixStmt         *sqlair.Statement
-	deleteImportPrefixesByPeerStmt *sqlair.Statement
-
-	// Flow Accounting Settings statements
-	getFlowAccountingSettingsStmt    *sqlair.Statement
-	upsertFlowAccountingSettingsStmt *sqlair.Statement
-
-	// Local Switch Settings statements
-
-	// Operator statements
-	getOperatorStmt                      *sqlair.Statement
-	initializeOperatorStmt               *sqlair.Statement
-	updateOperatorTrackingStmt           *sqlair.Statement
-	updateOperatorIDStmt                 *sqlair.Statement
-	updateOperatorCodeStmt               *sqlair.Statement
-	updateOperatorSecurityAlgorithmsStmt *sqlair.Statement
-	updateOperatorSPNStmt                *sqlair.Statement
-	updateOperatorAMFIdentityStmt        *sqlair.Statement
-	updateOperatorClusterIDStmt          *sqlair.Statement
-
-	// Home Network Key statements
-	listHomeNetworkKeysStmt                    *sqlair.Statement
-	getHomeNetworkKeyStmt                      *sqlair.Statement
-	getHomeNetworkKeyBySchemeAndIdentifierStmt *sqlair.Statement
-	createHomeNetworkKeyStmt                   *sqlair.Statement
-	deleteHomeNetworkKeyStmt                   *sqlair.Statement
-	countHomeNetworkKeysStmt                   *sqlair.Statement
-
-	// Policies statements
-	listPoliciesStmt      *sqlair.Statement
-	getPolicyStmt         *sqlair.Statement
-	getPolicyByLookupStmt *sqlair.Statement
-
-	getPolicyByProfileAndSliceStmt  *sqlair.Statement
-	getDefaultPolicyByProfileStmt   *sqlair.Statement
-	clearDefaultPoliciesStmt        *sqlair.Statement
-	setDefaultPolicyStmt            *sqlair.Statement
-	listPoliciesByProfileStmt       *sqlair.Statement
-	listPoliciesByProfileAllStmt    *sqlair.Statement
-	listPolicy5QIsInDataNetworkStmt *sqlair.Statement
-
-	listPoliciesPreV25Stmt               *sqlair.Statement
-	getPolicyPreV25Stmt                  *sqlair.Statement
-	getPolicyByLookupPreV25Stmt          *sqlair.Statement
-	getPolicyByProfileAndSlicePreV25Stmt *sqlair.Statement
-	getDefaultPolicyByProfilePreV25Stmt  *sqlair.Statement
-	listPoliciesByProfilePreV25Stmt      *sqlair.Statement
-	listPoliciesByProfileAllPreV25Stmt   *sqlair.Statement
-	createPolicyPreV25Stmt               *sqlair.Statement
-	editPolicyPreV25Stmt                 *sqlair.Statement
-	createPolicyStmt                     *sqlair.Statement
-	editPolicyStmt                       *sqlair.Statement
-	deletePolicyStmt                     *sqlair.Statement
-	countPoliciesStmt                    *sqlair.Statement
-	countPoliciesInProfileStmt           *sqlair.Statement
-	countPoliciesInSliceStmt             *sqlair.Statement
-	countPoliciesInDataNetworkStmt       *sqlair.Statement
-
-	// Network Slices statements
-	listNetworkSlicesStmt      *sqlair.Statement
-	listAllNetworkSlicesStmt   *sqlair.Statement
-	getNetworkSliceStmt        *sqlair.Statement
-	getNetworkSliceByIDStmt    *sqlair.Statement
-	listNetworkSlicesByIDsStmt *sqlair.Statement
-	createNetworkSliceStmt     *sqlair.Statement
-	editNetworkSliceStmt       *sqlair.Statement
-	deleteNetworkSliceStmt     *sqlair.Statement
-	countNetworkSlicesStmt     *sqlair.Statement
-
-	// Profiles statements
-	listProfilesStmt              *sqlair.Statement
-	getProfileStmt                *sqlair.Statement
-	getProfileByIDStmt            *sqlair.Statement
-	createProfileStmt             *sqlair.Statement
-	editProfileStmt               *sqlair.Statement
-	deleteProfileStmt             *sqlair.Statement
-	countProfilesStmt             *sqlair.Statement
-	countSubscribersByProfileStmt *sqlair.Statement
-
-	// Network Rules statements
-	getNetworkRuleStmt             *sqlair.Statement
-	createNetworkRuleStmt          *sqlair.Statement
-	updateNetworkRuleStmt          *sqlair.Statement
-	deleteNetworkRuleStmt          *sqlair.Statement
-	deleteNetworkRulesByPolicyStmt *sqlair.Statement
-	listRulesForPolicyStmt         *sqlair.Statement
-
-	// Framed Routes statements
-	createFramedRouteStmt        *sqlair.Statement
-	deleteFramedRoutesByPairStmt *sqlair.Statement
-	listFramedRoutesByPairStmt   *sqlair.Statement
-	listFramedRoutesByDNStmt     *sqlair.Statement
-	listAllFramedRoutesStmt      *sqlair.Statement
-
-	upsertUERegistrationStmt       *sqlair.Statement
-	purgeUERegistrationStmt        *sqlair.Statement
-	cancelUERegistrationStmt       *sqlair.Statement
-	purgeUERegistrationsByNodeStmt *sqlair.Statement
-	getUERegistrationStmt          *sqlair.Statement
-	listAllUERegistrationsStmt     *sqlair.Statement
-	maxUERegistrationVersionStmt   *sqlair.Statement
-
-	getSMSSettingsStmt    *sqlair.Statement
-	upsertSMSSettingsStmt *sqlair.Statement
-
-	getIMSSettingsStmt    *sqlair.Statement
-	upsertIMSSettingsStmt *sqlair.Statement
-	listIMSPeersStmt      *sqlair.Statement
-	insertIMSPeerStmt     *sqlair.Statement
-	updateIMSPeerStmt     *sqlair.Statement
-	deleteIMSPeerStmt     *sqlair.Statement
-
-	listLegacySMSCPeersStmt            *sqlair.Statement
-	listLegacySMSCServiceCentresStmt   *sqlair.Statement
-	insertLegacySMSCPeerStmt           *sqlair.Statement
-	updateLegacySMSCPeerStmt           *sqlair.Statement
-	deleteLegacySMSCPeerStmt           *sqlair.Statement
-	insertLegacySMSCServiceCentreStmt  *sqlair.Statement
-	deleteLegacySMSCServiceCentresStmt *sqlair.Statement
-
-	listSMSCsStmt                *sqlair.Statement
-	listSMSCNodesStmt            *sqlair.Statement
-	listSMSCServiceCentresStmt   *sqlair.Statement
-	insertSMSCStmt               *sqlair.Statement
-	deleteSMSCStmt               *sqlair.Statement
-	insertSMSCNodeStmt           *sqlair.Statement
-	deleteSMSCNodesStmt          *sqlair.Statement
-	insertSMSCServiceCentreStmt  *sqlair.Statement
-	deleteSMSCServiceCentresStmt *sqlair.Statement
-
-	listPCSCFAddressesStmt   *sqlair.Statement
-	insertPCSCFAddressStmt   *sqlair.Statement
-	deletePCSCFAddressesStmt *sqlair.Statement
-
-	listIMSApplicationServersStmt   *sqlair.Statement
-	getIMSApplicationServerStmt     *sqlair.Statement
-	insertIMSApplicationServerStmt  *sqlair.Statement
-	updateIMSApplicationServerStmt  *sqlair.Statement
-	deleteIMSApplicationServerStmt  *sqlair.Statement
-	listIMSPSIsStmt                 *sqlair.Statement
-	listIMSPSIsByASStmt             *sqlair.Statement
-	getIMSPSIStmt                   *sqlair.Statement
-	insertIMSPSIStmt                *sqlair.Statement
-	deleteIMSPSIsByASStmt           *sqlair.Statement
-	insertIMSIFCStmt                *sqlair.Statement
-	listServiceProfileIMSIFCsStmt   *sqlair.Statement
-	listAllIMSIFCsStmt              *sqlair.Statement
-	deleteServiceProfileIMSIFCsStmt *sqlair.Statement
-	listProfilesOfIMSASStmt         *sqlair.Statement
-	listIMSRegisteredOfProfilesStmt *sqlair.Statement
-	listSubscriberIMSIFCsStmt       *sqlair.Statement
-
-	listIMSServiceProfilesStmt            *sqlair.Statement
-	getIMSServiceProfileStmt              *sqlair.Statement
-	insertIMSServiceProfileStmt           *sqlair.Statement
-	deleteIMSServiceProfileStmt           *sqlair.Statement
-	listProfileIMSServiceProfilesStmt     *sqlair.Statement
-	listAllIMSServiceProfileAssignsStmt   *sqlair.Statement
-	insertIMSServiceProfileAssignStmt     *sqlair.Statement
-	deleteProfileIMSServiceProfilesStmt   *sqlair.Statement
-	listProfilesOfIMSServiceProfileStmt   *sqlair.Statement
-	countIMSServiceProfileAssignmentsStmt *sqlair.Statement
-
-	getIMSRegistrationStmt         *sqlair.Statement
-	listAllIMSRegistrationsStmt    *sqlair.Statement
-	countIMSRegistrationsStmt      *sqlair.Statement
-	upsertIMSRegistrationStmt      *sqlair.Statement
-	deleteIMSRegistrationStmt      *sqlair.Statement
-	listIMSRegistrationSetsStmt    *sqlair.Statement
-	listAllIMSRegistrationSetsStmt *sqlair.Statement
-	insertIMSRegistrationSetStmt   *sqlair.Statement
-	deleteIMSRegistrationSetsStmt  *sqlair.Statement
-
-	getIPSMGWRegistrationStmt      *sqlair.Statement
-	listAllIPSMGWRegistrationsStmt *sqlair.Statement
-	upsertIPSMGWRegistrationStmt   *sqlair.Statement
-	deleteIPSMGWRegistrationStmt   *sqlair.Statement
-
-	getSMSWaitingStmt             *sqlair.Statement
-	listAllSMSWaitingStmt         *sqlair.Statement
-	listAllSMSWaitingCentresStmt  *sqlair.Statement
-	listSMSWaitingCentresStmt     *sqlair.Statement
-	upsertSMSWaitingStmt          *sqlair.Statement
-	insertSMSWaitingCentreStmt    *sqlair.Statement
-	clearSMSMemoryFullStmt        *sqlair.Statement
-	deleteSMSWaitingCentreStmt    *sqlair.Statement
-	deleteSMSWaitingCentresStmt   *sqlair.Statement
-	deleteSMSWaitingStmt          *sqlair.Statement
-	deleteSMSWaitingIfEmptyStmt   *sqlair.Statement
-	deleteStaleSMSWaitingCentStmt *sqlair.Statement
-	deleteStaleSMSWaitingStmt     *sqlair.Statement
-
-	// Retention Policy statements
-	selectRetentionPolicyStmt *sqlair.Statement
-	upsertRetentionPolicyStmt *sqlair.Statement
-
-	// Routes statements
-	listRoutesStmt    *sqlair.Statement
-	listAllRoutesStmt *sqlair.Statement
-	getRouteStmt      *sqlair.Statement
-	createRouteStmt   *sqlair.Statement
-	deleteRouteStmt   *sqlair.Statement
-	countRoutesStmt   *sqlair.Statement
-
-	// Audit Log statements
-	insertAuditLogStmt        *sqlair.Statement
-	listAuditLogsFilteredStmt *sqlair.Statement
-	deleteOldAuditLogsStmt    *sqlair.Statement
-
-	// Flow Report statements
-	insertFlowReportStmt                *sqlair.Statement
-	listFlowReportsStmt                 *sqlair.Statement
-	countFlowReportsStmt                *sqlair.Statement
-	deleteOldFlowReportsStmt            *sqlair.Statement
-	deleteAllFlowReportsStmt            *sqlair.Statement
-	listFlowReportsByDayStmt            *sqlair.Statement
-	listFlowReportsBySubscriberStmt     *sqlair.Statement
-	flowReportProtocolCountsStmt        *sqlair.Statement
-	flowReportTopDestinationsUplinkStmt *sqlair.Statement
-
-	// Session statements
-	createSessionStmt            *sqlair.Statement
-	getSessionByTokenHashStmt    *sqlair.Statement
-	deleteSessionByTokenHashStmt *sqlair.Statement
-	deleteExpiredSessionsStmt    *sqlair.Statement
-	countSessionsByUserStmt      *sqlair.Statement
-	countExpiredSessionsStmt     *sqlair.Statement
-	deleteOldestSessionsStmt     *sqlair.Statement
-	deleteAllSessionsForUserStmt *sqlair.Statement
-	deleteAllSessionsStmt        *sqlair.Statement
-
-	// JWT Secret statements
-	getJWTSecretStmt    *sqlair.Statement
-	upsertJWTSecretStmt *sqlair.Statement
-
-	// User statements
-	listUsersStmt        *sqlair.Statement
-	getUserStmt          *sqlair.Statement
-	getUserByIDStmt      *sqlair.Statement
-	createUserStmt       *sqlair.Statement
-	editUserStmt         *sqlair.Statement
-	editUserPasswordStmt *sqlair.Statement
-	deleteUserStmt       *sqlair.Statement
-	countUsersStmt       *sqlair.Statement
-
-	// Cluster Members statements
-	listClusterMembersStmt  *sqlair.Statement
-	getClusterMemberStmt    *sqlair.Statement
-	upsertClusterMemberStmt *sqlair.Statement
-
-	listClusterMembersPreV20Stmt  *sqlair.Statement
-	getClusterMemberPreV20Stmt    *sqlair.Statement
-	upsertClusterMemberPreV20Stmt *sqlair.Statement
-	insertJoinTokenPreV20Stmt     *sqlair.Statement
-	deleteClusterMemberStmt       *sqlair.Statement
-	countClusterMembersStmt       *sqlair.Statement
-	getDrainStateStmt             *sqlair.Statement
-	setDrainStateStmt             *sqlair.Statement
-	setDisplayNameStmt            *sqlair.Statement
-
-	// Cluster PKI statements
-	listNodeCertsStmt         *sqlair.Statement
-	getNodeCertByFPStmt       *sqlair.Statement
-	getNodeCertByNodeStmt     *sqlair.Statement
-	upsertNodeCertStmt        *sqlair.Statement
-	deleteNodeCertByNodeStmt  *sqlair.Statement
-	insertJoinTokenStmt       *sqlair.Statement
-	getJoinTokenStmt          *sqlair.Statement
-	consumeJoinTokenStmt      *sqlair.Statement
-	deleteJoinTokensStaleStmt *sqlair.Statement
-	getJoinHMACStmt           *sqlair.Statement
-	initJoinHMACStmt          *sqlair.Statement
-
 	// connection holds the SQLite handle for the application database.
 	// Reopen retires its connections through connector instead of
 	// replacing it, so concurrent readers (API handlers, FSM apply
 	// goroutines) never use a closed handle. Readers use conn() to load it.
-	connection *sqlair.DB
+	connection *sql.DB
 	connector  *sqliteConnector
 
 	// appliedSchemaCache mirrors schema_version.version for the
@@ -550,8 +77,8 @@ type Database struct {
 	raftServers       func() []ellaraft.Server
 }
 
-// conn returns the current *sqlair.DB handle.
-func (db *Database) conn() *sqlair.DB {
+// conn returns the current *sql.DB handle.
+func (db *Database) conn() *sql.DB {
 	return db.connection
 }
 
@@ -634,7 +161,8 @@ func openSQLitePool(ctx context.Context, databasePath string) (*sql.DB, *sqliteC
 		"&_busy_timeout=5000" +
 		"&_journal_mode=WAL" +
 		"&_synchronous=NORMAL" +
-		"&_foreign_keys=on"
+		"&_foreign_keys=on" +
+		"&_stmt_cache_size=256"
 
 	warnIfWorldReadable(databasePath)
 
@@ -673,7 +201,7 @@ func (db *Database) Close() error {
 	}
 
 	if c := db.conn(); c != nil {
-		connErr = c.PlainDB().Close()
+		connErr = c.Close()
 	}
 
 	return errors.Join(raftErr, connErr)
@@ -1015,7 +543,7 @@ func (db *Database) ForceSnapshot() error {
 func (db *Database) CurrentSchemaVersion(ctx context.Context) (int, error) {
 	var v int
 
-	if err := db.conn().PlainDB().QueryRowContext(ctx,
+	if err := db.conn().QueryRowContext(ctx,
 		"SELECT version FROM schema_version WHERE id = 1").Scan(&v); err != nil {
 		return 0, fmt.Errorf("read schema_version: %w", err)
 	}
@@ -1209,14 +737,14 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 		payload := migrateSharedPayload{TargetVersion: v}
 
 		if v == sliceDataNetworkSchema {
-			localSwitch, err := readLegacyToggle(ctx, db.conn().PlainDB(), LocalSwitchSettingsTableName, false)
+			localSwitch, err := readLegacyToggle(ctx, db.conn(), LocalSwitchSettingsTableName, false)
 			if err != nil {
 				return fmt.Errorf("read the local switching setting to carry into migration %d: %w", v, err)
 			}
 
 			payload.LocalSwitch = &localSwitch
 
-			nat, err := readLegacyToggle(ctx, db.conn().PlainDB(), NATSettingsTableName, NATDefaultEnabled)
+			nat, err := readLegacyToggle(ctx, db.conn(), NATSettingsTableName, NATDefaultEnabled)
 			if err != nil {
 				return fmt.Errorf("read the NAT setting to carry into migration %d: %w", v, err)
 			}
@@ -1703,12 +1231,9 @@ func (db *Database) selfUpsertClusterMember(ctx context.Context, binaryVersion s
 // connection the capture already holds, and deadlock until the propose
 // timeout fires.
 func (db *Database) resolveAMFPointer(ctx context.Context, nodeID string) (int, error) {
-	var members []ClusterMember
-
-	if err := db.runner(ctx).Query(ctx, db.listClusterMembersStmt).GetAll(&members); err != nil {
-		if !errors.Is(err, sqlair.ErrNoRows) {
-			return 0, fmt.Errorf("list cluster members: %w", err)
-		}
+	members, err := queryAll(ctx, db.runner(ctx), listClusterMembersStmt, scanClusterMember)
+	if err != nil {
+		return 0, fmt.Errorf("list cluster members: %w", err)
 	}
 
 	taken := make(map[int]struct{}, len(members))
@@ -1760,7 +1285,7 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	}
 
 	db := new(Database)
-	db.connection = sqlair.NewDB(sqlConn)
+	db.connection = sqlConn
 	db.connector = connector
 	db.dbPath = dbPath
 	db.dataDir = dataDir
@@ -1776,11 +1301,6 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	if err := db.refreshAppliedSchema(ctx); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("seed applied-schema cache: %w", err)
-	}
-
-	if err := db.PrepareStatements(); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("failed to prepare statements: %w", err)
 	}
 
 	raftMgr, err := ellaraft.NewManager(ctx, raftCfg, db, dataDir, raftOpts...)
@@ -1840,7 +1360,7 @@ func NewDatabaseWithoutRaft(ctx context.Context, dbPath string) (*Database, erro
 	}
 
 	db := new(Database)
-	db.connection = sqlair.NewDB(sqlConn)
+	db.connection = sqlConn
 	db.connector = connector
 	db.dbPath = dbPath
 	db.dataDir = dataDir
@@ -1857,11 +1377,6 @@ func NewDatabaseWithoutRaft(ctx context.Context, dbPath string) (*Database, erro
 		return nil, fmt.Errorf("seed applied-schema cache: %w", err)
 	}
 
-	if err := db.PrepareStatements(); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("failed to prepare statements: %w", err)
-	}
-
 	RegisterMetrics(db)
 
 	if err := db.InitializeLocalSettings(ctx); err != nil {
@@ -1875,488 +1390,6 @@ func NewDatabaseWithoutRaft(ctx context.Context, dbPath string) (*Database, erro
 	}
 
 	return db, nil
-}
-
-// PrepareStatements compiles every registered sqlair.Statement.
-//
-// Forward-compat: when a post-baseline migration (v11+) adds a column
-// referenced by a new statement, gate that statement on
-// db.cachedAppliedSchema() — the matching op's RequireSchema prevents
-// callers from reaching the unprepared pointer. See
-// spec_rolling_upgrade.md §3.2 for the re-prep follow-up.
-func (db *Database) PrepareStatements() error {
-	type stmtDef struct {
-		dest  **sqlair.Statement
-		query string
-		types []any
-	}
-
-	stmts := []stmtDef{
-		// Subscribers
-		{&db.listSubscribersStmt, fmt.Sprintf(listSubscribersFilteredStmt, SubscribersTableName, PoliciesTableName), []any{ListArgs{}, Subscriber{}, subscriberFilterArgs{}}},
-		{&db.listSubscribersPreV18Stmt, fmt.Sprintf(listSubscribersFilteredPreV18Stmt, SubscribersTableName, PoliciesTableName), []any{ListArgs{}, Subscriber{}, subscriberFilterArgs{}}},
-		{&db.countSubscribersStmt, fmt.Sprintf(countSubscribersStmt, SubscribersTableName), []any{NumItems{}}},
-		{&db.countSubscribersFilteredStmt, fmt.Sprintf(countSubscribersFilteredStmt, SubscribersTableName, PoliciesTableName), []any{NumItems{}, subscriberFilterArgs{}}},
-		{&db.countSubscribersFilteredPreV18Stmt, fmt.Sprintf(countSubscribersFilteredPreV18Stmt, SubscribersTableName, PoliciesTableName), []any{NumItems{}, subscriberFilterArgs{}}},
-		{&db.getSubscriberStmt, fmt.Sprintf(getSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
-		{&db.getSubscriberPreV18Stmt, fmt.Sprintf(getSubscriberPreV18Stmt, SubscribersTableName), []any{Subscriber{}}},
-		{&db.listSubscribersPreV22Stmt, fmt.Sprintf(listSubscribersFilteredPreV22Stmt, SubscribersTableName, PoliciesTableName), []any{ListArgs{}, Subscriber{}, subscriberFilterArgs{}}},
-		{&db.countSubscribersFilteredPreV22Stmt, fmt.Sprintf(countSubscribersFilteredPreV22Stmt, SubscribersTableName, PoliciesTableName), []any{NumItems{}, subscriberFilterArgs{}}},
-		{&db.getSubscriberPreV22Stmt, fmt.Sprintf(getSubscriberPreV22Stmt, SubscribersTableName), []any{Subscriber{}}},
-		{&db.getSubscriberByMSISDNStmt, fmt.Sprintf(getSubscriberByMSISDNStmt, SubscribersTableName), []any{Subscriber{}}},
-		{&db.listIMSIsWithMSISDNStmt, fmt.Sprintf(listIMSIsWithMSISDNStmt, SubscribersTableName), []any{subscriberIMSI{}, SliceIDs{}}},
-		{&db.listSubscriberMSISDNsStmt, fmt.Sprintf(listSubscriberMSISDNsStmt, SubscribersTableName), []any{Subscriber{}}},
-		{&db.createSubscriberStmt, fmt.Sprintf(createSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
-		{&db.updateSubscriberProfileStmt, fmt.Sprintf(editSubscriberProfileStmt, SubscribersTableName), []any{Subscriber{}}},
-		{&db.updateSubscriberSqnNumStmt, fmt.Sprintf(editSubscriberSeqNumStmt, SubscribersTableName), []any{Subscriber{}}},
-		{&db.casSubscriberSqnNumStmt, fmt.Sprintf(casSubscriberSeqNumStmt, SubscribersTableName), []any{sqnCAS{}}},
-		{&db.deleteSubscriberStmt, fmt.Sprintf(deleteSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
-		{&db.countSubscribersAndVisitorsStmt, fmt.Sprintf(countSubscribersAndVisitorsStmt, SubscribersTableName, VisitorsTableName), []any{NumItems{}}},
-		{&db.getVisitorStmt, fmt.Sprintf(getVisitorStmt, VisitorsTableName, RoamingPartnersTableName), []any{Visitor{}}},
-		{&db.listVisitorsPageStmt, fmt.Sprintf(listVisitorsPageStmt, VisitorsTableName, RoamingPartnersTableName, RoamingPartnersTableName, PoliciesTableName), []any{ListArgs{}, Visitor{}, NumItems{}, visitorPageFilterArgs{}}},
-		{&db.countVisitorsPageStmt, fmt.Sprintf(countVisitorsPageStmt, VisitorsTableName, RoamingPartnersTableName, PoliciesTableName), []any{NumItems{}, visitorPageFilterArgs{}}},
-		{&db.insertVisitorStmt, fmt.Sprintf(insertVisitorStmt, VisitorsTableName), []any{Visitor{}}},
-		{&db.updateVisitorMSISDNStmt, fmt.Sprintf(updateVisitorMSISDNStmt, VisitorsTableName), []any{Visitor{}}},
-		{&db.deleteVisitorIfUnregisteredStmt, fmt.Sprintf(deleteVisitorIfUnregisteredStmt, VisitorsTableName, UERegistrationsTableName, VisitorsTableName), []any{Visitor{}}},
-		{&db.listUnregisteredVisitorsStmt, fmt.Sprintf(listUnregisteredVisitorsStmt, VisitorsTableName, UERegistrationsTableName), []any{Visitor{}}},
-		{&db.deleteUERegistrationsOfIMSIStmt, fmt.Sprintf(deleteUERegistrationsOfIMSIStmt, UERegistrationsTableName), []any{subscriberIMSI{}}},
-		{&db.deleteLeasesOfIMSIStmt, fmt.Sprintf(deleteLeasesOfIMSIStmt, IPLeasesTableName), []any{subscriberIMSI{}}},
-		{&db.insertFlowReportOfKnownIMSIStmt, fmt.Sprintf(insertFlowReportOfKnownIMSIStmt, FlowReportsTableName, SubscribersTableName, VisitorsTableName), []any{dbwriter.FlowReport{}}},
-
-		{&db.listRoamingPartnersStmt, fmt.Sprintf(listRoamingPartnersStmt, RoamingPartnersTableName), []any{RoamingPartner{}}},
-		{&db.getRoamingPartnerStmt, fmt.Sprintf(getRoamingPartnerStmt, RoamingPartnersTableName), []any{RoamingPartner{}}},
-		{&db.insertRoamingPartnerStmt, fmt.Sprintf(insertRoamingPartnerStmt, RoamingPartnersTableName), []any{RoamingPartner{}}},
-		{&db.updateRoamingPartnerStmt, fmt.Sprintf(updateRoamingPartnerStmt, RoamingPartnersTableName), []any{RoamingPartner{}}},
-		{&db.deleteRoamingPartnerStmt, fmt.Sprintf(deleteRoamingPartnerStmt, RoamingPartnersTableName), []any{RoamingPartner{}}},
-		{&db.listRoamingPartnerPLMNsStmt, fmt.Sprintf(listRoamingPartnerPLMNsStmt, RoamingPartnerPLMNsTableName), []any{roamingPartnerPLMNRow{}}},
-		{&db.listPLMNsOfRoamingPartnerStmt, fmt.Sprintf(listPLMNsOfRoamingPartnerStmt, RoamingPartnerPLMNsTableName), []any{roamingPartnerPLMNRow{}}},
-		{&db.insertRoamingPartnerPLMNStmt, fmt.Sprintf(insertRoamingPartnerPLMNStmt, RoamingPartnerPLMNsTableName), []any{roamingPartnerPLMNRow{}}},
-		{&db.updateRoamingPartnerPLMNStmt, fmt.Sprintf(updateRoamingPartnerPLMNStmt, RoamingPartnerPLMNsTableName), []any{roamingPartnerPLMNRow{}}},
-		{&db.deleteRoamingPartnerPLMNStmt, fmt.Sprintf(deleteRoamingPartnerPLMNStmt, RoamingPartnerPLMNsTableName), []any{roamingPartnerPLMNRow{}}},
-		{&db.countVisitorsOfPartnerStmt, fmt.Sprintf(countVisitorsOfPartnerStmt, VisitorsTableName), []any{NumItems{}, visitorFilter{}}},
-		{&db.countAttachedVisitorsOfRATStmt, fmt.Sprintf(countAttachedVisitorsOfRATStmt, VisitorsTableName, UERegistrationsTableName), []any{NumItems{}, visitorFilter{}}},
-		{&db.countRoamingPartnersStmt, fmt.Sprintf(countRoamingPartnersStmt, RoamingPartnersTableName), []any{NumItems{}}},
-		{&db.setRoamingPartnerWithdrawingStmt, fmt.Sprintf(setRoamingPartnerWithdrawingStmt, RoamingPartnersTableName), []any{RoamingPartner{}}},
-		{&db.setVisitorDeregisteringStmt, fmt.Sprintf(setVisitorDeregisteringStmt, VisitorsTableName), []any{Visitor{}}},
-		{&db.listVisitorRegistrationsOfNodeStmt, fmt.Sprintf(listVisitorRegistrationsOfNodeStmt, UERegistrationsTableName, VisitorsTableName), []any{UERegistration{}}},
-
-		{&db.listDiameterPeersStmt, fmt.Sprintf(listDiameterPeersStmt, DiameterPeersTableName), []any{diameterPeerRow{}}},
-		{&db.getDiameterPeerStmt, fmt.Sprintf(getDiameterPeerStmt, DiameterPeersTableName), []any{diameterPeerRow{}}},
-		{&db.insertRoamingDiameterPeerStmt, fmt.Sprintf(insertRoamingDiameterPeerStmt, DiameterPeersTableName), []any{diameterPeerRow{}}},
-		{&db.updateRoamingDiameterPeerStmt, fmt.Sprintf(updateRoamingDiameterPeerStmt, DiameterPeersTableName), []any{diameterPeerRow{}}},
-		{&db.deleteRoamingDiameterPeerStmt, fmt.Sprintf(deleteRoamingDiameterPeerStmt, DiameterPeersTableName), []any{diameterPeerRow{}}},
-
-		{&db.getSEPPCAStmt, fmt.Sprintf(getSEPPCAStmt, SEPPCATableName), []any{SEPPCA{}}},
-		{&db.insertSEPPCAIfAbsentStmt, fmt.Sprintf(insertSEPPCAIfAbsentStmt, SEPPCATableName), []any{SEPPCA{}}},
-		{&db.upsertSEPPCAStmt, fmt.Sprintf(upsertSEPPCAStmt, SEPPCATableName), []any{SEPPCA{}}},
-		{&db.deleteSEPPCAStmt, fmt.Sprintf(deleteSEPPCAStmt, SEPPCATableName), nil},
-		{&db.getSEPPIdentityStmt, fmt.Sprintf(getSEPPIdentityStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
-		{&db.getSEPPIdentityByFQDNStmt, fmt.Sprintf(getSEPPIdentityByFQDNStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
-		{&db.listSEPPIdentitiesStmt, fmt.Sprintf(listSEPPIdentitiesStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
-		{&db.upsertSEPPIdentityStmt, fmt.Sprintf(upsertSEPPIdentityStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
-		{&db.deleteSEPPIdentitiesStmt, fmt.Sprintf(deleteSEPPIdentitiesStmt, SEPPIdentitiesTableName), nil},
-		{&db.deleteGeneratedSEPPIdentsStmt, fmt.Sprintf(deleteGeneratedSEPPIdentsStmt, SEPPIdentitiesTableName), nil},
-		{&db.deleteGeneratedSEPPIdentStmt, fmt.Sprintf(deleteGeneratedSEPPIdentStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
-		{&db.upsertGeneratedSEPPIdentStmt, fmt.Sprintf(upsertGeneratedSEPPIdentStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
-		{&db.deleteSEPPIdentityStmt, fmt.Sprintf(deleteSEPPIdentityStmt, SEPPIdentitiesTableName), []any{SEPPIdentity{}}},
-
-		// IP Leases
-		{&db.createLeaseStmt, fmt.Sprintf(createLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
-		{&db.getDynamicLeaseBySessionStmt, fmt.Sprintf(getDynamicLeaseBySessionStmt, IPLeasesTableName), []any{IPLease{}}},
-		{&db.getLeaseBySessionStmt, fmt.Sprintf(getLeaseBySessionStmt, IPLeasesTableName), []any{IPLease{}}},
-		{&db.getActiveLeaseByAddressStmt, fmt.Sprintf(getActiveLeaseByAddressStmt, IPLeasesTableName), []any{IPLease{}}},
-		{&db.updateLeaseSessionStmt, fmt.Sprintf(updateLeaseSessionStmt, IPLeasesTableName), []any{IPLease{}}},
-		{&db.updateLeaseNodeStmt, fmt.Sprintf(updateLeaseNodeStmt, IPLeasesTableName), []any{IPLease{}}},
-		{&db.deleteLeaseStmt, fmt.Sprintf(deleteLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
-		{&db.deleteAllDynamicLeasesStmt, fmt.Sprintf(deleteAllDynamicLeasesStmt, IPLeasesTableName), nil},
-		{&db.deleteDynLeasesByNodeStmt, fmt.Sprintf(deleteDynLeasesByNodeStmt, IPLeasesTableName), []any{IPLease{}}},
-		{&db.listActiveLeasesStmt, fmt.Sprintf(listActiveLeasesStmt, IPLeasesTableName), []any{IPLease{}}},
-		{&db.listActiveLeasesByNodeStmt, fmt.Sprintf(listActiveLeasesByNodeStmt, IPLeasesTableName), []any{IPLease{}}},
-		{&db.listLeasesByPoolStmt, fmt.Sprintf(listLeasesByPoolStmt, IPLeasesTableName), []any{IPLease{}}},
-		{&db.listLeaseAddressRangeStmt, fmt.Sprintf(listLeaseAddressRangeStmt, IPLeasesTableName), []any{IPLease{}, leaseAddressRange{}}},
-		{&db.getNewestLeaseInPoolStmt, fmt.Sprintf(getNewestLeaseInPoolStmt, IPLeasesTableName), []any{IPLease{}}},
-		{&db.countLeasesByPoolStmt, fmt.Sprintf(countLeasesByPoolStmt, IPLeasesTableName), []any{NumItems{}, IPLease{}}},
-		{&db.countIPv4LeasesByPoolStmt, fmt.Sprintf(countIPv4LeasesByPoolStmt, IPLeasesTableName), []any{NumItems{}, IPLease{}}},
-		{&db.countIPv6LeasesByPoolStmt, fmt.Sprintf(countIPv6LeasesByPoolStmt, IPLeasesTableName), []any{NumItems{}, IPLease{}}},
-		{&db.countActiveLeasesStmt, fmt.Sprintf(countActiveLeasesStmt, IPLeasesTableName), []any{NumItems{}}},
-		{&db.countLeasesByIMSIStmt, fmt.Sprintf(countLeasesByIMSIStmt, IPLeasesTableName), []any{NumItems{}, IPLease{}}},
-		{&db.listLeasesByPoolPageStmt, fmt.Sprintf(listLeasesByPoolPageStmt, IPLeasesTableName), []any{ListArgs{}, IPLease{}}},
-		{&db.listAllLeasesStmt, fmt.Sprintf(listAllLeasesStmt, IPLeasesTableName), []any{IPLease{}}},
-		{&db.getStaticLeaseStmt, fmt.Sprintf(getStaticLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
-		{&db.listStaticLeasesByIMSIStmt, fmt.Sprintf(listStaticLeasesByIMSIStmt, IPLeasesTableName), []any{IPLease{}}},
-		{&db.listStaticLeasesByDNStmt, fmt.Sprintf(listStaticLeasesByDNStmt, IPLeasesTableName), []any{IPLease{}}},
-		{&db.updateStaticLeaseAddressStmt, fmt.Sprintf(updateStaticLeaseAddressStmt, IPLeasesTableName), []any{IPLease{}}},
-		{&db.deleteStaticLeaseStmt, fmt.Sprintf(deleteStaticLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
-
-		// API Tokens
-		{&db.listAPITokensStmt, fmt.Sprintf(listAPITokensPagedStmt, APITokensTableName), []any{ListArgs{}, APIToken{}, NumItems{}}},
-		{&db.countAPITokensStmt, fmt.Sprintf(countAPITokensStmt, APITokensTableName), []any{APIToken{}, NumItems{}}},
-		{&db.createAPITokenStmt, fmt.Sprintf(createAPITokenStmt, APITokensTableName), []any{APIToken{}}},
-		{&db.deleteAPITokenStmt, fmt.Sprintf(deleteAPITokenStmt, APITokensTableName), []any{APIToken{}}},
-		{&db.getAPITokenByIDStmt, fmt.Sprintf(getByTokenIDStmt, APITokensTableName), []any{APIToken{}}},
-
-		// Radio Events
-		{&db.insertRadioEventStmt, fmt.Sprintf(insertRadioEventStmt, RadioEventsTableName), []any{dbwriter.RadioEvent{}}},
-		{&db.listRadioEventsStmt, fmt.Sprintf(listRadioEventsPagedFilteredStmt, RadioEventsTableName), []any{ListArgs{}, RadioEventFilters{}, dbwriter.RadioEvent{}, NumItems{}}},
-		{&db.countRadioEventsStmt, fmt.Sprintf(countRadioEventsFilteredStmt, RadioEventsTableName), []any{RadioEventFilters{}, NumItems{}}},
-		{&db.deleteOldRadioEventsStmt, fmt.Sprintf(deleteOldRadioEventsStmt, RadioEventsTableName), []any{cutoffArgs{}}},
-		{&db.deleteAllRadioEventsStmt, fmt.Sprintf(deleteAllRadioEventsStmt, RadioEventsTableName), nil},
-		{&db.getRadioEventByIDStmt, fmt.Sprintf(getRadioEventByIDStmt, RadioEventsTableName), []any{dbwriter.RadioEvent{}}},
-
-		// Daily Usage
-		{&db.incrementDailyUsageStmt, fmt.Sprintf(incrementDailyUsageStmt, DailyUsageTableName), []any{DailyUsage{}}},
-		{&db.incrementDailyUsagePreV27Stmt, fmt.Sprintf(incrementDailyUsagePreV27Stmt, DailyUsageTableName), []any{DailyUsage{}}},
-		{&db.getUsagePerDayStmt, fmt.Sprintf(getUsagePerDayStmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerDay{}}},
-		{&db.getUsagePerDayPreV27Stmt, fmt.Sprintf(getUsagePerDayPreV27Stmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerDay{}}},
-		{&db.getUsagePerDayByIMSIStmt, fmt.Sprintf(getUsagePerDayByIMSIStmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerDay{}}},
-		{&db.getUsagePerDayByIMSIPreV27Stmt, fmt.Sprintf(getUsagePerDayByIMSIPreV27Stmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerDay{}}},
-		{&db.getUsagePerSubscriberStmt, fmt.Sprintf(getUsagePerSubscriberStmt, DailyUsageTableName, SubscribersTableName), []any{UsageFilters{}, UsagePerSub{}}},
-		{&db.getUsagePerSubscriberPreV27Stmt, fmt.Sprintf(getUsagePerSubscriberPreV27Stmt, SubscribersTableName, DailyUsageTableName), []any{UsageFilters{}, UsagePerSub{}}},
-		{&db.getUsagePerSubscriberByIMSIStmt, fmt.Sprintf(getUsagePerSubscriberByIMSIStmt, DailyUsageTableName, SubscribersTableName), []any{UsageFilters{}, UsagePerSub{}}},
-		{&db.getUsagePerSubscriberByIMSIPreV27Stmt, fmt.Sprintf(getUsagePerSubscriberByIMSIPreV27Stmt, SubscribersTableName, DailyUsageTableName), []any{UsageFilters{}, UsagePerSub{}}},
-		{&db.deleteAllDailyUsageStmt, fmt.Sprintf(deleteAllDailyUsageStmt, DailyUsageTableName), nil},
-		{&db.deleteOldDailyUsageStmt, fmt.Sprintf(deleteOldDailyUsageStmt, DailyUsageTableName), []any{cutoffDaysArgs{}}},
-		{&db.deleteOldDailyUsagePreV27Stmt, fmt.Sprintf(deleteOldDailyUsagePreV27Stmt, DailyUsageTableName), []any{cutoffDaysArgs{}}},
-
-		// Data Networks
-		{&db.listDataNetworksStmt, fmt.Sprintf(listDataNetworksPagedStmt, DataNetworksTableName), []any{ListArgs{}, DataNetwork{}, NumItems{}}},
-		{&db.listAllDataNetworksStmt, fmt.Sprintf(listAllDataNetworksStmt, DataNetworksTableName), []any{DataNetwork{}}},
-		{&db.getDataNetworkStmt, fmt.Sprintf(getDataNetworkStmt, DataNetworksTableName), []any{DataNetwork{}}},
-		{&db.getDataNetworkByIDStmt, fmt.Sprintf(getDataNetworkByIDStmt, DataNetworksTableName), []any{DataNetwork{}}},
-		{&db.listDataNetworksPreV25Stmt, fmt.Sprintf(listDataNetworksPagedPreV25Stmt, DataNetworksTableName), []any{ListArgs{}, DataNetwork{}, NumItems{}}},
-		{&db.listAllDataNetworksPreV25Stmt, fmt.Sprintf(listAllDataNetworksPreV25Stmt, DataNetworksTableName), []any{DataNetwork{}}},
-		{&db.getDataNetworkPreV25Stmt, fmt.Sprintf(getDataNetworkPreV25Stmt, DataNetworksTableName), []any{DataNetwork{}}},
-		{&db.getDataNetworkByIDPreV25Stmt, fmt.Sprintf(getDataNetworkByIDPreV25Stmt, DataNetworksTableName), []any{DataNetwork{}}},
-		{&db.createDataNetworkPreV25Stmt, fmt.Sprintf(createDataNetworkPreV25Stmt, DataNetworksTableName), []any{DataNetwork{}}},
-		{&db.editDataNetworkPreV25Stmt, fmt.Sprintf(editDataNetworkPreV25Stmt, DataNetworksTableName), []any{DataNetwork{}}},
-		{&db.createDataNetworkStmt, fmt.Sprintf(createDataNetworkStmt, DataNetworksTableName), []any{DataNetwork{}}},
-		{&db.editDataNetworkStmt, fmt.Sprintf(editDataNetworkStmt, DataNetworksTableName), []any{DataNetwork{}}},
-		{&db.deleteDataNetworkStmt, fmt.Sprintf(deleteDataNetworkStmt, DataNetworksTableName), []any{DataNetwork{}}},
-		{&db.countDataNetworksStmt, fmt.Sprintf(countDataNetworksStmt, DataNetworksTableName), []any{NumItems{}}},
-
-		// N3 Settings
-		{&db.updateN3SettingsStmt, fmt.Sprintf(upsertN3SettingsStmt, N3SettingsTableName), []any{N3Settings{}}},
-		{&db.getN3SettingsStmt, fmt.Sprintf(getN3SettingsStmt, N3SettingsTableName), []any{N3Settings{}}},
-
-		// NAT Settings
-		{&db.getNATSettingsStmt, fmt.Sprintf(getNATSettingsStmt, NATSettingsTableName), []any{NATSettings{}}},
-		{&db.listSliceDataNetworksStmt, fmt.Sprintf(listSliceDataNetworksStmt, SliceDataNetworksTableName), []any{SliceDataNetwork{}}},
-		{&db.getSliceDataNetworkStmt, fmt.Sprintf(getSliceDataNetworkStmt, SliceDataNetworksTableName), []any{SliceDataNetwork{}}},
-		{&db.createSliceDataNetworkStmt, fmt.Sprintf(createSliceDataNetworkStmt, SliceDataNetworksTableName), []any{SliceDataNetwork{}}},
-		{&db.updateSliceDataNetworkStmt, fmt.Sprintf(updateSliceDataNetworkStmt, SliceDataNetworksTableName), []any{SliceDataNetwork{}}},
-		{&db.deleteSliceDataNetworkStmt, fmt.Sprintf(deleteSliceDataNetworkStmt, SliceDataNetworksTableName), []any{SliceDataNetwork{}}},
-		{&db.deleteSliceDataNetworksOfSliceStmt, fmt.Sprintf(deleteSliceDataNetworksOfSliceStmt, SliceDataNetworksTableName, NetworkSlicesTableName), []any{NetworkSlice{}}},
-		{&db.deleteSliceDataNetworksOfDNStmt, fmt.Sprintf(deleteSliceDataNetworksOfDNStmt, SliceDataNetworksTableName, DataNetworksTableName), []any{DataNetwork{}}},
-		{&db.countSliceDataNetworkPoliciesStmt, fmt.Sprintf(countSliceDataNetworkPoliciesStmt, PoliciesTableName), []any{SliceDataNetwork{}, NumItems{}}},
-
-		// BGP Settings
-		{&db.getBGPSettingsStmt, fmt.Sprintf(getBGPSettingsStmt, BGPSettingsTableName), []any{BGPSettings{}}},
-		{&db.upsertBGPSettingsStmt, fmt.Sprintf(upsertBGPSettingsStmt, BGPSettingsTableName), []any{BGPSettings{}}},
-
-		{&db.insertDeferredLocationRequestStmt, fmt.Sprintf(insertDeferredLocationRequestStmt, DeferredLocationRequestsTableName), []any{DeferredLocationRequest{}}},
-		{&db.getDeferredLocationRequestStmt, fmt.Sprintf(getDeferredLocationRequestStmt, DeferredLocationRequestsTableName, LocationReportsTableName), []any{DeferredLocationRequest{}, deferredLocationProgress{}}},
-		{&db.listDeferredLocationRequestsStmt, fmt.Sprintf(listDeferredLocationRequestsStmt, DeferredLocationRequestsTableName, LocationReportsTableName), []any{DeferredLocationRequest{}, deferredLocationProgress{}, DeferredLocationRequestFilters{}, ListArgs{}, NumItems{}}},
-		{&db.countDeferredLocationRequestsStmt, fmt.Sprintf(countDeferredLocationRequestsStmt, DeferredLocationRequestsTableName), []any{DeferredLocationRequestFilters{}, NumItems{}}},
-		{&db.terminateDeferredLocationStmt, fmt.Sprintf(terminateDeferredLocationStmt, DeferredLocationRequestsTableName), []any{deferredLocationTermination{}}},
-		{&db.terminateAllDeferredLocationStmt, fmt.Sprintf(terminateAllDeferredLocationStmt, DeferredLocationRequestsTableName), []any{deferredLocationTermination{}}},
-		{&db.deleteDeferredLocationRequestStmt, fmt.Sprintf(deleteDeferredLocationRequestStmt, DeferredLocationRequestsTableName), []any{DeferredLocationRequest{}}},
-		{&db.deleteEndedDeferredLocationStmt, fmt.Sprintf(deleteEndedDeferredLocationStmt, DeferredLocationRequestsTableName), []any{cutoffArgs{}}},
-		{&db.deleteOrphanLocationReportsStmt, fmt.Sprintf(deleteOrphanLocationReportsStmt, DeferredLocationRequestsTableName, LocationReportsTableName), nil},
-		{&db.insertLocationReportStmt, fmt.Sprintf(insertLocationReportStmt, LocationReportsTableName), []any{LocationReport{}}},
-		{&db.pruneLocationReportsStmt, fmt.Sprintf(pruneLocationReportsStmt, LocationReportsTableName), []any{locationReportCursor{}}},
-		{&db.listLocationReportsStmt, fmt.Sprintf(listLocationReportsStmt, LocationReportsTableName), []any{LocationReport{}, locationReportCursor{}}},
-
-		// Cell Positions
-		{&db.putCellPositionStmt, fmt.Sprintf(putCellPositionStmt, CellPositionsTableName), []any{CellPosition{}}},
-		{&db.getCellPositionStmt, fmt.Sprintf(getCellPositionStmt, CellPositionsTableName), []any{CellPosition{}}},
-		{&db.getCellPositionByCellStmt, fmt.Sprintf(getCellPositionByCellStmt, CellPositionsTableName), []any{CellPosition{}}},
-		{&db.listCellPositionsStmt, fmt.Sprintf(listCellPositionsStmt, CellPositionsTableName), []any{CellPosition{}}},
-		{&db.deleteCellPositionByCellStmt, fmt.Sprintf(deleteCellPositionByCellStmt, CellPositionsTableName), []any{CellPosition{}}},
-		{&db.deleteCellPositionStmt, fmt.Sprintf(deleteCellPositionStmt, CellPositionsTableName), []any{CellPosition{}}},
-
-		// BGP Peers
-		{&db.listBGPPeersStmt, fmt.Sprintf(listBGPPeersPagedStmt, BGPPeersTableName), []any{ListArgs{}, BGPPeer{}, NumItems{}}},
-		{&db.listAllBGPPeersStmt, fmt.Sprintf(listAllBGPPeersStmt, BGPPeersTableName), []any{BGPPeer{}}},
-		{&db.getBGPPeerStmt, fmt.Sprintf(getBGPPeerStmt, BGPPeersTableName), []any{BGPPeer{}}},
-		{&db.createBGPPeerStmt, fmt.Sprintf(createBGPPeerStmt, BGPPeersTableName), []any{BGPPeer{}}},
-		{&db.updateBGPPeerStmt, fmt.Sprintf(updateBGPPeerStmt, BGPPeersTableName), []any{BGPPeer{}}},
-		{&db.deleteBGPPeerStmt, fmt.Sprintf(deleteBGPPeerStmt, BGPPeersTableName), []any{BGPPeer{}}},
-		{&db.countBGPPeersStmt, fmt.Sprintf(countBGPPeersStmt, BGPPeersTableName), []any{NumItems{}}},
-
-		// BGP Import Prefixes
-		{&db.listImportPrefixesByPeerStmt, fmt.Sprintf(listImportPrefixesByPeerStmt, BGPImportPrefixesTableName), []any{BGPImportPrefix{}}},
-		{&db.createImportPrefixStmt, fmt.Sprintf(createImportPrefixStmt, BGPImportPrefixesTableName), []any{BGPImportPrefix{}}},
-		{&db.deleteImportPrefixesByPeerStmt, fmt.Sprintf(deleteImportPrefixesByPeerStmt, BGPImportPrefixesTableName), []any{BGPImportPrefix{}}},
-
-		// Flow Accounting Settings
-		{&db.getFlowAccountingSettingsStmt, fmt.Sprintf(getFlowAccountingSettingsStmt, FlowAccountingSettingsTableName), []any{FlowAccountingSettings{}}},
-		{&db.upsertFlowAccountingSettingsStmt, fmt.Sprintf(upsertFlowAccountingSettingsStmt, FlowAccountingSettingsTableName), []any{FlowAccountingSettings{}}},
-
-		// Local Switch Settings
-
-		// Operator
-		{&db.getOperatorStmt, fmt.Sprintf(getOperatorStmt, OperatorTableName), []any{Operator{}}},
-		{&db.initializeOperatorStmt, fmt.Sprintf(initializeOperatorStmt, OperatorTableName), []any{Operator{}}},
-		{&db.updateOperatorTrackingStmt, fmt.Sprintf(updateOperatorTrackingStmt, OperatorTableName), []any{Operator{}}},
-		{&db.updateOperatorIDStmt, fmt.Sprintf(updateOperatorIDStmt, OperatorTableName), []any{Operator{}}},
-		{&db.updateOperatorCodeStmt, fmt.Sprintf(updateOperatorCodeStmt, OperatorTableName), []any{Operator{}}},
-		{&db.updateOperatorSecurityAlgorithmsStmt, fmt.Sprintf(updateOperatorSecurityAlgorithmsStmtConst, OperatorTableName), []any{Operator{}}},
-		{&db.updateOperatorSPNStmt, fmt.Sprintf(updateOperatorSPNStmtConst, OperatorTableName), []any{Operator{}}},
-		{&db.updateOperatorAMFIdentityStmt, fmt.Sprintf(updateOperatorAMFIdentityStmtConst, OperatorTableName), []any{Operator{}}},
-		{&db.updateOperatorClusterIDStmt, fmt.Sprintf(updateOperatorClusterIDStmtConst, OperatorTableName), []any{Operator{}}},
-
-		// Home Network Keys
-		{&db.listHomeNetworkKeysStmt, fmt.Sprintf(listHomeNetworkKeysStmtStr, HomeNetworkKeysTableName), []any{HomeNetworkKey{}}},
-		{&db.getHomeNetworkKeyStmt, fmt.Sprintf(getHomeNetworkKeyStmtStr, HomeNetworkKeysTableName), []any{HomeNetworkKey{}}},
-		{&db.getHomeNetworkKeyBySchemeAndIdentifierStmt, fmt.Sprintf(getHomeNetworkKeyBySchemeAndIdentifierStmtStr, HomeNetworkKeysTableName), []any{HomeNetworkKey{}}},
-		{&db.createHomeNetworkKeyStmt, fmt.Sprintf(createHomeNetworkKeyStmtStr, HomeNetworkKeysTableName), []any{HomeNetworkKey{}}},
-		{&db.deleteHomeNetworkKeyStmt, fmt.Sprintf(deleteHomeNetworkKeyStmtStr, HomeNetworkKeysTableName), []any{HomeNetworkKey{}}},
-		{&db.countHomeNetworkKeysStmt, fmt.Sprintf(countHomeNetworkKeysStmtStr, HomeNetworkKeysTableName), []any{NumItems{}}},
-
-		// Policies
-		{&db.listPoliciesStmt, fmt.Sprintf(listPoliciesPagedStmt, PoliciesTableName), []any{ListArgs{}, Policy{}, NumItems{}}},
-		{&db.getPolicyStmt, fmt.Sprintf(getPolicyStmt, PoliciesTableName), []any{Policy{}}},
-		{&db.getPolicyByLookupStmt, fmt.Sprintf(getPolicyByLookupStmt, PoliciesTableName), []any{Policy{}}},
-		{&db.getPolicyByProfileAndSliceStmt, fmt.Sprintf(getPolicyByProfileAndSliceStmt, PoliciesTableName), []any{Policy{}}},
-		{&db.getDefaultPolicyByProfileStmt, fmt.Sprintf(getDefaultPolicyByProfileStmt, PoliciesTableName), []any{Policy{}}},
-		{&db.clearDefaultPoliciesStmt, fmt.Sprintf(clearDefaultPoliciesStmt, PoliciesTableName), []any{Policy{}}},
-		{&db.setDefaultPolicyStmt, fmt.Sprintf(setDefaultPolicyStmt, PoliciesTableName), []any{Policy{}}},
-		{&db.listPoliciesByProfileStmt, fmt.Sprintf(listPoliciesByProfilePagedStmt, PoliciesTableName), []any{ListArgs{}, Policy{}, NumItems{}}},
-		{&db.listPoliciesByProfileAllStmt, fmt.Sprintf(listPoliciesByProfileAllStmt, PoliciesTableName), []any{Policy{}}},
-		{&db.listPoliciesPreV25Stmt, fmt.Sprintf(listPoliciesPagedPreV25Stmt, PoliciesTableName), []any{ListArgs{}, Policy{}, NumItems{}}},
-		{&db.getPolicyPreV25Stmt, fmt.Sprintf(getPolicyPreV25Stmt, PoliciesTableName), []any{Policy{}}},
-		{&db.getPolicyByLookupPreV25Stmt, fmt.Sprintf(getPolicyByLookupPreV25Stmt, PoliciesTableName), []any{Policy{}}},
-		{&db.getPolicyByProfileAndSlicePreV25Stmt, fmt.Sprintf(getPolicyByProfileAndSlicePreV25Stmt, PoliciesTableName), []any{Policy{}}},
-		{&db.getDefaultPolicyByProfilePreV25Stmt, fmt.Sprintf(getDefaultPolicyByProfilePreV25Stmt, PoliciesTableName), []any{Policy{}}},
-		{&db.listPoliciesByProfilePreV25Stmt, fmt.Sprintf(listPoliciesByProfilePagedPreV25Stmt, PoliciesTableName), []any{ListArgs{}, Policy{}, NumItems{}}},
-		{&db.listPoliciesByProfileAllPreV25Stmt, fmt.Sprintf(listPoliciesByProfileAllPreV25Stmt, PoliciesTableName), []any{Policy{}}},
-		{&db.createPolicyPreV25Stmt, fmt.Sprintf(createPolicyPreV25Stmt, PoliciesTableName), []any{Policy{}}},
-		{&db.editPolicyPreV25Stmt, fmt.Sprintf(editPolicyPreV25Stmt, PoliciesTableName), []any{Policy{}}},
-		{&db.createPolicyStmt, fmt.Sprintf(createPolicyStmt, PoliciesTableName), []any{Policy{}}},
-		{&db.editPolicyStmt, fmt.Sprintf(editPolicyStmt, PoliciesTableName), []any{Policy{}}},
-		{&db.deletePolicyStmt, fmt.Sprintf(deletePolicyStmt, PoliciesTableName), []any{Policy{}}},
-		{&db.countPoliciesStmt, fmt.Sprintf(countPoliciesStmt, PoliciesTableName), []any{NumItems{}}},
-		{&db.countPoliciesInProfileStmt, fmt.Sprintf(countPoliciesInProfileStmt, PoliciesTableName), []any{NumItems{}, Policy{}}},
-		{&db.countPoliciesInSliceStmt, fmt.Sprintf(countPoliciesInSliceStmt, PoliciesTableName), []any{NumItems{}, Policy{}}},
-		{&db.countPoliciesInDataNetworkStmt, fmt.Sprintf(countPoliciesInDataNetworkStmt, PoliciesTableName), []any{NumItems{}, Policy{}}},
-		{&db.listPolicy5QIsInDataNetworkStmt, fmt.Sprintf(listPolicy5QIsInDataNetworkStmt, PoliciesTableName), []any{Policy{}}},
-
-		// Network Slices
-		{&db.listNetworkSlicesStmt, fmt.Sprintf(listNetworkSlicesPagedStmt, NetworkSlicesTableName), []any{ListArgs{}, NetworkSlice{}, NumItems{}}},
-		{&db.listAllNetworkSlicesStmt, fmt.Sprintf(listAllNetworkSlicesStmt, NetworkSlicesTableName), []any{NetworkSlice{}}},
-		{&db.getNetworkSliceStmt, fmt.Sprintf(getNetworkSliceStmt, NetworkSlicesTableName), []any{NetworkSlice{}}},
-		{&db.getNetworkSliceByIDStmt, fmt.Sprintf(getNetworkSliceByIDStmt, NetworkSlicesTableName), []any{NetworkSlice{}}},
-		{&db.listNetworkSlicesByIDsStmt, fmt.Sprintf(listNetworkSlicesByIDsStmt, NetworkSlicesTableName), []any{NetworkSlice{}, SliceIDs{}}},
-		{&db.createNetworkSliceStmt, fmt.Sprintf(createNetworkSliceStmt, NetworkSlicesTableName), []any{NetworkSlice{}}},
-		{&db.editNetworkSliceStmt, fmt.Sprintf(editNetworkSliceStmt, NetworkSlicesTableName), []any{NetworkSlice{}}},
-		{&db.deleteNetworkSliceStmt, fmt.Sprintf(deleteNetworkSliceStmt, NetworkSlicesTableName), []any{NetworkSlice{}}},
-		{&db.countNetworkSlicesStmt, fmt.Sprintf(countNetworkSlicesStmt, NetworkSlicesTableName), []any{NumItems{}}},
-
-		// Profiles
-		{&db.listProfilesStmt, fmt.Sprintf(listProfilesPagedStmt, ProfilesTableName), []any{ListArgs{}, Profile{}, NumItems{}}},
-		{&db.getProfileStmt, fmt.Sprintf(getProfileStmt, ProfilesTableName), []any{Profile{}}},
-		{&db.getProfileByIDStmt, fmt.Sprintf(getProfileByIDStmt, ProfilesTableName), []any{Profile{}}},
-		{&db.createProfileStmt, fmt.Sprintf(createProfileStmt, ProfilesTableName), []any{Profile{}}},
-		{&db.editProfileStmt, fmt.Sprintf(editProfileStmt, ProfilesTableName), []any{Profile{}}},
-		{&db.deleteProfileStmt, fmt.Sprintf(deleteProfileStmt, ProfilesTableName), []any{Profile{}}},
-		{&db.countProfilesStmt, fmt.Sprintf(countProfilesStmt, ProfilesTableName), []any{NumItems{}}},
-		{&db.countSubscribersByProfileStmt, fmt.Sprintf(countSubscribersInProfileStmt, SubscribersTableName), []any{NumItems{}, Subscriber{}}},
-
-		// Network Rules
-		{&db.getNetworkRuleStmt, fmt.Sprintf(getNetworkRuleStmt, NetworkRulesTableName), []any{NetworkRule{}}},
-		{&db.createNetworkRuleStmt, fmt.Sprintf(createNetworkRuleStmt, NetworkRulesTableName), []any{NetworkRule{}}},
-		{&db.updateNetworkRuleStmt, fmt.Sprintf(updateNetworkRuleStmt, NetworkRulesTableName), []any{NetworkRule{}}},
-		{&db.deleteNetworkRuleStmt, fmt.Sprintf(deleteNetworkRuleStmt, NetworkRulesTableName), []any{NetworkRule{}}},
-		{&db.deleteNetworkRulesByPolicyStmt, fmt.Sprintf(deleteNetworkRulesByPolicyStmt, NetworkRulesTableName), []any{NetworkRule{}}},
-		{&db.listRulesForPolicyStmt, fmt.Sprintf(listRulesForPolicyStmt, NetworkRulesTableName), []any{NetworkRule{}}},
-
-		// Framed Routes
-		{&db.createFramedRouteStmt, fmt.Sprintf(createFramedRouteStmt, FramedRoutesTableName), []any{SubscriberFramedRoute{}}},
-		{&db.deleteFramedRoutesByPairStmt, fmt.Sprintf(deleteFramedRoutesByPairStmt, FramedRoutesTableName), []any{SubscriberFramedRoute{}}},
-		{&db.listFramedRoutesByPairStmt, fmt.Sprintf(listFramedRoutesByPairStmt, FramedRoutesTableName), []any{SubscriberFramedRoute{}}},
-		{&db.listFramedRoutesByDNStmt, fmt.Sprintf(listFramedRoutesByDNStmt, FramedRoutesTableName), []any{SubscriberFramedRoute{}}},
-		{&db.listAllFramedRoutesStmt, fmt.Sprintf(listAllFramedRoutesStmt, FramedRoutesTableName), []any{SubscriberFramedRoute{}}},
-
-		{&db.upsertUERegistrationStmt, fmt.Sprintf(upsertUERegistrationStmt, UERegistrationsTableName), []any{UERegistration{}}},
-		{&db.purgeUERegistrationStmt, fmt.Sprintf(purgeUERegistrationStmt, UERegistrationsTableName), []any{UERegistration{}}},
-		{&db.cancelUERegistrationStmt, fmt.Sprintf(cancelUERegistrationStmt, UERegistrationsTableName), []any{UERegistration{}}},
-		{&db.purgeUERegistrationsByNodeStmt, fmt.Sprintf(purgeUERegistrationsByNodeStmt, UERegistrationsTableName), []any{UERegistration{}}},
-		{&db.getUERegistrationStmt, fmt.Sprintf(getUERegistrationStmt, UERegistrationsTableName), []any{UERegistration{}}},
-		{&db.listAllUERegistrationsStmt, fmt.Sprintf(listAllUERegistrationsStmt, UERegistrationsTableName), []any{UERegistration{}}},
-		{&db.maxUERegistrationVersionStmt, fmt.Sprintf(maxUERegistrationVersionStmt, UERegistrationsTableName), []any{ueRegistrationVersion{}}},
-
-		{&db.getSMSSettingsStmt, fmt.Sprintf(getSMSSettingsStmt, SMSSettingsTableName), []any{SMSSettings{}}},
-		{&db.upsertSMSSettingsStmt, fmt.Sprintf(upsertSMSSettingsStmt, SMSSettingsTableName), []any{SMSSettings{}}},
-		{&db.getIMSSettingsStmt, fmt.Sprintf(getIMSSettingsStmt, IMSSettingsTableName), []any{IMSSettings{}}},
-		{&db.upsertIMSSettingsStmt, fmt.Sprintf(upsertIMSSettingsStmt, IMSSettingsTableName), []any{IMSSettings{}}},
-		{&db.listIMSPeersStmt, fmt.Sprintf(listIMSPeersStmt, IMSPeersTableName), []any{imsPeerRow{}}},
-		{&db.insertIMSPeerStmt, fmt.Sprintf(insertIMSPeerStmt, IMSPeersTableName), []any{imsPeerRow{}}},
-		{&db.updateIMSPeerStmt, fmt.Sprintf(updateIMSPeerStmt, IMSPeersTableName), []any{imsPeerRow{}}},
-		{&db.deleteIMSPeerStmt, fmt.Sprintf(deleteIMSPeerStmt, IMSPeersTableName), []any{imsPeerRow{}}},
-		{&db.listLegacySMSCPeersStmt, fmt.Sprintf(listLegacySMSCPeersStmt, DiameterPeersTableName), []any{smscPeerRow{}}},
-		{&db.listLegacySMSCServiceCentresStmt, fmt.Sprintf(listLegacySMSCServiceCentresStmt, SMSCServiceCentresTableName), []any{legacySMSCServiceCentreRow{}}},
-		{&db.insertLegacySMSCPeerStmt, fmt.Sprintf(insertLegacySMSCPeerStmt, DiameterPeersTableName), []any{smscPeerRow{}}},
-		{&db.updateLegacySMSCPeerStmt, fmt.Sprintf(updateLegacySMSCPeerStmt, DiameterPeersTableName), []any{smscPeerRow{}}},
-		{&db.deleteLegacySMSCPeerStmt, fmt.Sprintf(deleteLegacySMSCPeerStmt, DiameterPeersTableName), []any{smscPeerRow{}}},
-		{&db.insertLegacySMSCServiceCentreStmt, fmt.Sprintf(insertLegacySMSCServiceCentreStmt, SMSCServiceCentresTableName), []any{legacySMSCServiceCentreRow{}}},
-		{&db.deleteLegacySMSCServiceCentresStmt, fmt.Sprintf(deleteLegacySMSCServiceCentresStmt, SMSCServiceCentresTableName), []any{legacySMSCServiceCentreRow{}}},
-		{&db.listSMSCsStmt, fmt.Sprintf(listSMSCsStmt, SMSCsTableName), []any{smscRow{}}},
-		{&db.listSMSCNodesStmt, fmt.Sprintf(listSMSCNodesStmt, DiameterPeersTableName), []any{smscNodeRow{}}},
-		{&db.listSMSCServiceCentresStmt, fmt.Sprintf(listSMSCServiceCentresStmt, SMSCServiceCentresTableName), []any{smscServiceCentreRow{}}},
-		{&db.insertSMSCStmt, fmt.Sprintf(insertSMSCStmt, SMSCsTableName), []any{smscRow{}}},
-		{&db.deleteSMSCStmt, fmt.Sprintf(deleteSMSCStmt, SMSCsTableName), []any{smscRow{}}},
-		{&db.insertSMSCNodeStmt, fmt.Sprintf(insertSMSCNodeStmt, DiameterPeersTableName), []any{smscNodeRow{}}},
-		{&db.deleteSMSCNodesStmt, fmt.Sprintf(deleteSMSCNodesStmt, DiameterPeersTableName), []any{smscNodeRow{}}},
-		{&db.insertSMSCServiceCentreStmt, fmt.Sprintf(insertSMSCServiceCentreStmt, SMSCServiceCentresTableName), []any{smscServiceCentreRow{}}},
-		{&db.deleteSMSCServiceCentresStmt, fmt.Sprintf(deleteSMSCServiceCentresStmt, SMSCServiceCentresTableName), []any{smscServiceCentreRow{}}},
-		{&db.listPCSCFAddressesStmt, fmt.Sprintf(listPCSCFAddressesStmt, PCSCFAddressesTableName), []any{pcscfAddressRow{}}},
-		{&db.insertPCSCFAddressStmt, fmt.Sprintf(insertPCSCFAddressStmt, PCSCFAddressesTableName), []any{pcscfAddressRow{}}},
-		{&db.deletePCSCFAddressesStmt, fmt.Sprintf(deletePCSCFAddressesStmt, PCSCFAddressesTableName), nil},
-		{&db.listIMSApplicationServersStmt, fmt.Sprintf(listIMSApplicationServersStmt, IMSApplicationServersTableName), []any{imsApplicationServerRow{}}},
-		{&db.getIMSApplicationServerStmt, fmt.Sprintf(getIMSApplicationServerStmt, IMSApplicationServersTableName), []any{imsApplicationServerRow{}}},
-		{&db.insertIMSApplicationServerStmt, fmt.Sprintf(insertIMSApplicationServerStmt, IMSApplicationServersTableName), []any{imsApplicationServerRow{}}},
-		{&db.updateIMSApplicationServerStmt, fmt.Sprintf(updateIMSApplicationServerStmt, IMSApplicationServersTableName), []any{imsApplicationServerRow{}}},
-		{&db.deleteIMSApplicationServerStmt, fmt.Sprintf(deleteIMSApplicationServerStmt, IMSApplicationServersTableName), []any{imsApplicationServerRow{}}},
-		{&db.listIMSPSIsStmt, fmt.Sprintf(listIMSPSIsStmt, IMSPublicServiceIdentitiesTableName), []any{imsPSIRow{}}},
-		{&db.listIMSPSIsByASStmt, fmt.Sprintf(listIMSPSIsByASStmt, IMSPublicServiceIdentitiesTableName), []any{imsPSIRow{}}},
-		{&db.getIMSPSIStmt, fmt.Sprintf(getIMSPSIStmt, IMSPublicServiceIdentitiesTableName), []any{imsPSIRow{}}},
-		{&db.insertIMSPSIStmt, fmt.Sprintf(insertIMSPSIStmt, IMSPublicServiceIdentitiesTableName), []any{imsPSIRow{}}},
-		{&db.deleteIMSPSIsByASStmt, fmt.Sprintf(deleteIMSPSIsByASStmt, IMSPublicServiceIdentitiesTableName), []any{imsPSIRow{}}},
-		{&db.insertIMSIFCStmt, fmt.Sprintf(insertIMSIFCStmt, IMSInitialFilterCriteriaTableName), []any{imsIFCRow{}}},
-		{&db.listServiceProfileIMSIFCsStmt, fmt.Sprintf(listServiceProfileIMSIFCsStmt, IMSInitialFilterCriteriaTableName), []any{imsIFCRow{}}},
-		{&db.listAllIMSIFCsStmt, fmt.Sprintf(listAllIMSIFCsStmt, IMSInitialFilterCriteriaTableName), []any{imsIFCRow{}}},
-		{&db.deleteServiceProfileIMSIFCsStmt, fmt.Sprintf(deleteServiceProfileIMSIFCsStmt, IMSInitialFilterCriteriaTableName), []any{imsIFCRow{}}},
-		{&db.listProfilesOfIMSASStmt, fmt.Sprintf(listProfilesOfIMSASStmt, IMSServiceProfileAssignmentsTableName, IMSInitialFilterCriteriaTableName), []any{imsServiceProfileAssignmentRow{}, imsIFCRow{}}},
-		{&db.listIMSRegisteredOfProfilesStmt, fmt.Sprintf(listIMSRegisteredOfProfilesStmt, SubscribersTableName, IMSRegistrationSetsTableName), []any{subscriberIMSI{}, imsRegistrationSetRow{}, SliceIDs{}}},
-		{&db.listSubscriberIMSIFCsStmt, fmt.Sprintf(listSubscriberIMSIFCsStmt, IMSInitialFilterCriteriaTableName, IMSServiceProfileAssignmentsTableName, SubscribersTableName, IMSApplicationServersTableName), []any{imsIFCRow{}, imsApplicationServerRow{}, subscriberIMSI{}, imsServiceProfileAssignmentRow{}}},
-		{&db.listIMSServiceProfilesStmt, fmt.Sprintf(listIMSServiceProfilesStmt, IMSServiceProfilesTableName), []any{imsServiceProfileRow{}}},
-		{&db.getIMSServiceProfileStmt, fmt.Sprintf(getIMSServiceProfileStmt, IMSServiceProfilesTableName), []any{imsServiceProfileRow{}}},
-		{&db.insertIMSServiceProfileStmt, fmt.Sprintf(insertIMSServiceProfileStmt, IMSServiceProfilesTableName), []any{imsServiceProfileRow{}}},
-		{&db.deleteIMSServiceProfileStmt, fmt.Sprintf(deleteIMSServiceProfileStmt, IMSServiceProfilesTableName), []any{imsServiceProfileRow{}}},
-		{&db.listProfileIMSServiceProfilesStmt, fmt.Sprintf(listProfileIMSServiceProfilesStmt, IMSServiceProfileAssignmentsTableName), []any{imsServiceProfileAssignmentRow{}}},
-		{&db.listAllIMSServiceProfileAssignsStmt, fmt.Sprintf(listAllIMSServiceProfileAssignsStmt, IMSServiceProfileAssignmentsTableName), []any{imsServiceProfileAssignmentRow{}}},
-		{&db.insertIMSServiceProfileAssignStmt, fmt.Sprintf(insertIMSServiceProfileAssignStmt, IMSServiceProfileAssignmentsTableName), []any{imsServiceProfileAssignmentRow{}}},
-		{&db.deleteProfileIMSServiceProfilesStmt, fmt.Sprintf(deleteProfileIMSServiceProfilesStmt, IMSServiceProfileAssignmentsTableName), []any{imsServiceProfileAssignmentRow{}}},
-		{&db.listProfilesOfIMSServiceProfileStmt, fmt.Sprintf(listProfilesOfIMSServiceProfileStmt, IMSServiceProfileAssignmentsTableName), []any{imsServiceProfileAssignmentRow{}}},
-		{&db.countIMSServiceProfileAssignmentsStmt, fmt.Sprintf(countIMSServiceProfileAssignmentsStmt, IMSServiceProfileAssignmentsTableName), []any{NumItems{}, imsServiceProfileAssignmentRow{}}},
-		{&db.getIMSRegistrationStmt, fmt.Sprintf(getIMSRegistrationStmt, IMSRegistrationsTableName), []any{imsRegistrationRow{}}},
-		{&db.listAllIMSRegistrationsStmt, fmt.Sprintf(listAllIMSRegistrationsStmt, IMSRegistrationsTableName), []any{imsRegistrationRow{}}},
-		{&db.countIMSRegistrationsStmt, fmt.Sprintf(countIMSRegistrationsStmt, IMSRegistrationSetsTableName), []any{NumItems{}, imsRegistrationSetRow{}}},
-		{&db.upsertIMSRegistrationStmt, fmt.Sprintf(upsertIMSRegistrationStmt, IMSRegistrationsTableName), []any{imsRegistrationRow{}}},
-		{&db.deleteIMSRegistrationStmt, fmt.Sprintf(deleteIMSRegistrationStmt, IMSRegistrationsTableName), []any{imsRegistrationRow{}}},
-		{&db.listIMSRegistrationSetsStmt, fmt.Sprintf(listIMSRegistrationSetsStmt, IMSRegistrationSetsTableName), []any{imsRegistrationSetRow{}}},
-		{&db.listAllIMSRegistrationSetsStmt, fmt.Sprintf(listAllIMSRegistrationSetsStmt, IMSRegistrationSetsTableName), []any{imsRegistrationSetRow{}}},
-		{&db.insertIMSRegistrationSetStmt, fmt.Sprintf(insertIMSRegistrationSetStmt, IMSRegistrationSetsTableName), []any{imsRegistrationSetRow{}}},
-		{&db.deleteIMSRegistrationSetsStmt, fmt.Sprintf(deleteIMSRegistrationSetsStmt, IMSRegistrationSetsTableName), []any{imsRegistrationSetRow{}}},
-		{&db.getIPSMGWRegistrationStmt, fmt.Sprintf(getIPSMGWRegistrationStmt, IPSMGWRegistrationsTableName), []any{ipSMGWRegistrationRow{}}},
-		{&db.listAllIPSMGWRegistrationsStmt, fmt.Sprintf(listAllIPSMGWRegistrationsStmt, IPSMGWRegistrationsTableName), []any{ipSMGWRegistrationRow{}}},
-		{&db.upsertIPSMGWRegistrationStmt, fmt.Sprintf(upsertIPSMGWRegistrationStmt, IPSMGWRegistrationsTableName), []any{ipSMGWRegistrationRow{}}},
-		{&db.deleteIPSMGWRegistrationStmt, fmt.Sprintf(deleteIPSMGWRegistrationStmt, IPSMGWRegistrationsTableName), []any{ipSMGWRegistrationRow{}}},
-		{&db.getSMSWaitingStmt, fmt.Sprintf(getSMSWaitingStmt, SMSWaitingTableName), []any{smsWaitingRow{}}},
-		{&db.listAllSMSWaitingStmt, fmt.Sprintf(listAllSMSWaitingStmt, SMSWaitingTableName), []any{smsWaitingRow{}}},
-		{&db.listAllSMSWaitingCentresStmt, fmt.Sprintf(listAllSMSWaitingCentresStmt, SMSWaitingCentresTableName), []any{smsWaitingCentre{}}},
-		{&db.listSMSWaitingCentresStmt, fmt.Sprintf(listSMSWaitingCentresStmt, SMSWaitingCentresTableName), []any{smsWaitingCentre{}}},
-		{&db.upsertSMSWaitingStmt, fmt.Sprintf(upsertSMSWaitingStmt, SMSWaitingTableName), []any{smsWaitingRow{}}},
-		{&db.insertSMSWaitingCentreStmt, fmt.Sprintf(insertSMSWaitingCentreStmt, SMSWaitingCentresTableName), []any{smsWaitingCentre{}}},
-		{&db.clearSMSMemoryFullStmt, fmt.Sprintf(clearSMSMemoryFullStmt, SMSWaitingTableName), []any{smsWaitingRow{}}},
-		{&db.deleteSMSWaitingCentreStmt, fmt.Sprintf(deleteSMSWaitingCentreStmt, SMSWaitingCentresTableName), []any{smsWaitingCentre{}}},
-		{&db.deleteSMSWaitingCentresStmt, fmt.Sprintf(deleteSMSWaitingCentresStmt, SMSWaitingCentresTableName), []any{smsWaitingCentre{}}},
-		{&db.deleteSMSWaitingStmt, fmt.Sprintf(deleteSMSWaitingStmt, SMSWaitingTableName), []any{smsWaitingRow{}}},
-		{&db.deleteSMSWaitingIfEmptyStmt, fmt.Sprintf(deleteSMSWaitingIfEmptyStmt, SMSWaitingTableName, SMSWaitingCentresTableName), []any{smsWaitingRow{}}},
-		{&db.deleteStaleSMSWaitingCentStmt, fmt.Sprintf(deleteStaleSMSWaitingCentStmt, SMSWaitingCentresTableName, SMSWaitingTableName), []any{smsWaitingRow{}}},
-		{&db.deleteStaleSMSWaitingStmt, fmt.Sprintf(deleteStaleSMSWaitingStmt, SMSWaitingTableName), []any{smsWaitingRow{}}},
-
-		// Retention Policy
-		{&db.selectRetentionPolicyStmt, fmt.Sprintf(selectRetentionPolicyStmt, RetentionPolicyTableName), []any{RetentionPolicy{}}},
-		{&db.upsertRetentionPolicyStmt, fmt.Sprintf(upsertRetentionPolicyStmt, RetentionPolicyTableName), []any{RetentionPolicy{}}},
-
-		// Routes
-		{&db.listRoutesStmt, fmt.Sprintf(listRoutesPageStmt, RoutesTableName), []any{ListArgs{}, Route{}, NumItems{}}},
-		{&db.listAllRoutesStmt, fmt.Sprintf(listAllRoutesStmt, RoutesTableName), []any{Route{}}},
-		{&db.getRouteStmt, fmt.Sprintf(getRouteStmt, RoutesTableName), []any{Route{}}},
-		{&db.createRouteStmt, fmt.Sprintf(createRouteStmt, RoutesTableName), []any{Route{}}},
-		{&db.deleteRouteStmt, fmt.Sprintf(deleteRouteStmt, RoutesTableName), []any{Route{}}},
-		{&db.countRoutesStmt, fmt.Sprintf(countRoutesStmt, RoutesTableName), []any{NumItems{}}},
-
-		// Audit Logs
-		{&db.insertAuditLogStmt, fmt.Sprintf(insertAuditLogStmt, AuditLogsTableName), []any{dbwriter.AuditLog{}}},
-		{&db.listAuditLogsFilteredStmt, fmt.Sprintf(listAuditLogsFilteredPageStmt, AuditLogsTableName), []any{ListArgs{}, AuditLogFilters{}, dbwriter.AuditLog{}, NumItems{}}},
-		{&db.deleteOldAuditLogsStmt, fmt.Sprintf(deleteOldAuditLogsStmt, AuditLogsTableName), []any{cutoffArgs{}}},
-
-		// Flow Reports
-		{&db.insertFlowReportStmt, fmt.Sprintf(insertFlowReportStmt, FlowReportsTableName), []any{dbwriter.FlowReport{}}},
-		{&db.listFlowReportsStmt, fmt.Sprintf(listFlowReportsPagedFilteredStmt, FlowReportsTableName), []any{ListArgs{}, FlowReportFilters{}, dbwriter.FlowReport{}, NumItems{}}},
-		{&db.countFlowReportsStmt, fmt.Sprintf(countFlowReportsFilteredStmt, FlowReportsTableName), []any{FlowReportFilters{}, NumItems{}}},
-		{&db.deleteOldFlowReportsStmt, fmt.Sprintf(deleteOldFlowReportsStmt, FlowReportsTableName), []any{cutoffArgs{}}},
-		{&db.deleteAllFlowReportsStmt, fmt.Sprintf(deleteAllFlowReportsStmt, FlowReportsTableName), nil},
-		{&db.listFlowReportsByDayStmt, fmt.Sprintf(listFlowReportsFilteredByDayStmt, FlowReportsTableName), []any{FlowReportFilters{}, dbwriter.FlowReport{}}},
-		{&db.listFlowReportsBySubscriberStmt, fmt.Sprintf(listFlowReportsFilteredBySubscriberStmt, FlowReportsTableName), []any{FlowReportFilters{}, dbwriter.FlowReport{}}},
-		{&db.flowReportProtocolCountsStmt, fmt.Sprintf(flowReportProtocolCountsStmt, FlowReportsTableName), []any{FlowReportFilters{}, FlowReportProtocolCount{}}},
-		{&db.flowReportTopDestinationsUplinkStmt, fmt.Sprintf(flowReportTopDestinationsUplinkStmt, FlowReportsTableName), []any{FlowReportFilters{}, FlowReportIPCount{}}},
-
-		// Sessions
-		{&db.createSessionStmt, fmt.Sprintf(createSessionStmt, SessionsTableName), []any{Session{}}},
-		{&db.getSessionByTokenHashStmt, fmt.Sprintf(getSessionByTokenHashStmt, SessionsTableName), []any{Session{}}},
-		{&db.deleteSessionByTokenHashStmt, fmt.Sprintf(deleteSessionByTokenHashStmt, SessionsTableName), []any{Session{}}},
-		{&db.deleteExpiredSessionsStmt, fmt.Sprintf(deleteExpiredSessionsStmt, SessionsTableName), []any{SessionCutoff{}}},
-		{&db.countSessionsByUserStmt, fmt.Sprintf(countSessionsByUserStmt, SessionsTableName), []any{UserIDArgs{}, NumItems{}}},
-		{&db.countExpiredSessionsStmt, fmt.Sprintf(countExpiredSessionsStmt, SessionsTableName), []any{SessionCutoff{}, NumItems{}}},
-		{&db.deleteOldestSessionsStmt, fmt.Sprintf(deleteOldestSessionsStmt, SessionsTableName, SessionsTableName), []any{DeleteOldestArgs{}}},
-		{&db.deleteAllSessionsForUserStmt, fmt.Sprintf(deleteAllSessionsForUserStmt, SessionsTableName), []any{UserIDArgs{}}},
-		{&db.deleteAllSessionsStmt, fmt.Sprintf(deleteAllSessionsStmt, SessionsTableName), nil},
-
-		// JWT Secret
-		{&db.getJWTSecretStmt, fmt.Sprintf(getJWTSecretStmt, JWTSecretTableName), []any{JWTSecret{}}},
-		{&db.upsertJWTSecretStmt, fmt.Sprintf(upsertJWTSecretStmt, JWTSecretTableName), []any{JWTSecret{}}},
-
-		// Users
-		{&db.listUsersStmt, fmt.Sprintf(listUsersPageStmt, UsersTableName), []any{ListArgs{}, User{}, NumItems{}}},
-		{&db.getUserStmt, fmt.Sprintf(getUserStmt, UsersTableName), []any{User{}}},
-		{&db.getUserByIDStmt, fmt.Sprintf(getUserByIDStmt, UsersTableName), []any{User{}}},
-		{&db.createUserStmt, fmt.Sprintf(createUserStmt, UsersTableName), []any{User{}}},
-		{&db.editUserStmt, fmt.Sprintf(editUserStmt, UsersTableName), []any{User{}}},
-		{&db.editUserPasswordStmt, fmt.Sprintf(editUserPasswordStmt, UsersTableName), []any{User{}}},
-		{&db.deleteUserStmt, fmt.Sprintf(deleteUserStmt, UsersTableName), []any{User{}}},
-		{&db.countUsersStmt, fmt.Sprintf(countUsersStmt, UsersTableName), []any{NumItems{}}},
-
-		// Cluster Members
-		{&db.listClusterMembersStmt, fmt.Sprintf(listClusterMembersStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
-		{&db.getClusterMemberStmt, fmt.Sprintf(getClusterMemberStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
-		{&db.upsertClusterMemberStmt, fmt.Sprintf(upsertClusterMemberStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
-		{&db.deleteClusterMemberStmt, fmt.Sprintf(deleteClusterMemberStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
-		{&db.countClusterMembersStmt, fmt.Sprintf(countClusterMembersStmtStr, ClusterMembersTableName), []any{NumItems{}}},
-		{&db.getDrainStateStmt, fmt.Sprintf(getDrainStateStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
-		{&db.setDrainStateStmt, fmt.Sprintf(setDrainStateStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
-		{&db.setDisplayNameStmt, fmt.Sprintf(setDisplayNameStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
-		{&db.listClusterMembersPreV20Stmt, fmt.Sprintf(listClusterMembersPreV20StmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
-		{&db.getClusterMemberPreV20Stmt, fmt.Sprintf(getClusterMemberPreV20StmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
-		{&db.upsertClusterMemberPreV20Stmt, fmt.Sprintf(upsertClusterMemberPreV20StmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
-
-		// Cluster PKI (v12 fingerprint pinning)
-		{&db.listNodeCertsStmt, fmt.Sprintf(listNodeCertsStmtStr, ClusterNodeCertsTableName), []any{ClusterNodeCert{}}},
-		{&db.getNodeCertByFPStmt, fmt.Sprintf(getNodeCertByFPStmtStr, ClusterNodeCertsTableName), []any{ClusterNodeCert{}}},
-		{&db.getNodeCertByNodeStmt, fmt.Sprintf(getNodeCertByNodeStmtStr, ClusterNodeCertsTableName), []any{ClusterNodeCert{}}},
-		{&db.upsertNodeCertStmt, fmt.Sprintf(upsertNodeCertStmtStr, ClusterNodeCertsTableName), []any{ClusterNodeCert{}}},
-		{&db.deleteNodeCertByNodeStmt, fmt.Sprintf(deleteNodeCertByNodeStmtStr, ClusterNodeCertsTableName), []any{ClusterNodeCert{}}},
-		{&db.insertJoinTokenStmt, fmt.Sprintf(insertJoinTokenStmtStr, ClusterJoinTokensTableName), []any{ClusterJoinToken{}}},
-		{&db.insertJoinTokenPreV20Stmt, fmt.Sprintf(insertJoinTokenPreV20StmtStr, ClusterJoinTokensTableName), []any{ClusterJoinToken{}}},
-		{&db.getJoinTokenStmt, fmt.Sprintf(getJoinTokenStmtStr, ClusterJoinTokensTableName), []any{ClusterJoinToken{}}},
-		{&db.consumeJoinTokenStmt, fmt.Sprintf(consumeJoinTokenStmtStr, ClusterJoinTokensTableName), []any{ClusterJoinToken{}}},
-		{&db.deleteJoinTokensStaleStmt, fmt.Sprintf(deleteJoinTokensStaleStmtStr, ClusterJoinTokensTableName), []any{ClusterJoinToken{}}},
-		{&db.getJoinHMACStmt, fmt.Sprintf(getJoinHMACStmtStr, ClusterJoinHMACTableName), []any{ClusterJoinHMAC{}}},
-		{&db.initJoinHMACStmt, fmt.Sprintf(initJoinHMACStmtStr, ClusterJoinHMACTableName), []any{ClusterJoinHMAC{}}},
-	}
-
-	for _, s := range stmts {
-		stmt, err := sqlair.Prepare(s.query, s.types...)
-		if err != nil {
-			return fmt.Errorf("failed to prepare statement: %w", err)
-		}
-
-		*s.dest = stmt
-	}
-
-	return nil
 }
 
 // WaitForInitialization polls until the replicated initial settings are
@@ -2641,18 +1674,17 @@ func (db *Database) Initialize(ctx context.Context) error {
 
 // BeginTransaction starts a transaction against the database.
 func (db *Database) BeginTransaction(ctx context.Context) (*Transaction, error) {
-	tx, err := db.conn().Begin(ctx, nil)
+	tx, err := db.writer().BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Transaction{tx: tx, db: db}, nil
+	return &Transaction{tx: tx}, nil
 }
 
-// Transaction wraps a SQLair transaction.
+// Transaction wraps a database transaction.
 type Transaction struct {
-	tx *sqlair.TX
-	db *Database
+	tx *sql.Tx
 }
 
 func (t *Transaction) Commit() error {

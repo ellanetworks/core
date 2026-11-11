@@ -5,61 +5,33 @@ package db
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const BGPImportPrefixesTableName = "bgp_import_prefixes"
 
 const (
-	listImportPrefixesByPeerStmt   = "SELECT &BGPImportPrefix.* FROM %s WHERE peerID==$BGPImportPrefix.peerID ORDER BY id ASC"
-	createImportPrefixStmt         = "INSERT INTO %s (peerID, prefix, maxLength) VALUES ($BGPImportPrefix.peerID, $BGPImportPrefix.prefix, $BGPImportPrefix.maxLength)"
-	deleteImportPrefixesByPeerStmt = "DELETE FROM %s WHERE peerID==$BGPImportPrefix.peerID"
+	listImportPrefixesByPeerStmt   = "SELECT id, peerID, prefix, maxLength FROM " + BGPImportPrefixesTableName + " WHERE peerID==? ORDER BY id ASC"
+	createImportPrefixStmt         = "INSERT INTO " + BGPImportPrefixesTableName + " (peerID, prefix, maxLength) VALUES (?, ?, ?)"
+	deleteImportPrefixesByPeerStmt = "DELETE FROM " + BGPImportPrefixesTableName + " WHERE peerID==?"
 )
 
 type BGPImportPrefix struct {
-	ID        int    `db:"id"`
-	PeerID    int    `db:"peerID"`
-	Prefix    string `db:"prefix"`
-	MaxLength int    `db:"maxLength"`
+	ID        int
+	PeerID    int
+	Prefix    string
+	MaxLength int
 }
 
 func (db *Database) ListImportPrefixesByPeer(ctx context.Context, peerID int) ([]BGPImportPrefix, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", BGPImportPrefixesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(BGPImportPrefixesTableName),
-			attribute.Int("bgp.peer_id", peerID),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, BGPImportPrefixesTableName, "SELECT", "select", attribute.Int("bgp.peer_id", peerID))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(BGPImportPrefixesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(BGPImportPrefixesTableName, "select").Inc()
-
-	var prefixes []BGPImportPrefix
-
-	err := db.conn().Query(ctx, db.listImportPrefixesByPeerStmt, BGPImportPrefix{PeerID: peerID}).GetAll(&prefixes)
+	prefixes, err := queryAll(ctx, db.reader(), listImportPrefixesByPeerStmt, scanBGPImportPrefix, peerID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -69,28 +41,11 @@ func (db *Database) ListImportPrefixesByPeer(ctx context.Context, peerID int) ([
 }
 
 func (db *Database) SetImportPrefixesForPeer(ctx context.Context, peerID int, prefixes []BGPImportPrefix) error {
-	querySummary := fmt.Sprintf("%s %s", "REPLACE", BGPImportPrefixesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("REPLACE"),
-			semconv.DBCollectionName(BGPImportPrefixesTableName),
-			attribute.Int("bgp.peer_id", peerID),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, BGPImportPrefixesTableName, "REPLACE", "replace", attribute.Int("bgp.peer_id", peerID))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(BGPImportPrefixesTableName, "replace"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(BGPImportPrefixesTableName, "replace").Inc()
-
-	tx, err := db.BeginTransaction(ctx)
+	tx, err := db.writer().BeginTx(ctx, nil)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -99,7 +54,7 @@ func (db *Database) SetImportPrefixesForPeer(ctx context.Context, peerID int, pr
 
 	defer func() { _ = tx.Rollback() }()
 
-	if err := tx.tx.Query(ctx, db.deleteImportPrefixesByPeerStmt, BGPImportPrefix{PeerID: peerID}).Run(); err != nil {
+	if _, err := tx.ExecContext(ctx, deleteImportPrefixesByPeerStmt, peerID); err != nil {
 		recordSpanError(span, err)
 
 		return fmt.Errorf("delete existing prefixes: %w", err)
@@ -108,7 +63,7 @@ func (db *Database) SetImportPrefixesForPeer(ctx context.Context, peerID int, pr
 	for _, prefix := range prefixes {
 		prefix.PeerID = peerID
 
-		if err := tx.tx.Query(ctx, db.createImportPrefixStmt, prefix).Run(); err != nil {
+		if _, err := tx.ExecContext(ctx, createImportPrefixStmt, prefix.PeerID, prefix.Prefix, prefix.MaxLength); err != nil {
 			recordSpanError(span, err)
 
 			return fmt.Errorf("insert prefix: %w", err)
@@ -124,4 +79,14 @@ func (db *Database) SetImportPrefixesForPeer(ctx context.Context, peerID int, pr
 	db.publishOpTopics([]Topic{TopicBGPPeers})
 
 	return nil
+}
+
+func scanBGPImportPrefix(row scanner) (BGPImportPrefix, error) {
+	var v BGPImportPrefix
+
+	if err := row.Scan(&v.ID, &v.PeerID, &v.Prefix, &v.MaxLength); err != nil {
+		return BGPImportPrefix{}, err
+	}
+
+	return v, nil
 }

@@ -6,23 +6,19 @@ package db
 import (
 	"cmp"
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
-
-	"github.com/canonical/sqlair"
 )
 
 const (
-	listLegacySMSCPeersStmt            = "SELECT &smscPeerRow.* FROM %s WHERE role='smsc' ORDER BY id"
-	listLegacySMSCServiceCentresStmt   = "SELECT &legacySMSCServiceCentreRow.* FROM %s ORDER BY serviceCentre"
-	insertLegacySMSCPeerStmt           = "INSERT INTO %s (id, role, diameterIdentity, address, port) VALUES ($smscPeerRow.id, 'smsc', $smscPeerRow.diameterIdentity, $smscPeerRow.address, $smscPeerRow.port)"
-	updateLegacySMSCPeerStmt           = "UPDATE %s SET diameterIdentity=$smscPeerRow.diameterIdentity, address=$smscPeerRow.address, port=$smscPeerRow.port WHERE id==$smscPeerRow.id AND role='smsc'"
-	deleteLegacySMSCPeerStmt           = "DELETE FROM %s WHERE id==$smscPeerRow.id AND role='smsc'"
-	insertLegacySMSCServiceCentreStmt  = "INSERT INTO %s (serviceCentre, peerId) VALUES ($legacySMSCServiceCentreRow.serviceCentre, $legacySMSCServiceCentreRow.peerId)"
-	deleteLegacySMSCServiceCentresStmt = "DELETE FROM %s WHERE peerId==$legacySMSCServiceCentreRow.peerId"
+	listLegacySMSCPeersStmt            = "SELECT id, diameterIdentity, address, port FROM " + DiameterPeersTableName + " WHERE role='smsc' ORDER BY id"
+	listLegacySMSCServiceCentresStmt   = "SELECT serviceCentre, peerId FROM " + SMSCServiceCentresTableName + " ORDER BY serviceCentre"
+	insertLegacySMSCPeerStmt           = "INSERT INTO " + DiameterPeersTableName + " (id, role, diameterIdentity, address, port) VALUES (?, 'smsc', ?, ?, ?)"
+	updateLegacySMSCPeerStmt           = "UPDATE " + DiameterPeersTableName + " SET diameterIdentity=?, address=?, port=? WHERE id==? AND role='smsc'"
+	deleteLegacySMSCPeerStmt           = "DELETE FROM " + DiameterPeersTableName + " WHERE id==? AND role='smsc'"
+	insertLegacySMSCServiceCentreStmt  = "INSERT INTO " + SMSCServiceCentresTableName + " (serviceCentre, peerId) VALUES (?, ?)"
+	deleteLegacySMSCServiceCentresStmt = "DELETE FROM " + SMSCServiceCentresTableName + " WHERE peerId==?"
 )
 
 type legacySMSCPeer struct {
@@ -34,15 +30,15 @@ type legacySMSCPeer struct {
 }
 
 type smscPeerRow struct {
-	ID               string `db:"id"`
-	DiameterIdentity string `db:"diameterIdentity"`
-	Address          string `db:"address"`
-	Port             int    `db:"port"`
+	ID               string
+	DiameterIdentity string
+	Address          string
+	Port             int
 }
 
 type legacySMSCServiceCentreRow struct {
-	ServiceCentre string `db:"serviceCentre"`
-	PeerID        string `db:"peerId"`
+	ServiceCentre string
+	PeerID        string
 }
 
 func (p legacySMSCPeer) smsc(name string) SMSC {
@@ -54,16 +50,14 @@ func (p legacySMSCPeer) smsc(name string) SMSC {
 	}
 }
 
-func (db *Database) listLegacySMSCPeers(ctx context.Context, runner *sqlair.DB) ([]legacySMSCPeer, error) {
-	var rows []smscPeerRow
-
-	if err := runner.Query(ctx, db.listLegacySMSCPeersStmt).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+func (db *Database) listLegacySMSCPeers(ctx context.Context, q querier) ([]legacySMSCPeer, error) {
+	rows, err := queryAll(ctx, q, listLegacySMSCPeersStmt, scanSMSCPeerRow)
+	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	var centres []legacySMSCServiceCentreRow
-
-	if err := runner.Query(ctx, db.listLegacySMSCServiceCentresStmt).GetAll(&centres); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	centres, err := queryAll(ctx, q, listLegacySMSCServiceCentresStmt, scanLegacySMSCServiceCentreRow)
+	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -133,7 +127,7 @@ func (db *Database) applyCreateSMSCPeer(ctx context.Context, p *legacySMSCPeer) 
 
 	row := smscPeerRow{ID: p.ID, DiameterIdentity: p.DiameterIdentity, Address: p.Address, Port: p.Port}
 
-	if err := db.runner(ctx).Query(ctx, db.insertLegacySMSCPeerStmt, row).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, insertLegacySMSCPeerStmt, row.ID, row.DiameterIdentity, row.Address, row.Port); err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
 		}
@@ -167,11 +161,11 @@ func (db *Database) applyUpdateSMSCPeer(ctx context.Context, p *legacySMSCPeer) 
 
 	row := smscPeerRow{ID: p.ID, DiameterIdentity: p.DiameterIdentity, Address: p.Address, Port: p.Port}
 
-	if err := db.runner(ctx).Query(ctx, db.updateLegacySMSCPeerStmt, row).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, updateLegacySMSCPeerStmt, row.DiameterIdentity, row.Address, row.Port, row.ID); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.deleteLegacySMSCServiceCentresStmt, legacySMSCServiceCentreRow{PeerID: p.ID}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteLegacySMSCServiceCentresStmt, p.ID); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -180,7 +174,7 @@ func (db *Database) applyUpdateSMSCPeer(ctx context.Context, p *legacySMSCPeer) 
 
 func (db *Database) insertLegacySMSCServiceCentres(ctx context.Context, p *legacySMSCPeer) error {
 	for _, sc := range p.ServiceCentres {
-		if err := db.runner(ctx).Query(ctx, db.insertLegacySMSCServiceCentreStmt, legacySMSCServiceCentreRow{ServiceCentre: sc, PeerID: p.ID}).Run(); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, insertLegacySMSCServiceCentreStmt, sc, p.ID); err != nil {
 			if isUniqueNameError(err) {
 				return fmt.Errorf("%w: another SMSC serves the service centre number +%s", ErrSMSCConflict, sc)
 			}
@@ -206,11 +200,11 @@ func (db *Database) applyDeleteSMSCPeer(ctx context.Context, p *stringPayload) (
 		return nil, ErrNotFound
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.deleteLegacySMSCServiceCentresStmt, legacySMSCServiceCentreRow{PeerID: p.Value}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteLegacySMSCServiceCentresStmt, p.Value); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.deleteLegacySMSCPeerStmt, smscPeerRow{ID: p.Value}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteLegacySMSCPeerStmt, p.Value); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -226,4 +220,24 @@ func legacySMSCName(identity, address string, taken []string) string {
 	}
 
 	return name
+}
+
+func scanSMSCPeerRow(row scanner) (smscPeerRow, error) {
+	var v smscPeerRow
+
+	if err := row.Scan(&v.ID, &v.DiameterIdentity, &v.Address, &v.Port); err != nil {
+		return smscPeerRow{}, err
+	}
+
+	return v, nil
+}
+
+func scanLegacySMSCServiceCentreRow(row scanner) (legacySMSCServiceCentreRow, error) {
+	var v legacySMSCServiceCentreRow
+
+	if err := row.Scan(&v.ServiceCentre, &v.PeerID); err != nil {
+		return legacySMSCServiceCentreRow{}, err
+	}
+
+	return v, nil
 }

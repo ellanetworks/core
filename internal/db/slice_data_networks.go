@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/prometheus/client_golang/prometheus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
@@ -21,23 +20,23 @@ const SliceDataNetworksTableName = "slice_data_networks"
 const sliceDataNetworkSchema = 26
 
 const (
-	listSliceDataNetworksStmt          = "SELECT &SliceDataNetwork.* FROM %s ORDER BY sliceID, dataNetworkID"
-	getSliceDataNetworkStmt            = "SELECT &SliceDataNetwork.* FROM %s WHERE sliceID==$SliceDataNetwork.sliceID AND dataNetworkID==$SliceDataNetwork.dataNetworkID"
-	createSliceDataNetworkStmt         = "INSERT INTO %s (sliceID, dataNetworkID, nat, localSwitch, networkInstance) VALUES ($SliceDataNetwork.sliceID, $SliceDataNetwork.dataNetworkID, $SliceDataNetwork.nat, $SliceDataNetwork.localSwitch, $SliceDataNetwork.networkInstance)"
-	updateSliceDataNetworkStmt         = "UPDATE %s SET nat=$SliceDataNetwork.nat, localSwitch=$SliceDataNetwork.localSwitch, networkInstance=$SliceDataNetwork.networkInstance WHERE sliceID==$SliceDataNetwork.sliceID AND dataNetworkID==$SliceDataNetwork.dataNetworkID"
-	deleteSliceDataNetworkStmt         = "DELETE FROM %s WHERE sliceID==$SliceDataNetwork.sliceID AND dataNetworkID==$SliceDataNetwork.dataNetworkID"
-	deleteSliceDataNetworksOfSliceStmt = "DELETE FROM %s WHERE sliceID IN (SELECT id FROM %s WHERE name==$NetworkSlice.name)"
-	deleteSliceDataNetworksOfDNStmt    = "DELETE FROM %s WHERE dataNetworkID IN (SELECT id FROM %s WHERE name==$DataNetwork.name)"
-	countSliceDataNetworkPoliciesStmt  = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE sliceID==$SliceDataNetwork.sliceID AND dataNetworkID==$SliceDataNetwork.dataNetworkID"
+	listSliceDataNetworksStmt          = "SELECT sliceID, dataNetworkID, nat, localSwitch, networkInstance FROM " + SliceDataNetworksTableName + " ORDER BY sliceID, dataNetworkID"
+	getSliceDataNetworkStmt            = "SELECT sliceID, dataNetworkID, nat, localSwitch, networkInstance FROM " + SliceDataNetworksTableName + " WHERE sliceID==? AND dataNetworkID==?"
+	createSliceDataNetworkStmt         = "INSERT INTO " + SliceDataNetworksTableName + " (sliceID, dataNetworkID, nat, localSwitch, networkInstance) VALUES (?, ?, ?, ?, ?)"
+	updateSliceDataNetworkStmt         = "UPDATE " + SliceDataNetworksTableName + " SET nat=?, localSwitch=?, networkInstance=? WHERE sliceID==? AND dataNetworkID==?"
+	deleteSliceDataNetworkStmt         = "DELETE FROM " + SliceDataNetworksTableName + " WHERE sliceID==? AND dataNetworkID==?"
+	deleteSliceDataNetworksOfSliceStmt = "DELETE FROM " + SliceDataNetworksTableName + " WHERE sliceID IN (SELECT id FROM " + NetworkSlicesTableName + " WHERE name==?)"
+	deleteSliceDataNetworksOfDNStmt    = "DELETE FROM " + SliceDataNetworksTableName + " WHERE dataNetworkID IN (SELECT id FROM " + DataNetworksTableName + " WHERE name==?)"
+	countSliceDataNetworkPoliciesStmt  = "SELECT COUNT(*) FROM " + PoliciesTableName + " WHERE sliceID==? AND dataNetworkID==?"
 	sliceDataNetworkForwardingQuery    = "SELECT p.sliceID, p.dataNetworkID, d.ims, d.ipv6Pool != '', p.nat, p.localSwitch, p.networkInstance FROM %s p JOIN %s d ON d.id = p.dataNetworkID"
 )
 
 type SliceDataNetwork struct {
-	SliceID         string `db:"sliceID"`
-	DataNetworkID   string `db:"dataNetworkID"`
-	NAT             bool   `db:"nat"`
-	LocalSwitch     bool   `db:"localSwitch"`
-	NetworkInstance string `db:"networkInstance"`
+	SliceID         string
+	DataNetworkID   string
+	NAT             bool
+	LocalSwitch     bool
+	NetworkInstance string
 }
 
 type SliceDataNetworkForwarding struct {
@@ -67,9 +66,8 @@ func (db *Database) ListSliceDataNetworks(ctx context.Context) ([]SliceDataNetwo
 		return pairs, err
 	}
 
-	var pairs []SliceDataNetwork
-
-	if err := db.conn().Query(ctx, db.listSliceDataNetworksStmt).GetAll(&pairs); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	pairs, err := queryAll(ctx, db.reader(), listSliceDataNetworksStmt, scanSliceDataNetwork)
+	if err != nil {
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -97,9 +95,8 @@ func (db *Database) GetSliceDataNetwork(ctx context.Context, sliceID, dataNetwor
 	ctx, span, done := db.sliceDataNetworkSpan(ctx, "SELECT")
 	defer done()
 
-	row := SliceDataNetwork{SliceID: sliceID, DataNetworkID: dataNetworkID}
-
-	if err := db.conn().Query(ctx, db.getSliceDataNetworkStmt, row).Get(&row); err != nil {
+	row, err := scanSliceDataNetwork(db.reader().QueryRowContext(ctx, getSliceDataNetworkStmt, sliceID, dataNetworkID))
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -214,7 +211,7 @@ func (db *Database) WithheldLeaseOwners(ctx context.Context, nodeID string) (map
 		GROUP BY s.imsi, p.dataNetworkID`,
 		owners, PoliciesTableName, SliceDataNetworksTableName, DataNetworksTableName, IPLeasesTableName) // #nosec: G201 -- table names are constants
 
-	rows, err := db.conn().PlainDB().QueryContext(ctx, query, models.DefaultNetworkInstanceName, models.DefaultNetworkInstanceName, nodeID)
+	rows, err := db.conn().QueryContext(ctx, query, models.DefaultNetworkInstanceName, models.DefaultNetworkInstanceName, nodeID)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -258,7 +255,7 @@ func (db *Database) sliceDataNetworkForwarding(ctx context.Context, where string
 
 	query := fmt.Sprintf(sliceDataNetworkForwardingQuery, SliceDataNetworksTableName, DataNetworksTableName) + where + " ORDER BY p.sliceID, p.dataNetworkID"
 
-	rows, err := db.conn().PlainDB().QueryContext(ctx, query, args...)
+	rows, err := db.conn().QueryContext(ctx, query, args...)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -334,12 +331,12 @@ func (db *Database) legacySliceDataNetworkForwarding(ctx context.Context, match 
 }
 
 func (db *Database) legacySliceDataNetworks(ctx context.Context) ([]SliceDataNetwork, error) {
-	localSwitch, err := readLegacyToggle(ctx, db.conn().PlainDB(), LocalSwitchSettingsTableName, false)
+	localSwitch, err := readLegacyToggle(ctx, db.conn(), LocalSwitchSettingsTableName, false)
 	if err != nil {
 		return nil, err
 	}
 
-	nat, err := readLegacyToggle(ctx, db.conn().PlainDB(), NATSettingsTableName, NATDefaultEnabled)
+	nat, err := readLegacyToggle(ctx, db.conn(), NATSettingsTableName, NATDefaultEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -351,7 +348,7 @@ func (db *Database) legacySliceDataNetworks(ctx context.Context) ([]SliceDataNet
 
 	query := fmt.Sprintf("SELECT DISTINCT p.sliceID, p.dataNetworkID, %s FROM %s p JOIN %s d ON d.id = p.dataNetworkID ORDER BY p.sliceID, p.dataNetworkID", ims, PoliciesTableName, DataNetworksTableName) // #nosec: G201 -- table names and the IMS expression are constants
 
-	rows, err := db.conn().PlainDB().QueryContext(ctx, query)
+	rows, err := db.conn().QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -380,7 +377,7 @@ func (db *Database) legacySliceDataNetworks(ctx context.Context) ([]SliceDataNet
 }
 
 func (db *Database) applyCreateSliceDataNetwork(ctx context.Context, pair *SliceDataNetwork) (any, error) {
-	if err := db.runner(ctx).Query(ctx, db.createSliceDataNetworkStmt, pair).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, createSliceDataNetworkStmt, pair.SliceID, pair.DataNetworkID, pair.NAT, pair.LocalSwitch, pair.NetworkInstance); err != nil {
 		if isUniqueNameError(err) || isPrimaryKeyError(err) {
 			return nil, ErrAlreadyExists
 		}
@@ -392,33 +389,30 @@ func (db *Database) applyCreateSliceDataNetwork(ctx context.Context, pair *Slice
 }
 
 func (db *Database) applyUpdateSliceDataNetwork(ctx context.Context, pair *SliceDataNetwork) (any, error) {
-	var outcome sqlair.Outcome
-
-	if err := db.runner(ctx).Query(ctx, db.updateSliceDataNetworkStmt, pair).Get(&outcome); err != nil {
+	res, err := db.runner(ctx).ExecContext(ctx, updateSliceDataNetworkStmt, pair.NAT, pair.LocalSwitch, pair.NetworkInstance, pair.SliceID, pair.DataNetworkID)
+	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	return nil, requireRowAffected(outcome)
+	return nil, requireRowAffected(res)
 }
 
 func (db *Database) applyDeleteSliceDataNetwork(ctx context.Context, pair *SliceDataNetwork) (any, error) {
-	var count NumItems
-
-	if err := db.runner(ctx).Query(ctx, db.countSliceDataNetworkPoliciesStmt, pair).Get(&count); err != nil {
+	count, err := queryCount(ctx, db.runner(ctx), countSliceDataNetworkPoliciesStmt, pair.SliceID, pair.DataNetworkID)
+	if err != nil {
 		return nil, fmt.Errorf("count policies: %w", err)
 	}
 
-	if count.Count > 0 {
+	if count > 0 {
 		return nil, ErrInUse
 	}
 
-	var outcome sqlair.Outcome
-
-	if err := db.runner(ctx).Query(ctx, db.deleteSliceDataNetworkStmt, pair).Get(&outcome); err != nil {
+	res, err := db.runner(ctx).ExecContext(ctx, deleteSliceDataNetworkStmt, pair.SliceID, pair.DataNetworkID)
+	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	return nil, requireRowAffected(outcome)
+	return nil, requireRowAffected(res)
 }
 
 func (db *Database) deleteSliceDataNetworksOfSlice(ctx context.Context, name string) error {
@@ -426,7 +420,7 @@ func (db *Database) deleteSliceDataNetworksOfSlice(ctx context.Context, name str
 		return nil
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.deleteSliceDataNetworksOfSliceStmt, NetworkSlice{Name: name}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteSliceDataNetworksOfSliceStmt, name); err != nil {
 		return fmt.Errorf("delete the data networks of slice %s: %w", name, err)
 	}
 
@@ -438,15 +432,15 @@ func (db *Database) deleteSliceDataNetworksOfDataNetwork(ctx context.Context, na
 		return nil
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.deleteSliceDataNetworksOfDNStmt, DataNetwork{Name: name}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteSliceDataNetworksOfDNStmt, name); err != nil {
 		return fmt.Errorf("delete the slices of data network %s: %w", name, err)
 	}
 
 	return nil
 }
 
-func requireRowAffected(outcome sqlair.Outcome) error {
-	rowsAffected, err := outcome.Result().RowsAffected()
+func requireRowAffected(res sql.Result) error {
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("rows affected: %w", err)
 	}
@@ -489,4 +483,14 @@ func (db *Database) sliceDataNetworkSpan(ctx context.Context, operation string) 
 		timer.ObserveDuration()
 		span.End()
 	}
+}
+
+func scanSliceDataNetwork(row scanner) (SliceDataNetwork, error) {
+	var v SliceDataNetwork
+
+	if err := row.Scan(&v.SliceID, &v.DataNetworkID, &v.NAT, &v.LocalSwitch, &v.NetworkInstance); err != nil {
+		return SliceDataNetwork{}, err
+	}
+
+	return v, nil
 }

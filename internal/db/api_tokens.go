@@ -11,84 +11,47 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const APITokensTableName = "api_tokens"
 
 type APIToken struct {
-	ID        string     `db:"id"` // UUIDv7
-	TokenID   string     `db:"token_id"`
-	Name      string     `db:"name"`
-	TokenHash string     `db:"token_hash"`
-	UserID    string     `db:"user_id"` // FK to users.id (UUID)
-	ExpiresAt *time.Time `db:"expires_at"`
+	ID        string // UUIDv7
+	TokenID   string
+	Name      string
+	TokenHash string
+	UserID    string // FK to users.id (UUID)
+	ExpiresAt *time.Time
 }
 
 const (
-	listAPITokensPagedStmt = `SELECT &APIToken.*, COUNT(*) OVER() AS &NumItems.count FROM %s WHERE user_id == $APIToken.user_id ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset`
-	getByTokenIDStmt       = "SELECT &APIToken.* FROM %s WHERE token_id==$APIToken.token_id"
-	deleteAPITokenStmt     = "DELETE FROM %s WHERE id==$APIToken.id"                                                                                                                                                         // #nosec: G101
-	createAPITokenStmt     = "INSERT INTO %s (id, token_id, name, token_hash, user_id, expires_at) VALUES ($APIToken.id, $APIToken.token_id, $APIToken.name, $APIToken.token_hash, $APIToken.user_id, $APIToken.expires_at)" // #nosec: G101
-	countAPITokensStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE user_id==$APIToken.user_id"                                                                                                                   // #nosec: G101
+	listAPITokensPagedStmt = `SELECT id, token_id, name, token_hash, user_id, expires_at, COUNT(*) OVER() FROM ` + APITokensTableName + ` WHERE user_id == ? ORDER BY id DESC LIMIT ? OFFSET ?`
+	getByTokenIDStmt       = "SELECT id, token_id, name, token_hash, user_id, expires_at FROM " + APITokensTableName + " WHERE token_id==?"
+	deleteAPITokenStmt     = "DELETE FROM " + APITokensTableName + " WHERE id==?"                                                                     // #nosec: G101
+	createAPITokenStmt     = "INSERT INTO " + APITokensTableName + " (id, token_id, name, token_hash, user_id, expires_at) VALUES (?, ?, ?, ?, ?, ?)" // #nosec: G101
+	countAPITokensStmt     = "SELECT COUNT(*) FROM " + APITokensTableName + " WHERE user_id==?"                                                       // #nosec: G101
 )
 
 func (db *Database) ListAPITokensPage(ctx context.Context, userID string, page int, perPage int) ([]APIToken, int, error) {
-	querySummary := fmt.Sprintf("%s %s (paged)", "SELECT", APITokensTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(APITokensTableName),
-			attribute.Int("ella.db.page", page),
-			attribute.Int("ella.db.page_size", perPage),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+APITokensTableName+" (paged)", APITokensTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(APITokensTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(APITokensTableName, "select").Inc()
-
-	var tokens []APIToken
-
-	var counts []NumItems
-
-	args := ListArgs{
-		Limit:  perPage,
-		Offset: (page - 1) * perPage,
-	}
-
-	apiTokenArg := APIToken{UserID: userID}
-
-	err := db.conn().Query(ctx, db.listAPITokensStmt, args, apiTokenArg).GetAll(&tokens, &counts)
+	tokens, count, err := queryPage(ctx, db.reader(), listAPITokensPagedStmt, scanAPIToken, userID, perPage, (page-1)*perPage)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			fallbackCount, countErr := db.CountAPITokens(ctx, userID)
-			if countErr != nil {
-				return nil, 0, nil
-			}
-
-			return nil, fallbackCount, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	count := 0
-	if len(counts) > 0 {
-		count = counts[0].Count
+	if len(tokens) == 0 {
+		fallbackCount, countErr := db.CountAPITokens(ctx, userID)
+		if countErr != nil {
+			return nil, 0, nil
+		}
+
+		return nil, fallbackCount, nil
 	}
 
 	return tokens, count, nil
@@ -96,25 +59,9 @@ func (db *Database) ListAPITokensPage(ctx context.Context, userID string, page i
 
 // CreateAPIToken inserts a new api token with a span named "INSERT api_token".
 func (db *Database) CreateAPIToken(ctx context.Context, apiToken *APIToken) error {
-	querySummary := fmt.Sprintf("%s %s", "INSERT", APITokensTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			semconv.DBCollectionName(APITokensTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, APITokensTableName, "INSERT", "insert")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(APITokensTableName, "insert"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(APITokensTableName, "insert").Inc()
 
 	if apiToken.ID == "" {
 		id, err := uuid.NewV7()
@@ -138,29 +85,11 @@ func (db *Database) CreateAPIToken(ctx context.Context, apiToken *APIToken) erro
 }
 
 func (db *Database) GetAPITokenByTokenID(ctx context.Context, tokenID string) (*APIToken, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", APITokensTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(APITokensTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, APITokensTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(APITokensTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(APITokensTableName, "select").Inc()
-
-	row := APIToken{TokenID: tokenID}
-
-	err := db.conn().Query(ctx, db.getAPITokenByIDStmt, row).Get(&row)
+	row, err := scanAPIToken(db.reader().QueryRowContext(ctx, getByTokenIDStmt, tokenID))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -175,25 +104,9 @@ func (db *Database) GetAPITokenByTokenID(ctx context.Context, tokenID string) (*
 }
 
 func (db *Database) DeleteAPIToken(ctx context.Context, id string) error {
-	querySummary := fmt.Sprintf("%s %s", "DELETE", APITokensTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(APITokensTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, APITokensTableName, "DELETE", "delete")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(APITokensTableName, "delete"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(APITokensTableName, "delete").Inc()
 
 	_, err := opDeleteAPIToken.Invoke(ctx, db, &stringPayload{Value: id})
 	if err != nil {
@@ -206,36 +119,26 @@ func (db *Database) DeleteAPIToken(ctx context.Context, id string) error {
 }
 
 func (db *Database) CountAPITokens(ctx context.Context, userID string) (int, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", APITokensTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(APITokensTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, APITokensTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(APITokensTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(APITokensTableName, "select").Inc()
-
-	var result NumItems
-
-	arg := APIToken{UserID: userID}
-
-	err := db.conn().Query(ctx, db.countAPITokensStmt, arg).Get(&result)
+	count, err := queryCount(ctx, db.reader(), countAPITokensStmt, userID)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	return result.Count, nil
+	return count, nil
+}
+
+func scanAPIToken(row scanner) (APIToken, error) {
+	var v APIToken
+
+	if err := row.Scan(&v.ID, &v.TokenID, &v.Name, &v.TokenHash, &v.UserID, &v.ExpiresAt); err != nil {
+		return APIToken{}, err
+	}
+
+	return v, nil
 }

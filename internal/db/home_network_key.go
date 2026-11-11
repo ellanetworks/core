@@ -12,10 +12,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const HomeNetworkKeysTableName = "home_network_keys"
@@ -26,20 +22,20 @@ const HomeNetworkKeysTableName = "home_network_keys"
 const MaxHomeNetworkKeys = 12
 
 const (
-	listHomeNetworkKeysStmtStr                    = "SELECT &HomeNetworkKey.* FROM %s ORDER BY scheme, key_identifier"
-	getHomeNetworkKeyStmtStr                      = "SELECT &HomeNetworkKey.* FROM %s WHERE id==$HomeNetworkKey.id"
-	getHomeNetworkKeyBySchemeAndIdentifierStmtStr = "SELECT &HomeNetworkKey.* FROM %s WHERE scheme==$HomeNetworkKey.scheme AND key_identifier==$HomeNetworkKey.key_identifier"
-	createHomeNetworkKeyStmtStr                   = "INSERT INTO %s (id, key_identifier, scheme, private_key) VALUES ($HomeNetworkKey.id, $HomeNetworkKey.key_identifier, $HomeNetworkKey.scheme, $HomeNetworkKey.private_key)"
-	deleteHomeNetworkKeyStmtStr                   = "DELETE FROM %s WHERE id==$HomeNetworkKey.id"
-	countHomeNetworkKeysStmtStr                   = "SELECT COUNT(*) AS &NumItems.count FROM %s"
+	listHomeNetworkKeysStmt                    = "SELECT id, key_identifier, scheme, private_key FROM " + HomeNetworkKeysTableName + " ORDER BY scheme, key_identifier"
+	getHomeNetworkKeyStmt                      = "SELECT id, key_identifier, scheme, private_key FROM " + HomeNetworkKeysTableName + " WHERE id==?"
+	getHomeNetworkKeyBySchemeAndIdentifierStmt = "SELECT id, key_identifier, scheme, private_key FROM " + HomeNetworkKeysTableName + " WHERE scheme==? AND key_identifier==?"
+	createHomeNetworkKeyStmt                   = "INSERT INTO " + HomeNetworkKeysTableName + " (id, key_identifier, scheme, private_key) VALUES (?, ?, ?, ?)"
+	deleteHomeNetworkKeyStmt                   = "DELETE FROM " + HomeNetworkKeysTableName + " WHERE id==?"
+	countHomeNetworkKeysStmt                   = "SELECT COUNT(*) FROM " + HomeNetworkKeysTableName
 )
 
 // HomeNetworkKey represents a home network key used for SUCI de-concealment.
 type HomeNetworkKey struct {
-	ID            string `db:"id"` // UUIDv7, generated at the request handler
-	KeyIdentifier int    `db:"key_identifier"`
-	Scheme        string `db:"scheme"` // "A" or "B"
-	PrivateKey    string `db:"private_key"`
+	ID            string // UUIDv7, generated at the request handler
+	KeyIdentifier int
+	Scheme        string // "A" or "B"
+	PrivateKey    string
 }
 
 // GetPublicKey derives the public key from the private key based on the scheme.
@@ -84,34 +80,12 @@ func deriveHomeNetworkPublicKeyProfileB(privateKeyHex string) (string, error) {
 
 // ListHomeNetworkKeys returns all home network keys ordered by scheme and key identifier.
 func (db *Database) ListHomeNetworkKeys(ctx context.Context) ([]HomeNetworkKey, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", HomeNetworkKeysTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(HomeNetworkKeysTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, HomeNetworkKeysTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(HomeNetworkKeysTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(HomeNetworkKeysTableName, "select").Inc()
-
-	var keys []HomeNetworkKey
-
-	err := db.conn().Query(ctx, db.listHomeNetworkKeysStmt).GetAll(&keys)
+	keys, err := queryAll(ctx, db.reader(), listHomeNetworkKeysStmt, scanHomeNetworkKey)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -122,29 +96,11 @@ func (db *Database) ListHomeNetworkKeys(ctx context.Context) ([]HomeNetworkKey, 
 
 // GetHomeNetworkKey retrieves a home network key by its UUID.
 func (db *Database) GetHomeNetworkKey(ctx context.Context, id string) (*HomeNetworkKey, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", HomeNetworkKeysTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(HomeNetworkKeysTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, HomeNetworkKeysTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(HomeNetworkKeysTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(HomeNetworkKeysTableName, "select").Inc()
-
-	row := HomeNetworkKey{ID: id}
-
-	err := db.conn().Query(ctx, db.getHomeNetworkKeyStmt, row).Get(&row)
+	row, err := scanHomeNetworkKey(db.reader().QueryRowContext(ctx, getHomeNetworkKeyStmt, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -160,29 +116,11 @@ func (db *Database) GetHomeNetworkKey(ctx context.Context, id string) (*HomeNetw
 
 // GetHomeNetworkKeyBySchemeAndIdentifier retrieves a home network key by its (scheme, keyIdentifier) pair.
 func (db *Database) GetHomeNetworkKeyBySchemeAndIdentifier(ctx context.Context, scheme string, keyIdentifier int) (*HomeNetworkKey, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", HomeNetworkKeysTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(HomeNetworkKeysTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, HomeNetworkKeysTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(HomeNetworkKeysTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(HomeNetworkKeysTableName, "select").Inc()
-
-	row := HomeNetworkKey{Scheme: scheme, KeyIdentifier: keyIdentifier}
-
-	err := db.conn().Query(ctx, db.getHomeNetworkKeyBySchemeAndIdentifierStmt, row).Get(&row)
+	row, err := scanHomeNetworkKey(db.reader().QueryRowContext(ctx, getHomeNetworkKeyBySchemeAndIdentifierStmt, scheme, keyIdentifier))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -198,25 +136,9 @@ func (db *Database) GetHomeNetworkKeyBySchemeAndIdentifier(ctx context.Context, 
 
 // CreateHomeNetworkKey inserts a new home network key.
 func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKey) error {
-	querySummary := fmt.Sprintf("%s %s", "INSERT", HomeNetworkKeysTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			semconv.DBCollectionName(HomeNetworkKeysTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, HomeNetworkKeysTableName, "INSERT", "insert")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(HomeNetworkKeysTableName, "insert"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(HomeNetworkKeysTableName, "insert").Inc()
 
 	if key.ID == "" {
 		err := fmt.Errorf("CreateHomeNetworkKey: ID must be set by the caller")
@@ -237,25 +159,9 @@ func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKe
 
 // DeleteHomeNetworkKey removes a home network key by its UUID.
 func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id string) error {
-	querySummary := fmt.Sprintf("%s %s", "DELETE", HomeNetworkKeysTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(HomeNetworkKeysTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, HomeNetworkKeysTableName, "DELETE", "delete")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(HomeNetworkKeysTableName, "delete"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(HomeNetworkKeysTableName, "delete").Inc()
 
 	_, err := opDeleteHomeNetworkKey.Invoke(ctx, db, &stringPayload{Value: id})
 	if err != nil {
@@ -269,34 +175,26 @@ func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id string) error {
 
 // CountHomeNetworkKeys returns the number of home network keys.
 func (db *Database) CountHomeNetworkKeys(ctx context.Context) (int, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", HomeNetworkKeysTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(HomeNetworkKeysTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, HomeNetworkKeysTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(HomeNetworkKeysTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(HomeNetworkKeysTableName, "select").Inc()
-
-	var result NumItems
-
-	err := db.conn().Query(ctx, db.countHomeNetworkKeysStmt).Get(&result)
+	count, err := queryCount(ctx, db.reader(), countHomeNetworkKeysStmt)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	return result.Count, nil
+	return count, nil
+}
+
+func scanHomeNetworkKey(row scanner) (HomeNetworkKey, error) {
+	var v HomeNetworkKey
+
+	if err := row.Scan(&v.ID, &v.KeyIdentifier, &v.Scheme, &v.PrivateKey); err != nil {
+		return HomeNetworkKey{}, err
+	}
+
+	return v, nil
 }

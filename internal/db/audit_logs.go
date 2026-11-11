@@ -7,70 +7,49 @@ package db
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/ellanetworks/core/internal/dbwriter"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const AuditLogsTableName = "audit_logs"
 
 const (
-	insertAuditLogStmt     = "INSERT INTO %s (id, timestamp, level, actor, action, ip, details) VALUES ($AuditLog.id, $AuditLog.timestamp, $AuditLog.level, $AuditLog.actor, $AuditLog.action, $AuditLog.ip, $AuditLog.details)"
-	deleteOldAuditLogsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
+	insertAuditLogStmt     = "INSERT INTO " + AuditLogsTableName + " (id, timestamp, level, actor, action, ip, details) VALUES (?, ?, ?, ?, ?, ?, ?)"
+	deleteOldAuditLogsStmt = "DELETE FROM " + AuditLogsTableName + " WHERE timestamp < ?"
 )
 
 // id is a UUIDv7, so it's not strictly time-ordered (clock skew between
 // generators); the secondary sort by id keeps the ordering stable when
 // timestamps tie.
 const listAuditLogsFilteredPageStmt = `
-  SELECT &AuditLog.*, COUNT(*) OVER() AS &NumItems.count
-  FROM %s
+  SELECT id, timestamp, level, actor, action, ip, details, COUNT(*) OVER()
+  FROM ` + AuditLogsTableName + `
   WHERE
-    ($AuditLogFilters.actor IS NULL OR actor = $AuditLogFilters.actor)
-    AND ($AuditLogFilters.action IS NULL OR action = $AuditLogFilters.action)
-    AND ($AuditLogFilters.timestamp_from IS NULL OR timestamp >= $AuditLogFilters.timestamp_from)
-    AND ($AuditLogFilters.timestamp_to IS NULL OR timestamp < $AuditLogFilters.timestamp_to)
+    (?1 IS NULL OR actor = ?1)
+    AND (?2 IS NULL OR action = ?2)
+    AND (?3 IS NULL OR timestamp >= ?3)
+    AND (?4 IS NULL OR timestamp < ?4)
   ORDER BY timestamp DESC, id DESC
-  LIMIT $ListArgs.limit
-  OFFSET $ListArgs.offset
+  LIMIT ?5
+  OFFSET ?6
 `
 
 // AuditLogFilters holds optional filters for audit log queries.
 type AuditLogFilters struct {
-	Actor         *string `db:"actor"`          // exact match
-	Action        *string `db:"action"`         // exact match
-	TimestampFrom *int64  `db:"timestamp_from"` // epoch milliseconds, inclusive lower bound
-	TimestampTo   *int64  `db:"timestamp_to"`   // epoch milliseconds, exclusive upper bound
+	Actor         *string // exact match
+	Action        *string // exact match
+	TimestampFrom *int64  // epoch milliseconds, inclusive lower bound
+	TimestampTo   *int64  // epoch milliseconds, exclusive upper bound
 }
 
 // InsertAuditLogJSON parses the zap JSON and inserts a structured row.
 func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.AuditLog) error {
-	querySummary := fmt.Sprintf("%s %s", "INSERT", AuditLogsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			semconv.DBCollectionName(AuditLogsTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, AuditLogsTableName, "INSERT", "insert")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(AuditLogsTableName, "insert"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(AuditLogsTableName, "insert").Inc()
 
 	if auditLog.ID == "" {
 		err := fmt.Errorf("InsertAuditLog: ID must be set by the caller")
@@ -79,7 +58,7 @@ func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.Audit
 		return err
 	}
 
-	err := db.conn().Query(context.WithoutCancel(ctx), db.insertAuditLogStmt, auditLog).Run()
+	_, err := db.writer().ExecContext(context.WithoutCancel(ctx), insertAuditLogStmt, auditLog.ID, auditLog.Timestamp, auditLog.Level, auditLog.Actor, auditLog.Action, auditLog.IP, auditLog.Details)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -94,51 +73,15 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, filters *AuditLogFilt
 		filters = &AuditLogFilters{}
 	}
 
-	querySummary := fmt.Sprintf("%s %s (paged)", "SELECT", AuditLogsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(AuditLogsTableName),
-			attribute.Int("ella.db.page", page),
-			attribute.Int("ella.db.page_size", perPage),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+AuditLogsTableName+" (paged)", AuditLogsTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(AuditLogsTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(AuditLogsTableName, "select").Inc()
-
-	args := ListArgs{
-		Limit:  perPage,
-		Offset: (page - 1) * perPage,
-	}
-
-	var logs []dbwriter.AuditLog
-
-	var counts []NumItems
-
-	err := db.conn().Query(ctx, db.listAuditLogsFilteredStmt, args, *filters).GetAll(&logs, &counts)
+	logs, count, err := queryPage(ctx, db.reader(), listAuditLogsFilteredPageStmt, scanAuditLog, filters.Actor, filters.Action, filters.TimestampFrom, filters.TimestampTo, perPage, (page-1)*perPage)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, 0, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
-	}
-
-	count := 0
-	if len(counts) > 0 {
-		count = counts[0].Count
 	}
 
 	return logs, count, nil
@@ -146,31 +89,14 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, filters *AuditLogFilt
 
 // DeleteOldAuditLogs removes logs older than the specified retention period in days.
 func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
-	querySummary := fmt.Sprintf("%s %s (retention)", "DELETE", AuditLogsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(AuditLogsTableName),
-			attribute.Int("retention.days", days),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "DELETE "+AuditLogsTableName+" (retention)", AuditLogsTableName, "DELETE", "delete", attribute.Int("retention.days", days))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(AuditLogsTableName, "delete"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(AuditLogsTableName, "delete").Inc()
 
 	// Compute cutoff entirely in UTC so the boundary is timezone/DST-independent.
 	cutoff := dbwriter.EpochMillis(time.Now().UTC().AddDate(0, 0, -days))
 
-	err := db.conn().Query(ctx, db.deleteOldAuditLogsStmt, cutoffArgs{Cutoff: cutoff}).Run()
+	_, err := db.writer().ExecContext(ctx, deleteOldAuditLogsStmt, cutoff)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -184,4 +110,14 @@ func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
 func (db *Database) ListAuditLogsByActorPage(ctx context.Context, actor string, page, perPage int) ([]dbwriter.AuditLog, int, error) {
 	filters := &AuditLogFilters{Actor: &actor}
 	return db.ListAuditLogsPage(ctx, filters, page, perPage)
+}
+
+func scanAuditLog(row scanner) (dbwriter.AuditLog, error) {
+	var v dbwriter.AuditLog
+
+	if err := row.Scan(&v.ID, &v.Timestamp, &v.Level, &v.Actor, &v.Action, &v.IP, &v.Details); err != nil {
+		return dbwriter.AuditLog{}, err
+	}
+
+	return v, nil
 }

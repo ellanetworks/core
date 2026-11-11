@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"testing"
-
-	"github.com/canonical/sqlair"
 )
 
 func newDatabaseAtVersion(t *testing.T, version int) *Database {
@@ -33,7 +31,7 @@ func newDatabaseAtVersion(t *testing.T, version int) *Database {
 	}
 
 	d := new(Database)
-	d.connection = sqlair.NewDB(conn)
+	d.connection = conn
 	d.dbPath = dbPath
 	d.dataDir = filepath.Dir(dbPath)
 	d.changefeed = NewChangefeed()
@@ -48,10 +46,6 @@ func newDatabaseAtVersion(t *testing.T, version int) *Database {
 		t.Fatalf("refresh applied schema: %v", err)
 	}
 
-	if err := d.PrepareStatements(); err != nil {
-		t.Fatalf("prepare statements: %v", err)
-	}
-
 	RegisterMetrics(d)
 
 	return d
@@ -61,11 +55,11 @@ func TestSMSReadsWorkBeforeV22(t *testing.T) {
 	ctx := context.Background()
 	d := newDatabaseAtVersion(t, 21)
 
-	if _, err := d.conn().PlainDB().ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
+	if _, err := d.conn().ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
 		t.Fatalf("disable foreign keys: %v", err)
 	}
 
-	_, err := d.conn().PlainDB().ExecContext(ctx, fmt.Sprintf(
+	_, err := d.conn().ExecContext(ctx, fmt.Sprintf(
 		"INSERT INTO %s (id, imsi, sequenceNumber, permanentKey, opc, profileID, description) VALUES ('01890000-0000-7000-8000-000000000001', '001010000000001', '000000000001', '00112233445566778899aabbccddeeff', '00112233445566778899aabbccddeeff', '01890000-0000-7000-8000-0000000000ff', 'gate reader')",
 		SubscribersTableName))
 	if err != nil {

@@ -11,114 +11,73 @@ import (
 
 	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
 const ProfilesTableName = "profiles"
 
 const (
-	listProfilesPagedStmt         = "SELECT &Profile.*, COUNT(*) OVER() AS &NumItems.count FROM %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
-	getProfileStmt                = "SELECT &Profile.* FROM %s WHERE name==$Profile.name"
-	getProfileByIDStmt            = "SELECT &Profile.* FROM %s WHERE id==$Profile.id"
-	createProfileStmt             = "INSERT INTO %s (id, name, ueAmbrUplink, ueAmbrDownlink, allow4G, allow5G) VALUES ($Profile.id, $Profile.name, $Profile.ueAmbrUplink, $Profile.ueAmbrDownlink, $Profile.allow4G, $Profile.allow5G)"
-	editProfileStmt               = "UPDATE %s SET ueAmbrUplink=$Profile.ueAmbrUplink, ueAmbrDownlink=$Profile.ueAmbrDownlink, allow4G=$Profile.allow4G, allow5G=$Profile.allow5G WHERE name==$Profile.name"
-	deleteProfileStmt             = "DELETE FROM %s WHERE name==$Profile.name"
-	countProfilesStmt             = "SELECT COUNT(*) AS &NumItems.count FROM %s"
-	countSubscribersInProfileStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE profileID=$Subscriber.profileID"
+	profileColumns                = "id, name, ueAmbrUplink, ueAmbrDownlink, allow4G, allow5G"
+	listProfilesPagedStmt         = "SELECT " + profileColumns + ", COUNT(*) OVER() FROM " + ProfilesTableName + " LIMIT ? OFFSET ?"
+	getProfileStmt                = "SELECT " + profileColumns + " FROM " + ProfilesTableName + " WHERE name==?"
+	getProfileByIDStmt            = "SELECT " + profileColumns + " FROM " + ProfilesTableName + " WHERE id==?"
+	createProfileStmt             = "INSERT INTO " + ProfilesTableName + " (id, name, ueAmbrUplink, ueAmbrDownlink, allow4G, allow5G) VALUES (?, ?, ?, ?, ?, ?)"
+	editProfileStmt               = "UPDATE " + ProfilesTableName + " SET ueAmbrUplink=?, ueAmbrDownlink=?, allow4G=?, allow5G=? WHERE name==?"
+	deleteProfileStmt             = "DELETE FROM " + ProfilesTableName + " WHERE name==?"
+	countProfilesStmt             = "SELECT COUNT(*) FROM " + ProfilesTableName
+	countSubscribersInProfileStmt = "SELECT COUNT(*) FROM " + SubscribersTableName + " WHERE profileID=?"
 )
 
 type Profile struct {
-	ID             string `db:"id"` // UUIDv7
-	Name           string `db:"name"`
-	UeAmbrUplink   string `db:"ueAmbrUplink"`
-	UeAmbrDownlink string `db:"ueAmbrDownlink"`
-	Allow4G        bool   `db:"allow4G"`
-	Allow5G        bool   `db:"allow5G"`
+	ID             string // UUIDv7
+	Name           string
+	UeAmbrUplink   string
+	UeAmbrDownlink string
+	Allow4G        bool
+	Allow5G        bool
+}
+
+func scanProfile(row scanner) (Profile, error) {
+	var p Profile
+
+	if err := row.Scan(&p.ID, &p.Name, &p.UeAmbrUplink, &p.UeAmbrDownlink, &p.Allow4G, &p.Allow5G); err != nil {
+		return Profile{}, err
+	}
+
+	return p, nil
 }
 
 func (db *Database) ListProfilesPage(ctx context.Context, page, perPage int) ([]Profile, int, error) {
-	querySummary := fmt.Sprintf("%s %s (paged)", "SELECT", ProfilesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(ProfilesTableName),
-			attribute.Int("ella.db.page", page),
-			attribute.Int("ella.db.page_size", perPage),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+ProfilesTableName+" (paged)", ProfilesTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(ProfilesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(ProfilesTableName, "select").Inc()
-
-	var profiles []Profile
-
-	var counts []NumItems
-
-	args := ListArgs{
-		Limit:  perPage,
-		Offset: (page - 1) * perPage,
-	}
-
-	err := db.conn().Query(ctx, db.listProfilesStmt, args).GetAll(&profiles, &counts)
+	profiles, count, err := queryPage(ctx, db.reader(), listProfilesPagedStmt, scanProfile, perPage, (page-1)*perPage)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			fallbackCount, countErr := db.CountProfiles(ctx)
-			if countErr != nil {
-				return nil, 0, nil
-			}
-
-			return nil, fallbackCount, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	count := 0
-	if len(counts) > 0 {
-		count = counts[0].Count
+	if len(profiles) == 0 {
+		fallbackCount, countErr := db.CountProfiles(ctx)
+		if countErr != nil {
+			return nil, 0, nil
+		}
+
+		return nil, fallbackCount, nil
 	}
 
 	return profiles, count, nil
 }
 
 func (db *Database) GetProfile(ctx context.Context, name string) (*Profile, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", ProfilesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(ProfilesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, ProfilesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(ProfilesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(ProfilesTableName, "select").Inc()
-
-	row := Profile{Name: name}
-
-	err := db.conn().Query(ctx, db.getProfileStmt, row).Get(&row)
+	row, err := scanProfile(db.reader().QueryRowContext(ctx, getProfileStmt, name))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -133,29 +92,11 @@ func (db *Database) GetProfile(ctx context.Context, name string) (*Profile, erro
 }
 
 func (db *Database) GetProfileByID(ctx context.Context, id string) (*Profile, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", ProfilesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(ProfilesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, ProfilesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(ProfilesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(ProfilesTableName, "select").Inc()
-
-	row := Profile{ID: id}
-
-	err := db.conn().Query(ctx, db.getProfileByIDStmt, row).Get(&row)
+	row, err := scanProfile(db.reader().QueryRowContext(ctx, getProfileByIDStmt, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -170,25 +111,9 @@ func (db *Database) GetProfileByID(ctx context.Context, id string) (*Profile, er
 }
 
 func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
-	querySummary := fmt.Sprintf("%s %s", "INSERT", ProfilesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			semconv.DBCollectionName(ProfilesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, ProfilesTableName, "INSERT", "insert")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(ProfilesTableName, "insert"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(ProfilesTableName, "insert").Inc()
 
 	if profile.ID == "" {
 		id, err := uuid.NewV7()
@@ -212,25 +137,9 @@ func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
 }
 
 func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
-	querySummary := fmt.Sprintf("%s %s", "UPDATE", ProfilesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(ProfilesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, ProfilesTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(ProfilesTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(ProfilesTableName, "update").Inc()
 
 	_, err := opUpdateProfile.Invoke(ctx, db, profile)
 	if err != nil {
@@ -243,25 +152,9 @@ func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
 }
 
 func (db *Database) DeleteProfile(ctx context.Context, name string) error {
-	querySummary := fmt.Sprintf("%s %s", "DELETE", ProfilesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(ProfilesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, ProfilesTableName, "DELETE", "delete")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(ProfilesTableName, "delete"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(ProfilesTableName, "delete").Inc()
 
 	_, err := opDeleteProfile.Invoke(ctx, db, &stringPayload{Value: name})
 	if err != nil {
@@ -274,72 +167,33 @@ func (db *Database) DeleteProfile(ctx context.Context, name string) error {
 }
 
 func (db *Database) CountProfiles(ctx context.Context) (int, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", ProfilesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(ProfilesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, ProfilesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(ProfilesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(ProfilesTableName, "select").Inc()
-
-	var result NumItems
-
-	err := db.conn().Query(ctx, db.countProfilesStmt).Get(&result)
+	count, err := queryCount(ctx, db.reader(), countProfilesStmt)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	return result.Count, nil
+	return count, nil
 }
 
 func (db *Database) CountSubscribersInProfile(ctx context.Context, profileID string) (int, error) {
-	querySummary := fmt.Sprintf("%s %s (by profile)", "SELECT", SubscribersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(SubscribersTableName),
-			attrs.ProfileID(profileID),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+SubscribersTableName+" (by profile)", SubscribersTableName, "SELECT", "select", attrs.ProfileID(profileID))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
-
-	var result NumItems
-
-	subscriber := Subscriber{ProfileID: profileID}
-
-	err := db.conn().Query(ctx, db.countSubscribersByProfileStmt, subscriber).Get(&result)
+	count, err := queryCount(ctx, db.reader(), countSubscribersInProfileStmt, profileID)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	return result.Count, nil
+	return count, nil
 }
 
 func (db *Database) SubscribersInProfile(ctx context.Context, name string) (bool, error) {

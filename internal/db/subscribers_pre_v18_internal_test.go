@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"testing"
-
-	"github.com/canonical/sqlair"
 )
 
 // newSubscriberDatabaseAtV17 builds the cluster-mode local state of a node
@@ -36,7 +34,7 @@ func newSubscriberDatabaseAtV17(t *testing.T) *Database {
 	}
 
 	d := new(Database)
-	d.connection = sqlair.NewDB(conn)
+	d.connection = conn
 	d.dbPath = dbPath
 	d.dataDir = filepath.Dir(dbPath)
 	d.changefeed = NewChangefeed()
@@ -49,10 +47,6 @@ func newSubscriberDatabaseAtV17(t *testing.T) *Database {
 
 	if err := d.refreshAppliedSchema(ctx); err != nil {
 		t.Fatalf("refresh applied schema: %v", err)
-	}
-
-	if err := d.PrepareStatements(); err != nil {
-		t.Fatalf("prepare statements: %v", err)
 	}
 
 	RegisterMetrics(d)
@@ -69,11 +63,11 @@ func TestSubscriberReadsWorkAtBaselineSchema(t *testing.T) {
 	d := newSubscriberDatabaseAtV17(t)
 
 	// The profile FK is irrelevant to the column set under test.
-	if _, err := d.conn().PlainDB().ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
+	if _, err := d.conn().ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
 		t.Fatalf("disable foreign keys: %v", err)
 	}
 
-	_, err := d.conn().PlainDB().ExecContext(ctx, fmt.Sprintf(
+	_, err := d.conn().ExecContext(ctx, fmt.Sprintf(
 		"INSERT INTO %s (id, imsi, sequenceNumber, permanentKey, opc, profileID) VALUES ('01890000-0000-7000-8000-000000000001', '001010000000001', '000000000001', '00112233445566778899aabbccddeeff', '00112233445566778899aabbccddeeff', '01890000-0000-7000-8000-0000000000ff')",
 		SubscribersTableName))
 	if err != nil {

@@ -9,21 +9,17 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const JWTSecretTableName = "jwt_secret"
 
 const (
-	getJWTSecretStmt    = `SELECT &JWTSecret.* FROM %s WHERE singleton=TRUE`                                                                                  // #nosec: G101
-	upsertJWTSecretStmt = `INSERT INTO %s (singleton, secret) VALUES (TRUE, $JWTSecret.secret) ON CONFLICT(singleton) DO UPDATE SET secret=$JWTSecret.secret` // #nosec: G101
+	getJWTSecretStmt    = `SELECT secret FROM ` + JWTSecretTableName + ` WHERE singleton=TRUE`                                                                      // #nosec: G101
+	upsertJWTSecretStmt = `INSERT INTO ` + JWTSecretTableName + ` (singleton, secret) VALUES (TRUE, ?) ON CONFLICT(singleton) DO UPDATE SET secret=excluded.secret` // #nosec: G101
 )
 
 type JWTSecret struct {
-	Secret []byte `db:"secret"`
+	Secret []byte
 }
 
 // InitializeJWTSecret generates and stores a JWT secret if one does not already exist.
@@ -47,29 +43,13 @@ func (db *Database) InitializeJWTSecret(ctx context.Context) error {
 }
 
 func (db *Database) GetJWTSecret(ctx context.Context) ([]byte, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", JWTSecretTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(JWTSecretTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, JWTSecretTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(JWTSecretTableName, "select"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(JWTSecretTableName, "select").Inc()
 
 	var row JWTSecret
 
-	err := db.conn().Query(ctx, db.getJWTSecretStmt).Get(&row)
+	err := db.reader().QueryRowContext(ctx, getJWTSecretStmt).Scan(&row.Secret)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -84,25 +64,9 @@ func (db *Database) GetJWTSecret(ctx context.Context) ([]byte, error) {
 }
 
 func (db *Database) SetJWTSecret(ctx context.Context, secret []byte) error {
-	querySummary := fmt.Sprintf("%s %s", "UPSERT", JWTSecretTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPSERT"),
-			semconv.DBCollectionName(JWTSecretTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, JWTSecretTableName, "UPSERT", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(JWTSecretTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(JWTSecretTableName, "update").Inc()
 
 	_, err := opSetJWTSecret.Invoke(ctx, db, &bytesPayload{Value: secret})
 	if err != nil {
@@ -117,25 +81,9 @@ func (db *Database) SetJWTSecret(ctx context.Context, secret []byte) error {
 // RotateJWTSecret atomically updates the JWT secret and deletes all sessions
 // within a single transaction. If either operation fails, both are rolled back.
 func (db *Database) RotateJWTSecret(ctx context.Context, newSecret []byte) error {
-	querySummary := fmt.Sprintf("%s %s", "ROTATE", JWTSecretTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("ROTATE"),
-			semconv.DBCollectionName(JWTSecretTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, JWTSecretTableName, "ROTATE", "rotate")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(JWTSecretTableName, "rotate"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(JWTSecretTableName, "rotate").Inc()
 
 	if _, err := opRotateJWTSecret.Invoke(ctx, db, &bytesPayload{Value: newSecret}); err != nil {
 		recordSpanError(span, err)

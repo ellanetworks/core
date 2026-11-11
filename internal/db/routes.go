@@ -11,22 +11,18 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/canonical/sqlair"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const RoutesTableName = "routes"
 
 const (
-	listRoutesPageStmt = "SELECT &Route.*, COUNT(*) OVER() AS &NumItems.count FROM %s ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
-	listAllRoutesStmt  = "SELECT &Route.* FROM %s ORDER BY id ASC"
-	getRouteStmt       = "SELECT &Route.* FROM %s WHERE id==$Route.id"
-	createRouteStmt    = "INSERT INTO %s (destination, gateway, interface, metric) VALUES ($Route.destination, $Route.gateway, $Route.interface, $Route.metric)"
-	deleteRouteStmt    = "DELETE FROM %s WHERE id==$Route.id"
-	countRoutesStmt    = "SELECT COUNT(*) AS &NumItems.count FROM %s"
+	listRoutesPageStmt = "SELECT id, destination, gateway, interface, metric, COUNT(*) OVER() FROM " + RoutesTableName + " ORDER BY id DESC LIMIT ? OFFSET ?"
+	listAllRoutesStmt  = "SELECT id, destination, gateway, interface, metric FROM " + RoutesTableName + " ORDER BY id ASC"
+	getRouteStmt       = "SELECT id, destination, gateway, interface, metric FROM " + RoutesTableName + " WHERE id==?"
+	createRouteStmt    = "INSERT INTO " + RoutesTableName + " (destination, gateway, interface, metric) VALUES (?, ?, ?, ?)"
+	deleteRouteStmt    = "DELETE FROM " + RoutesTableName + " WHERE id==?"
+	countRoutesStmt    = "SELECT COUNT(*) FROM " + RoutesTableName
 )
 
 // NetworkInterface is an enum for network interface keys.
@@ -50,64 +46,32 @@ func (ni NetworkInterface) String() string {
 
 // Route represents a route record.
 type Route struct {
-	ID          int64            `db:"id"`
-	Destination string           `db:"destination"`
-	Gateway     string           `db:"gateway"`
-	Interface   NetworkInterface `db:"interface"`
-	Metric      int              `db:"metric"`
+	ID          int64
+	Destination string
+	Gateway     string
+	Interface   NetworkInterface
+	Metric      int
 }
 
 func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) ([]Route, int, error) {
-	querySummary := fmt.Sprintf("%s %s (paged)", "SELECT", RoutesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(RoutesTableName),
-			attribute.Int("ella.db.page", page),
-			attribute.Int("ella.db.page_size", perPage),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+RoutesTableName+" (paged)", RoutesTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RoutesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(RoutesTableName, "select").Inc()
-
-	var routes []Route
-
-	var counts []NumItems
-
-	args := ListArgs{
-		Limit:  perPage,
-		Offset: (page - 1) * perPage,
-	}
-
-	err := db.conn().Query(ctx, db.listRoutesStmt, args).GetAll(&routes, &counts)
+	routes, count, err := queryPage(ctx, db.reader(), listRoutesPageStmt, scanRoute, perPage, (page-1)*perPage)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			fallbackCount, countErr := db.CountRoutes(ctx)
-			if countErr != nil {
-				return nil, 0, nil
-			}
-
-			return nil, fallbackCount, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	count := 0
-	if len(counts) > 0 {
-		count = counts[0].Count
+	if len(routes) == 0 {
+		fallbackCount, countErr := db.CountRoutes(ctx)
+		if countErr != nil {
+			return nil, 0, nil
+		}
+
+		return nil, fallbackCount, nil
 	}
 
 	return routes, count, nil
@@ -116,34 +80,12 @@ func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) (
 // ListAllRoutes returns every route. The framed-route overlap validation reads
 // the full set to enforce non-overlap against the global routing table.
 func (db *Database) ListAllRoutes(ctx context.Context) ([]Route, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", RoutesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(RoutesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, RoutesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RoutesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(RoutesTableName, "select").Inc()
-
-	var routes []Route
-
-	err := db.conn().Query(ctx, db.listAllRoutesStmt).GetAll(&routes)
+	routes, err := queryAll(ctx, db.reader(), listAllRoutesStmt, scanRoute)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -153,29 +95,11 @@ func (db *Database) ListAllRoutes(ctx context.Context) ([]Route, error) {
 }
 
 func (db *Database) GetRoute(ctx context.Context, id int64) (*Route, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", RoutesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(RoutesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, RoutesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RoutesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(RoutesTableName, "select").Inc()
-
-	row := Route{ID: id}
-
-	err := db.conn().Query(ctx, db.getRouteStmt, row).Get(&row)
+	row, err := scanRoute(db.reader().QueryRowContext(ctx, getRouteStmt, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -190,36 +114,18 @@ func (db *Database) GetRoute(ctx context.Context, id int64) (*Route, error) {
 }
 
 func (t *Transaction) CreateRoute(ctx context.Context, route *Route) (int64, error) {
-	querySummary := fmt.Sprintf("%s %s", "INSERT", RoutesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			semconv.DBCollectionName(RoutesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, RoutesTableName, "INSERT", "insert")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RoutesTableName, "insert"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(RoutesTableName, "insert").Inc()
-
-	var outcome sqlair.Outcome
-
-	err := t.tx.Query(ctx, t.db.createRouteStmt, route).Get(&outcome)
+	res, err := t.tx.ExecContext(ctx, createRouteStmt, route.Destination, route.Gateway, route.Interface, route.Metric)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	id, err := outcome.Result().LastInsertId()
+	id, err := res.LastInsertId()
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -230,27 +136,11 @@ func (t *Transaction) CreateRoute(ctx context.Context, route *Route) (int64, err
 }
 
 func (t *Transaction) DeleteRoute(ctx context.Context, id int64) error {
-	querySummary := fmt.Sprintf("%s %s", "DELETE", RoutesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(RoutesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, RoutesTableName, "DELETE", "delete")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RoutesTableName, "delete"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(RoutesTableName, "delete").Inc()
-
-	err := t.tx.Query(ctx, t.db.deleteRouteStmt, Route{ID: id}).Run()
+	_, err := t.tx.ExecContext(ctx, deleteRouteStmt, id)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -261,25 +151,9 @@ func (t *Transaction) DeleteRoute(ctx context.Context, id int64) error {
 }
 
 func (db *Database) CreateRoute(ctx context.Context, route *Route) (int64, error) {
-	querySummary := fmt.Sprintf("%s %s", "INSERT", RoutesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			semconv.DBCollectionName(RoutesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, RoutesTableName, "INSERT", "insert")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RoutesTableName, "insert"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(RoutesTableName, "insert").Inc()
 
 	result, err := db.applyCreateRoute(ctx, route)
 	if err != nil {
@@ -294,25 +168,9 @@ func (db *Database) CreateRoute(ctx context.Context, route *Route) (int64, error
 }
 
 func (db *Database) DeleteRoute(ctx context.Context, id int64) error {
-	querySummary := fmt.Sprintf("%s %s", "DELETE", RoutesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(RoutesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, RoutesTableName, "DELETE", "delete")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RoutesTableName, "delete"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(RoutesTableName, "delete").Inc()
 
 	_, err := db.applyDeleteRoute(ctx, &int64Payload{Value: id})
 	if err != nil {
@@ -326,34 +184,26 @@ func (db *Database) DeleteRoute(ctx context.Context, id int64) error {
 
 // NumRoutes returns route count
 func (db *Database) CountRoutes(ctx context.Context) (int, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", RoutesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(RoutesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, RoutesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RoutesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(RoutesTableName, "select").Inc()
-
-	var result NumItems
-
-	err := db.conn().Query(ctx, db.countRoutesStmt).Get(&result)
+	count, err := queryCount(ctx, db.reader(), countRoutesStmt)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	return result.Count, nil
+	return count, nil
+}
+
+func scanRoute(row scanner) (Route, error) {
+	var v Route
+
+	if err := row.Scan(&v.ID, &v.Destination, &v.Gateway, &v.Interface, &v.Metric); err != nil {
+		return Route{}, err
+	}
+
+	return v, nil
 }

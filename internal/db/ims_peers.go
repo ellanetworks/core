@@ -5,7 +5,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,10 +27,10 @@ const (
 )
 
 const (
-	listIMSPeersStmt  = "SELECT &imsPeerRow.* FROM %s ORDER BY name"
-	insertIMSPeerStmt = "INSERT INTO %s (id, name, originHost, realm, addresses) VALUES ($imsPeerRow.id, $imsPeerRow.name, $imsPeerRow.originHost, $imsPeerRow.realm, $imsPeerRow.addresses)"
-	updateIMSPeerStmt = "UPDATE %s SET originHost=$imsPeerRow.originHost, realm=$imsPeerRow.realm, addresses=$imsPeerRow.addresses WHERE id==$imsPeerRow.id"
-	deleteIMSPeerStmt = "DELETE FROM %s WHERE id==$imsPeerRow.id"
+	listIMSPeersStmt  = "SELECT id, name, originHost, realm, addresses FROM " + IMSPeersTableName + " ORDER BY name"
+	insertIMSPeerStmt = "INSERT INTO " + IMSPeersTableName + " (id, name, originHost, realm, addresses) VALUES (?, ?, ?, ?, ?)"
+	updateIMSPeerStmt = "UPDATE " + IMSPeersTableName + " SET originHost=?, realm=?, addresses=? WHERE id==?"
+	deleteIMSPeerStmt = "DELETE FROM " + IMSPeersTableName + " WHERE id==?"
 )
 
 var ErrIMSPeerConflict = errors.New("allowed IMS peer conflict")
@@ -45,11 +44,11 @@ type IMSPeer struct {
 }
 
 type imsPeerRow struct {
-	ID         string  `db:"id"`
-	Name       string  `db:"name"`
-	OriginHost *string `db:"originHost"`
-	Realm      *string `db:"realm"`
-	Addresses  string  `db:"addresses"`
+	ID         string
+	Name       string
+	OriginHost *string
+	Realm      *string
+	Addresses  string
 }
 
 func nullIfEmpty(s string) *string {
@@ -320,9 +319,8 @@ func (db *Database) listIMSPeers(ctx context.Context) ([]IMSPeer, error) {
 		return []IMSPeer{}, nil
 	}
 
-	var rows []imsPeerRow
-
-	if err := db.runner(ctx).Query(ctx, db.listIMSPeersStmt).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	rows, err := queryAll(ctx, db.runner(ctx), listIMSPeersStmt, scanIMSPeerRow)
+	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -363,7 +361,7 @@ func (db *Database) applyCreateIMSPeer(ctx context.Context, p *IMSPeer) (any, er
 		return nil, err
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.insertIMSPeerStmt, row).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, insertIMSPeerStmt, row.ID, row.Name, row.OriginHost, row.Realm, row.Addresses); err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
 		}
@@ -400,7 +398,7 @@ func (db *Database) applyUpdateIMSPeer(ctx context.Context, p *IMSPeer) (any, er
 		return nil, err
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.updateIMSPeerStmt, row).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, updateIMSPeerStmt, row.OriginHost, row.Realm, row.Addresses, row.ID); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -417,7 +415,7 @@ func (db *Database) applyDeleteIMSPeer(ctx context.Context, p *stringPayload) (a
 		return nil, ErrNotFound
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.deleteIMSPeerStmt, imsPeerRow{ID: p.Value}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteIMSPeerStmt, p.Value); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -444,4 +442,14 @@ func isIPLiteral(s string) bool {
 	_, err := netip.ParseAddr(s)
 
 	return err == nil
+}
+
+func scanIMSPeerRow(row scanner) (imsPeerRow, error) {
+	var v imsPeerRow
+
+	if err := row.Scan(&v.ID, &v.Name, &v.OriginHost, &v.Realm, &v.Addresses); err != nil {
+		return imsPeerRow{}, err
+	}
+
+	return v, nil
 }

@@ -26,14 +26,14 @@ const imsIntegrationsSchema = 27
 const threeGPPNetworkDomain = "3gppnetwork.org"
 
 const (
-	getIMSSettingsStmt    = "SELECT &IMSSettings.* FROM %s WHERE singleton=TRUE"
-	upsertIMSSettingsStmt = "INSERT INTO %s (singleton, homeDomain, advertiseVoice, restrictPeers) VALUES (TRUE, $IMSSettings.homeDomain, $IMSSettings.advertiseVoice, $IMSSettings.restrictPeers) ON CONFLICT(singleton) DO UPDATE SET homeDomain=excluded.homeDomain, advertiseVoice=excluded.advertiseVoice, restrictPeers=excluded.restrictPeers"
+	getIMSSettingsStmt    = "SELECT homeDomain, advertiseVoice, restrictPeers FROM " + IMSSettingsTableName + " WHERE singleton=TRUE"
+	upsertIMSSettingsStmt = "INSERT INTO " + IMSSettingsTableName + " (singleton, homeDomain, advertiseVoice, restrictPeers) VALUES (TRUE, ?, ?, ?) ON CONFLICT(singleton) DO UPDATE SET homeDomain=excluded.homeDomain, advertiseVoice=excluded.advertiseVoice, restrictPeers=excluded.restrictPeers"
 )
 
 type IMSSettings struct {
-	HomeDomain     string `db:"homeDomain" json:"homeDomain"`
-	AdvertiseVoice bool   `db:"advertiseVoice" json:"advertiseVoice"`
-	RestrictPeers  bool   `db:"restrictPeers" json:"restrictPeers"`
+	HomeDomain     string `json:"homeDomain"`
+	AdvertiseVoice bool   `json:"advertiseVoice"`
+	RestrictPeers  bool   `json:"restrictPeers"`
 }
 
 func DefaultIMSSettings() IMSSettings {
@@ -176,7 +176,7 @@ func (db *Database) imsSettings(ctx context.Context) (*IMSSettings, error) {
 		return &settings, nil
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.getIMSSettingsStmt).Get(&settings); err != nil {
+	if err := db.runner(ctx).QueryRowContext(ctx, getIMSSettingsStmt).Scan(&settings.HomeDomain, &settings.AdvertiseVoice, &settings.RestrictPeers); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			defaults := DefaultIMSSettings()
 			return &defaults, nil
@@ -189,9 +189,8 @@ func (db *Database) imsSettings(ctx context.Context) (*IMSSettings, error) {
 }
 
 func (db *Database) imsHomeDomains(ctx context.Context) (IMSHomeDomains, error) {
-	var op Operator
-
-	if err := db.runner(ctx).Query(ctx, db.getOperatorStmt).Get(&op); err != nil {
+	op, err := getOperator(ctx, db.runner(ctx))
+	if err != nil {
 		return IMSHomeDomains{}, fmt.Errorf("get operator: %w", err)
 	}
 
@@ -223,7 +222,7 @@ func (db *Database) applyUpdateIMSSettings(ctx context.Context, p *imsSettingsPa
 		return nil, err
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.upsertIMSSettingsStmt, &p.Settings).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, upsertIMSSettingsStmt, p.Settings.HomeDomain, p.Settings.AdvertiseVoice, p.Settings.RestrictPeers); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 

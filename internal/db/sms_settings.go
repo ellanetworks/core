@@ -25,12 +25,12 @@ const maxMSISDNDigits = 15
 const InitialSMSNumber = "15550001111"
 
 const (
-	getSMSSettingsStmt    = "SELECT &SMSSettings.* FROM %s WHERE singleton=TRUE"
-	upsertSMSSettingsStmt = "INSERT INTO %s (singleton, smsNumber) VALUES (TRUE, $SMSSettings.smsNumber) ON CONFLICT(singleton) DO UPDATE SET smsNumber=excluded.smsNumber"
+	getSMSSettingsStmt    = "SELECT smsNumber FROM " + SMSSettingsTableName + " WHERE singleton=TRUE"
+	upsertSMSSettingsStmt = "INSERT INTO " + SMSSettingsTableName + " (singleton, smsNumber) VALUES (TRUE, ?) ON CONFLICT(singleton) DO UPDATE SET smsNumber=excluded.smsNumber"
 )
 
 type SMSSettings struct {
-	SMSNumber string `db:"smsNumber"`
+	SMSNumber string
 }
 
 func DefaultSMSSettings() SMSSettings {
@@ -74,7 +74,7 @@ func (db *Database) GetSMSSettings(ctx context.Context) (*SMSSettings, error) {
 		return &settings, nil
 	}
 
-	err := db.conn().Query(ctx, db.getSMSSettingsStmt).Get(&settings)
+	err := db.reader().QueryRowContext(ctx, getSMSSettingsStmt).Scan(&settings.SMSNumber)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			settings = DefaultSMSSettings()
@@ -113,7 +113,7 @@ func (db *Database) UpdateSMSSettings(ctx context.Context, settings *SMSSettings
 }
 
 func (db *Database) applyUpdateSMSSettings(ctx context.Context, s *SMSSettings) (any, error) {
-	if err := db.runner(ctx).Query(ctx, db.upsertSMSSettingsStmt, s).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, upsertSMSSettingsStmt, s.SMSNumber); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 

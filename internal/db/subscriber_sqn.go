@@ -11,11 +11,7 @@ import (
 	"hash/fnv"
 	"sync"
 
-	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/sqn"
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 type AdvanceSQNPayload struct {
@@ -31,12 +27,6 @@ type AdvancedCredentials struct {
 	PermanentKey   string `json:"permanentKey"`
 	Opc            string `json:"opc"`
 	SequenceNumber string `json:"sequenceNumber"`
-}
-
-type sqnCAS struct {
-	IMSI     string `db:"imsi"`
-	Expected string `db:"expected"`
-	Next     string `db:"next"`
 }
 
 const sqnLockShards = 256
@@ -59,9 +49,8 @@ func (db *Database) applyAdvanceSubscriberSQN(ctx context.Context, payload *Adva
 	defer lockSQN(payload.IMSI).Unlock()
 
 	for range maxSQNCASAttempts {
-		row := Subscriber{Imsi: payload.IMSI}
-
-		if err := db.runner(ctx).Query(ctx, db.getSubscriberStmt, row).Get(&row); err != nil {
+		row, err := scanSubscriber(db.runner(ctx).QueryRowContext(ctx, getSubscriberStmt, payload.IMSI))
+		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return nil, ErrNotFound
 			}
@@ -78,15 +67,12 @@ func (db *Database) applyAdvanceSubscriberSQN(ctx context.Context, payload *Adva
 			return nil, err
 		}
 
-		swap := sqnCAS{IMSI: payload.IMSI, Expected: row.SequenceNumber, Next: next}
-
-		var outcome sqlair.Outcome
-
-		if err := db.runner(ctx).Query(ctx, db.casSubscriberSqnNumStmt, swap).Get(&outcome); err != nil {
+		res, err := db.runner(ctx).ExecContext(ctx, casSubscriberSeqNumStmt, next, payload.IMSI, row.SequenceNumber)
+		if err != nil {
 			return nil, fmt.Errorf("query failed: %w", err)
 		}
 
-		rowsAffected, err := outcome.Result().RowsAffected()
+		rowsAffected, err := res.RowsAffected()
 		if err != nil {
 			return nil, fmt.Errorf("rows affected: %w", err)
 		}
@@ -127,25 +113,9 @@ func (db *Database) AdvanceSubscriberIMSSQN(ctx context.Context, imsi, resyncAut
 }
 
 func (db *Database) advanceSubscriberSQN(ctx context.Context, payload *AdvanceSQNPayload) (*AdvancedCredentials, error) {
-	querySummary := fmt.Sprintf("%s %s (advance sqn)", "UPDATE", SubscribersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(SubscribersTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "UPDATE "+SubscribersTableName+" (advance sqn)", SubscribersTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SubscribersTableName, "update").Inc()
 
 	creds, err := opAdvanceSubscriberSQN.Invoke(ctx, db, payload)
 	if err != nil {

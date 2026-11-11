@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/canonical/sqlair"
 	"github.com/prometheus/client_golang/prometheus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
@@ -19,38 +18,39 @@ import (
 const VisitorsTableName = "visitors"
 
 const (
-	visitorColumns                     = "v.imsi AS &Visitor.imsi, v.partnerID AS &Visitor.partnerID, v.msisdn AS &Visitor.msisdn, v.since AS &Visitor.since, v.deregisterUntil AS &Visitor.deregisterUntil, p.profileID AS &Visitor.profileID, p.withdrawingUntil AS &Visitor.withdrawingUntil FROM %s AS v JOIN %s AS p ON p.id = v.partnerID"
-	getVisitorStmt                     = "SELECT " + visitorColumns + " WHERE v.imsi = $Visitor.imsi"
-	insertVisitorStmt                  = "INSERT INTO %s (imsi, partnerID, msisdn, since) VALUES ($Visitor.imsi, $Visitor.partnerID, $Visitor.msisdn, $Visitor.since)"
-	updateVisitorMSISDNStmt            = "UPDATE %s SET msisdn=$Visitor.msisdn WHERE imsi==$Visitor.imsi"
-	deleteVisitorIfUnregisteredStmt    = "DELETE FROM %s WHERE imsi==$Visitor.imsi AND NOT EXISTS (SELECT 1 FROM %s AS r WHERE r.imsi = %s.imsi AND r.purged = 0)"
-	listUnregisteredVisitorsStmt       = "SELECT v.imsi AS &Visitor.imsi FROM %s AS v WHERE NOT EXISTS (SELECT 1 FROM %s AS r WHERE r.imsi = v.imsi AND r.purged = 0) ORDER BY v.imsi"
-	deleteUERegistrationsOfIMSIStmt    = "DELETE FROM %s WHERE imsi==$subscriberIMSI.imsi"
-	deleteLeasesOfIMSIStmt             = "DELETE FROM %s WHERE imsi==$subscriberIMSI.imsi"
-	setVisitorDeregisteringStmt        = "UPDATE %s SET deregisterUntil=$Visitor.deregisterUntil WHERE imsi==$Visitor.imsi"
-	listVisitorRegistrationsOfNodeStmt = "SELECT &UERegistration.* FROM %s WHERE nodeID==$UERegistration.nodeID AND purged==0 AND imsi IN (SELECT imsi FROM %s) ORDER BY imsi, type"
+	visitorColumns                     = "v.imsi, v.partnerID, v.msisdn, v.since, v.deregisterUntil, p.profileID, p.withdrawingUntil"
+	visitorSource                      = " FROM " + VisitorsTableName + " AS v JOIN " + RoamingPartnersTableName + " AS p ON p.id = v.partnerID"
+	getVisitorStmt                     = "SELECT " + visitorColumns + visitorSource + " WHERE v.imsi = ?"
+	insertVisitorStmt                  = "INSERT INTO " + VisitorsTableName + " (imsi, partnerID, msisdn, since) VALUES (?, ?, ?, ?)"
+	updateVisitorMSISDNStmt            = "UPDATE " + VisitorsTableName + " SET msisdn=? WHERE imsi==?"
+	deleteVisitorIfUnregisteredStmt    = "DELETE FROM " + VisitorsTableName + " WHERE imsi==? AND NOT EXISTS (SELECT 1 FROM " + UERegistrationsTableName + " AS r WHERE r.imsi = " + VisitorsTableName + ".imsi AND r.purged = 0)"
+	listUnregisteredVisitorsStmt       = "SELECT v.imsi FROM " + VisitorsTableName + " AS v WHERE NOT EXISTS (SELECT 1 FROM " + UERegistrationsTableName + " AS r WHERE r.imsi = v.imsi AND r.purged = 0) ORDER BY v.imsi"
+	deleteUERegistrationsOfIMSIStmt    = "DELETE FROM " + UERegistrationsTableName + " WHERE imsi==?"
+	deleteLeasesOfIMSIStmt             = "DELETE FROM " + IPLeasesTableName + " WHERE imsi==?"
+	setVisitorDeregisteringStmt        = "UPDATE " + VisitorsTableName + " SET deregisterUntil=? WHERE imsi==?"
+	listVisitorRegistrationsOfNodeStmt = "SELECT imsi, type, nodeID, purged, version FROM " + UERegistrationsTableName + " WHERE nodeID==? AND purged==0 AND imsi IN (SELECT imsi FROM " + VisitorsTableName + ") ORDER BY imsi, type"
 )
 
 const (
-	visitorPageFilterClause = ` WHERE ($visitorPageFilterArgs.partner_id IS NULL OR v.partnerID = $visitorPageFilterArgs.partner_id)
-    AND ($visitorPageFilterArgs.search IS NULL
-         OR v.imsi LIKE $visitorPageFilterArgs.search ESCAPE '\'
-         OR (v.msisdn != '' AND '+' || v.msisdn LIKE $visitorPageFilterArgs.search ESCAPE '\'))
-    AND ($visitorPageFilterArgs.data_network_id IS NULL
-         OR v.partnerID IN (SELECT id FROM %s WHERE profileID IN (SELECT profileID FROM %s WHERE dataNetworkID = $visitorPageFilterArgs.data_network_id)))`
-	listVisitorsPageStmt  = "SELECT COUNT(*) OVER() AS &NumItems.count, " + visitorColumns + visitorPageFilterClause + " ORDER BY v.imsi LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
-	countVisitorsPageStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s AS v" + visitorPageFilterClause
+	visitorPageFilterClause = ` WHERE (?1 IS NULL OR v.partnerID = ?1)
+    AND (?2 IS NULL
+         OR v.imsi LIKE ?2 ESCAPE '\'
+         OR (v.msisdn != '' AND '+' || v.msisdn LIKE ?2 ESCAPE '\'))
+    AND (?3 IS NULL
+         OR v.partnerID IN (SELECT id FROM ` + RoamingPartnersTableName + ` WHERE profileID IN (SELECT profileID FROM ` + PoliciesTableName + ` WHERE dataNetworkID = ?3)))`
+	listVisitorsPageStmt  = "SELECT " + visitorColumns + ", COUNT(*) OVER()" + visitorSource + visitorPageFilterClause + " ORDER BY v.imsi LIMIT ?4 OFFSET ?5"
+	countVisitorsPageStmt = "SELECT COUNT(*) FROM " + VisitorsTableName + " AS v" + visitorPageFilterClause
 )
 
 type Visitor struct {
-	Imsi      string `db:"imsi"`
-	PartnerID string `db:"partnerID"`
-	ProfileID string `db:"profileID"`
-	Msisdn    string `db:"msisdn"`
-	Since     int64  `db:"since"`
+	Imsi      string
+	PartnerID string
+	ProfileID string
+	Msisdn    string
+	Since     int64
 
-	DeregisterUntil  int64 `db:"deregisterUntil"`
-	WithdrawingUntil int64 `db:"withdrawingUntil"`
+	DeregisterUntil  int64
+	WithdrawingUntil int64
 }
 
 func (v Visitor) Deregistering(now time.Time) bool {
@@ -85,9 +85,9 @@ type VisitorFilters struct {
 }
 
 type visitorPageFilterArgs struct {
-	PartnerID     *string `db:"partner_id"`
-	Search        *string `db:"search"`
-	DataNetworkID *string `db:"data_network_id"`
+	PartnerID     *string
+	Search        *string
+	DataNetworkID *string
 }
 
 func (f *VisitorFilters) args() visitorPageFilterArgs {
@@ -129,9 +129,7 @@ func (db *Database) GetSubscriberOrVisitor(ctx context.Context, imsi string) (*S
 
 	DBQueriesTotal.WithLabelValues(VisitorsTableName, "select").Inc()
 
-	row := Subscriber{Imsi: imsi}
-
-	err := db.conn().Query(ctx, db.ownSubscriberStmt(ctx), row).Get(&row)
+	row, err := db.getOwnSubscriber(ctx, db.reader(), imsi)
 	if err == nil {
 		return &row, nil
 	}
@@ -145,7 +143,7 @@ func (db *Database) GetSubscriberOrVisitor(ctx context.Context, imsi string) (*S
 		return nil, ErrNotFound
 	}
 
-	visitor, err := db.getVisitor(ctx, db.conn(), imsi)
+	visitor, err := db.getVisitor(ctx, db.reader(), imsi)
 	if err != nil {
 		if !errors.Is(err, ErrNotFound) {
 			recordSpanError(span, err)
@@ -172,7 +170,7 @@ func (db *Database) GetVisitor(ctx context.Context, imsi string) (*Visitor, erro
 		return nil, ErrNotFound
 	}
 
-	visitor, err := db.getVisitor(ctx, db.conn(), imsi)
+	visitor, err := db.getVisitor(ctx, db.reader(), imsi)
 	if err != nil && !errors.Is(err, ErrNotFound) {
 		recordSpanError(span, err)
 	}
@@ -194,33 +192,21 @@ func (db *Database) ListVisitorsPage(ctx context.Context, filters *VisitorFilter
 	}
 
 	filterArgs := filters.args()
-	args := ListArgs{Limit: perPage, Offset: (page - 1) * perPage}
 
-	var (
-		rows   []Visitor
-		counts []NumItems
-	)
-
-	err := db.conn().Query(ctx, db.listVisitorsPageStmt, args, filterArgs).GetAll(&rows, &counts)
-	if errors.Is(err, sql.ErrNoRows) {
-		var result NumItems
-
-		if err := db.conn().Query(ctx, db.countVisitorsPageStmt, filterArgs).Get(&result); err != nil {
-			recordSpanError(span, err)
-			return nil, 0, fmt.Errorf("query failed: %w", err)
-		}
-
-		return nil, result.Count, nil
-	}
-
+	rows, count, err := queryPage(ctx, db.reader(), listVisitorsPageStmt, scanVisitor, filterArgs.PartnerID, filterArgs.Search, filterArgs.DataNetworkID, perPage, (page-1)*perPage)
 	if err != nil {
 		recordSpanError(span, err)
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	count := 0
-	if len(counts) > 0 {
-		count = counts[0].Count
+	if len(rows) == 0 {
+		total, err := queryCount(ctx, db.reader(), countVisitorsPageStmt, filterArgs.PartnerID, filterArgs.Search, filterArgs.DataNetworkID)
+		if err != nil {
+			recordSpanError(span, err)
+			return nil, 0, fmt.Errorf("query failed: %w", err)
+		}
+
+		return nil, total, nil
 	}
 
 	return rows, count, nil
@@ -285,19 +271,17 @@ func (db *Database) ListVisitorRegistrationsOfNode(ctx context.Context, nodeID s
 		return nil, nil
 	}
 
-	var regs []UERegistration
-
-	if err := db.conn().Query(ctx, db.listVisitorRegistrationsOfNodeStmt, UERegistration{NodeID: nodeID}).GetAll(&regs); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	regs, err := queryAll(ctx, db.reader(), listVisitorRegistrationsOfNodeStmt, scanUERegistration, nodeID)
+	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return regs, nil
 }
 
-func (db *Database) getVisitor(ctx context.Context, runner *sqlair.DB, imsi string) (*Visitor, error) {
-	row := Visitor{Imsi: imsi}
-
-	if err := runner.Query(ctx, db.getVisitorStmt, row).Get(&row); err != nil {
+func (db *Database) getVisitor(ctx context.Context, q querier, imsi string) (*Visitor, error) {
+	row, err := scanVisitor(q.QueryRowContext(ctx, getVisitorStmt, imsi))
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -309,9 +293,7 @@ func (db *Database) getVisitor(ctx context.Context, runner *sqlair.DB, imsi stri
 }
 
 func (db *Database) imsiKnown(ctx context.Context, imsi string) (bool, error) {
-	runner := db.runner(ctx)
-
-	err := runner.Query(ctx, db.ownSubscriberStmt(ctx), Subscriber{Imsi: imsi}).Get(&Subscriber{})
+	_, err := db.getOwnSubscriber(ctx, db.runner(ctx), imsi)
 	if err == nil {
 		return true, nil
 	}
@@ -324,7 +306,7 @@ func (db *Database) imsiKnown(ctx context.Context, imsi string) (bool, error) {
 		return false, nil
 	}
 
-	if _, err := db.getVisitor(ctx, runner, imsi); err != nil {
+	if _, err := db.getVisitor(ctx, db.runner(ctx), imsi); err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return false, nil
 		}
@@ -353,11 +335,9 @@ func (db *Database) applyRegisterVisitorUE(ctx context.Context, p *registerVisit
 }
 
 func (db *Database) insertVisitorIfAbsent(ctx context.Context, imsi string, partner *RoamingPartner) error {
-	runner := db.runner(ctx)
-
 	now := time.Now()
 
-	existing, err := db.getVisitor(ctx, runner, imsi)
+	existing, err := db.getVisitor(ctx, db.runner(ctx), imsi)
 
 	switch {
 	case err == nil && existing.PartnerID == partner.ID:
@@ -368,7 +348,7 @@ func (db *Database) insertVisitorIfAbsent(ctx context.Context, imsi string, part
 		return err
 	}
 
-	err = runner.Query(ctx, db.getSubscriberStmt, Subscriber{Imsi: imsi}).Get(&Subscriber{})
+	_, err = scanSubscriber(db.runner(ctx).QueryRowContext(ctx, getSubscriberStmt, imsi))
 
 	switch {
 	case err == nil:
@@ -391,7 +371,7 @@ func (db *Database) insertVisitorIfAbsent(ctx context.Context, imsi string, part
 
 	visitor := Visitor{Imsi: imsi, PartnerID: partner.ID, Since: time.Now().Unix()}
 
-	if err := runner.Query(ctx, db.insertVisitorStmt, visitor).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, insertVisitorStmt, visitor.Imsi, visitor.PartnerID, visitor.Msisdn, visitor.Since); err != nil {
 		return fmt.Errorf("insert visitor: %w", err)
 	}
 
@@ -399,13 +379,12 @@ func (db *Database) insertVisitorIfAbsent(ctx context.Context, imsi string, part
 }
 
 func (db *Database) applySetVisitorMSISDN(ctx context.Context, p *visitorMSISDNPayload) (any, error) {
-	var outcome sqlair.Outcome
-
-	if err := db.runner(ctx).Query(ctx, db.updateVisitorMSISDNStmt, Visitor{Imsi: p.Imsi, Msisdn: p.Msisdn}).Get(&outcome); err != nil {
+	res, err := db.runner(ctx).ExecContext(ctx, updateVisitorMSISDNStmt, p.Msisdn, p.Imsi)
+	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	n, err := outcome.Result().RowsAffected()
+	n, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -418,14 +397,13 @@ func (db *Database) applySetVisitorMSISDN(ctx context.Context, p *visitorMSISDNP
 }
 
 func (db *Database) deleteUnregisteredVisitors(ctx context.Context) error {
-	var rows []Visitor
-
-	if err := db.runner(ctx).Query(ctx, db.listUnregisteredVisitorsStmt).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	imsis, err := queryAll(ctx, db.runner(ctx), listUnregisteredVisitorsStmt, scanString)
+	if err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
 
-	for _, v := range rows {
-		if err := db.deleteVisitorIfUnregistered(ctx, v.Imsi); err != nil {
+	for _, imsi := range imsis {
+		if err := db.deleteVisitorIfUnregistered(ctx, imsi); err != nil {
 			return err
 		}
 	}
@@ -434,13 +412,12 @@ func (db *Database) deleteUnregisteredVisitors(ctx context.Context) error {
 }
 
 func (db *Database) deleteVisitorIfUnregistered(ctx context.Context, imsi string) error {
-	var outcome sqlair.Outcome
-
-	if err := db.runner(ctx).Query(ctx, db.deleteVisitorIfUnregisteredStmt, Visitor{Imsi: imsi}).Get(&outcome); err != nil {
+	res, err := db.runner(ctx).ExecContext(ctx, deleteVisitorIfUnregisteredStmt, imsi)
+	if err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
 
-	deleted, err := outcome.Result().RowsAffected()
+	deleted, err := res.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("rows affected: %w", err)
 	}
@@ -454,13 +431,12 @@ func (db *Database) deleteVisitorIfUnregistered(ctx context.Context, imsi string
 
 func (db *Database) deleteIMSIState(ctx context.Context, imsi string) error {
 	runner := db.runner(ctx)
-	key := subscriberIMSI{Imsi: imsi}
 
-	if err := runner.Query(ctx, db.deleteUERegistrationsOfIMSIStmt, key).Run(); err != nil {
+	if _, err := runner.ExecContext(ctx, deleteUERegistrationsOfIMSIStmt, imsi); err != nil {
 		return fmt.Errorf("delete UE registrations: %w", err)
 	}
 
-	if err := runner.Query(ctx, db.deleteLeasesOfIMSIStmt, key).Run(); err != nil {
+	if _, err := runner.ExecContext(ctx, deleteLeasesOfIMSIStmt, imsi); err != nil {
 		return fmt.Errorf("delete IP leases: %w", err)
 	}
 
@@ -481,4 +457,14 @@ func startVisitorsSpan(ctx context.Context, operation, detail string) (context.C
 			semconv.DBCollectionName(VisitorsTableName),
 		),
 	)
+}
+
+func scanVisitor(row scanner) (Visitor, error) {
+	var v Visitor
+
+	if err := row.Scan(&v.Imsi, &v.PartnerID, &v.Msisdn, &v.Since, &v.DeregisterUntil, &v.ProfileID, &v.WithdrawingUntil); err != nil {
+		return Visitor{}, err
+	}
+
+	return v, nil
 }

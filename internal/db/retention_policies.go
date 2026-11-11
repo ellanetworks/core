@@ -10,19 +10,16 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const RetentionPolicyTableName = "retention_policies"
 
 const (
-	selectRetentionPolicyStmt = "SELECT &RetentionPolicy.* FROM %s WHERE category = $RetentionPolicy.category"
+	selectRetentionPolicyStmt = "SELECT retention_days FROM " + RetentionPolicyTableName + " WHERE category = ?"
 	upsertRetentionPolicyStmt = `
-INSERT INTO %s (id, category, retention_days)
-VALUES ($RetentionPolicy.id, $RetentionPolicy.category, $RetentionPolicy.retention_days)
+INSERT INTO ` + RetentionPolicyTableName + ` (id, category, retention_days)
+VALUES (?, ?, ?)
 ON CONFLICT(category) DO UPDATE SET retention_days = excluded.retention_days
 `
 )
@@ -37,73 +34,37 @@ const (
 )
 
 type RetentionPolicy struct {
-	ID       string            `db:"id"` // UUIDv7
-	Category RetentionCategory `db:"category"`
-	Days     int               `db:"retention_days"`
+	ID       string // UUIDv7
+	Category RetentionCategory
+	Days     int
 }
 
 func (db *Database) GetRetentionPolicy(ctx context.Context, category RetentionCategory) (int, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", RetentionPolicyTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(RetentionPolicyTableName),
-			attribute.String("policy.category", string(category)),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, RetentionPolicyTableName, "SELECT", "select", attribute.String("policy.category", string(category)))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RetentionPolicyTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(RetentionPolicyTableName, "select").Inc()
+	var days int
 
-	arg := RetentionPolicy{Category: category}
-
-	var row RetentionPolicy
-
-	err := db.conn().Query(ctx, db.selectRetentionPolicyStmt, arg).Get(&row)
+	err := db.reader().QueryRowContext(ctx, selectRetentionPolicyStmt, string(category)).Scan(&days)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	return row.Days, nil
+	return days, nil
 }
 
 // Ensure that we have a row for the Audit Log retention policy.
 func (db *Database) IsRetentionPolicyInitialized(ctx context.Context, category RetentionCategory) bool {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", RetentionPolicyTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(RetentionPolicyTableName),
-			attribute.String("policy.category", string(category)),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, RetentionPolicyTableName, "SELECT", "select", attribute.String("policy.category", string(category)))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RetentionPolicyTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(RetentionPolicyTableName, "select").Inc()
+	var days int
 
-	row := RetentionPolicy{Category: category}
-
-	err := db.conn().Query(ctx, db.selectRetentionPolicyStmt, row).Get(&row)
+	err := db.reader().QueryRowContext(ctx, selectRetentionPolicyStmt, string(category)).Scan(&days)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false
@@ -121,27 +82,9 @@ func (db *Database) IsRetentionPolicyInitialized(ctx context.Context, category R
 // If policy.ID is empty (new row, not an update of an existing one),
 // a UUIDv7 is generated. The id is ignored on UPDATE conflict.
 func (db *Database) SetRetentionPolicy(ctx context.Context, policy *RetentionPolicy) error {
-	querySummary := fmt.Sprintf("%s %s", "UPSERT", RetentionPolicyTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPSERT"),
-			semconv.DBCollectionName(RetentionPolicyTableName),
-			attribute.String("policy.category", string(policy.Category)),
-			attribute.Int("policy.days", policy.Days),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, RetentionPolicyTableName, "UPSERT", "insert", attribute.String("policy.category", string(policy.Category)), attribute.Int("policy.days", policy.Days))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RetentionPolicyTableName, "insert"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(RetentionPolicyTableName, "insert").Inc()
 
 	if policy.ID == "" {
 		id, err := uuid.NewV7()

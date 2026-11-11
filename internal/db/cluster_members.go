@@ -11,9 +11,6 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/pki"
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const ClusterMembersTableName = "cluster_members"
@@ -38,20 +35,20 @@ func (db *Database) requireIdentitySchemaFor(ctx context.Context, nodeID string)
 	return ErrMigrationPending
 }
 
-const clusterMemberColumnsPreV20 = "&ClusterMember.nodeID, &ClusterMember.apiAddress, &ClusterMember.binaryVersion, &ClusterMember.drainState, &ClusterMember.drainUpdatedAt"
+const clusterMemberColumnsPreV20 = "nodeID, apiAddress, binaryVersion, drainState, drainUpdatedAt"
 
 const (
-	listClusterMembersStmtStr        = "SELECT &ClusterMember.* FROM %s ORDER BY nodeID ASC"
-	listClusterMembersPreV20StmtStr  = "SELECT " + clusterMemberColumnsPreV20 + " FROM %s ORDER BY nodeID ASC"
-	getClusterMemberStmtStr          = "SELECT &ClusterMember.* FROM %s WHERE nodeID==$ClusterMember.nodeID"
-	getClusterMemberPreV20StmtStr    = "SELECT " + clusterMemberColumnsPreV20 + " FROM %s WHERE nodeID==$ClusterMember.nodeID"
-	upsertClusterMemberStmtStr       = "INSERT INTO %s (nodeID, amfPointer, displayName, apiAddress, binaryVersion) VALUES ($ClusterMember.nodeID, $ClusterMember.amfPointer, $ClusterMember.displayName, $ClusterMember.apiAddress, $ClusterMember.binaryVersion) ON CONFLICT(nodeID) DO UPDATE SET amfPointer=excluded.amfPointer, apiAddress=$ClusterMember.apiAddress, binaryVersion=$ClusterMember.binaryVersion"
-	upsertClusterMemberPreV20StmtStr = "INSERT INTO %s (nodeID, raftAddress, apiAddress, binaryVersion) VALUES ($ClusterMember.nodeID, '', $ClusterMember.apiAddress, $ClusterMember.binaryVersion) ON CONFLICT(nodeID) DO UPDATE SET apiAddress=$ClusterMember.apiAddress, binaryVersion=$ClusterMember.binaryVersion"
-	deleteClusterMemberStmtStr       = "DELETE FROM %s WHERE nodeID==$ClusterMember.nodeID"
-	countClusterMembersStmtStr       = "SELECT COUNT(*) AS &NumItems.count FROM %s"
-	getDrainStateStmtStr             = "SELECT &ClusterMember.drainState FROM %s WHERE nodeID==$ClusterMember.nodeID"
-	setDrainStateStmtStr             = "UPDATE %s SET drainState=$ClusterMember.drainState, drainUpdatedAt=$ClusterMember.drainUpdatedAt WHERE nodeID==$ClusterMember.nodeID"
-	setDisplayNameStmtStr            = "UPDATE %s SET displayName=$ClusterMember.displayName WHERE nodeID==$ClusterMember.nodeID"
+	listClusterMembersStmt        = "SELECT nodeID, amfPointer, displayName, apiAddress, binaryVersion, drainState, drainUpdatedAt FROM " + ClusterMembersTableName + " ORDER BY nodeID ASC"
+	listClusterMembersPreV20Stmt  = "SELECT " + clusterMemberColumnsPreV20 + " FROM " + ClusterMembersTableName + " ORDER BY nodeID ASC"
+	getClusterMemberStmt          = "SELECT nodeID, amfPointer, displayName, apiAddress, binaryVersion, drainState, drainUpdatedAt FROM " + ClusterMembersTableName + " WHERE nodeID==?"
+	getClusterMemberPreV20Stmt    = "SELECT " + clusterMemberColumnsPreV20 + " FROM " + ClusterMembersTableName + " WHERE nodeID==?"
+	upsertClusterMemberStmt       = "INSERT INTO " + ClusterMembersTableName + " (nodeID, amfPointer, displayName, apiAddress, binaryVersion) VALUES (?, ?, ?, ?, ?) ON CONFLICT(nodeID) DO UPDATE SET amfPointer=excluded.amfPointer, apiAddress=?, binaryVersion=?"
+	upsertClusterMemberPreV20Stmt = "INSERT INTO " + ClusterMembersTableName + " (nodeID, raftAddress, apiAddress, binaryVersion) VALUES (?, '', ?, ?) ON CONFLICT(nodeID) DO UPDATE SET apiAddress=?, binaryVersion=?"
+	deleteClusterMemberStmt       = "DELETE FROM " + ClusterMembersTableName + " WHERE nodeID==?"
+	countClusterMembersStmt       = "SELECT COUNT(*) FROM " + ClusterMembersTableName
+	getDrainStateStmt             = "SELECT drainState FROM " + ClusterMembersTableName + " WHERE nodeID==?"
+	setDrainStateStmt             = "UPDATE " + ClusterMembersTableName + " SET drainState=?, drainUpdatedAt=? WHERE nodeID==?"
+	setDisplayNameStmt            = "UPDATE " + ClusterMembersTableName + " SET displayName=? WHERE nodeID==?"
 )
 
 const (
@@ -60,13 +57,13 @@ const (
 )
 
 type ClusterMember struct {
-	NodeID         string `db:"nodeID"`
-	AMFPointer     int    `db:"amfPointer"`
-	DisplayName    string `db:"displayName"`
-	APIAddress     string `db:"apiAddress"`
-	BinaryVersion  string `db:"binaryVersion"`
-	DrainState     string `db:"drainState"`
-	DrainUpdatedAt int64  `db:"drainUpdatedAt"`
+	NodeID         string
+	AMFPointer     int
+	DisplayName    string
+	APIAddress     string
+	BinaryVersion  string
+	DrainState     string
+	DrainUpdatedAt int64
 }
 
 func IsValidDrainState(s string) bool {
@@ -79,39 +76,17 @@ func IsValidDrainState(s string) bool {
 }
 
 func (db *Database) ListClusterMembers(ctx context.Context) ([]ClusterMember, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", ClusterMembersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(ClusterMembersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, ClusterMembersTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(ClusterMembersTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(ClusterMembersTableName, "select").Inc()
-
-	var members []ClusterMember
-
-	stmt := db.listClusterMembersStmt
+	query, scan := listClusterMembersStmt, scanClusterMember
 	if !db.appliedSchemaAtLeast(ctx, clusterMemberIdentitySchema) {
-		stmt = db.listClusterMembersPreV20Stmt
+		query, scan = listClusterMembersPreV20Stmt, scanClusterMemberPreV20
 	}
 
-	err := db.conn().Query(ctx, stmt).GetAll(&members)
+	members, err := queryAll(ctx, db.reader(), query, scan)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -121,34 +96,16 @@ func (db *Database) ListClusterMembers(ctx context.Context) ([]ClusterMember, er
 }
 
 func (db *Database) GetClusterMember(ctx context.Context, nodeID string) (*ClusterMember, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", ClusterMembersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(ClusterMembersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, ClusterMembersTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(ClusterMembersTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(ClusterMembersTableName, "select").Inc()
-
-	row := ClusterMember{NodeID: nodeID}
-
-	stmt := db.getClusterMemberStmt
+	query, scan := getClusterMemberStmt, scanClusterMember
 	if !db.appliedSchemaAtLeast(ctx, clusterMemberIdentitySchema) {
-		stmt = db.getClusterMemberPreV20Stmt
+		query, scan = getClusterMemberPreV20Stmt, scanClusterMemberPreV20
 	}
 
-	err := db.conn().Query(ctx, stmt, row).Get(&row)
+	row, err := scan(db.reader().QueryRowContext(ctx, query, nodeID))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			recordSpanError(span, err)
@@ -165,25 +122,9 @@ func (db *Database) GetClusterMember(ctx context.Context, nodeID string) (*Clust
 }
 
 func (db *Database) UpsertClusterMember(ctx context.Context, member *ClusterMember) error {
-	querySummary := fmt.Sprintf("%s %s", "UPSERT", ClusterMembersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPSERT"),
-			semconv.DBCollectionName(ClusterMembersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, ClusterMembersTableName, "UPSERT", "upsert")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(ClusterMembersTableName, "upsert"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(ClusterMembersTableName, "upsert").Inc()
 
 	_, err := opUpsertClusterMember.Invoke(ctx, db, member)
 	if err != nil {
@@ -196,25 +137,9 @@ func (db *Database) UpsertClusterMember(ctx context.Context, member *ClusterMemb
 }
 
 func (db *Database) DeleteClusterMember(ctx context.Context, nodeID string) error {
-	querySummary := fmt.Sprintf("%s %s", "DELETE", ClusterMembersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(ClusterMembersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, ClusterMembersTableName, "DELETE", "delete")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(ClusterMembersTableName, "delete"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(ClusterMembersTableName, "delete").Inc()
 
 	_, err := opDeleteClusterMember.Invoke(ctx, db, &nodeIDPayload{Value: pki.NodeID(nodeID)})
 	if err != nil {
@@ -252,25 +177,9 @@ func (db *Database) SetDrainState(ctx context.Context, nodeID string, state stri
 		return "", fmt.Errorf("invalid drain state %q", state)
 	}
 
-	querySummary := fmt.Sprintf("%s %s", "UPDATE", ClusterMembersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(ClusterMembersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, ClusterMembersTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(ClusterMembersTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(ClusterMembersTableName, "update").Inc()
 
 	member := &ClusterMember{
 		NodeID:         nodeID,
@@ -289,36 +198,18 @@ func (db *Database) SetDrainState(ctx context.Context, nodeID string, state stri
 }
 
 func (db *Database) CountClusterMembers(ctx context.Context) (int, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", ClusterMembersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(ClusterMembersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, ClusterMembersTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(ClusterMembersTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(ClusterMembersTableName, "select").Inc()
-
-	var result NumItems
-
-	err := db.conn().Query(ctx, db.countClusterMembersStmt).Get(&result)
+	count, err := queryCount(ctx, db.reader(), countClusterMembersStmt)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	return result.Count, nil
+	return count, nil
 }
 
 // MaxDisplayNameLength bounds the operator-facing name.
@@ -331,25 +222,9 @@ func (db *Database) SetDisplayName(ctx context.Context, nodeID string, name stri
 		return fmt.Errorf("display name is %d bytes, over the %d-byte limit", len(name), MaxDisplayNameLength)
 	}
 
-	querySummary := fmt.Sprintf("%s %s", "UPDATE", ClusterMembersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(ClusterMembersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, ClusterMembersTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(ClusterMembersTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(ClusterMembersTableName, "update").Inc()
 
 	member := &ClusterMember{NodeID: nodeID, DisplayName: name}
 
@@ -360,4 +235,24 @@ func (db *Database) SetDisplayName(ctx context.Context, nodeID string, name stri
 	}
 
 	return nil
+}
+
+func scanClusterMember(row scanner) (ClusterMember, error) {
+	var v ClusterMember
+
+	if err := row.Scan(&v.NodeID, &v.AMFPointer, &v.DisplayName, &v.APIAddress, &v.BinaryVersion, &v.DrainState, &v.DrainUpdatedAt); err != nil {
+		return ClusterMember{}, err
+	}
+
+	return v, nil
+}
+
+func scanClusterMemberPreV20(row scanner) (ClusterMember, error) {
+	var v ClusterMember
+
+	if err := row.Scan(&v.NodeID, &v.APIAddress, &v.BinaryVersion, &v.DrainState, &v.DrainUpdatedAt); err != nil {
+		return ClusterMember{}, err
+	}
+
+	return v, nil
 }

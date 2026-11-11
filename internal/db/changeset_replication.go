@@ -7,7 +7,7 @@
 // replicates them through the Raft log, and applies them on all nodes.
 //
 // Write path (leader only — ChangesetOp.Invoke / captureChangeset):
-//   1. Obtain a pinned *sql.Conn (bypasses sqlair's pool) and start a
+//   1. Obtain a pinned *sql.Conn and start a
 //      sqlite3_session on the replicated tables.
 //   2. Execute the mutating SQL inside a transaction.
 //   3. Capture the changeset bytes from the session, then ROLLBACK the
@@ -34,7 +34,6 @@ import (
 	"database/sql/driver"
 	"fmt"
 
-	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/mattn/go-sqlite3"
 	"go.uber.org/zap"
@@ -172,7 +171,7 @@ var fsmInternalTables = []string{
 }
 
 func (db *Database) assertTableReplicationClassification(ctx context.Context) error {
-	rows, err := db.conn().PlainDB().QueryContext(ctx,
+	rows, err := db.conn().QueryContext(ctx,
 		"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
 	if err != nil {
 		return fmt.Errorf("list sqlite tables: %w", err)
@@ -243,7 +242,7 @@ func (db *Database) applyChangesetBatch(ctx context.Context, payload *changesetB
 }
 
 func (db *Database) applyChangesets(ctx context.Context, changesets [][]byte, operations []string, logIndex, logTerm uint64) error {
-	conn, err := db.conn().PlainDB().Conn(ctx)
+	conn, err := db.conn().Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("acquire sqlite conn for apply: %w", err)
 	}
@@ -310,7 +309,7 @@ func (db *Database) applyChangesets(ctx context.Context, changesets [][]byte, op
 }
 
 func (db *Database) captureChangeset(ctx context.Context, applyFn func(context.Context) (any, error), operation string) ([]byte, any, int, error) {
-	conn, err := db.conn().PlainDB().Conn(ctx)
+	conn, err := db.conn().Conn(ctx)
 	if err != nil {
 		return nil, nil, 0, fmt.Errorf("acquire sqlite conn for capture: %w", err)
 	}
@@ -401,7 +400,7 @@ func readSchemaVersionRaw(ctx context.Context, conn *sqlite3.SQLiteConn) (int, e
 }
 
 func (db *Database) applyLocalTx(ctx context.Context, operation string, applyFn func(context.Context) (any, error)) (any, error) {
-	conn, err := db.conn().PlainDB().Conn(ctx)
+	conn, err := db.conn().Conn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("acquire sqlite conn for %s: %w", operation, err)
 	}
@@ -451,22 +450,30 @@ func (db *Database) applyLocalTx(ctx context.Context, operation string, applyFn 
 }
 
 // pinnedRunnerCtxKey is the context key under which applyWithPinnedConn stores
-// the pinned *sqlair.DB for apply functions. Applier methods resolve the
+// the pinned *sql.DB for apply functions. Applier methods resolve the
 // runner via (*Database).runner so they target the pinned connection during
 // capture without mutating the shared db.conn pointer (which would race with
 // concurrent non-capture DB users and return "sql: database is closed" once
 // the pinned handle is Close'd at capture end).
 type pinnedRunnerCtxKey struct{}
 
-// runner returns the sqlair DB to use for the current operation. Inside a
-// changeset capture, applyFn receives a context carrying a pinned *sqlair.DB;
-// outside of capture, callers get the shared db.conn().
-func (db *Database) runner(ctx context.Context) *sqlair.DB {
-	if r, ok := ctx.Value(pinnedRunnerCtxKey{}).(*sqlair.DB); ok {
+func (db *Database) writer() *sql.DB {
+	return db.conn()
+}
+
+func (db *Database) reader() querier {
+	return db.conn()
+}
+
+// runner returns the querier to use for the current operation. Inside a
+// changeset capture, applyFn receives a context carrying the pinned *sql.DB;
+// outside of capture, callers get the shared writer pool.
+func (db *Database) runner(ctx context.Context) querier {
+	if r, ok := ctx.Value(pinnedRunnerCtxKey{}).(*sql.DB); ok {
 		return r
 	}
 
-	return db.conn()
+	return db.writer()
 }
 
 func (db *Database) applyWithPinnedConn(ctx context.Context, conn driver.Conn, applyFn func(context.Context) (any, error)) (any, error) {
@@ -476,9 +483,7 @@ func (db *Database) applyWithPinnedConn(ctx context.Context, conn driver.Conn, a
 
 	defer func() { _ = pinned.Close() }()
 
-	pinnedSQLAir := sqlair.NewDB(pinned)
-
-	ctx = context.WithValue(ctx, pinnedRunnerCtxKey{}, pinnedSQLAir)
+	ctx = context.WithValue(ctx, pinnedRunnerCtxKey{}, pinned)
 
 	return applyFn(ctx)
 }
@@ -505,6 +510,38 @@ type noCloseConn struct {
 	driver.Conn
 }
 
+var (
+	_ driver.ExecerContext      = (*noCloseConn)(nil)
+	_ driver.QueryerContext     = (*noCloseConn)(nil)
+	_ driver.ConnPrepareContext = (*noCloseConn)(nil)
+)
+
 func (c *noCloseConn) Close() error {
 	return nil
+}
+
+func (c *noCloseConn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
+	e, ok := c.Conn.(driver.ExecerContext)
+	if !ok {
+		return nil, driver.ErrSkip
+	}
+
+	return e.ExecContext(ctx, query, args)
+}
+
+func (c *noCloseConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
+	q, ok := c.Conn.(driver.QueryerContext)
+	if !ok {
+		return nil, driver.ErrSkip
+	}
+
+	return q.QueryContext(ctx, query, args)
+}
+
+func (c *noCloseConn) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
+	if p, ok := c.Conn.(driver.ConnPrepareContext); ok {
+		return p.PrepareContext(ctx, query)
+	}
+
+	return c.Prepare(query)
 }

@@ -9,13 +9,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -24,73 +21,89 @@ const PoliciesTableName = "policies"
 const policyPreemptionSchema = 25
 
 const (
-	listPoliciesPagedStmt           = "SELECT &Policy.*, COUNT(*) OVER() AS &NumItems.count FROM %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
-	getPolicyStmt                   = "SELECT &Policy.* FROM %s WHERE name==$Policy.name"
-	getPolicyByLookupStmt           = "SELECT &Policy.* FROM %s WHERE profileID==$Policy.profileID AND sliceID==$Policy.sliceID AND dataNetworkID==$Policy.dataNetworkID"
-	createPolicyStmt                = "INSERT INTO %s (id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink) VALUES ($Policy.id, $Policy.name, $Policy.profileID, $Policy.sliceID, $Policy.dataNetworkID, $Policy.var5qi, $Policy.arp, $Policy.preemptionCapability, $Policy.preemptionVulnerability, $Policy.sessionAmbrUplink, $Policy.sessionAmbrDownlink)"
-	editPolicyStmt                  = "UPDATE %s SET profileID=$Policy.profileID, sliceID=$Policy.sliceID, dataNetworkID=$Policy.dataNetworkID, var5qi=$Policy.var5qi, arp=$Policy.arp, preemptionCapability=$Policy.preemptionCapability, preemptionVulnerability=$Policy.preemptionVulnerability, sessionAmbrUplink=$Policy.sessionAmbrUplink, sessionAmbrDownlink=$Policy.sessionAmbrDownlink WHERE name==$Policy.name"
-	deletePolicyStmt                = "DELETE FROM %s WHERE name==$Policy.name"
-	countPoliciesStmt               = "SELECT COUNT(*) AS &NumItems.count FROM %s"
-	countPoliciesInProfileStmt      = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE profileID=$Policy.profileID"
-	countPoliciesInSliceStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE sliceID=$Policy.sliceID"
-	countPoliciesInDataNetworkStmt  = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE dataNetworkID=$Policy.dataNetworkID"
-	listPolicy5QIsInDataNetworkStmt = "SELECT &Policy.var5qi FROM %s WHERE dataNetworkID=$Policy.dataNetworkID"
+	listPoliciesPagedStmt           = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault, COUNT(*) OVER() FROM " + PoliciesTableName + " LIMIT ? OFFSET ?"
+	getPolicyStmt                   = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault FROM " + PoliciesTableName + " WHERE name==?"
+	getPolicyByLookupStmt           = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault FROM " + PoliciesTableName + " WHERE profileID==? AND sliceID==? AND dataNetworkID==?"
+	createPolicyStmt                = "INSERT INTO " + PoliciesTableName + " (id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	editPolicyStmt                  = "UPDATE " + PoliciesTableName + " SET profileID=?, sliceID=?, dataNetworkID=?, var5qi=?, arp=?, preemptionCapability=?, preemptionVulnerability=?, sessionAmbrUplink=?, sessionAmbrDownlink=? WHERE name==?"
+	deletePolicyStmt                = "DELETE FROM " + PoliciesTableName + " WHERE name==?"
+	countPoliciesStmt               = "SELECT COUNT(*) FROM " + PoliciesTableName
+	countPoliciesInProfileStmt      = "SELECT COUNT(*) FROM " + PoliciesTableName + " WHERE profileID=?"
+	countPoliciesInSliceStmt        = "SELECT COUNT(*) FROM " + PoliciesTableName + " WHERE sliceID=?"
+	countPoliciesInDataNetworkStmt  = "SELECT COUNT(*) FROM " + PoliciesTableName + " WHERE dataNetworkID=?"
+	listPolicy5QIsInDataNetworkStmt = "SELECT var5qi FROM " + PoliciesTableName + " WHERE dataNetworkID=?"
 
-	getPolicyByProfileAndSliceStmt = "SELECT &Policy.* FROM %s WHERE profileID==$Policy.profileID AND sliceID==$Policy.sliceID LIMIT 1"
-	listPoliciesByProfilePagedStmt = "SELECT &Policy.*, COUNT(*) OVER() AS &NumItems.count FROM %s WHERE profileID==$Policy.profileID LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
-	listPoliciesByProfileAllStmt   = "SELECT &Policy.* FROM %s WHERE profileID==$Policy.profileID ORDER BY id ASC"
+	getPolicyByProfileAndSliceStmt = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault FROM " + PoliciesTableName + " WHERE profileID==? AND sliceID==? LIMIT 1"
+	listPoliciesByProfilePagedStmt = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault, COUNT(*) OVER() FROM " + PoliciesTableName + " WHERE profileID==? LIMIT ? OFFSET ?"
+	listPoliciesByProfileAllStmt   = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault FROM " + PoliciesTableName + " WHERE profileID==? ORDER BY id ASC"
 
 	// The default data-network binding for a profile (the default APN/DNN,
 	// TS 23.401 §3.1 / TS 23.501 §5.15). At most one per profile, kept by the
 	// atomic SetDefaultPolicy op (clear the profile's defaults, then set one).
-	getDefaultPolicyByProfileStmt = "SELECT &Policy.* FROM %s WHERE profileID==$Policy.profileID AND isDefault==true LIMIT 1"
-	clearDefaultPoliciesStmt      = "UPDATE %s SET isDefault=false WHERE profileID==$Policy.profileID"
-	setDefaultPolicyStmt          = "UPDATE %s SET isDefault=true WHERE name==$Policy.name"
+	getDefaultPolicyByProfileStmt = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault FROM " + PoliciesTableName + " WHERE profileID==? AND isDefault==true LIMIT 1"
+	clearDefaultPoliciesStmt      = "UPDATE " + PoliciesTableName + " SET isDefault=false WHERE profileID==?"
+	setDefaultPolicyStmt          = "UPDATE " + PoliciesTableName + " SET isDefault=true WHERE name==?"
 )
 
-const policyColumnsPreV25 = "&Policy.id, &Policy.name, &Policy.profileID, &Policy.sliceID, &Policy.dataNetworkID, &Policy.var5qi, &Policy.arp, &Policy.sessionAmbrUplink, &Policy.sessionAmbrDownlink, &Policy.isDefault"
+const policyColumnsPreV25 = "id, name, profileID, sliceID, dataNetworkID, var5qi, arp, sessionAmbrUplink, sessionAmbrDownlink, isDefault"
 
 const (
-	listPoliciesPagedPreV25Stmt          = "SELECT " + policyColumnsPreV25 + ", COUNT(*) OVER() AS &NumItems.count FROM %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
-	getPolicyPreV25Stmt                  = "SELECT " + policyColumnsPreV25 + " FROM %s WHERE name==$Policy.name"
-	getPolicyByLookupPreV25Stmt          = "SELECT " + policyColumnsPreV25 + " FROM %s WHERE profileID==$Policy.profileID AND sliceID==$Policy.sliceID AND dataNetworkID==$Policy.dataNetworkID"
-	getPolicyByProfileAndSlicePreV25Stmt = "SELECT " + policyColumnsPreV25 + " FROM %s WHERE profileID==$Policy.profileID AND sliceID==$Policy.sliceID LIMIT 1"
-	listPoliciesByProfilePagedPreV25Stmt = "SELECT " + policyColumnsPreV25 + ", COUNT(*) OVER() AS &NumItems.count FROM %s WHERE profileID==$Policy.profileID LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
-	listPoliciesByProfileAllPreV25Stmt   = "SELECT " + policyColumnsPreV25 + " FROM %s WHERE profileID==$Policy.profileID ORDER BY id ASC"
-	getDefaultPolicyByProfilePreV25Stmt  = "SELECT " + policyColumnsPreV25 + " FROM %s WHERE profileID==$Policy.profileID AND isDefault==true LIMIT 1"
-	createPolicyPreV25Stmt               = "INSERT INTO %s (id, name, profileID, sliceID, dataNetworkID, var5qi, arp, sessionAmbrUplink, sessionAmbrDownlink) VALUES ($Policy.id, $Policy.name, $Policy.profileID, $Policy.sliceID, $Policy.dataNetworkID, $Policy.var5qi, $Policy.arp, $Policy.sessionAmbrUplink, $Policy.sessionAmbrDownlink)"
-	editPolicyPreV25Stmt                 = "UPDATE %s SET profileID=$Policy.profileID, sliceID=$Policy.sliceID, dataNetworkID=$Policy.dataNetworkID, var5qi=$Policy.var5qi, arp=$Policy.arp, sessionAmbrUplink=$Policy.sessionAmbrUplink, sessionAmbrDownlink=$Policy.sessionAmbrDownlink WHERE name==$Policy.name"
+	listPoliciesPagedPreV25Stmt          = "SELECT " + policyColumnsPreV25 + ", COUNT(*) OVER() FROM " + PoliciesTableName + " LIMIT ? OFFSET ?"
+	getPolicyPreV25Stmt                  = "SELECT " + policyColumnsPreV25 + " FROM " + PoliciesTableName + " WHERE name==?"
+	getPolicyByLookupPreV25Stmt          = "SELECT " + policyColumnsPreV25 + " FROM " + PoliciesTableName + " WHERE profileID==? AND sliceID==? AND dataNetworkID==?"
+	getPolicyByProfileAndSlicePreV25Stmt = "SELECT " + policyColumnsPreV25 + " FROM " + PoliciesTableName + " WHERE profileID==? AND sliceID==? LIMIT 1"
+	listPoliciesByProfilePagedPreV25Stmt = "SELECT " + policyColumnsPreV25 + ", COUNT(*) OVER() FROM " + PoliciesTableName + " WHERE profileID==? LIMIT ? OFFSET ?"
+	listPoliciesByProfileAllPreV25Stmt   = "SELECT " + policyColumnsPreV25 + " FROM " + PoliciesTableName + " WHERE profileID==? ORDER BY id ASC"
+	getDefaultPolicyByProfilePreV25Stmt  = "SELECT " + policyColumnsPreV25 + " FROM " + PoliciesTableName + " WHERE profileID==? AND isDefault==true LIMIT 1"
+	createPolicyPreV25Stmt               = "INSERT INTO " + PoliciesTableName + " (id, name, profileID, sliceID, dataNetworkID, var5qi, arp, sessionAmbrUplink, sessionAmbrDownlink) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	editPolicyPreV25Stmt                 = "UPDATE " + PoliciesTableName + " SET profileID=?, sliceID=?, dataNetworkID=?, var5qi=?, arp=?, sessionAmbrUplink=?, sessionAmbrDownlink=? WHERE name==?"
 )
 
 type Policy struct {
-	ID                      string                         `db:"id"` // UUIDv7
-	Name                    string                         `db:"name"`
-	ProfileID               string                         `db:"profileID"`
-	SliceID                 string                         `db:"sliceID"`
-	DataNetworkID           string                         `db:"dataNetworkID"`
-	Var5qi                  int32                          `db:"var5qi"`
-	Arp                     int32                          `db:"arp"`
-	PreemptionCapability    models.PreemptionCapability    `db:"preemptionCapability"`
-	PreemptionVulnerability models.PreemptionVulnerability `db:"preemptionVulnerability"`
-	SessionAmbrUplink       string                         `db:"sessionAmbrUplink"`
-	SessionAmbrDownlink     string                         `db:"sessionAmbrDownlink"`
+	ID                      string // UUIDv7
+	Name                    string
+	ProfileID               string
+	SliceID                 string
+	DataNetworkID           string
+	Var5qi                  int32
+	Arp                     int32
+	PreemptionCapability    models.PreemptionCapability
+	PreemptionVulnerability models.PreemptionVulnerability
+	SessionAmbrUplink       string
+	SessionAmbrDownlink     string
 	// IsDefault marks this binding as the profile's default APN/DNN — used for the
 	// 4G default bearer and as the 5G fallback when no DNN is requested.
-	IsDefault bool `db:"isDefault"`
+	IsDefault bool
 }
 
-func (db *Database) policyWriteStmt(ctx context.Context, p *Policy, current, preV25 *sqlair.Statement) (*sqlair.Statement, error) {
+func (db *Database) policySchemaCurrent(ctx context.Context, p *Policy) (bool, error) {
 	p.defaultPreemption()
 
 	if db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
-		return current, nil
+		return true, nil
 	}
 
 	if p.PreemptionCapability != models.PreemptionCapabilityNotPreempt || p.PreemptionVulnerability != models.PreemptionVulnerabilityNotPreemptable {
-		return nil, ErrMigrationPending
+		return false, ErrMigrationPending
 	}
 
-	return preV25, nil
+	return false, nil
+}
+
+func createPolicyQuery(p *Policy, current bool) (string, []any) {
+	if current {
+		return createPolicyStmt, []any{p.ID, p.Name, p.ProfileID, p.SliceID, p.DataNetworkID, p.Var5qi, p.Arp, p.PreemptionCapability, p.PreemptionVulnerability, p.SessionAmbrUplink, p.SessionAmbrDownlink}
+	}
+
+	return createPolicyPreV25Stmt, []any{p.ID, p.Name, p.ProfileID, p.SliceID, p.DataNetworkID, p.Var5qi, p.Arp, p.SessionAmbrUplink, p.SessionAmbrDownlink}
+}
+
+func editPolicyQuery(p *Policy, current bool) (string, []any) {
+	if current {
+		return editPolicyStmt, []any{p.ProfileID, p.SliceID, p.DataNetworkID, p.Var5qi, p.Arp, p.PreemptionCapability, p.PreemptionVulnerability, p.SessionAmbrUplink, p.SessionAmbrDownlink, p.Name}
+	}
+
+	return editPolicyPreV25Stmt, []any{p.ProfileID, p.SliceID, p.DataNetworkID, p.Var5qi, p.Arp, p.SessionAmbrUplink, p.SessionAmbrDownlink, p.Name}
 }
 
 func defaultPoliciesPreemption(policies []Policy) {
@@ -110,61 +123,29 @@ func (p *Policy) defaultPreemption() {
 }
 
 func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int) ([]Policy, int, error) {
-	querySummary := fmt.Sprintf("%s %s (paged)", "SELECT", PoliciesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(PoliciesTableName),
-			attribute.Int("ella.db.page", page),
-			attribute.Int("ella.db.page_size", perPage),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (paged)", PoliciesTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(PoliciesTableName, "select").Inc()
-
-	var policies []Policy
-
-	var counts []NumItems
-
-	args := ListArgs{
-		Limit:  perPage,
-		Offset: (page - 1) * perPage,
-	}
-
-	stmt := db.listPoliciesStmt
+	query, scan := listPoliciesPagedStmt, scanPolicy
 	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
-		stmt = db.listPoliciesPreV25Stmt
+		query, scan = listPoliciesPagedPreV25Stmt, scanPolicyPreV25
 	}
 
-	err := db.conn().Query(ctx, stmt, args).GetAll(&policies, &counts)
+	policies, count, err := queryPage(ctx, db.reader(), query, scan, perPage, (page-1)*perPage)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			fallbackCount, countErr := db.CountPolicies(ctx)
-			if countErr != nil {
-				return nil, 0, nil
-			}
-
-			return nil, fallbackCount, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	count := 0
-	if len(counts) > 0 {
-		count = counts[0].Count
+	if len(policies) == 0 {
+		fallbackCount, countErr := db.CountPolicies(ctx)
+		if countErr != nil {
+			return nil, 0, nil
+		}
+
+		return nil, fallbackCount, nil
 	}
 
 	defaultPoliciesPreemption(policies)
@@ -173,59 +154,20 @@ func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int)
 }
 
 func (db *Database) ListPoliciesByProfilePage(ctx context.Context, profileID string, page int, perPage int) ([]Policy, int, error) {
-	querySummary := fmt.Sprintf("%s %s (paged by profile)", "SELECT", PoliciesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(PoliciesTableName),
-			attrs.ProfileID(profileID),
-			attribute.Int("ella.db.page", page),
-			attribute.Int("ella.db.page_size", perPage),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (paged by profile)", PoliciesTableName, "SELECT", "select", attrs.ProfileID(profileID), attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(PoliciesTableName, "select").Inc()
-
-	var policies []Policy
-
-	var counts []NumItems
-
-	args := ListArgs{
-		Limit:  perPage,
-		Offset: (page - 1) * perPage,
-	}
-
-	filter := Policy{ProfileID: profileID}
-
-	stmt := db.listPoliciesByProfileStmt
+	query, scan := listPoliciesByProfilePagedStmt, scanPolicy
 	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
-		stmt = db.listPoliciesByProfilePreV25Stmt
+		query, scan = listPoliciesByProfilePagedPreV25Stmt, scanPolicyPreV25
 	}
 
-	err := db.conn().Query(ctx, stmt, args, filter).GetAll(&policies, &counts)
+	policies, count, err := queryPage(ctx, db.reader(), query, scan, profileID, perPage, (page-1)*perPage)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, 0, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
-	}
-
-	count := 0
-	if len(counts) > 0 {
-		count = counts[0].Count
 	}
 
 	defaultPoliciesPreemption(policies)
@@ -234,42 +176,17 @@ func (db *Database) ListPoliciesByProfilePage(ctx context.Context, profileID str
 }
 
 func (db *Database) ListPoliciesByProfile(ctx context.Context, profileID string) ([]Policy, error) {
-	querySummary := fmt.Sprintf("%s %s (all by profile)", "SELECT", PoliciesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(PoliciesTableName),
-			attrs.ProfileID(profileID),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (all by profile)", PoliciesTableName, "SELECT", "select", attrs.ProfileID(profileID))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(PoliciesTableName, "select").Inc()
-
-	var policies []Policy
-
-	filter := Policy{ProfileID: profileID}
-
-	stmt := db.listPoliciesByProfileAllStmt
+	query, scan := listPoliciesByProfileAllStmt, scanPolicy
 	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
-		stmt = db.listPoliciesByProfileAllPreV25Stmt
+		query, scan = listPoliciesByProfileAllPreV25Stmt, scanPolicyPreV25
 	}
 
-	err := db.conn().Query(ctx, stmt, filter).GetAll(&policies)
+	policies, err := queryAll(ctx, db.reader(), query, scan, profileID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -281,34 +198,16 @@ func (db *Database) ListPoliciesByProfile(ctx context.Context, profileID string)
 }
 
 func (db *Database) GetPolicy(ctx context.Context, name string) (*Policy, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", PoliciesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(PoliciesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, PoliciesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(PoliciesTableName, "select").Inc()
-
-	row := Policy{Name: name}
-
-	stmt := db.getPolicyStmt
+	query, scan := getPolicyStmt, scanPolicy
 	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
-		stmt = db.getPolicyPreV25Stmt
+		query, scan = getPolicyPreV25Stmt, scanPolicyPreV25
 	}
 
-	err := db.conn().Query(ctx, stmt, row).Get(&row)
+	row, err := scan(db.reader().QueryRowContext(ctx, query, name))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -326,37 +225,16 @@ func (db *Database) GetPolicy(ctx context.Context, name string) (*Policy, error)
 
 // GetPolicyByLookup finds a policy by its profileID, sliceID, and dataNetworkID.
 func (db *Database) GetPolicyByLookup(ctx context.Context, profileID, sliceID, dataNetworkID string) (*Policy, error) {
-	querySummary := fmt.Sprintf("%s %s (lookup)", "SELECT", PoliciesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(PoliciesTableName),
-			attrs.ProfileID(profileID),
-			attrs.SliceID(sliceID),
-			attrs.DataNetworkID(dataNetworkID),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (lookup)", PoliciesTableName, "SELECT", "select", attrs.ProfileID(profileID), attrs.SliceID(sliceID), attrs.DataNetworkID(dataNetworkID))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(PoliciesTableName, "select").Inc()
-
-	row := Policy{ProfileID: profileID, SliceID: sliceID, DataNetworkID: dataNetworkID}
-
-	stmt := db.getPolicyByLookupStmt
+	query, scan := getPolicyByLookupStmt, scanPolicy
 	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
-		stmt = db.getPolicyByLookupPreV25Stmt
+		query, scan = getPolicyByLookupPreV25Stmt, scanPolicyPreV25
 	}
 
-	err := db.conn().Query(ctx, stmt, row).Get(&row)
+	row, err := scan(db.reader().QueryRowContext(ctx, query, profileID, sliceID, dataNetworkID))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -377,35 +255,16 @@ func (db *Database) GetPolicyByLookup(ctx context.Context, profileID, sliceID, d
 // GetDefaultPolicyByProfile returns the profile's default data-network binding
 // (the default APN/DNN). Returns ErrNotFound when the profile has no default.
 func (db *Database) GetDefaultPolicyByProfile(ctx context.Context, profileID string) (*Policy, error) {
-	querySummary := fmt.Sprintf("%s %s (default by profile)", "SELECT", PoliciesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(PoliciesTableName),
-			attrs.ProfileID(profileID),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (default by profile)", PoliciesTableName, "SELECT", "select", attrs.ProfileID(profileID))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(PoliciesTableName, "select").Inc()
-
-	row := Policy{ProfileID: profileID}
-
-	stmt := db.getDefaultPolicyByProfileStmt
+	query, scan := getDefaultPolicyByProfileStmt, scanPolicy
 	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
-		stmt = db.getDefaultPolicyByProfilePreV25Stmt
+		query, scan = getDefaultPolicyByProfilePreV25Stmt, scanPolicyPreV25
 	}
 
-	err := db.conn().Query(ctx, stmt, row).Get(&row)
+	row, err := scan(db.reader().QueryRowContext(ctx, query, profileID))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -424,25 +283,9 @@ func (db *Database) GetDefaultPolicyByProfile(ctx context.Context, profileID str
 // SetDefaultPolicy makes the named policy the sole default binding of the given
 // profile (the default APN/DNN), clearing any previous default in one atomic op.
 func (db *Database) SetDefaultPolicy(ctx context.Context, profileID, name string) error {
-	querySummary := fmt.Sprintf("%s %s (set default)", "UPDATE", PoliciesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(PoliciesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "UPDATE "+PoliciesTableName+" (set default)", PoliciesTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(PoliciesTableName, "update").Inc()
 
 	_, err := opSetDefaultPolicy.Invoke(ctx, db, &Policy{ProfileID: profileID, Name: name})
 	if err != nil {
@@ -455,36 +298,16 @@ func (db *Database) SetDefaultPolicy(ctx context.Context, profileID, name string
 }
 
 func (db *Database) GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID string) (*Policy, error) {
-	querySummary := fmt.Sprintf("%s %s (by profile+slice)", "SELECT", PoliciesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(PoliciesTableName),
-			attrs.ProfileID(profileID),
-			attrs.SliceID(sliceID),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (by profile+slice)", PoliciesTableName, "SELECT", "select", attrs.ProfileID(profileID), attrs.SliceID(sliceID))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(PoliciesTableName, "select").Inc()
-
-	row := Policy{ProfileID: profileID, SliceID: sliceID}
-
-	stmt := db.getPolicyByProfileAndSliceStmt
+	query, scan := getPolicyByProfileAndSliceStmt, scanPolicy
 	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
-		stmt = db.getPolicyByProfileAndSlicePreV25Stmt
+		query, scan = getPolicyByProfileAndSlicePreV25Stmt, scanPolicyPreV25
 	}
 
-	err := db.conn().Query(ctx, stmt, row).Get(&row)
+	row, err := scan(db.reader().QueryRowContext(ctx, query, profileID, sliceID))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -603,25 +426,9 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 }
 
 func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
-	querySummary := fmt.Sprintf("%s %s", "INSERT", PoliciesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			semconv.DBCollectionName(PoliciesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, PoliciesTableName, "INSERT", "insert")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "insert"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(PoliciesTableName, "insert").Inc()
 
 	if policy.ID == "" {
 		id, err := uuid.NewV7()
@@ -645,25 +452,9 @@ func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
 }
 
 func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
-	querySummary := fmt.Sprintf("%s %s", "UPDATE", PoliciesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(PoliciesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, PoliciesTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(PoliciesTableName, "update").Inc()
 
 	_, err := opUpdatePolicy.Invoke(ctx, db, policy)
 	if err != nil {
@@ -676,25 +467,9 @@ func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
 }
 
 func (db *Database) DeletePolicy(ctx context.Context, name string) error {
-	querySummary := fmt.Sprintf("%s %s", "DELETE", PoliciesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(PoliciesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, PoliciesTableName, "DELETE", "delete")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "delete"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(PoliciesTableName, "delete").Inc()
 
 	_, err := opDeletePolicy.Invoke(ctx, db, &stringPayload{Value: name})
 	if err != nil {
@@ -708,178 +483,79 @@ func (db *Database) DeletePolicy(ctx context.Context, name string) error {
 
 // CountPolicies returns policy count
 func (db *Database) CountPolicies(ctx context.Context) (int, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", PoliciesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(PoliciesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, PoliciesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(PoliciesTableName, "select").Inc()
-
-	var result NumItems
-
-	err := db.conn().Query(ctx, db.countPoliciesStmt).Get(&result)
+	count, err := queryCount(ctx, db.reader(), countPoliciesStmt)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	return result.Count, nil
+	return count, nil
 }
 
 func (db *Database) CountPoliciesInProfile(ctx context.Context, profileID string) (int, error) {
-	querySummary := fmt.Sprintf("%s %s (by profile)", "SELECT", PoliciesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(PoliciesTableName),
-			attrs.ProfileID(profileID),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (by profile)", PoliciesTableName, "SELECT", "select", attrs.ProfileID(profileID))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(PoliciesTableName, "select").Inc()
-
-	var result NumItems
-
-	policy := Policy{ProfileID: profileID}
-
-	err := db.conn().Query(ctx, db.countPoliciesInProfileStmt, policy).Get(&result)
+	count, err := queryCount(ctx, db.reader(), countPoliciesInProfileStmt, profileID)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	return result.Count, nil
+	return count, nil
 }
 
 func (db *Database) CountPoliciesInSlice(ctx context.Context, sliceID string) (int, error) {
-	querySummary := fmt.Sprintf("%s %s (by slice)", "SELECT", PoliciesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(PoliciesTableName),
-			attrs.SliceID(sliceID),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (by slice)", PoliciesTableName, "SELECT", "select", attrs.SliceID(sliceID))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(PoliciesTableName, "select").Inc()
-
-	var result NumItems
-
-	policy := Policy{SliceID: sliceID}
-
-	err := db.conn().Query(ctx, db.countPoliciesInSliceStmt, policy).Get(&result)
+	count, err := queryCount(ctx, db.reader(), countPoliciesInSliceStmt, sliceID)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	return result.Count, nil
+	return count, nil
 }
 
 func (db *Database) CountPoliciesInDataNetwork(ctx context.Context, dataNetworkID string) (int, error) {
-	querySummary := fmt.Sprintf("%s %s (by data network)", "SELECT", PoliciesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(PoliciesTableName),
-			attrs.DataNetworkID(dataNetworkID),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (by data network)", PoliciesTableName, "SELECT", "select", attrs.DataNetworkID(dataNetworkID))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(PoliciesTableName, "select").Inc()
-
-	var result NumItems
-
-	policy := Policy{DataNetworkID: dataNetworkID}
-
-	err := db.conn().Query(ctx, db.countPoliciesInDataNetworkStmt, policy).Get(&result)
+	count, err := queryCount(ctx, db.reader(), countPoliciesInDataNetworkStmt, dataNetworkID)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	return result.Count, nil
+	return count, nil
 }
 
 func (db *Database) DataNetworkPolicy5QIs(ctx context.Context, dataNetworkID string) ([]int32, error) {
-	querySummary := fmt.Sprintf("%s %s (5QIs in data network)", "SELECT", PoliciesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(PoliciesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (5QIs in data network)", PoliciesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(PoliciesTableName, "select").Inc()
-
-	var policies []Policy
-
-	if err := db.conn().Query(ctx, db.listPolicy5QIsInDataNetworkStmt, Policy{DataNetworkID: dataNetworkID}).GetAll(&policies); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	fiveQIs, err := queryAll(ctx, db.reader(), listPolicy5QIsInDataNetworkStmt, scanInt32, dataNetworkID)
+	if err != nil {
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	fiveQIs := make([]int32, 0, len(policies))
-	for _, p := range policies {
-		fiveQIs = append(fiveQIs, p.Var5qi)
+	if fiveQIs == nil {
+		return []int32{}, nil
 	}
 
 	return fiveQIs, nil
@@ -929,4 +605,24 @@ func (db *Database) PoliciesInSlice(ctx context.Context, name string) (bool, err
 	}
 
 	return count > 0, nil
+}
+
+func scanPolicy(row scanner) (Policy, error) {
+	var v Policy
+
+	if err := row.Scan(&v.ID, &v.Name, &v.ProfileID, &v.SliceID, &v.DataNetworkID, &v.Var5qi, &v.Arp, &v.PreemptionCapability, &v.PreemptionVulnerability, &v.SessionAmbrUplink, &v.SessionAmbrDownlink, &v.IsDefault); err != nil {
+		return Policy{}, err
+	}
+
+	return v, nil
+}
+
+func scanPolicyPreV25(row scanner) (Policy, error) {
+	var v Policy
+
+	if err := row.Scan(&v.ID, &v.Name, &v.ProfileID, &v.SliceID, &v.DataNetworkID, &v.Var5qi, &v.Arp, &v.SessionAmbrUplink, &v.SessionAmbrDownlink, &v.IsDefault); err != nil {
+		return Policy{}, err
+	}
+
+	return v, nil
 }

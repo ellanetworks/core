@@ -14,61 +14,51 @@ import (
 
 	"github.com/ellanetworks/core/internal/pki"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const IPLeasesTableName = "ip_leases"
 
 const (
-	createLeaseStmt              = "INSERT INTO %s (id, poolID, poolType, addressBin, imsi, sessionID, type, createdAt, nodeID) VALUES ($IPLease.id, $IPLease.poolID, $IPLease.poolType, $IPLease.addressBin, $IPLease.imsi, $IPLease.sessionID, $IPLease.type, $IPLease.createdAt, $IPLease.nodeID)"
-	getDynamicLeaseBySessionStmt = "SELECT &IPLease.* FROM %s WHERE +poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND imsi==$IPLease.imsi AND +sessionID==$IPLease.sessionID AND type='dynamic'"
-	getLeaseBySessionStmt        = "SELECT &IPLease.* FROM %s WHERE +poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND +sessionID==$IPLease.sessionID AND imsi==$IPLease.imsi"
-	getActiveLeaseByAddressStmt  = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND addressBin==$IPLease.addressBin AND sessionID IS NOT NULL"
-	updateLeaseSessionStmt       = "UPDATE %s SET sessionID=$IPLease.sessionID WHERE id==$IPLease.id"
-	updateLeaseNodeStmt          = "UPDATE %s SET nodeID=$IPLease.nodeID, sessionID=$IPLease.sessionID WHERE id==$IPLease.id"
-	deleteLeaseStmt              = "DELETE FROM %s WHERE id==$IPLease.id AND type='dynamic'"
-	deleteAllDynamicLeasesStmt   = "DELETE FROM %s WHERE type='dynamic'"
-	deleteDynLeasesByNodeStmt    = "DELETE FROM %s WHERE type='dynamic' AND nodeID==$IPLease.nodeID"
-	listActiveLeasesStmt         = "SELECT &IPLease.* FROM %s WHERE sessionID IS NOT NULL"
-	listActiveLeasesByNodeStmt   = "SELECT &IPLease.* FROM %s WHERE sessionID IS NOT NULL AND nodeID==$IPLease.nodeID"
-	listLeasesByPoolStmt         = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType"
-	listLeaseAddressRangeStmt    = "SELECT &IPLease.addressBin FROM %s WHERE poolID==$leaseAddressRange.poolID AND poolType==$leaseAddressRange.poolType AND addressBin >= $leaseAddressRange.low AND addressBin <= $leaseAddressRange.high ORDER BY addressBin"
-	getNewestLeaseInPoolStmt     = "SELECT &IPLease.addressBin FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType ORDER BY rowid DESC LIMIT 1"
-	countLeasesByPoolStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType"
-	countIPv4LeasesByPoolStmt    = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND substr(addressBin, 1, 12) = X'00000000000000000000FFFF'"
-	countIPv6LeasesByPoolStmt    = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND substr(addressBin, 1, 12) != X'00000000000000000000FFFF'"
-	countActiveLeasesStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE sessionID IS NOT NULL"
-	countLeasesByIMSIStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE imsi==$IPLease.imsi"
-	listLeasesByPoolPageStmt     = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType ORDER BY addressBin LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
-	listAllLeasesStmt            = "SELECT &IPLease.* FROM %s"
-	getStaticLeaseStmt           = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND imsi==$IPLease.imsi AND type='static'"
-	listStaticLeasesByDNStmt     = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND type='static' ORDER BY poolType, addressBin"
-	listStaticLeasesByIMSIStmt   = "SELECT &IPLease.* FROM %s WHERE imsi==$IPLease.imsi AND type='static' ORDER BY addressBin"
-	updateStaticLeaseAddressStmt = "UPDATE %s SET addressBin=$IPLease.addressBin WHERE id==$IPLease.id AND type='static'"
-	deleteStaticLeaseStmt        = "DELETE FROM %s WHERE id==$IPLease.id AND type='static'"
+	createLeaseStmt              = "INSERT INTO " + IPLeasesTableName + " (id, poolID, poolType, addressBin, imsi, sessionID, type, createdAt, nodeID) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	getDynamicLeaseBySessionStmt = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE +poolID==? AND poolType==? AND imsi==? AND +sessionID==? AND type='dynamic'"
+	getLeaseBySessionStmt        = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE +poolID==? AND poolType==? AND +sessionID==? AND imsi==?"
+	getActiveLeaseByAddressStmt  = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE poolID==? AND addressBin==? AND sessionID IS NOT NULL"
+	updateLeaseSessionStmt       = "UPDATE " + IPLeasesTableName + " SET sessionID=? WHERE id==?"
+	updateLeaseNodeStmt          = "UPDATE " + IPLeasesTableName + " SET nodeID=?, sessionID=? WHERE id==?"
+	deleteLeaseStmt              = "DELETE FROM " + IPLeasesTableName + " WHERE id==? AND type='dynamic'"
+	deleteAllDynamicLeasesStmt   = "DELETE FROM " + IPLeasesTableName + " WHERE type='dynamic'"
+	deleteDynLeasesByNodeStmt    = "DELETE FROM " + IPLeasesTableName + " WHERE type='dynamic' AND nodeID==?"
+	listActiveLeasesStmt         = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE sessionID IS NOT NULL"
+	listActiveLeasesByNodeStmt   = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE sessionID IS NOT NULL AND nodeID==?"
+	listLeasesByPoolStmt         = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==?"
+	listLeaseAddressRangeStmt    = "SELECT addressBin FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? AND addressBin >= ? AND addressBin <= ? ORDER BY addressBin"
+	getNewestLeaseInPoolStmt     = "SELECT addressBin FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? ORDER BY rowid DESC LIMIT 1"
+	countLeasesByPoolStmt        = "SELECT COUNT(*) FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==?"
+	countIPv4LeasesByPoolStmt    = "SELECT COUNT(*) FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? AND substr(addressBin, 1, 12) = X'00000000000000000000FFFF'"
+	countIPv6LeasesByPoolStmt    = "SELECT COUNT(*) FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? AND substr(addressBin, 1, 12) != X'00000000000000000000FFFF'"
+	countActiveLeasesStmt        = "SELECT COUNT(*) FROM " + IPLeasesTableName + " WHERE sessionID IS NOT NULL"
+	countLeasesByIMSIStmt        = "SELECT COUNT(*) FROM " + IPLeasesTableName + " WHERE imsi==?"
+	listLeasesByPoolPageStmt     = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? ORDER BY addressBin LIMIT ? OFFSET ?"
+	listAllLeasesStmt            = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName
+	getStaticLeaseStmt           = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? AND imsi==? AND type='static'"
+	listStaticLeasesByDNStmt     = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE poolID==? AND type='static' ORDER BY poolType, addressBin"
+	listStaticLeasesByIMSIStmt   = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE imsi==? AND type='static' ORDER BY addressBin"
+	updateStaticLeaseAddressStmt = "UPDATE " + IPLeasesTableName + " SET addressBin=? WHERE id==? AND type='static'"
+	deleteStaticLeaseStmt        = "DELETE FROM " + IPLeasesTableName + " WHERE id==? AND type='static'"
 )
 
 // IPLease represents a row in the ip_leases table.
 type IPLease struct {
-	ID         string `db:"id"`     // UUIDv7
-	PoolID     string `db:"poolID"` // FK to data_networks.id (UUID)
-	AddressBin []byte `db:"addressBin"`
-	IMSI       string `db:"imsi"`
-	SessionID  *int   `db:"sessionID"`
-	Type       string `db:"type"`
-	CreatedAt  int64  `db:"createdAt"`
-	NodeID     string `db:"nodeID"`
-	PoolType   string `db:"poolType"`
-}
-
-type leaseAddressRange struct {
-	PoolID   string `db:"poolID"`
-	PoolType string `db:"poolType"`
-	Low      []byte `db:"low"`
-	High     []byte `db:"high"`
+	ID         string // UUIDv7
+	PoolID     string // FK to data_networks.id (UUID)
+	AddressBin []byte
+	IMSI       string
+	SessionID  *int
+	Type       string
+	CreatedAt  int64
+	NodeID     string
+	PoolType   string
 }
 
 // Address returns the IP address derived from AddressBin.
@@ -97,25 +87,9 @@ func (l *IPLease) Address() netip.Addr {
 // /cluster/internal/propose path, so the allocation is serialised
 // regardless of which node initiated it. Returns the chosen address.
 func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID string) (netip.Addr, error) {
-	querySummary := fmt.Sprintf("%s %s (allocate)", "INSERT", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "INSERT "+IPLeasesTableName+" (allocate)", IPLeasesTableName, "INSERT", "allocate")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "allocate"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "allocate").Inc()
 
 	addrStr, err := opAllocateIPLease.Invoke(ctx, db, &allocateIPLeasePayload{
 		PoolID:    poolID,
@@ -148,25 +122,9 @@ func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType
 // concurrent allocations from any node serialise correctly under proposeMu.
 // Each allocated unit is a /64 prefix delegated from the IPv6 CIDR pool.
 func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID string) (netip.Addr, error) {
-	querySummary := fmt.Sprintf("%s %s (allocate_ipv6)", "INSERT", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "INSERT "+IPLeasesTableName+" (allocate_ipv6)", IPLeasesTableName, "INSERT", "allocate_ipv6")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "allocate_ipv6"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "allocate_ipv6").Inc()
 
 	addrStr, err := opAllocateIPv6Lease.Invoke(ctx, db, &allocateIPLeasePayload{
 		PoolID:    poolID,
@@ -197,25 +155,9 @@ func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolTy
 // binary form. Returns ErrAlreadyExists if the (poolID, addressBin) unique
 // constraint is violated.
 func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address netip.Addr) error {
-	querySummary := fmt.Sprintf("%s %s", "INSERT", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, IPLeasesTableName, "INSERT", "insert")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "insert"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "insert").Inc()
 
 	b := address.As16()
 	lease.AddressBin = b[:]
@@ -232,29 +174,11 @@ func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address net
 
 // GetLeaseBySession returns the lease matching (poolID, poolType, sessionID, imsi), or ErrNotFound.
 func (db *Database) GetLeaseBySession(ctx context.Context, poolID string, poolType string, sessionID int, imsi string) (*IPLease, error) {
-	querySummary := fmt.Sprintf("%s %s (by session)", "SELECT", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (by session)", IPLeasesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
-
-	row := IPLease{PoolID: poolID, PoolType: poolType, SessionID: &sessionID, IMSI: imsi}
-
-	err := db.conn().Query(ctx, db.getLeaseBySessionStmt, row).Get(&row)
+	row, err := scanIPLease(db.reader().QueryRowContext(ctx, getLeaseBySessionStmt, poolID, poolType, &sessionID, imsi))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -269,30 +193,13 @@ func (db *Database) GetLeaseBySession(ctx context.Context, poolID string, poolTy
 }
 
 func (db *Database) GetActiveLeaseByAddress(ctx context.Context, poolID string, address netip.Addr) (*IPLease, error) {
-	querySummary := fmt.Sprintf("%s %s (by address)", "SELECT", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (by address)", IPLeasesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
-
 	b := address.As16()
-	row := IPLease{PoolID: poolID, AddressBin: b[:]}
 
-	err := db.conn().Query(ctx, db.getActiveLeaseByAddressStmt, row).Get(&row)
+	row, err := scanIPLease(db.reader().QueryRowContext(ctx, getActiveLeaseByAddressStmt, poolID, b[:]))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -308,25 +215,9 @@ func (db *Database) GetActiveLeaseByAddress(ctx context.Context, poolID string, 
 
 // UpdateLeaseSession sets the sessionID on an existing lease.
 func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID string, sessionID int) error {
-	querySummary := fmt.Sprintf("%s %s (session)", "UPDATE", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "UPDATE "+IPLeasesTableName+" (session)", IPLeasesTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "update").Inc()
 
 	lease := &IPLease{ID: leaseID, SessionID: &sessionID}
 
@@ -341,25 +232,9 @@ func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID string, sess
 }
 
 func (db *Database) ReleaseIPLease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID string) (netip.Addr, error) {
-	querySummary := fmt.Sprintf("%s %s (release)", "DELETE", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "DELETE "+IPLeasesTableName+" (release)", IPLeasesTableName, "DELETE", "release")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "release"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "release").Inc()
 
 	addrStr, err := opReleaseIPLease.Invoke(ctx, db, &releaseIPLeasePayload{
 		PoolID:    poolID,
@@ -391,25 +266,9 @@ func (db *Database) ReleaseIPLease(ctx context.Context, poolID string, poolType 
 }
 
 func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID string) error {
-	querySummary := fmt.Sprintf("%s %s", "DELETE", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, IPLeasesTableName, "DELETE", "delete")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "delete"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
 
 	_, err := opDeleteDynamicLease.Invoke(ctx, db, &stringPayload{Value: leaseID})
 	if err != nil {
@@ -424,25 +283,9 @@ func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID string) erro
 // DeleteAllDynamicLeases removes all dynamic leases cluster-wide,
 // preserving static ones. No production caller.
 func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
-	querySummary := fmt.Sprintf("%s %s (dynamic)", "DELETE", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "DELETE "+IPLeasesTableName+" (dynamic)", IPLeasesTableName, "DELETE", "delete")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "delete"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
 
 	_, err := opDeleteAllDynamicLeases.Invoke(ctx, db, nil)
 	if err != nil {
@@ -458,26 +301,9 @@ func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
 // given nodeID. Static leases are preserved: an admin-pinned IP stays
 // bound to its IMSI regardless of which node previously served it.
 func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID string) error {
-	querySummary := fmt.Sprintf("%s %s (dynamic by node)", "DELETE", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(IPLeasesTableName),
-			attrs.NodeID(nodeID),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "DELETE "+IPLeasesTableName+" (dynamic by node)", IPLeasesTableName, "DELETE", "delete", attrs.NodeID(nodeID))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "delete"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
 
 	_, err := opDeleteDynamicLeasesByNode.Invoke(ctx, db, &nodeIDPayload{Value: pki.NodeID(nodeID)})
 	if err != nil {
@@ -492,25 +318,9 @@ func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID string
 // UpdateLeaseNode updates the nodeID and sessionID on an existing lease.
 // Used during failover to transfer lease ownership to the new serving node.
 func (db *Database) UpdateLeaseNode(ctx context.Context, leaseID string, nodeID string, sessionID int) error {
-	querySummary := fmt.Sprintf("%s %s (node)", "UPDATE", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "UPDATE "+IPLeasesTableName+" (node)", IPLeasesTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "update").Inc()
 
 	lease := &IPLease{ID: leaseID, NodeID: nodeID, SessionID: &sessionID}
 
@@ -526,34 +336,12 @@ func (db *Database) UpdateLeaseNode(ctx context.Context, leaseID string, nodeID 
 
 // ListActiveLeases returns all leases with a non-NULL sessionID (dynamic + active static).
 func (db *Database) ListActiveLeases(ctx context.Context) ([]IPLease, error) {
-	querySummary := fmt.Sprintf("%s %s (active)", "SELECT", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (active)", IPLeasesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
-
-	var leases []IPLease
-
-	err := db.conn().Query(ctx, db.listActiveLeasesStmt).GetAll(&leases)
+	leases, err := queryAll(ctx, db.reader(), listActiveLeasesStmt, scanIPLease)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -568,35 +356,12 @@ func (db *Database) ListActiveLeases(ctx context.Context) ([]IPLease, error) {
 // from the node that hosts the PDU session, not by every node in the
 // cluster.
 func (db *Database) ListActiveLeasesByNode(ctx context.Context, nodeID string) ([]IPLease, error) {
-	querySummary := fmt.Sprintf("%s %s (active,by_node)", "SELECT", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(IPLeasesTableName),
-			attrs.NodeID(nodeID),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (active,by_node)", IPLeasesTableName, "SELECT", "select", attrs.NodeID(nodeID))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
-
-	var leases []IPLease
-
-	err := db.conn().Query(ctx, db.listActiveLeasesByNodeStmt, IPLease{NodeID: nodeID}).GetAll(&leases)
+	leases, err := queryAll(ctx, db.reader(), listActiveLeasesByNodeStmt, scanIPLease, nodeID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -607,14 +372,8 @@ func (db *Database) ListActiveLeasesByNode(ctx context.Context, nodeID string) (
 
 // listAllLeases returns every lease row. Used only by the support bundle export.
 func (db *Database) listAllLeases(ctx context.Context) ([]IPLease, error) {
-	var leases []IPLease
-
-	err := db.conn().Query(ctx, db.listAllLeasesStmt).GetAll(&leases)
+	leases, err := queryAll(ctx, db.reader(), listAllLeasesStmt, scanIPLease)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -623,34 +382,12 @@ func (db *Database) listAllLeases(ctx context.Context) ([]IPLease, error) {
 
 // ListLeasesByPool returns all leases (dynamic + static) for a given pool.
 func (db *Database) ListLeasesByPool(ctx context.Context, poolID string, poolType string) ([]IPLease, error) {
-	querySummary := fmt.Sprintf("%s %s (by pool)", "SELECT", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (by pool)", IPLeasesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
-
-	var leases []IPLease
-
-	err := db.conn().Query(ctx, db.listLeasesByPoolStmt, IPLease{PoolID: poolID, PoolType: poolType}).GetAll(&leases)
+	leases, err := queryAll(ctx, db.reader(), listLeasesByPoolStmt, scanIPLease, poolID, poolType)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -662,37 +399,12 @@ func (db *Database) ListLeasesByPool(ctx context.Context, poolID string, poolTyp
 // ListLeasesByPoolPage returns a page of leases for a pool, ordered by address,
 // along with the total count. The page parameter is 1-based.
 func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID, poolType string, page, perPage int) ([]IPLease, int, error) {
-	querySummary := fmt.Sprintf("%s %s (paged by pool)", "SELECT", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(IPLeasesTableName),
-			attribute.Int("ella.db.page", page),
-			attribute.Int("ella.db.page_size", perPage),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (paged by pool)", IPLeasesTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
-
-	var leases []IPLease
-
-	args := ListArgs{
-		Limit:  perPage,
-		Offset: (page - 1) * perPage,
-	}
-
-	err := db.conn().Query(ctx, db.listLeasesByPoolPageStmt, args, IPLease{PoolID: poolID, PoolType: poolType}).GetAll(&leases)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	leases, err := queryAll(ctx, db.reader(), listLeasesByPoolPageStmt, scanIPLease, poolID, poolType, perPage, (page-1)*perPage)
+	if err != nil {
 		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
@@ -710,198 +422,92 @@ func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID, poolType s
 
 // CountLeasesByPool returns the total number of leases in a pool.
 func (db *Database) CountLeasesByPool(ctx context.Context, poolID, poolType string) (int, error) {
-	querySummary := fmt.Sprintf("%s %s (count by pool)", "SELECT", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (count by pool)", IPLeasesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
-
-	var result NumItems
-
-	err := db.conn().Query(ctx, db.countLeasesByPoolStmt, IPLease{PoolID: poolID, PoolType: poolType}).Get(&result)
+	count, err := queryCount(ctx, db.reader(), countLeasesByPoolStmt, poolID, poolType)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	return result.Count, nil
+	return count, nil
 }
 
 // CountIPv4LeasesByPool returns the number of IPv4 leases in a pool.
 // IPv4 addresses are stored as IPv4-mapped IPv6 (::ffff:x.x.x.x).
 func (db *Database) CountIPv4LeasesByPool(ctx context.Context, poolID, poolType string) (int, error) {
-	querySummary := fmt.Sprintf("%s %s (count IPv4 by pool)", "SELECT", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (count IPv4 by pool)", IPLeasesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
-
-	var result NumItems
-
-	err := db.conn().Query(ctx, db.countIPv4LeasesByPoolStmt, IPLease{PoolID: poolID, PoolType: poolType}).Get(&result)
+	count, err := queryCount(ctx, db.reader(), countIPv4LeasesByPoolStmt, poolID, poolType)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	return result.Count, nil
+	return count, nil
 }
 
 // CountIPv6LeasesByPool returns the number of IPv6 leases in a pool.
 func (db *Database) CountIPv6LeasesByPool(ctx context.Context, poolID, poolType string) (int, error) {
-	querySummary := fmt.Sprintf("%s %s (count IPv6 by pool)", "SELECT", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (count IPv6 by pool)", IPLeasesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
-
-	var result NumItems
-
-	err := db.conn().Query(ctx, db.countIPv6LeasesByPoolStmt, IPLease{PoolID: poolID, PoolType: poolType}).Get(&result)
+	count, err := queryCount(ctx, db.reader(), countIPv6LeasesByPoolStmt, poolID, poolType)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	return result.Count, nil
+	return count, nil
 }
 
 // CountActiveLeases returns the total number of active leases (sessionID IS NOT NULL).
 func (db *Database) CountActiveLeases(ctx context.Context) (int, error) {
-	querySummary := fmt.Sprintf("%s %s (count active)", "SELECT", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (count active)", IPLeasesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
-
-	var result NumItems
-
-	err := db.conn().Query(ctx, db.countActiveLeasesStmt).Get(&result)
+	count, err := queryCount(ctx, db.reader(), countActiveLeasesStmt)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	return result.Count, nil
+	return count, nil
 }
 
 // CountLeasesByIMSI returns the total number of leases (all types) for a subscriber.
 func (db *Database) CountLeasesByIMSI(ctx context.Context, imsi string) (int, error) {
-	querySummary := fmt.Sprintf("%s %s (count by imsi)", "SELECT", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (count by imsi)", IPLeasesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
-
-	var result NumItems
-
-	err := db.conn().Query(ctx, db.countLeasesByIMSIStmt, IPLease{IMSI: imsi}).Get(&result)
+	count, err := queryCount(ctx, db.reader(), countLeasesByIMSIStmt, imsi)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	return result.Count, nil
+	return count, nil
 }
 
 // CreateStaticLease pins an address to a subscriber for a data network and
 // family. Returns ErrAlreadyExists when a static lease already exists for
 // (poolID, poolType, imsi) or the address is already leased.
 func (db *Database) CreateStaticLease(ctx context.Context, imsi, poolID, poolType string, addr netip.Addr) error {
-	querySummary := fmt.Sprintf("%s %s (static)", "INSERT", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "INSERT "+IPLeasesTableName+" (static)", IPLeasesTableName, "INSERT", "insert")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "insert"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "insert").Inc()
 
 	b := addr.As16()
 	lease := &IPLease{
@@ -924,29 +530,11 @@ func (db *Database) CreateStaticLease(ctx context.Context, imsi, poolID, poolTyp
 // GetStaticLease returns the static reservation for (poolID, poolType,
 // imsi), or ErrNotFound.
 func (db *Database) GetStaticLease(ctx context.Context, poolID, poolType, imsi string) (*IPLease, error) {
-	querySummary := fmt.Sprintf("%s %s (static)", "SELECT", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (static)", IPLeasesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
-
-	row := IPLease{PoolID: poolID, PoolType: poolType, IMSI: imsi}
-
-	err := db.conn().Query(ctx, db.getStaticLeaseStmt, row).Get(&row)
+	row, err := scanIPLease(db.reader().QueryRowContext(ctx, getStaticLeaseStmt, poolID, poolType, imsi))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -963,34 +551,12 @@ func (db *Database) GetStaticLease(ctx context.Context, poolID, poolType, imsi s
 // ListStaticLeasesByIMSI returns every static reservation held by a
 // subscriber across data networks and families.
 func (db *Database) ListStaticLeasesByIMSI(ctx context.Context, imsi string) ([]IPLease, error) {
-	querySummary := fmt.Sprintf("%s %s (static by imsi)", "SELECT", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (static by imsi)", IPLeasesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
-
-	var leases []IPLease
-
-	err := db.conn().Query(ctx, db.listStaticLeasesByIMSIStmt, IPLease{IMSI: imsi}).GetAll(&leases)
+	leases, err := queryAll(ctx, db.reader(), listStaticLeasesByIMSIStmt, scanIPLease, imsi)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -1002,34 +568,12 @@ func (db *Database) ListStaticLeasesByIMSI(ctx context.Context, imsi string) ([]
 // ListStaticLeasesByDataNetwork returns every static reservation in a pool
 // (both families), ordered by family then address.
 func (db *Database) ListStaticLeasesByDataNetwork(ctx context.Context, poolID string) ([]IPLease, error) {
-	querySummary := fmt.Sprintf("%s %s (static by data network)", "SELECT", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (static by data network)", IPLeasesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
-
-	var leases []IPLease
-
-	err := db.conn().Query(ctx, db.listStaticLeasesByDNStmt, IPLease{PoolID: poolID}).GetAll(&leases)
+	leases, err := queryAll(ctx, db.reader(), listStaticLeasesByDNStmt, scanIPLease, poolID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -1042,25 +586,9 @@ func (db *Database) ListStaticLeasesByDataNetwork(ctx context.Context, poolID st
 // sessionID, so listActiveLeases and BGP (sessionID IS NOT NULL) drop the
 // address while the row persists.
 func (db *Database) ClearStaticLeaseSession(ctx context.Context, leaseID string) error {
-	querySummary := fmt.Sprintf("%s %s (static clear)", "UPDATE", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "UPDATE "+IPLeasesTableName+" (static clear)", IPLeasesTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "update").Inc()
 
 	_, err := opUpdateLeaseSession.Invoke(ctx, db, &IPLease{ID: leaseID})
 	if err != nil {
@@ -1076,25 +604,9 @@ func (db *Database) ClearStaticLeaseSession(ctx context.Context, leaseID string)
 // Returns ErrNotFound if the reservation is gone, ErrAlreadyExists if the
 // address is already leased.
 func (db *Database) UpdateStaticLeaseAddress(ctx context.Context, leaseID string, addr netip.Addr) error {
-	querySummary := fmt.Sprintf("%s %s (static repin)", "UPDATE", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "UPDATE "+IPLeasesTableName+" (static repin)", IPLeasesTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "update").Inc()
 
 	b := addr.As16()
 
@@ -1111,25 +623,9 @@ func (db *Database) UpdateStaticLeaseAddress(ctx context.Context, leaseID string
 // DeleteStaticLease removes a reserved static lease. Returns ErrNotFound if
 // the reservation is gone.
 func (db *Database) DeleteStaticLease(ctx context.Context, leaseID string) error {
-	querySummary := fmt.Sprintf("%s %s (static)", "DELETE", IPLeasesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(IPLeasesTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "DELETE "+IPLeasesTableName+" (static)", IPLeasesTableName, "DELETE", "delete")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "delete"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
 
 	_, err := opDeleteStaticLease.Invoke(ctx, db, &stringPayload{Value: leaseID})
 	if err != nil {
@@ -1139,4 +635,24 @@ func (db *Database) DeleteStaticLease(ctx context.Context, leaseID string) error
 	}
 
 	return nil
+}
+
+func scanIPLease(row scanner) (IPLease, error) {
+	var v IPLease
+
+	if err := row.Scan(&v.ID, &v.PoolID, &v.AddressBin, &v.IMSI, &v.SessionID, &v.Type, &v.CreatedAt, &v.NodeID, &v.PoolType); err != nil {
+		return IPLease{}, err
+	}
+
+	return v, nil
+}
+
+func scanLeaseAddress(row scanner) (IPLease, error) {
+	var v IPLease
+
+	if err := row.Scan(&v.AddressBin); err != nil {
+		return IPLease{}, err
+	}
+
+	return v, nil
 }

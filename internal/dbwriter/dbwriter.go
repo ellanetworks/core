@@ -21,42 +21,42 @@ func FormatEpochMillis(ms int64) string {
 }
 
 type RadioEvent struct {
-	ID            int    `db:"id"`
-	Timestamp     int64  `db:"timestamp"` // epoch milliseconds (UTC)
-	Protocol      string `db:"protocol"`
-	MessageType   string `db:"message_type"`
-	Direction     string `db:"direction"`
-	LocalAddress  string `db:"local_address"`
-	RemoteAddress string `db:"remote_address"`
-	RadioName     string `db:"radio_name"`
-	Raw           []byte `db:"raw"`
-	Details       string `db:"details"` // JSON or plain text (we store a string)
+	ID            int
+	Timestamp     int64 // epoch milliseconds (UTC)
+	Protocol      string
+	MessageType   string
+	Direction     string
+	LocalAddress  string
+	RemoteAddress string
+	RadioName     string
+	Raw           []byte
+	Details       string // JSON or plain text (we store a string)
 }
 
 type AuditLog struct {
-	ID        string `db:"id"`        // UUIDv7, generated at the request handler
-	Timestamp int64  `db:"timestamp"` // epoch milliseconds (UTC)
-	Level     string `db:"level"`
-	Actor     string `db:"actor"`
-	Action    string `db:"action"`
-	IP        string `db:"ip"`
-	Details   string `db:"details"` // JSON or plain text (we store a string)
+	ID        string // UUIDv7, generated at the request handler
+	Timestamp int64  // epoch milliseconds (UTC)
+	Level     string
+	Actor     string
+	Action    string
+	IP        string
+	Details   string // JSON or plain text (we store a string)
 }
 
 type FlowReport struct {
-	ID              int    `db:"id"`
-	SubscriberID    string `db:"subscriber_id"`    // IMSI - looked up via PDR ID, not stored
-	SourceIP        string `db:"source_ip"`        // IPv4 or IPv6
-	DestinationIP   string `db:"destination_ip"`   // IPv4 or IPv6
-	SourcePort      uint16 `db:"source_port"`      // 0 if N/A (ICMP, etc.)
-	DestinationPort uint16 `db:"destination_port"` // 0 if N/A
-	Protocol        uint8  `db:"protocol"`         // IP protocol number (TCP=6, UDP=17, ICMP=1, etc.)
-	Packets         uint64 `db:"packets"`          // Total packets in flow
-	Bytes           uint64 `db:"bytes"`            // Total bytes in flow
-	StartTime       int64  `db:"start_time"`       // epoch milliseconds, first packet
-	EndTime         int64  `db:"end_time"`         // epoch milliseconds, last packet
-	Direction       string `db:"direction"`        // "uplink" or "downlink"
-	Action          int    `db:"action"`           // 0 = "allow", 1 = "deny"
+	ID              int
+	SubscriberID    string // IMSI - looked up via PDR ID, not stored
+	SourceIP        string // IPv4 or IPv6
+	DestinationIP   string // IPv4 or IPv6
+	SourcePort      uint16 // 0 if N/A (ICMP, etc.)
+	DestinationPort uint16 // 0 if N/A
+	Protocol        uint8  // IP protocol number (TCP=6, UDP=17, ICMP=1, etc.)
+	Packets         uint64 // Total packets in flow
+	Bytes           uint64 // Total bytes in flow
+	StartTime       int64  // epoch milliseconds, first packet
+	EndTime         int64  // epoch milliseconds, last packet
+	Direction       string // "uplink" or "downlink"
+	Action          int    // 0 = "allow", 1 = "deny"
 }
 
 type DBWriter interface {

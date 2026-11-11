@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"testing"
-
-	"github.com/canonical/sqlair"
 )
 
 func newClusterDatabaseAtV19(t *testing.T) *Database {
@@ -33,7 +31,7 @@ func newClusterDatabaseAtV19(t *testing.T) *Database {
 	}
 
 	d := new(Database)
-	d.connection = sqlair.NewDB(conn)
+	d.connection = conn
 	d.dbPath = dbPath
 	d.dataDir = filepath.Dir(dbPath)
 	d.clusterEnabled = true
@@ -49,10 +47,6 @@ func newClusterDatabaseAtV19(t *testing.T) *Database {
 		t.Fatalf("refresh applied schema: %v", err)
 	}
 
-	if err := d.PrepareStatements(); err != nil {
-		t.Fatalf("prepare statements: %v", err)
-	}
-
 	RegisterMetrics(d)
 
 	return d
@@ -62,7 +56,7 @@ func TestClusterMemberReadsWorkAtPreV20Schema(t *testing.T) {
 	ctx := context.Background()
 	d := newClusterDatabaseAtV19(t)
 
-	_, err := d.conn().PlainDB().ExecContext(ctx, fmt.Sprintf(
+	_, err := d.conn().ExecContext(ctx, fmt.Sprintf(
 		"INSERT INTO %s (nodeID, raftAddress, apiAddress, binaryVersion, suffrage, drainState, drainUpdatedAt) VALUES (3, '10.0.0.3:7000', '10.0.0.3:5002', 'v1.18.0', 'voter', 'active', 0)",
 		ClusterMembersTableName))
 	if err != nil {
@@ -116,7 +110,7 @@ func TestUpsertClusterMemberAtPreV20SchemaKeepsLegacyTyping(t *testing.T) {
 
 	var typeOf string
 
-	err := d.conn().PlainDB().QueryRowContext(ctx, fmt.Sprintf(
+	err := d.conn().QueryRowContext(ctx, fmt.Sprintf(
 		"SELECT typeof(nodeID) FROM %s WHERE nodeID=3", ClusterMembersTableName)).Scan(&typeOf)
 	if err != nil {
 		t.Fatalf("read typeof(nodeID): %v", err)

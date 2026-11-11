@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/ipam"
 	"github.com/ellanetworks/core/internal/logger"
@@ -228,15 +227,15 @@ func (db *Database) publishOpTopics(topics []Topic) {
 
 // PlainDB returns the raw *sql.DB for the application database.
 func (db *Database) PlainDB() *sql.DB {
-	return db.conn().PlainDB()
+	return db.conn()
 }
 
-// Reopen migrates the database file FSM.Restore swapped in, retires the
-// pool's connections so later checkouts open that file, and re-prepares all
-// sqlair statements. Reopen is only invoked from FSM.Restore which holds the
-// FSM write lock, so concurrent applies and snapshots are already
-// serialised; the handle is never closed, so ad-hoc read sites (API
-// handlers) never observe a closed database.
+// Reopen migrates the database file FSM.Restore swapped in and retires the
+// pool's connections so later checkouts open that file. Reopen is only
+// invoked from FSM.Restore which holds the FSM write lock, so concurrent
+// applies and snapshots are already serialised; the handle is never
+// closed, so ad-hoc read sites (API handlers) never observe a closed
+// database.
 func (db *Database) Reopen(ctx context.Context) error {
 	sqlConn, err := openSQLiteConnection(ctx, db.Path())
 	if err != nil {
@@ -364,9 +363,7 @@ func (db *Database) checkMSISDNAvailable(ctx context.Context, s *Subscriber) err
 		return fmt.Errorf("%w: %s is covered by the public service identity %s", ErrMSISDNInUse, identity, hosting)
 	}
 
-	holder := Subscriber{Msisdn: s.Msisdn}
-
-	err = db.runner(ctx).Query(ctx, db.getSubscriberByMSISDNStmt, holder).Get(&holder)
+	holder, err := scanSubscriber(db.runner(ctx).QueryRowContext(ctx, getSubscriberByMSISDNStmt, s.Msisdn))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
@@ -399,7 +396,7 @@ func (db *Database) applyCreateSubscriber(ctx context.Context, s *Subscriber) (a
 		return nil, err
 	}
 
-	err := db.runner(ctx).Query(ctx, db.createSubscriberStmt, s).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, createSubscriberStmt, s.ID, s.Imsi, s.SequenceNumber, s.PermanentKey, s.Opc, s.ProfileID, s.Description, s.Msisdn)
 	if err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -416,14 +413,12 @@ func (db *Database) applyUpdateSubscriberProfile(ctx context.Context, s *Subscri
 		return nil, err
 	}
 
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.updateSubscriberProfileStmt, s).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, editSubscriberProfileStmt, s.ProfileID, s.Description, s.Msisdn, s.Imsi)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -436,14 +431,12 @@ func (db *Database) applyUpdateSubscriberProfile(ctx context.Context, s *Subscri
 }
 
 func (db *Database) applyEditSubscriberSeqNum(ctx context.Context, s *Subscriber) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.updateSubscriberSqnNumStmt, s).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, editSubscriberSeqNumStmt, s.SequenceNumber, s.Imsi)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -456,14 +449,12 @@ func (db *Database) applyEditSubscriberSeqNum(ctx context.Context, s *Subscriber
 }
 
 func (db *Database) applyDeleteSubscriber(ctx context.Context, p *stringPayload) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.deleteSubscriberStmt, Subscriber{Imsi: p.Value}).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, deleteSubscriberStmt, p.Value)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -496,16 +487,18 @@ func (db *Database) requireKnownIMSI(ctx context.Context, imsi string) error {
 	return nil
 }
 
-func (db *Database) incrementDailyUsageStatement(ctx context.Context) *sqlair.Statement {
+func (db *Database) incrementDailyUsageQuery(ctx context.Context, du *DailyUsage) (string, []any) {
 	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		return db.incrementDailyUsagePreV27Stmt
+		return incrementDailyUsagePreV27Stmt, []any{du.EpochDay, du.IMSI, du.BytesUplink, du.BytesDownlink, du.BytesUplink, du.BytesDownlink}
 	}
 
-	return db.incrementDailyUsageStmt
+	return incrementDailyUsageStmt, []any{du.EpochDay, du.IMSI, du.Mcc, du.Mnc, du.BytesUplink, du.BytesDownlink}
 }
 
 func (db *Database) applyIncrementDailyUsage(ctx context.Context, du *DailyUsage) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.incrementDailyUsageStatement(ctx), du).Run()
+	query, args := db.incrementDailyUsageQuery(ctx, du)
+
+	_, err := db.runner(ctx).ExecContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -516,10 +509,12 @@ func (db *Database) applyIncrementDailyUsage(ctx context.Context, du *DailyUsage
 func (db *Database) applyIncrementDailyUsageBatch(ctx context.Context, batch *DailyUsageBatch) (any, error) {
 	var dropped droppedDailyUsage
 
-	stmt := db.incrementDailyUsageStatement(ctx)
+	runner := db.runner(ctx)
 
 	for i := range batch.Rows {
-		err := db.runner(ctx).Query(ctx, stmt, &batch.Rows[i]).Run()
+		query, args := db.incrementDailyUsageQuery(ctx, &batch.Rows[i])
+
+		_, err := runner.ExecContext(ctx, query, args...)
 		if err == nil {
 			continue
 		}
@@ -539,7 +534,7 @@ func (db *Database) applyIncrementDailyUsageBatch(ctx context.Context, batch *Da
 }
 
 func (db *Database) applyClearDailyUsage(ctx context.Context) error {
-	err := db.runner(ctx).Query(ctx, db.deleteAllDailyUsageStmt).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, deleteAllDailyUsageStmt)
 	if err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
@@ -548,12 +543,12 @@ func (db *Database) applyClearDailyUsage(ctx context.Context) error {
 }
 
 func (db *Database) applyDeleteOldDailyUsage(ctx context.Context, p *int64Payload) error {
-	stmt := db.deleteOldDailyUsageStmt
+	query := deleteOldDailyUsageStmt
 	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		stmt = db.deleteOldDailyUsagePreV27Stmt
+		query = deleteOldDailyUsagePreV27Stmt
 	}
 
-	err := db.runner(ctx).Query(ctx, stmt, cutoffDaysArgs{CutoffDays: p.Value}).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, query, p.Value)
 	if err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
@@ -575,7 +570,7 @@ func (db *Database) applyCreateLease(ctx context.Context, lease *IPLease) (any, 
 		lease.ID = id.String()
 	}
 
-	err := db.runner(ctx).Query(ctx, db.createLeaseStmt, lease).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, createLeaseStmt, lease.ID, lease.PoolID, lease.PoolType, lease.AddressBin, lease.IMSI, lease.SessionID, lease.Type, lease.CreatedAt, lease.NodeID)
 	if err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -588,7 +583,7 @@ func (db *Database) applyCreateLease(ctx context.Context, lease *IPLease) (any, 
 }
 
 func (db *Database) applyUpdateLeaseSession(ctx context.Context, lease *IPLease) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.updateLeaseSessionStmt, lease).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, updateLeaseSessionStmt, lease.SessionID, lease.ID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -597,7 +592,7 @@ func (db *Database) applyUpdateLeaseSession(ctx context.Context, lease *IPLease)
 }
 
 func (db *Database) applyDeleteDynamicLease(ctx context.Context, p *stringPayload) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.deleteLeaseStmt, IPLease{ID: p.Value}).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, deleteLeaseStmt, p.Value)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -606,7 +601,7 @@ func (db *Database) applyDeleteDynamicLease(ctx context.Context, p *stringPayloa
 }
 
 func (db *Database) applyDeleteAllDynamicLeases(ctx context.Context) error {
-	err := db.runner(ctx).Query(ctx, db.deleteAllDynamicLeasesStmt).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, deleteAllDynamicLeasesStmt)
 	if err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
@@ -615,7 +610,7 @@ func (db *Database) applyDeleteAllDynamicLeases(ctx context.Context) error {
 }
 
 func (db *Database) applyDeleteDynamicLeasesByNode(ctx context.Context, p *nodeIDPayload) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.deleteDynLeasesByNodeStmt, IPLease{NodeID: string(p.Value)}).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, deleteDynLeasesByNodeStmt, string(p.Value))
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -624,7 +619,7 @@ func (db *Database) applyDeleteDynamicLeasesByNode(ctx context.Context, p *nodeI
 }
 
 func (db *Database) applyUpdateLeaseNode(ctx context.Context, lease *IPLease) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.updateLeaseNodeStmt, lease).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, updateLeaseNodeStmt, lease.NodeID, lease.SessionID, lease.ID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -637,7 +632,7 @@ func (db *Database) applyUpdateLeaseNode(ctx context.Context, lease *IPLease) (a
 // family) check is race-free; a duplicate address is caught by
 // UNIQUE(poolID, addressBin).
 func (db *Database) applyCreateStaticLease(ctx context.Context, lease *IPLease) (any, error) {
-	if err := db.runner(ctx).Query(ctx, db.ownSubscriberStmt(ctx), Subscriber{Imsi: lease.IMSI}).Get(&Subscriber{}); err != nil {
+	if _, err := db.getOwnSubscriber(ctx, db.runner(ctx), lease.IMSI); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -645,9 +640,7 @@ func (db *Database) applyCreateStaticLease(ctx context.Context, lease *IPLease) 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	existing := IPLease{PoolID: lease.PoolID, PoolType: lease.PoolType, IMSI: lease.IMSI}
-
-	err := db.runner(ctx).Query(ctx, db.getStaticLeaseStmt, existing).Get(&existing)
+	_, err := scanIPLease(db.runner(ctx).QueryRowContext(ctx, getStaticLeaseStmt, lease.PoolID, lease.PoolType, lease.IMSI))
 	switch {
 	case err == nil:
 		return nil, ErrAlreadyExists
@@ -667,9 +660,7 @@ func (db *Database) applyCreateStaticLease(ctx context.Context, lease *IPLease) 
 // applyUpdateStaticLeaseAddress repins a reserved static lease. Zero rows
 // affected maps to ErrNotFound, a duplicate address to ErrAlreadyExists.
 func (db *Database) applyUpdateStaticLeaseAddress(ctx context.Context, lease *IPLease) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.updateStaticLeaseAddressStmt, lease).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, updateStaticLeaseAddressStmt, lease.AddressBin, lease.ID)
 	if err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -678,7 +669,7 @@ func (db *Database) applyUpdateStaticLeaseAddress(ctx context.Context, lease *IP
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -693,14 +684,12 @@ func (db *Database) applyUpdateStaticLeaseAddress(ctx context.Context, lease *IP
 // applyDeleteStaticLease removes a reserved static lease. Zero rows affected
 // maps to ErrNotFound.
 func (db *Database) applyDeleteStaticLease(ctx context.Context, p *stringPayload) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.deleteStaticLeaseStmt, IPLease{ID: p.Value}).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, deleteStaticLeaseStmt, p.Value)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -726,9 +715,7 @@ func (db *Database) applyReleaseIPLease(ctx context.Context, p *releaseIPLeasePa
 	}
 
 	sessionID := p.SessionID
-	lease := IPLease{PoolID: p.PoolID, PoolType: p.PoolType, IMSI: p.IMSI, SessionID: &sessionID}
-
-	err := db.runner(ctx).Query(ctx, db.getLeaseBySessionStmt, lease).Get(&lease)
+	lease, err := scanIPLease(db.runner(ctx).QueryRowContext(ctx, getLeaseBySessionStmt, p.PoolID, p.PoolType, &sessionID, p.IMSI))
 
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
@@ -797,9 +784,8 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 
 	// Resolve the pool's CIDR. Inlined query against the pinned runner;
 	// see function comment.
-	dn := DataNetwork{ID: p.PoolID}
-
-	if err := runner.Query(ctx, db.getDataNetworkByIDStmt, dn).Get(&dn); err != nil {
+	dn, err := scanDataNetwork(db.runner(ctx).QueryRowContext(ctx, getDataNetworkByIDStmt, p.PoolID))
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("data network %s not found", p.PoolID)
 		}
@@ -807,10 +793,7 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 		return nil, fmt.Errorf("get data network %s: %w", p.PoolID, err)
 	}
 
-	var (
-		pool ipam.Pool
-		err  error
-	)
+	var pool ipam.Pool
 
 	switch p.PoolType {
 	case "ipv6":
@@ -835,9 +818,7 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 	// dynamic allocation. The free-address scan below skips every leased
 	// address in the pool, so a reserved static address is never handed
 	// out dynamically.
-	static := IPLease{PoolID: p.PoolID, PoolType: p.PoolType, IMSI: p.IMSI}
-
-	err = runner.Query(ctx, db.getStaticLeaseStmt, static).Get(&static)
+	static, err := scanIPLease(runner.QueryRowContext(ctx, getStaticLeaseStmt, p.PoolID, p.PoolType, p.IMSI))
 	switch {
 	case err == nil:
 		// A pinned address binds exactly one session. Claim it when it is
@@ -870,9 +851,7 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 	// session on the same pool gets a fresh address — a subscriber may hold
 	// concurrent sessions on one DN, each with its own IP (TS 23.501
 	// §5.6.1, TS 23.401 §5.10.1).
-	existing := IPLease{PoolID: p.PoolID, PoolType: p.PoolType, IMSI: p.IMSI, SessionID: &sessionID}
-
-	err = runner.Query(ctx, db.getDynamicLeaseBySessionStmt, existing).Get(&existing)
+	existing, err := scanIPLease(runner.QueryRowContext(ctx, getDynamicLeaseBySessionStmt, p.PoolID, p.PoolType, p.IMSI, &sessionID))
 	switch {
 	case err == nil:
 		if existing.NodeID != string(p.NodeID) {
@@ -914,14 +893,12 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 	return addr.String(), nil
 }
 
-func (db *Database) findFreeLeaseOffset(ctx context.Context, runner *sqlair.DB, pool ipam.Pool, poolType string) (int, error) {
+func (db *Database) findFreeLeaseOffset(ctx context.Context, runner querier, pool ipam.Pool, poolType string) (int, error) {
 	first := pool.FirstUsable()
 	last := first + pool.Size() - 1
 	start := first
 
-	newest := IPLease{PoolID: pool.ID, PoolType: poolType}
-
-	err := runner.Query(ctx, db.getNewestLeaseInPoolStmt, newest).Get(&newest)
+	newest, err := scanLeaseAddress(runner.QueryRowContext(ctx, getNewestLeaseInPoolStmt, pool.ID, poolType))
 	switch {
 	case err == nil:
 		if offset := pool.OffsetOf(newest.Address()); offset >= first && offset < last {
@@ -947,24 +924,22 @@ func (db *Database) findFreeLeaseOffset(ctx context.Context, runner *sqlair.DB, 
 	return 0, ipam.ErrPoolExhausted
 }
 
-func (db *Database) firstFreeLeaseOffset(ctx context.Context, runner *sqlair.DB, pool ipam.Pool, poolType string, from, to int) (int, bool, error) {
+func (db *Database) firstFreeLeaseOffset(ctx context.Context, runner querier, pool ipam.Pool, poolType string, from, to int) (int, bool, error) {
 	low := pool.AddressAtOffset(from).As16()
 	high := pool.LastAddress().As16()
 
-	iter := runner.Query(ctx, db.listLeaseAddressRangeStmt, leaseAddressRange{
-		PoolID:   pool.ID,
-		PoolType: poolType,
-		Low:      low[:],
-		High:     high[:],
-	}).Iter()
+	rows, err := runner.QueryContext(ctx, listLeaseAddressRangeStmt, pool.ID, poolType, low[:], high[:])
+	if err != nil {
+		return 0, false, fmt.Errorf("list lease addresses: %w", err)
+	}
+
+	defer func() { _ = rows.Close() }()
 
 	next := from
 
-	for next <= to && iter.Next() {
-		var lease IPLease
-
-		if err := iter.Get(&lease); err != nil {
-			_ = iter.Close()
+	for next <= to && rows.Next() {
+		lease, err := scanLeaseAddress(rows)
+		if err != nil {
 			return 0, false, fmt.Errorf("scan lease address: %w", err)
 		}
 
@@ -978,7 +953,7 @@ func (db *Database) firstFreeLeaseOffset(ctx context.Context, runner *sqlair.DB,
 		}
 	}
 
-	if err := iter.Close(); err != nil {
+	if err := rows.Err(); err != nil {
 		return 0, false, fmt.Errorf("list lease addresses: %w", err)
 	}
 
@@ -1001,7 +976,7 @@ func (db *Database) applyInsertAuditLog(ctx context.Context, p *auditLogPayload)
 		Details:   p.Details,
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.insertAuditLogStmt, log).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, insertAuditLogStmt, log.ID, log.Timestamp, log.Level, log.Actor, log.Action, log.IP, log.Details); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -1009,9 +984,7 @@ func (db *Database) applyInsertAuditLog(ctx context.Context, p *auditLogPayload)
 }
 
 func (db *Database) applyCreateUser(ctx context.Context, u *User) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.createUserStmt, u).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, createUserStmt, u.ID, u.Email, u.RoleID, u.HashedPassword)
 	if err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -1020,7 +993,7 @@ func (db *Database) applyCreateUser(ctx context.Context, u *User) (any, error) {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	id, err := outcome.Result().LastInsertId()
+	id, err := res.LastInsertId()
 	if err != nil {
 		return nil, fmt.Errorf("last insert id: %w", err)
 	}
@@ -1029,14 +1002,12 @@ func (db *Database) applyCreateUser(ctx context.Context, u *User) (any, error) {
 }
 
 func (db *Database) applyUpdateUser(ctx context.Context, u *User) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.editUserStmt, u).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, editUserStmt, u.RoleID, u.Email)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -1049,14 +1020,12 @@ func (db *Database) applyUpdateUser(ctx context.Context, u *User) (any, error) {
 }
 
 func (db *Database) applyUpdateUserPassword(ctx context.Context, u *User) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.editUserPasswordStmt, u).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, editUserPasswordStmt, u.HashedPassword, u.Email)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -1069,14 +1038,12 @@ func (db *Database) applyUpdateUserPassword(ctx context.Context, u *User) (any, 
 }
 
 func (db *Database) applyDeleteUser(ctx context.Context, p *stringPayload) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.deleteUserStmt, User{Email: p.Value}).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, deleteUserStmt, p.Value)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -1089,7 +1056,7 @@ func (db *Database) applyDeleteUser(ctx context.Context, p *stringPayload) (any,
 }
 
 func (db *Database) applyCreateProfile(ctx context.Context, p *Profile) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.createProfileStmt, p).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, createProfileStmt, p.ID, p.Name, p.UeAmbrUplink, p.UeAmbrDownlink, p.Allow4G, p.Allow5G)
 	if err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -1102,14 +1069,12 @@ func (db *Database) applyCreateProfile(ctx context.Context, p *Profile) (any, er
 }
 
 func (db *Database) applyUpdateProfile(ctx context.Context, p *Profile) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.editProfileStmt, p).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, editProfileStmt, p.UeAmbrUplink, p.UeAmbrDownlink, p.Allow4G, p.Allow5G, p.Name)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -1122,9 +1087,7 @@ func (db *Database) applyUpdateProfile(ctx context.Context, p *Profile) (any, er
 }
 
 func (db *Database) applyDeleteProfile(ctx context.Context, p *stringPayload) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.deleteProfileStmt, Profile{Name: p.Value}).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, deleteProfileStmt, p.Value)
 	if err != nil {
 		if isForeignKeyRestrictError(err) {
 			return nil, ErrInUse
@@ -1133,7 +1096,7 @@ func (db *Database) applyDeleteProfile(ctx context.Context, p *stringPayload) (a
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -1146,7 +1109,7 @@ func (db *Database) applyDeleteProfile(ctx context.Context, p *stringPayload) (a
 }
 
 func (db *Database) applyCreateAPIToken(ctx context.Context, t *APIToken) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.createAPITokenStmt, t).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, createAPITokenStmt, t.ID, t.TokenID, t.Name, t.TokenHash, t.UserID, t.ExpiresAt)
 	if err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -1159,7 +1122,7 @@ func (db *Database) applyCreateAPIToken(ctx context.Context, t *APIToken) (any, 
 }
 
 func (db *Database) applyDeleteAPIToken(ctx context.Context, p *stringPayload) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.deleteAPITokenStmt, APIToken{ID: p.Value}).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, deleteAPITokenStmt, p.Value)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1168,7 +1131,7 @@ func (db *Database) applyDeleteAPIToken(ctx context.Context, p *stringPayload) (
 }
 
 func (db *Database) applyCreateSession(ctx context.Context, s *Session) (any, error) {
-	if err := db.runner(ctx).Query(ctx, db.createSessionStmt, s).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, createSessionStmt, s.ID, s.UserID, s.TokenHash, s.CreatedAt, s.ExpiresAt); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -1176,7 +1139,7 @@ func (db *Database) applyCreateSession(ctx context.Context, s *Session) (any, er
 }
 
 func (db *Database) applyDeleteSessionByTokenHash(ctx context.Context, p *bytesPayload) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.deleteSessionByTokenHashStmt, Session{TokenHash: p.Value}).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, deleteSessionByTokenHashStmt, p.Value)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1185,14 +1148,12 @@ func (db *Database) applyDeleteSessionByTokenHash(ctx context.Context, p *bytesP
 }
 
 func (db *Database) applyDeleteExpiredSessions(ctx context.Context, p *int64Payload) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.deleteExpiredSessionsStmt, SessionCutoff{NowUnix: p.Value}).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, deleteExpiredSessionsStmt, p.Value)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	count, err := outcome.Result().RowsAffected()
+	count, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -1201,7 +1162,7 @@ func (db *Database) applyDeleteExpiredSessions(ctx context.Context, p *int64Payl
 }
 
 func (db *Database) applyDeleteOldestSessions(ctx context.Context, args *DeleteOldestArgs) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.deleteOldestSessionsStmt, args).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, deleteOldestSessionsStmt, args.UserID, args.Limit)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1210,7 +1171,7 @@ func (db *Database) applyDeleteOldestSessions(ctx context.Context, args *DeleteO
 }
 
 func (db *Database) applyDeleteAllSessionsForUser(ctx context.Context, p *stringPayload) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.deleteAllSessionsForUserStmt, UserIDArgs{UserID: p.Value}).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, deleteAllSessionsForUserStmt, p.Value)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1219,7 +1180,7 @@ func (db *Database) applyDeleteAllSessionsForUser(ctx context.Context, p *string
 }
 
 func (db *Database) applyDeleteAllSessions(ctx context.Context) error {
-	err := db.runner(ctx).Query(ctx, db.deleteAllSessionsStmt).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, deleteAllSessionsStmt)
 	if err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
@@ -1228,7 +1189,7 @@ func (db *Database) applyDeleteAllSessions(ctx context.Context) error {
 }
 
 func (db *Database) applyCreateNetworkSlice(ctx context.Context, s *NetworkSlice) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.createNetworkSliceStmt, s).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, createNetworkSliceStmt, s.ID, s.Sst, s.Sd, s.Name)
 	if err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -1241,14 +1202,12 @@ func (db *Database) applyCreateNetworkSlice(ctx context.Context, s *NetworkSlice
 }
 
 func (db *Database) applyUpdateNetworkSlice(ctx context.Context, s *NetworkSlice) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.editNetworkSliceStmt, s).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, editNetworkSliceStmt, s.Sst, s.Sd, s.Name)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -1265,14 +1224,12 @@ func (db *Database) applyDeleteNetworkSlice(ctx context.Context, p *stringPayloa
 		return nil, err
 	}
 
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.deleteNetworkSliceStmt, NetworkSlice{Name: p.Value}).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, deleteNetworkSliceStmt, p.Value)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -1285,12 +1242,14 @@ func (db *Database) applyDeleteNetworkSlice(ctx context.Context, p *stringPayloa
 }
 
 func (db *Database) applyCreateDataNetwork(ctx context.Context, dn *DataNetwork) (any, error) {
-	stmt, err := db.dataNetworkWriteStmt(ctx, dn, db.createDataNetworkStmt, db.createDataNetworkPreV25Stmt)
+	current, err := db.dataNetworkSchemaCurrent(ctx, dn)
 	if err != nil {
 		return nil, err
 	}
 
-	err = db.runner(ctx).Query(ctx, stmt, dn).Run()
+	query, args := createDataNetworkQuery(dn, current)
+
+	_, err = db.runner(ctx).ExecContext(ctx, query, args...)
 	if err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -1303,19 +1262,19 @@ func (db *Database) applyCreateDataNetwork(ctx context.Context, dn *DataNetwork)
 }
 
 func (db *Database) applyUpdateDataNetwork(ctx context.Context, dn *DataNetwork) (any, error) {
-	var outcome sqlair.Outcome
-
-	stmt, err := db.dataNetworkWriteStmt(ctx, dn, db.editDataNetworkStmt, db.editDataNetworkPreV25Stmt)
+	current, err := db.dataNetworkSchemaCurrent(ctx, dn)
 	if err != nil {
 		return nil, err
 	}
 
-	err = db.runner(ctx).Query(ctx, stmt, dn).Get(&outcome)
+	query, args := editDataNetworkQuery(dn, current)
+
+	res, err := db.runner(ctx).ExecContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -1332,14 +1291,12 @@ func (db *Database) applyDeleteDataNetwork(ctx context.Context, p *stringPayload
 		return nil, err
 	}
 
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.deleteDataNetworkStmt, DataNetwork{Name: p.Value}).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, deleteDataNetworkStmt, p.Value)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -1352,12 +1309,14 @@ func (db *Database) applyDeleteDataNetwork(ctx context.Context, p *stringPayload
 }
 
 func (db *Database) applyCreatePolicy(ctx context.Context, p *Policy) (any, error) {
-	stmt, err := db.policyWriteStmt(ctx, p, db.createPolicyStmt, db.createPolicyPreV25Stmt)
+	current, err := db.policySchemaCurrent(ctx, p)
 	if err != nil {
 		return nil, err
 	}
 
-	err = db.runner(ctx).Query(ctx, stmt, p).Run()
+	query, args := createPolicyQuery(p, current)
+
+	_, err = db.runner(ctx).ExecContext(ctx, query, args...)
 	if err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -1372,11 +1331,11 @@ func (db *Database) applyCreatePolicy(ctx context.Context, p *Policy) (any, erro
 // applySetDefaultPolicy makes p the sole default binding of its profile: it
 // clears every default in the profile, then sets p, in one transaction.
 func (db *Database) applySetDefaultPolicy(ctx context.Context, p *Policy) (any, error) {
-	if err := db.runner(ctx).Query(ctx, db.clearDefaultPoliciesStmt, p).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, clearDefaultPoliciesStmt, p.ProfileID); err != nil {
 		return nil, fmt.Errorf("clear defaults: %w", err)
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.setDefaultPolicyStmt, p).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, setDefaultPolicyStmt, p.Name); err != nil {
 		return nil, fmt.Errorf("set default: %w", err)
 	}
 
@@ -1384,19 +1343,19 @@ func (db *Database) applySetDefaultPolicy(ctx context.Context, p *Policy) (any, 
 }
 
 func (db *Database) applyUpdatePolicy(ctx context.Context, p *Policy) (any, error) {
-	stmt, err := db.policyWriteStmt(ctx, p, db.editPolicyStmt, db.editPolicyPreV25Stmt)
+	current, err := db.policySchemaCurrent(ctx, p)
 	if err != nil {
 		return nil, err
 	}
 
-	var outcome sqlair.Outcome
+	query, args := editPolicyQuery(p, current)
 
-	err = db.runner(ctx).Query(ctx, stmt, p).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -1409,14 +1368,12 @@ func (db *Database) applyUpdatePolicy(ctx context.Context, p *Policy) (any, erro
 }
 
 func (db *Database) applyDeletePolicy(ctx context.Context, p *stringPayload) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.deletePolicyStmt, Policy{Name: p.Value}).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, deletePolicyStmt, p.Value)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -1429,7 +1386,7 @@ func (db *Database) applyDeletePolicy(ctx context.Context, p *stringPayload) (an
 }
 
 func (db *Database) applyCreateNetworkRule(ctx context.Context, nr *NetworkRule) (any, error) {
-	if err := db.runner(ctx).Query(ctx, db.createNetworkRuleStmt, nr).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, createNetworkRuleStmt, nr.ID, nr.PolicyID, nr.Description, nr.Direction, nr.RemotePrefix, nr.Protocol, nr.PortLow, nr.PortHigh, nr.Action, nr.Precedence, nr.CreatedAt, nr.UpdatedAt); err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
 		}
@@ -1441,14 +1398,12 @@ func (db *Database) applyCreateNetworkRule(ctx context.Context, nr *NetworkRule)
 }
 
 func (db *Database) applyUpdateNetworkRule(ctx context.Context, nr *NetworkRule) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.updateNetworkRuleStmt, nr).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, updateNetworkRuleStmt, nr.Description, nr.Direction, nr.RemotePrefix, nr.Protocol, nr.PortLow, nr.PortHigh, nr.Action, nr.Precedence, nr.UpdatedAt, nr.ID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -1461,14 +1416,12 @@ func (db *Database) applyUpdateNetworkRule(ctx context.Context, nr *NetworkRule)
 }
 
 func (db *Database) applyDeleteNetworkRule(ctx context.Context, p *stringPayload) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.deleteNetworkRuleStmt, NetworkRule{ID: p.Value}).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, deleteNetworkRuleStmt, p.Value)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -1481,7 +1434,7 @@ func (db *Database) applyDeleteNetworkRule(ctx context.Context, p *stringPayload
 }
 
 func (db *Database) applyDeleteNetworkRulesByPolicy(ctx context.Context, p *stringPayload) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.deleteNetworkRulesByPolicyStmt, NetworkRule{PolicyID: p.Value}).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, deleteNetworkRulesByPolicyStmt, p.Value)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1490,7 +1443,7 @@ func (db *Database) applyDeleteNetworkRulesByPolicy(ctx context.Context, p *stri
 }
 
 func (db *Database) applyCreateHomeNetworkKey(ctx context.Context, k *HomeNetworkKey) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.createHomeNetworkKeyStmt, k).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, createHomeNetworkKeyStmt, k.ID, k.KeyIdentifier, k.Scheme, k.PrivateKey)
 	if err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -1503,14 +1456,12 @@ func (db *Database) applyCreateHomeNetworkKey(ctx context.Context, k *HomeNetwor
 }
 
 func (db *Database) applyDeleteHomeNetworkKey(ctx context.Context, p *stringPayload) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.deleteHomeNetworkKeyStmt, HomeNetworkKey{ID: p.Value}).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, deleteHomeNetworkKeyStmt, p.Value)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -1523,9 +1474,7 @@ func (db *Database) applyDeleteHomeNetworkKey(ctx context.Context, p *stringPayl
 }
 
 func (db *Database) applyCreateBGPPeer(ctx context.Context, p *BGPPeer) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.createBGPPeerStmt, p).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, createBGPPeerStmt, p.Address, p.RemoteAS, p.HoldTime, p.Password, p.Description)
 	if err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -1534,7 +1483,7 @@ func (db *Database) applyCreateBGPPeer(ctx context.Context, p *BGPPeer) (any, er
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	id, err := outcome.Result().LastInsertId()
+	id, err := res.LastInsertId()
 	if err != nil {
 		return nil, fmt.Errorf("last insert id: %w", err)
 	}
@@ -1543,14 +1492,12 @@ func (db *Database) applyCreateBGPPeer(ctx context.Context, p *BGPPeer) (any, er
 }
 
 func (db *Database) applyUpdateBGPPeer(ctx context.Context, p *BGPPeer) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.updateBGPPeerStmt, p).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, updateBGPPeerStmt, p.Address, p.RemoteAS, p.HoldTime, p.Password, p.Description, p.ID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -1563,14 +1510,12 @@ func (db *Database) applyUpdateBGPPeer(ctx context.Context, p *BGPPeer) (any, er
 }
 
 func (db *Database) applyDeleteBGPPeer(ctx context.Context, p *intPayload) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.deleteBGPPeerStmt, BGPPeer{ID: p.Value}).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, deleteBGPPeerStmt, p.Value)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -1583,7 +1528,7 @@ func (db *Database) applyDeleteBGPPeer(ctx context.Context, p *intPayload) (any,
 }
 
 func (db *Database) applyUpdateBGPSettings(ctx context.Context, s *BGPSettings) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.upsertBGPSettingsStmt, s).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, upsertBGPSettingsStmt, s.Enabled, s.LocalAS, s.RouterID, s.ListenAddress)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1592,7 +1537,7 @@ func (db *Database) applyUpdateBGPSettings(ctx context.Context, s *BGPSettings) 
 }
 
 func (db *Database) applyUpdateN3Settings(ctx context.Context, p *stringPayload) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.updateN3SettingsStmt, N3Settings{ExternalAddress: p.Value}).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, upsertN3SettingsStmt, p.Value)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1601,7 +1546,7 @@ func (db *Database) applyUpdateN3Settings(ctx context.Context, p *stringPayload)
 }
 
 func (db *Database) applyUpdateFlowAccountingSettings(ctx context.Context, p *boolPayload) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.upsertFlowAccountingSettingsStmt, FlowAccountingSettings{Enabled: p.Value}).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, upsertFlowAccountingSettingsStmt, p.Value)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1610,7 +1555,7 @@ func (db *Database) applyUpdateFlowAccountingSettings(ctx context.Context, p *bo
 }
 
 func (db *Database) applySetRetentionPolicy(ctx context.Context, rp *RetentionPolicy) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.upsertRetentionPolicyStmt, rp).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, upsertRetentionPolicyStmt, rp.ID, string(rp.Category), rp.Days)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1619,7 +1564,7 @@ func (db *Database) applySetRetentionPolicy(ctx context.Context, rp *RetentionPo
 }
 
 func (db *Database) applyInitializeOperator(ctx context.Context, op *Operator) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.initializeOperatorStmt, op).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, initializeOperatorStmt, op.Mcc, op.Mnc, op.OperatorCode, op.SupportedTACs, op.Ciphering, op.Integrity, op.ClusterID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1628,7 +1573,7 @@ func (db *Database) applyInitializeOperator(ctx context.Context, op *Operator) (
 }
 
 func (db *Database) applyUpdateOperatorTracking(ctx context.Context, op *Operator) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.updateOperatorTrackingStmt, op).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, updateOperatorTrackingStmt, op.SupportedTACs)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1647,7 +1592,7 @@ func (db *Database) applyUpdateOperatorID(ctx context.Context, op *Operator) (an
 		return nil, err
 	}
 
-	err = db.runner(ctx).Query(ctx, db.updateOperatorIDStmt, op).Run()
+	_, err = db.runner(ctx).ExecContext(ctx, updateOperatorIDStmt, op.Mcc, op.Mnc)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1665,7 +1610,7 @@ func (db *Database) applyUpdateOperatorID(ctx context.Context, op *Operator) (an
 }
 
 func (db *Database) applyUpdateOperatorCode(ctx context.Context, op *Operator) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.updateOperatorCodeStmt, op).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, updateOperatorCodeStmt, op.OperatorCode)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1674,7 +1619,7 @@ func (db *Database) applyUpdateOperatorCode(ctx context.Context, op *Operator) (
 }
 
 func (db *Database) applyUpdateOperatorSecurityAlgorithms(ctx context.Context, op *Operator) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.updateOperatorSecurityAlgorithmsStmt, op).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, updateOperatorSecurityAlgorithmsStmt, op.Ciphering, op.Integrity)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1683,7 +1628,7 @@ func (db *Database) applyUpdateOperatorSecurityAlgorithms(ctx context.Context, o
 }
 
 func (db *Database) applyUpdateOperatorSPN(ctx context.Context, op *Operator) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.updateOperatorSPNStmt, op).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, updateOperatorSPNStmt, op.SpnFullName, op.SpnShortName)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1692,7 +1637,7 @@ func (db *Database) applyUpdateOperatorSPN(ctx context.Context, op *Operator) (a
 }
 
 func (db *Database) applyUpdateOperatorAMFIdentity(ctx context.Context, op *Operator) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.updateOperatorAMFIdentityStmt, op).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, updateOperatorAMFIdentityStmt, op.AmfRegionID, op.AmfSetID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1701,7 +1646,7 @@ func (db *Database) applyUpdateOperatorAMFIdentity(ctx context.Context, op *Oper
 }
 
 func (db *Database) applyUpdateOperatorClusterID(ctx context.Context, op *Operator) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.updateOperatorClusterIDStmt, op).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, updateOperatorClusterIDStmt, op.ClusterID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1710,7 +1655,7 @@ func (db *Database) applyUpdateOperatorClusterID(ctx context.Context, op *Operat
 }
 
 func (db *Database) applySetJWTSecret(ctx context.Context, p *bytesPayload) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.upsertJWTSecretStmt, JWTSecret{Secret: p.Value}).Run()
+	_, err := db.runner(ctx).ExecContext(ctx, upsertJWTSecretStmt, p.Value)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1719,7 +1664,7 @@ func (db *Database) applySetJWTSecret(ctx context.Context, p *bytesPayload) (any
 }
 
 func (db *Database) applyRotateJWTSecret(ctx context.Context, p *bytesPayload) error {
-	if err := db.runner(ctx).Query(ctx, db.upsertJWTSecretStmt, JWTSecret{Secret: p.Value}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, upsertJWTSecretStmt, p.Value); err != nil {
 		return fmt.Errorf("upsert secret: %w", err)
 	}
 
@@ -1731,11 +1676,11 @@ func (db *Database) applyRotateJWTSecret(ctx context.Context, p *bytesPayload) e
 }
 
 func (db *Database) applyPutCellPosition(ctx context.Context, c *CellPosition) error {
-	if err := db.runner(ctx).Query(ctx, db.deleteCellPositionByCellStmt, c).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteCellPositionByCellStmt, c.ID, c.RAT, c.Mcc, c.Mnc, c.CellIdentity); err != nil {
 		return fmt.Errorf("delete conflicting cell position: %w", err)
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.putCellPositionStmt, c).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, putCellPositionStmt, c.ID, c.RAT, c.Mcc, c.Mnc, c.CellIdentity, c.GNbID, c.Latitude, c.Longitude, c.Altitude, c.UncertaintySemiMajor, c.UncertaintySemiMinor, c.OrientationMajor, c.Confidence, c.Source, c.CreatedAt, c.UpdatedAt); err != nil {
 		return fmt.Errorf("put cell position: %w", err)
 	}
 
@@ -1743,7 +1688,7 @@ func (db *Database) applyPutCellPosition(ctx context.Context, c *CellPosition) e
 }
 
 func (db *Database) applyDeleteCellPosition(ctx context.Context, p *stringPayload) error {
-	if err := db.runner(ctx).Query(ctx, db.deleteCellPositionStmt, CellPosition{ID: p.Value}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteCellPositionStmt, p.Value); err != nil {
 		return fmt.Errorf("delete cell position: %w", err)
 	}
 
@@ -1751,9 +1696,7 @@ func (db *Database) applyDeleteCellPosition(ctx context.Context, p *stringPayloa
 }
 
 func (db *Database) requireCellPosition(ctx context.Context, id string) error {
-	c := CellPosition{ID: id}
-
-	if err := db.runner(ctx).Query(ctx, db.getCellPositionStmt, c).Get(&c); err != nil {
+	if _, err := scanCellPosition(db.runner(ctx).QueryRowContext(ctx, getCellPositionStmt, id)); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -1765,9 +1708,8 @@ func (db *Database) requireCellPosition(ctx context.Context, id string) error {
 }
 
 func (db *Database) cellPositionTakenByOther(ctx context.Context, c *CellPosition) (bool, error) {
-	existing := CellPosition{RAT: c.RAT, Mcc: c.Mcc, Mnc: c.Mnc, CellIdentity: c.CellIdentity}
-
-	if err := db.runner(ctx).Query(ctx, db.getCellPositionByCellStmt, existing).Get(&existing); err != nil {
+	existing, err := scanCellPosition(db.runner(ctx).QueryRowContext(ctx, getCellPositionByCellStmt, c.RAT, c.Mcc, c.Mnc, c.CellIdentity))
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
 		}
@@ -1821,9 +1763,7 @@ func (db *Database) checkDeleteCellPosition(ctx context.Context, p *stringPayloa
 }
 
 func (db *Database) applyCreateRoute(ctx context.Context, r *Route) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.createRouteStmt, r).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, createRouteStmt, r.Destination, r.Gateway, r.Interface, r.Metric)
 	if err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -1832,7 +1772,7 @@ func (db *Database) applyCreateRoute(ctx context.Context, r *Route) (any, error)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	id, err := outcome.Result().LastInsertId()
+	id, err := res.LastInsertId()
 	if err != nil {
 		return nil, fmt.Errorf("retrieving insert ID failed: %w", err)
 	}
@@ -1841,14 +1781,12 @@ func (db *Database) applyCreateRoute(ctx context.Context, r *Route) (any, error)
 }
 
 func (db *Database) applyDeleteRoute(ctx context.Context, p *int64Payload) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.deleteRouteStmt, Route{ID: p.Value}).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, deleteRouteStmt, p.Value)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -1876,7 +1814,7 @@ func (db *Database) applyUpsertClusterMember(ctx context.Context, m *ClusterMemb
 			return nil, err
 		}
 
-		if err := db.runner(ctx).Query(ctx, db.upsertClusterMemberPreV20Stmt, m).Run(); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, upsertClusterMemberPreV20Stmt, m.NodeID, m.APIAddress, m.BinaryVersion, m.APIAddress, m.BinaryVersion); err != nil {
 			return nil, fmt.Errorf("query failed: %w", err)
 		}
 
@@ -1890,7 +1828,7 @@ func (db *Database) applyUpsertClusterMember(ctx context.Context, m *ClusterMemb
 
 	m.AMFPointer = pointer
 
-	if err := db.runner(ctx).Query(ctx, db.upsertClusterMemberStmt, m).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, upsertClusterMemberStmt, m.NodeID, m.AMFPointer, m.DisplayName, m.APIAddress, m.BinaryVersion, m.APIAddress, m.BinaryVersion); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -1901,9 +1839,7 @@ func (db *Database) applyDeleteClusterMember(ctx context.Context, p *nodeIDPaylo
 	seppID := 0
 
 	if db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		var member ClusterMember
-
-		err := db.runner(ctx).Query(ctx, db.getClusterMemberStmt, ClusterMember{NodeID: string(p.Value)}).Get(&member)
+		member, err := scanClusterMember(db.runner(ctx).QueryRowContext(ctx, getClusterMemberStmt, string(p.Value)))
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("query failed: %w", err)
 		}
@@ -1911,14 +1847,12 @@ func (db *Database) applyDeleteClusterMember(ctx context.Context, p *nodeIDPaylo
 		seppID = member.AMFPointer
 	}
 
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.deleteClusterMemberStmt, ClusterMember{NodeID: string(p.Value)}).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, deleteClusterMemberStmt, string(p.Value))
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -1947,14 +1881,12 @@ func (db *Database) applyDeleteClusterMember(ctx context.Context, p *nodeIDPaylo
 }
 
 func (db *Database) applySetDisplayName(ctx context.Context, m *ClusterMember) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.setDisplayNameStmt, m).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, setDisplayNameStmt, m.DisplayName, m.NodeID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -1967,9 +1899,9 @@ func (db *Database) applySetDisplayName(ctx context.Context, m *ClusterMember) (
 }
 
 func (db *Database) applySetDrainState(ctx context.Context, m *ClusterMember) (any, error) {
-	current := ClusterMember{NodeID: m.NodeID}
+	var current ClusterMember
 
-	err := db.runner(ctx).Query(ctx, db.getDrainStateStmt, current).Get(&current)
+	err := db.runner(ctx).QueryRowContext(ctx, getDrainStateStmt, m.NodeID).Scan(&current.DrainState)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -1982,14 +1914,12 @@ func (db *Database) applySetDrainState(ctx context.Context, m *ClusterMember) (a
 		return normalizeDrainState(current.DrainState), nil
 	}
 
-	var outcome sqlair.Outcome
-
-	err = db.runner(ctx).Query(ctx, db.setDrainStateStmt, m).Get(&outcome)
+	res, err := db.runner(ctx).ExecContext(ctx, setDrainStateStmt, m.DrainState, m.DrainUpdatedAt, m.NodeID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
+	rowsAffected, err := res.RowsAffected()
 	if err != nil {
 		return nil, fmt.Errorf("rows affected: %w", err)
 	}
@@ -2019,7 +1949,7 @@ func (db *Database) applyMigrateShared(ctx context.Context, p *migrateSharedPayl
 		return nil, fmt.Errorf("migration registry mismatch: expected version %d at index %d, got %d", p.TargetVersion, idx, m.version)
 	}
 
-	sqlConn := db.conn().PlainDB()
+	sqlConn := db.conn()
 
 	var current int
 	if err := sqlConn.QueryRowContext(ctx, "SELECT version FROM schema_version WHERE id = 1").Scan(&current); err != nil {

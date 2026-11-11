@@ -7,8 +7,6 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
-
-	"github.com/canonical/sqlair"
 )
 
 // TestBootstrapSeedWorksAtBaselineSchema reproduces the HA leader's bootstrap
@@ -38,7 +36,7 @@ func TestBootstrapSeedWorksAtBaselineSchema(t *testing.T) {
 	}
 
 	d := new(Database)
-	d.connection = sqlair.NewDB(conn)
+	d.connection = conn
 	d.dbPath = dbPath
 	d.dataDir = filepath.Dir(dbPath)
 	d.changefeed = NewChangefeed()
@@ -51,10 +49,6 @@ func TestBootstrapSeedWorksAtBaselineSchema(t *testing.T) {
 
 	if err := d.refreshAppliedSchema(ctx); err != nil {
 		t.Fatalf("refresh applied schema: %v", err)
-	}
-
-	if err := d.PrepareStatements(); err != nil {
-		t.Fatalf("prepare statements: %v", err)
 	}
 
 	RegisterMetrics(d)
