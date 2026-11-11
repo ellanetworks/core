@@ -219,7 +219,11 @@ func (m *Manager) reconcile(ctx context.Context) {
 	prev := m.snap.Swap(next)
 
 	if prev.problem != next.problem && next.problem != "" {
-		m.logger.Warn("SEPP is not operational on this node", zap.String("reason", next.problem))
+		if next.problem == errNoN32 && len(next.partners) == 0 && len(m.rejected) == 0 {
+			m.logger.Debug("SEPP is not operational on this node", zap.String("reason", next.problem))
+		} else {
+			m.logger.Warn("SEPP is not operational on this node", zap.String("reason", next.problem))
+		}
 	}
 
 	m.checkExpiry(next)
@@ -233,7 +237,10 @@ func (m *Manager) reconcile(ctx context.Context) {
 	m.mu.Unlock()
 }
 
-const errNoIdentity = "no SEPP certificate for this node"
+const (
+	errNoIdentity = "no SEPP certificate for this node"
+	errNoN32      = "interfaces.n32 is not configured on this node"
+)
 
 func (m *Manager) load(ctx context.Context) (*snapshot, error) {
 	configs, err := m.cfg.Partners(ctx)
@@ -263,7 +270,7 @@ func (m *Manager) load(ctx context.Context) (*snapshot, error) {
 	m.rejected = rejected
 
 	if !m.cfg.N32.Enabled {
-		snap.problem = "interfaces.n32 is not configured on this node"
+		snap.problem = errNoN32
 		return snap, nil
 	}
 

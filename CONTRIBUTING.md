@@ -87,6 +87,30 @@ sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_v1.22.0_amd64
 docker run ella-core:latest
 ```
 
+### Generate a Release Fixture
+
+After publishing a release, generate its database fixture from the released image:
+
+```shell
+docker pull ghcr.io/ellanetworks/ella-core:<version>
+docker tag ghcr.io/ellanetworks/ella-core:<version> ella-core:latest
+INTEGRATION=1 RELEASE_FIXTURE_OUT=$PWD/internal/db/testdata/releases/<version>.tar.gz go test ./integration/ -run '^TestGenerateReleaseFixture$' -v
+```
+
+In `internal/db/release_fixture_internal_test.go`, replace the previous release in `releaseFixtures` with the new one and delete the previous archive, then run:
+
+```shell
+go test ./internal/db/ -run TestReleaseFixtures
+```
+
+### Update the Schema Golden File
+
+After adding a migration:
+
+```shell
+go test ./internal/db/ -run TestSchemaGolden -update
+```
+
 ### View Test Coverage
 
 ```shell

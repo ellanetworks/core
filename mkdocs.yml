@@ -67,6 +67,7 @@ nav:
     - how_to/index.md
     - Install: how_to/install.md
     - Deploy a High Availability Cluster: how_to/deploy_ha_cluster.md
+    - Deploy on Google Cloud: how_to/deploy_on_google_cloud.md
     - Co-host with OCUDU: how_to/co_host_with_ocudu.md
     - Co-host with Ella IMS and Ella SMSC: how_to/co_host_with_ims_and_smsc.md
     - Use VLANs: how_to/vlan.md
@@ -77,7 +78,7 @@ nav:
     - Integrate with an IMS: how_to/integrate_with_ims.md
     - Backup and Restore: how_to/backup_and_restore.md
     - Scale Up a High Availability Cluster: how_to/scale_up_ha_cluster.md
-    - Perform a Rolling Upgrade: how_to/rolling_upgrade.md
+    - Upgrade: how_to/upgrade.md
     - Tune Network Performance: how_to/performance_tuning.md
     - Advertise subscriber routes with BGP: how_to/bgp.md
     - Enable UE-to-UE communication: how_to/enable_ue_to_ue.md
@@ -168,6 +169,7 @@ plugins:
         'tutorials/getting_started.md': 'tutorials/getting_started_simulation.md'
         'tutorials/end_to_end_network.md': 'tutorials/getting_started_simulation.md'
         'explanation/voice_integration.md': 'explanation/ims_integration.md'
+        'how_to/rolling_upgrade.md': 'how_to/upgrade.md'
   - social:
       cards_layout_options:
         background_color: "#26374a"

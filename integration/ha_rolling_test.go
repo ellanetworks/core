@@ -31,7 +31,7 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 
 	beginHATest(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 
 	if err := ensureRollingImages(ctx, t); err != nil {
@@ -90,6 +90,11 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 			pendingMigration: nil,
 		})
 	}
+
+	seed := seedUpgradeData(t, ctx, clients[0])
+
+	setUpUpgradeTraffic(t, ctx, dc, haRollingComposeDir, clients)
+	runUpgradeTraffic(t, ctx, dc, len(clients), "on the baseline")
 
 	writer := startSubscriberWriter(t, ctx, clients, "001019756150000")
 	t.Cleanup(writer.stop)
@@ -162,6 +167,8 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 		}, 30*time.Second); err != nil {
 			t.Fatalf("node %d did not come up on the target build: %v", nodeNum, err)
 		}
+
+		runUpgradeTraffic(t, ctx, dc, len(clients), fmt.Sprintf("after upgrading node %d", nodeNum))
 
 		if !isLast && targetSchema > baselineSchema {
 			expectedLaggards := remainingBaselineNodes(upgradeOrder, step+1)
@@ -298,6 +305,14 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 	assertAckedWritesDurable(t, ctx, clients, writeReport)
 
 	assertMembershipConsistent(t, ctx, clients)
+
+	assertUpgradeSeedOnAllNodes(t, ctx, clients, seed, "after the roll")
+
+	runUpgradeTraffic(t, ctx, dc, len(clients), "after the roll")
+
+	assertUpgradedClusterSurvivesRestartAndFailover(t, ctx, dc, haRollingComposeDir, clients, seed)
+
+	runUpgradeTraffic(t, ctx, dc, len(clients), "after a full restart and a leader failover")
 }
 
 type schemaState struct {
