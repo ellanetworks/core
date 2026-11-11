@@ -100,8 +100,73 @@ Create a backup with [Backup and Restore](backup_and_restore.md#backup).
 
 === "Standalone"
 
-    1. Reinstall the previous release with [Install](install.md).
-    2. Restore the backup with [Offline Restore](backup_and_restore.md#offline-restore-disaster-recovery).
+    === "Snap"
+
+        1. Reinstall the previous release with [Install](install.md).
+        2. Restore the backup with [Offline Restore](backup_and_restore.md#offline-restore-disaster-recovery).
+
+    === "Docker"
+
+        1. In `docker-compose.yaml`, set the image tag back to the previous release.
+        2. Stop the container:
+
+            ```shell
+            docker compose stop
+            ```
+
+        3. Delete the database from the data volume:
+
+            ```shell
+            docker run --rm -v <project>_ella-data:/data alpine sh -c 'rm -rf /data/ella.db /data/ella.db-wal /data/ella.db-shm /data/raft /data/cluster-tls'
+            ```
+
+        4. Copy the backup into the data volume as `restore.bundle`:
+
+            ```shell
+            docker compose cp backup.tar.gz ella-core:/data/restore.bundle
+            ```
+
+        5. Recreate the container:
+
+            ```shell
+            docker compose up -d
+            ```
+
+    === "Kubernetes"
+
+        1. Apply the manifests of the previous release:
+
+            ```bash
+            kubectl apply -k core/k8s
+            ```
+
+        2. Scale Ella Core down:
+
+            ```bash
+            kubectl -n ella scale statefulset/ella-core --replicas=0
+            ```
+
+        3. Start a pod that mounts the data volume:
+
+            ```bash
+            kubectl -n ella run restore --image=alpine --restart=Never \
+              --overrides='{"spec":{"containers":[{"name":"restore","image":"alpine","command":["sleep","3600"],"volumeMounts":[{"name":"data","mountPath":"/data"}]}],"volumes":[{"name":"data","persistentVolumeClaim":{"claimName":"data-ella-core-0"}}]}}'
+            kubectl -n ella wait --for=condition=Ready pod/restore
+            ```
+
+        4. Delete the database and copy the backup as `restore.bundle`:
+
+            ```bash
+            kubectl -n ella exec restore -- sh -c 'rm -rf /data/ella.db /data/ella.db-wal /data/ella.db-shm /data/raft /data/cluster-tls'
+            kubectl -n ella cp backup.tar.gz restore:/data/restore.bundle
+            kubectl -n ella delete pod restore
+            ```
+
+        5. Scale Ella Core up:
+
+            ```bash
+            kubectl -n ella scale statefulset/ella-core --replicas=1
+            ```
 
 === "High Availability"
 
