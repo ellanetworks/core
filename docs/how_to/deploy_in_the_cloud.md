@@ -158,7 +158,6 @@ Run Ella Core in the cloud while your radios stay on site. Deploy a three-node c
     VPN=$(aws ec2 create-vpn-connection --type ipsec.1 --customer-gateway-id $CGW --vpn-gateway-id $VGW \
       --options '{"StaticRoutesOnly":true,"LocalIpv4NetworkCidr":"192.168.1.50/32","RemoteIpv4NetworkCidr":"172.31.0.0/16","TunnelOptions":['"$T,$T"']}' \
       --query VpnConnection.VpnConnectionId --output text)
-    aws ec2 wait vpn-connection-available --vpn-connection-ids $VPN
     aws ec2 create-vpn-connection-route --vpn-connection-id $VPN --destination-cidr-block 192.168.1.50/32
     GW=$(aws ec2 describe-vpn-connections --vpn-connection-ids $VPN --query 'VpnConnections[0].VgwTelemetry[0].OutsideIpAddress' --output text)
     echo $GW
