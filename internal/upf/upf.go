@@ -195,13 +195,13 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		logger.UpfLog.Info("network instance attached", zap.String("network_instance", ni.name), zap.String("n6", ni.interfaceName))
 	}
 
-	if attachedMode == config.DatapathTCX {
+	if attachedMode == config.DatapathTCX || attachedMode == config.DatapathXDPGeneric {
 		names := []string{n3AttachmentInterface, n6AttachmentInterface}
 		for _, iface := range extraAttach {
 			names = append(names, iface.name)
 		}
 
-		warnMergedPacketSources(names...)
+		disableMergedPackets(attachedMode, names...)
 	}
 
 	resourceManager, err := engine.NewFteIDResourceManager(FTEIDPool)

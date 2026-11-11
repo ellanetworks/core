@@ -6,6 +6,7 @@
 package upf
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"unsafe"
@@ -325,10 +326,18 @@ func tcxUnavailable(err error) bool {
 }
 
 const (
-	ethtoolGGRO   = 0x2b
-	ethtoolGFlags = 0x25
-	ethFlagRXVLAN = 1 << 8
+	ethtoolGStrings  = 0x1b
+	ethtoolGFlags    = 0x25
+	ethtoolGGRO      = 0x2b
+	ethtoolGSsetInfo = 0x37
+	ethtoolGFeatures = 0x3a
+	ethtoolSFeatures = 0x3b
+	ethFlagRXVLAN    = 1 << 8
+	ethSSFeatures    = 4
+	ethGStringLen    = 32
 )
+
+var mergingFeatures = []string{"rx-gro", "rx-gro-hw", "rx-lro"}
 
 // Whether a redirect out of this interface would be dropped in native XDP
 // mode. On a veth, xdp_features carries NETDEV_XDP_ACT_NDO_XMIT only while the
@@ -379,17 +388,25 @@ func warnVLANStrippedBeforeXDP(iface datapathIface, mode string) {
 }
 
 func ethtoolValue(ifname string, cmd uint32) (uint32, error) {
-	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, 0)
-	if err != nil {
-		return 0, err
-	}
-
-	defer func() { _ = unix.Close(fd) }()
-
 	value := struct {
 		cmd  uint32
 		data uint32
 	}{cmd: cmd}
+
+	if err := ethtoolCall(ifname, unsafe.Pointer(&value)); err != nil {
+		return 0, err
+	}
+
+	return value.data, nil
+}
+
+func ethtoolCall(ifname string, data unsafe.Pointer) error {
+	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, 0)
+	if err != nil {
+		return err
+	}
+
+	defer func() { _ = unix.Close(fd) }()
 
 	// Padded to sizeof(struct ifreq): the kernel copies the full structure
 	// in, so a shorter one is read past its end.
@@ -400,37 +417,221 @@ func ethtoolValue(ifname string, cmd uint32) (uint32, error) {
 	}
 
 	if len(ifname) >= unix.IFNAMSIZ {
-		return 0, fmt.Errorf("interface name %q too long", ifname)
+		return fmt.Errorf("interface name %q too long", ifname)
 	}
 
 	copy(ifr.name[:], ifname)
-	ifr.data = unsafe.Pointer(&value)
+	ifr.data = data
 
 	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd),
 		unix.SIOCETHTOOL, uintptr(unsafe.Pointer(&ifr))); errno != 0 {
-		return 0, errno
+		return errno
 	}
 
-	return value.data, nil
+	return nil
+}
+
+func featureNames(ifname string) ([]string, error) {
+	info := make([]byte, 20)
+	binary.NativeEndian.PutUint32(info[0:], ethtoolGSsetInfo)
+	binary.NativeEndian.PutUint64(info[8:], 1<<ethSSFeatures)
+
+	if err := ethtoolCall(ifname, unsafe.Pointer(&info[0])); err != nil {
+		return nil, fmt.Errorf("ETHTOOL_GSSET_INFO %s: %w", ifname, err)
+	}
+
+	if binary.NativeEndian.Uint64(info[8:]) == 0 {
+		return nil, fmt.Errorf("ETHTOOL_GSSET_INFO %s: no feature names", ifname)
+	}
+
+	count := int(binary.NativeEndian.Uint32(info[16:]))
+
+	strs := make([]byte, 12+count*ethGStringLen)
+	binary.NativeEndian.PutUint32(strs[0:], ethtoolGStrings)
+	binary.NativeEndian.PutUint32(strs[4:], ethSSFeatures)
+	binary.NativeEndian.PutUint32(strs[8:], uint32(count))
+
+	if err := ethtoolCall(ifname, unsafe.Pointer(&strs[0])); err != nil {
+		return nil, fmt.Errorf("ETHTOOL_GSTRINGS %s: %w", ifname, err)
+	}
+
+	if got := int(binary.NativeEndian.Uint32(strs[8:])); got != count {
+		return nil, fmt.Errorf("ETHTOOL_GSTRINGS %s: kernel returned %d feature names, want %d", ifname, got, count)
+	}
+
+	names := make([]string, count)
+
+	for i := range names {
+		raw := strs[12+i*ethGStringLen : 12+(i+1)*ethGStringLen]
+		end := 0
+
+		for end < len(raw) && raw[end] != 0 {
+			end++
+		}
+
+		names[i] = string(raw[:end])
+	}
+
+	return names, nil
+}
+
+func getFeatures(ifname string, words int) (available, active []uint32, err error) {
+	buf := make([]byte, 8+words*16)
+	binary.NativeEndian.PutUint32(buf[0:], ethtoolGFeatures)
+	binary.NativeEndian.PutUint32(buf[4:], uint32(words))
+
+	if err := ethtoolCall(ifname, unsafe.Pointer(&buf[0])); err != nil {
+		return nil, nil, fmt.Errorf("ETHTOOL_GFEATURES %s: %w", ifname, err)
+	}
+
+	if got := int(binary.NativeEndian.Uint32(buf[4:])); got != words {
+		return nil, nil, fmt.Errorf("ETHTOOL_GFEATURES %s: kernel has %d feature words, want %d", ifname, got, words)
+	}
+
+	available = make([]uint32, words)
+	active = make([]uint32, words)
+
+	for w := range words {
+		available[w] = binary.NativeEndian.Uint32(buf[8+w*16:])
+		active[w] = binary.NativeEndian.Uint32(buf[8+w*16+8:])
+	}
+
+	return available, active, nil
+}
+
+func clearFeatures(ifname string, valid []uint32) error {
+	buf := make([]byte, 8+len(valid)*8)
+	binary.NativeEndian.PutUint32(buf[0:], ethtoolSFeatures)
+	binary.NativeEndian.PutUint32(buf[4:], uint32(len(valid)))
+
+	for w, bits := range valid {
+		binary.NativeEndian.PutUint32(buf[8+w*8:], bits)
+	}
+
+	if err := ethtoolCall(ifname, unsafe.Pointer(&buf[0])); err != nil {
+		return fmt.Errorf("ETHTOOL_SFEATURES %s: %w", ifname, err)
+	}
+
+	return nil
+}
+
+func disableReceiveMerging(ifname string) (disabled, stillOn []string, err error) {
+	names, err := featureNames(ifname)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	words := (len(names) + 31) / 32
+
+	available, active, err := getFeatures(ifname, words)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	bits := make(map[string]int, len(mergingFeatures))
+
+	for i, name := range names {
+		for _, want := range mergingFeatures {
+			if name == want {
+				bits[name] = i
+			}
+		}
+	}
+
+	valid := make([]uint32, words)
+
+	for _, name := range mergingFeatures {
+		i, ok := bits[name]
+		if !ok {
+			continue
+		}
+
+		w, bit := i/32, uint32(1)<<(i%32)
+
+		if active[w]&bit == 0 {
+			continue
+		}
+
+		if available[w]&bit == 0 {
+			stillOn = append(stillOn, name)
+			continue
+		}
+
+		valid[w] |= bit
+	}
+
+	if !anyBitSet(valid) {
+		return nil, stillOn, nil
+	}
+
+	if err := clearFeatures(ifname, valid); err != nil {
+		return nil, stillOn, err
+	}
+
+	_, active, err = getFeatures(ifname, words)
+	if err != nil {
+		return nil, stillOn, err
+	}
+
+	for _, name := range mergingFeatures {
+		i, ok := bits[name]
+		if !ok {
+			continue
+		}
+
+		w, bit := i/32, uint32(1)<<(i%32)
+
+		if valid[w]&bit == 0 {
+			continue
+		}
+
+		if active[w]&bit != 0 {
+			stillOn = append(stillOn, name)
+		} else {
+			disabled = append(disabled, name)
+		}
+	}
+
+	return disabled, stillOn, nil
+}
+
+func anyBitSet(words []uint32) bool {
+	for _, w := range words {
+		if w != 0 {
+			return true
+		}
+	}
+
+	return false
 }
 
 // Covers only the receive-side merge: a veth or virtio peer that offloads
 // segmentation delivers merged packets with GRO off, which no local feature
 // reports.
-func warnMergedPacketSources(ifnames ...string) {
+func disableMergedPackets(mode string, ifnames ...string) {
 	for _, ifname := range ifnames {
-		enabled, err := interfaceGROEnabled(ifname)
+		disabled, stillOn, err := disableReceiveMerging(ifname)
 		if err != nil {
-			logger.UpfLog.Debug("could not read GRO state", zap.String("iface", ifname), zap.Error(err))
+			logger.UpfLog.Warn("could not turn off packet merging on a datapath interface: "+
+				"merged packets cannot be encapsulated or decapsulated into valid GTP-U and are "+
+				"dropped, counted in app_upf_datapath_drop_total under encap_gso and decap_gso; "+
+				"turn off GRO, hardware GRO and LRO on it with ethtool",
+				zap.String("iface", ifname), zap.String("mode", mode), zap.Error(err))
+
 			continue
 		}
 
-		if enabled {
-			logger.UpfLog.Warn("GRO is enabled on a datapath interface while attached at TCX: "+
+		if len(disabled) > 0 {
+			logger.UpfLog.Info("turned off packet merging on a datapath interface",
+				zap.String("iface", ifname), zap.String("mode", mode), zap.Strings("features", disabled))
+		}
+
+		if len(stillOn) > 0 {
+			logger.UpfLog.Warn("packet merging cannot be turned off on a datapath interface: "+
 				"merged packets cannot be encapsulated or decapsulated into valid GTP-U and are "+
 				"dropped, counted in app_upf_datapath_drop_total under encap_gso and decap_gso; "+
-				"see the disable-merged-packets guide for the knob this deployment needs",
-				zap.String("iface", ifname))
+				"turn off GRO, hardware GRO and LRO on it with ethtool",
+				zap.String("iface", ifname), zap.String("mode", mode), zap.Strings("features", stillOn))
 		}
 	}
 }

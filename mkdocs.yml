@@ -15,6 +15,7 @@ theme:
     - navigation.footer
     - navigation.indexes
     - content.code.copy
+    - content.tabs.link
   icon:
     repo: fontawesome/brands/github
   custom_dir: docs/overrides
@@ -51,6 +52,9 @@ markdown_extensions:
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
   - admonition
   - pymdownx.details
   - pymdownx.blocks.caption
@@ -67,13 +71,12 @@ nav:
     - how_to/index.md
     - Install: how_to/install.md
     - Deploy a High Availability Cluster: how_to/deploy_ha_cluster.md
-    - Deploy on Google Cloud: how_to/deploy_on_google_cloud.md
+    - Deploy in the Cloud: how_to/deploy_in_the_cloud.md
     - Co-host with OCUDU: how_to/co_host_with_ocudu.md
     - Co-host with Ella IMS and Ella SMSC: how_to/co_host_with_ims_and_smsc.md
     - Use VLANs: how_to/vlan.md
     - Use VRFs: how_to/vrf.md
     - Use native XDP with veth: how_to/native_xdp_veth.md
-    - Disable Merged Packets: how_to/disable_merged_packets.md
     - Integrate with a Radio: how_to/integrate_with_radio.md
     - Integrate with an IMS: how_to/integrate_with_ims.md
     - Backup and Restore: how_to/backup_and_restore.md

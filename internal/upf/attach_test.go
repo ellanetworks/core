@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"slices"
 	"testing"
 
 	cebpf "github.com/cilium/ebpf"
@@ -145,7 +146,50 @@ func TestTCXAttachRefusesToStack(t *testing.T) {
 		t.Fatalf("read GRO state: %v", err)
 	}
 
-	warnMergedPacketSources(tcxTestDev)
+	disableMergedPackets(config.DatapathTCX, tcxTestDev)
+}
+
+func TestDisableReceiveMerging(t *testing.T) {
+	requireRoot(t)
+
+	dev := "ellgro0"
+
+	if out, err := exec.CommandContext(context.Background(), "ip", "link", "add", dev, "type", "veth",
+		"peer", "name", dev+"p").CombinedOutput(); err != nil {
+		t.Fatalf("create veth: %v: %s", err, out)
+	}
+
+	t.Cleanup(func() { _ = exec.CommandContext(context.Background(), "ip", "link", "del", dev).Run() })
+
+	if out, err := exec.CommandContext(context.Background(), "ethtool", "-K", dev, "gro", "on").CombinedOutput(); err != nil {
+		t.Skipf("enable GRO with ethtool: %v: %s", err, out)
+	}
+
+	if on, err := interfaceGROEnabled(dev); err != nil || !on {
+		t.Fatalf("GRO before = %v (err %v), want enabled", on, err)
+	}
+
+	disabled, stillOn, err := disableReceiveMerging(dev)
+	if err != nil {
+		t.Fatalf("disable receive merging: %v", err)
+	}
+
+	if !slices.Contains(disabled, "rx-gro") {
+		t.Errorf("disabled = %v, want rx-gro", disabled)
+	}
+
+	if len(stillOn) != 0 {
+		t.Errorf("still on = %v, want none", stillOn)
+	}
+
+	if on, err := interfaceGROEnabled(dev); err != nil || on {
+		t.Fatalf("GRO after = %v (err %v), want disabled", on, err)
+	}
+
+	disabled, stillOn, err = disableReceiveMerging(dev)
+	if err != nil || len(disabled) != 0 || len(stillOn) != 0 {
+		t.Errorf("second call = %v, %v, %v, want nothing to do", disabled, stillOn, err)
+	}
 }
 
 func TestDriverRefusedXDP(t *testing.T) {

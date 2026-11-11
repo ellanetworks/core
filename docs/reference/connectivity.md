@@ -72,7 +72,8 @@ The datapath attaches to N3 and every N6 interface at the hook set by `datapath.
 
 - **veth, `xdp-native`**: an XDP program must be attached to the peer interface, see the [explanation](../explanation/user_plane_packet_processing_with_ebpf.md#xdp-redirect-on-veth-pairs) and the [setup guide](../how_to/native_xdp_veth.md).
 - **veth, `xdp-generic`**: TX checksum offload must be disabled on both ends (`ethtool -K <veth> tx off`), or decapsulated packets are silently corrupted.
-- **Any interface, `tcx` or `xdp-generic`**: the interface must not deliver merged packets, see [Disable merged packets](../how_to/disable_merged_packets.md). 
+- **veth, `tcx` or `xdp-generic`**: segmentation offload must be disabled on the peer (`ethtool -K <peer> tso off gso off`), or the peer delivers merged packets that are dropped.
+- **Any interface, `tcx` or `xdp-generic`**: Ella Core turns off GRO, hardware GRO and LRO at startup, and logs a warning for any it can't turn off.
 
 ## MTU
 
@@ -85,6 +86,8 @@ The MTU of a data network is the largest packet a subscriber sends or receives. 
 | GTP-U | 8, plus 4 when the sequence number, N-PDU number or next extension header field is present, plus any extension headers |
 
 The data network MTU must not exceed the MTU of the path between the radio and Ella Core, minus the GTP-U overhead and the overhead of every tunnel on that path, such as IPsec.
+
+N2 / S1-MME signalling crosses the same tunnels. When a tunnel drops larger packets without reporting its MTU, the route from Ella Core to the radios must have an MTU that fits the tunnel.
 
 | Setting | Default |
 | ------- | ------- |

@@ -55,7 +55,7 @@ The data plane can attach at either of two kernel hooks:
 
 `tcx` runs on the socket buffer, which can hold several packets merged together by the kernel's receive path. Ella Core can't produce a valid GTP-U header from a merged buffer: it writes one GTP-U header sized for the whole buffer, and when the kernel splits the buffer back into wire-sized packets it rebuilds the outer IP and UDP headers but not the GTP-U header, so every packet claims the whole buffer's payload length.
 
-[Disable merged packets](../how_to/disable_merged_packets.md) on N3 and N6.
+Ella Core turns off packet merging (GRO, hardware GRO and LRO) on N3 and N6 when it attaches in `tcx` or `xdp-generic` mode. A veth also receives packets merged by its peer when the peer offloads segmentation, which Ella Core can't turn off from its side.
 
 ### XDP redirect on veth pairs
 
