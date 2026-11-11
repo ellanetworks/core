@@ -112,12 +112,12 @@ func enableSMS(ctx context.Context, t *testing.T, cl *client.Client, address, sm
 	if _, err := cl.CreateSMSC(ctx, &client.CreateSMSCOptions{
 		Name:           "ella-smsc",
 		ServiceCentres: []string{smscServiceCentre},
-		Nodes:          []client.SMSCNodeOptions{{DiameterIdentity: host, Address: address, Port: smscDiameterPort}},
+		Nodes:          []client.SMSCNodeOptions{{OriginHost: host, Address: address, Port: smscDiameterPort}},
 	}); err != nil {
 		t.Fatalf("add the SMSC: %v", err)
 	}
 
-	if err := cl.UpdateOperatorSMS(ctx, &client.UpdateOperatorSMSOptions{SMSNumber: smsNumber}); err != nil {
+	if err := cl.UpdateSMSSettings(ctx, &client.UpdateSMSSettingsOptions{ServingNodeNumber: smsNumber}); err != nil {
 		t.Fatalf("enable SMS: %v", err)
 	}
 

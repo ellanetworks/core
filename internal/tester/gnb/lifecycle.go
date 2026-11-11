@@ -50,6 +50,7 @@ type RegistrationResult struct {
 	Session          PDUSessionResult
 	PDUSessionStatus *fgs.PSIBitmap
 	IMSVoPS          bool
+	Accept           *fgs.RegistrationAccept
 }
 
 func (g *GnodeB) MobilityRegistrationUpdate(u *ue.UE, ranUENGAPID int64, pduSessionID uint8,
@@ -143,6 +144,7 @@ func (g *GnodeB) Register(u *ue.UE, ranUENGAPID int64, pduSessionID uint8, timeo
 		RANUENGAPID: ranUENGAPID,
 		Session:     session,
 		IMSVoPS:     ra.NetworkFeatureSupport != nil && ra.NetworkFeatureSupport.IMSVoPS3GPP,
+		Accept:      ra,
 	}, nil
 }
 

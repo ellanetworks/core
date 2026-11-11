@@ -8,7 +8,16 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+const rejectNotAllowed = "not_allowed"
+
+var rejectedPeers = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "app_diameter_rejected_peers_total",
+	Help: "Diameter peers whose capabilities exchange was rejected, by reason.",
+}, []string{"reason"})
+
 func RegisterMetrics(m *Manager) {
+	prometheus.MustRegister(rejectedPeers)
+
 	serviceCentres := prometheus.NewDesc(
 		"app_connected_service_centers",
 		"Number of SMS service centers (SMSCs) connected to this node.",
@@ -41,7 +50,7 @@ func connectedPeers(peers []PeerStatus) (smsc, ims int) {
 		switch p.Role {
 		case PeerRoleSMSC:
 			smsc++
-		case PeerRoleIMS:
+		case PeerRoleIMS, PeerRoleUnknown:
 			ims++
 		}
 	}

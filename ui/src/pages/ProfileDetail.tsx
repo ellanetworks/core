@@ -351,14 +351,6 @@ const ProfileDetail: React.FC = () => {
               </CardContent>
             </Card>
 
-            <ProfileIMSServiceProfilesCard
-              profileName={profile.name}
-              canEdit={canEdit}
-              policyDataNetworks={policiesQuery.data?.items?.map(
-                (p) => p.data_network_name,
-              )}
-            />
-
             {isEditModalOpen && (
               <EditProfileModal
                 open
@@ -430,6 +422,13 @@ const ProfileDetail: React.FC = () => {
           )}
         </QueryState>
       </Box>
+
+      {profileQuery.data && (
+        <ProfileIMSServiceProfilesCard
+          profileName={profileQuery.data.name}
+          canEdit={canEdit}
+        />
+      )}
 
       {isCreatePolicyOpen && (
         <CreatePolicyModal

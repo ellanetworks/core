@@ -312,6 +312,42 @@ func TestRequestValidation(t *testing.T) {
 	}
 }
 
+func TestSetServedRealms(t *testing.T) {
+	smsc := Peer{ID: "smsc", Addresses: []netip.Addr{loopback2}, Applications: []Application{sgdApp}}
+
+	n, p := ellaWithSMSC(t, TransportTCP, smsc, func(cfg *Config) { cfg.ServedRealms = []string{"ims.example.org"} })
+	openRaw(t, p, "smsc.example.org", appAVP(sgdApp))
+
+	toRealm := func(id uint32, realm string) uint32 {
+		p.send(appRequest(id, id, "smsc.example.org", UTF8String(AVPDestinationRealm, AVPFlagMandatory, 0, realm)))
+		return resultCode(t, p.recv())
+	}
+
+	if code := toRealm(30, "home.example.net"); code != ResultRealmNotServed {
+		t.Fatalf("before: Result-Code = %d, want %d", code, ResultRealmNotServed)
+	}
+
+	n.SetServedRealms([]string{"ims.example.org", "home.example.net"})
+
+	if got := n.ServedRealms(); len(got) != 2 || got[1] != "home.example.net" {
+		t.Fatalf("ServedRealms() = %v", got)
+	}
+
+	if code := toRealm(31, "HOME.example.net"); code != ResultSuccess {
+		t.Fatalf("after: Result-Code = %d, want %d", code, ResultSuccess)
+	}
+
+	if code := toRealm(32, "other.org"); code != ResultRealmNotServed {
+		t.Fatalf("unrelated realm: Result-Code = %d, want %d", code, ResultRealmNotServed)
+	}
+
+	n.SetServedRealms(nil)
+
+	if code := toRealm(33, "ims.example.org"); code != ResultRealmNotServed {
+		t.Fatalf("cleared: Result-Code = %d, want %d", code, ResultRealmNotServed)
+	}
+}
+
 func TestRelayPeerLimitedToLocalApplications(t *testing.T) {
 	for _, kind := range transports {
 		t.Run(kind.String(), func(t *testing.T) {
@@ -831,6 +867,60 @@ func TestReadLoopKeepsReadingWhileWritesStall(t *testing.T) {
 
 			if dwa := p.recv(); dwa.CommandCode != CommandDeviceWatchdog || resultCode(t, dwa) != ResultSuccess {
 				t.Fatalf("answer after the stall = %+v", dwa)
+			}
+		})
+	}
+}
+
+func TestUnknownPeerFilter(t *testing.T) {
+	for _, kind := range transports {
+		t.Run(kind.String(), func(t *testing.T) {
+			cfg := testConfig("ella.example.org")
+			cfg.AcceptUnknownPeers = true
+			cfg.UnknownPeerApplications = []Application{otherApp}
+			cfg.UnknownPeerFilter = func(host, realm string, remote netip.Addr) bool {
+				return host == "scscf.example.org" || realm == "ims.example.net" || remote != loopback1
+			}
+
+			n := newTestNode(t, cfg)
+			addr := serveOn(t, n, kind, loopback1)
+
+			allowed := dialRaw(t, kind, loopback1, addr)
+			openRaw(t, allowed, "scscf.example.org", appAVP(otherApp))
+
+			denied := dialRaw(t, kind, loopback1, addr)
+			denied.send(cer("intruder.example.org", appAVP(otherApp)))
+
+			if code := resultCode(t, denied.recv()); code != ResultUnknownPeer {
+				t.Fatalf("Result-Code = %d, want %d", code, ResultUnknownPeer)
+			}
+		})
+	}
+}
+
+func TestDisconnectUnknownPeers(t *testing.T) {
+	for _, kind := range transports {
+		t.Run(kind.String(), func(t *testing.T) {
+			cfg := testConfig("ella.example.org")
+			cfg.AcceptUnknownPeers = true
+			cfg.UnknownPeerApplications = []Application{otherApp}
+
+			n := newTestNode(t, cfg)
+			addr := serveOn(t, n, kind, loopback1)
+
+			kept := dialRaw(t, kind, loopback1, addr)
+			openRaw(t, kept, "kept.example.org", appAVP(otherApp))
+
+			dropped := dialRaw(t, kind, loopback1, addr)
+			openRaw(t, dropped, "dropped.example.org", appAVP(otherApp))
+
+			count := n.DisconnectUnknownPeers(func(host, _ string, _ netip.Addr) bool { return host == "kept.example.org" }, DisconnectCauseDoNotWantToTalkToYou)
+			if count != 1 {
+				t.Fatalf("disconnected %d peers, want 1", count)
+			}
+
+			if dpr := dropped.recv(); dpr.CommandCode != CommandDisconnectPeer {
+				t.Fatalf("dropped peer got command %d, want DPR", dpr.CommandCode)
 			}
 		})
 	}

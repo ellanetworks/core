@@ -6,7 +6,6 @@ package hss
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/diameter/sh"
@@ -107,12 +106,7 @@ func (h *HSS) resolveMSISDN(ctx context.Context, impi, msisdn string) (*subject,
 	}
 
 	if impi == "" {
-		domain, err := h.store.IMSDomain(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		return &subject{Subscriber: *owner, domain: strings.ToLower(domain)}, nil
+		return h.subjectOf(ctx, owner, "")
 	}
 
 	sub, err := h.resolve(ctx, impi)

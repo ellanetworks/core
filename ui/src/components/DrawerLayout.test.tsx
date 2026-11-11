@@ -49,6 +49,12 @@ describe("DrawerLayout marks the current route for assistive tech", () => {
     expect(current()).toEqual(["Radios"]);
   });
 
+  it("marks Integrations on any of its tabs", () => {
+    renderAt("/integrations/ims");
+
+    expect(current()).toEqual(["Integrations"]);
+  });
+
   it("marks Traffic when its landing child is active", () => {
     renderAt("/traffic/usage");
 

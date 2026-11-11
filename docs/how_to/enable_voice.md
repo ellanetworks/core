@@ -44,6 +44,8 @@ For each subscriber that should make or receive calls:
 
 On each phone, turn on VoLTE (4G) or VoNR (5G).
 
+In **Integrations › IMS**, check that **Advertise IMS Voice** is on, the default.
+
 ## 5. Verify the IMS registration
 
 Go to the **Subscribers** page and click on a subscriber with an MSISDN. **Voice** should show **Registered**.

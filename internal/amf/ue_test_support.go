@@ -11,6 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/roaming"
 	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
@@ -325,4 +326,18 @@ func (ue *UeContext) SetSMSForTest(h smsf.Handler) {
 
 func (ue *UeContext) SMSIndicationPendingForTest() bool {
 	return ue.smsIndicationPending.Load() != nil
+}
+
+func (ue *UeContext) SetVisitorForTest(v roaming.Visitor5G) { ue.setVisitor(&v) }
+
+func (a *AMF) HoldVisitorForTest(supi etsi.SUPI, v roaming.Visitor5G) *UeContext {
+	ue := NewUeContext()
+	ue.supi = supi
+	ue.setVisitor(&v)
+
+	a.mu.Lock()
+	a.UEs[supi] = ue
+	a.mu.Unlock()
+
+	return ue
 }

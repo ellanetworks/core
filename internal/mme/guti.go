@@ -59,16 +59,17 @@ func (m *MME) SendGUTIReallocationCommand(ctx context.Context, ue *UeContext) {
 	})
 }
 
-func (m *MME) releaseMTMSIsLocked(ue *UeContext) {
-	if ue.tmsi != etsi.InvalidTMSI {
-		delete(m.uesByTmsi, ue.tmsi)
-		m.freeMTMSILocked(ue.tmsi)
+func (m *MME) unindexMTMSIsLocked(ue *UeContext) []etsi.TMSI {
+	var tmsis []etsi.TMSI
+
+	for _, t := range []etsi.TMSI{ue.tmsi, ue.oldTmsi} {
+		if t != etsi.InvalidTMSI {
+			delete(m.uesByTmsi, t)
+			tmsis = append(tmsis, t)
+		}
 	}
 
-	if ue.oldTmsi != etsi.InvalidTMSI {
-		delete(m.uesByTmsi, ue.oldTmsi)
-		m.freeMTMSILocked(ue.oldTmsi)
-	}
+	return tmsis
 }
 
 func (m *MME) freeMTMSILocked(t etsi.TMSI) {

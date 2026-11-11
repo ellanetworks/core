@@ -36,5 +36,7 @@ func handleConfigurationUpdateComplete(ctx context.Context, amfInstance *amf.AMF
 		}
 	}
 
+	amfInstance.ConfigurationUpdateCompleted(ctx, ue, conn)
+
 	return nasreply.Handled()
 }

@@ -81,6 +81,61 @@ func TestListUsagePerSubscriber_Success(t *testing.T) {
 	}
 }
 
+func TestListUsagePerSubscriber_Roamers(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`[{"imsi": "208930000000001", "home_plmn": {"mcc": "208", "mnc": "93"}, "roaming_partner": "partner-a", "uplink_bytes": 1, "downlink_bytes": 2, "total_bytes": 3}]`),
+		},
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	roaming := true
+
+	resp, err := clientObj.ListUsagePerSubscriber(context.Background(), &client.ListUsageParams{Roaming: &roaming})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if got := fake.lastOpts.Query.Get("roaming"); got != "true" {
+		t.Fatalf("expected roaming=true, got %q", got)
+	}
+
+	if len(resp) != 1 || resp[0].HomePLMN == nil || *resp[0].HomePLMN != (client.RoamingPLMN{Mcc: "208", Mnc: "93"}) || resp[0].RoamingPartner != "partner-a" || resp[0].TotalBytes != 3 {
+		t.Fatalf("got %+v", resp)
+	}
+}
+
+func TestListUsagePerDay_RoamingFilter(t *testing.T) {
+	home := false
+
+	for _, tc := range []struct {
+		name    string
+		roaming *bool
+		want    string
+		present bool
+	}{
+		{"all", nil, "", false},
+		{"home subscribers", &home, "false", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &fakeRequester{response: &client.RequestResponse{StatusCode: 200, Headers: http.Header{}, Result: []byte(`[]`)}}
+			clientObj := &client.Client{Requester: fake}
+
+			if _, err := clientObj.ListUsagePerDay(context.Background(), &client.ListUsageParams{Roaming: tc.roaming}); err != nil {
+				t.Fatalf("expected no error, got: %v", err)
+			}
+
+			if fake.lastOpts.Query.Has("roaming") != tc.present || fake.lastOpts.Query.Get("roaming") != tc.want {
+				t.Fatalf("roaming query = %q, want %q", fake.lastOpts.Query.Get("roaming"), tc.want)
+			}
+		})
+	}
+}
+
 func TestGetUsageRetentionPolicy_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{

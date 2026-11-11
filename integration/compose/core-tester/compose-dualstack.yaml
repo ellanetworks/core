@@ -19,6 +19,8 @@ configs:
         api:
           name: "eth0"
           port: 5002
+        diameter:
+          name: "eth0"
       datapath:
         attach-mode: "${ELLA_CORE_ATTACH_MODE:-xdp-generic}"
 

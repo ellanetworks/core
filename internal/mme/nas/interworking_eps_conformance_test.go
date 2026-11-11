@@ -5,6 +5,7 @@ package nas
 
 import (
 	"bytes"
+	"context"
 	"net/netip"
 	"testing"
 
@@ -145,7 +146,7 @@ func TestEPSProtocolConfigurationContainerDirections(t *testing.T) {
 
 // TS 23.501 §5.15.7.1
 func TestEPSSNSSAIContainerFormat(t *testing.T) {
-	container, err := snssaiPCOContainer(models.Snssai{Sst: 1, Sd: "000001"}, models.PlmnID{Mcc: "001", Mnc: "01"})
+	container, err := snssaiPCOContainer(models.Snssai{Sst: 1, Sd: "000001"}, nil, models.PlmnID{Mcc: "001", Mnc: "01"})
 	if err != nil {
 		t.Fatalf("build the S-NSSAI container: %v", err)
 	}
@@ -187,7 +188,7 @@ func TestEPSExtendedPCOFollowsTheUEsSupport(t *testing.T) {
 
 			qos := models.EPSBearer{QoS: models.EPSBearerQoS{QCI: 9, APNAMBR: models.Ambr{Downlink: models.MustParseBitRate("1 Gbps"), Uplink: models.MustParseBitRate("1 Gbps")}}, MTU: 1400}
 
-			raw, err := buildActivateDefaultESM(p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, ue.UsesEPCO(p), nil, nas.PCSCFRequest{})
+			raw, err := buildActivateDefaultESM(context.Background(), p, qos, 1, models.PlmnID{Mcc: "001", Mnc: "01"}, ue.UsesEPCO(p), nil, nas.PCSCFRequest{})
 			if err != nil {
 				t.Fatalf("build ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST: %v", err)
 			}

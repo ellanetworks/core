@@ -13,7 +13,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/diameternode"
@@ -29,18 +28,10 @@ type SMSC struct {
 }
 
 type SMSCNode struct {
-	DiameterIdentity string          `json:"diameterIdentity"`
-	Address          string          `json:"address"`
-	Port             int             `json:"port"`
-	Status           *SMSCNodeStatus `json:"status,omitempty"`
-}
-
-type SMSCNodeStatus struct {
-	State string `json:"state"`
-	Host  string `json:"host,omitempty"`
-	Realm string `json:"realm,omitempty"`
-	Since string `json:"since"`
-	Error string `json:"error,omitempty"`
+	OriginHost string              `json:"originHost"`
+	Address    string              `json:"address"`
+	Port       int                 `json:"port"`
+	Status     *DiameterPeerStatus `json:"status,omitempty"`
 }
 
 type ListSMSCsResponse struct {
@@ -48,9 +39,9 @@ type ListSMSCsResponse struct {
 }
 
 type SMSCNodeParams struct {
-	DiameterIdentity string `json:"diameterIdentity"`
-	Address          string `json:"address"`
-	Port             int    `json:"port,omitempty"`
+	OriginHost string `json:"originHost"`
+	Address    string `json:"address"`
+	Port       int    `json:"port,omitempty"`
 }
 
 type CreateSMSCParams struct {
@@ -79,36 +70,16 @@ func smscResponse(s db.SMSC, statuses map[string]diameternode.PeerStatus) SMSC {
 	nodes := make([]SMSCNode, 0, len(s.Nodes))
 
 	for _, n := range s.Nodes {
-		node := SMSCNode{DiameterIdentity: n.DiameterIdentity, Address: n.Address, Port: n.Port}
+		node := SMSCNode{OriginHost: n.DiameterIdentity, Address: n.Address, Port: n.Port}
 
 		if st, ok := statuses[smsf.SMSCPeerID(n.ID)]; ok {
-			node.Status = &SMSCNodeStatus{
-				State: st.State.String(),
-				Host:  st.Host,
-				Realm: st.Realm,
-				Since: st.Since.UTC().Format(time.RFC3339),
-				Error: st.Error,
-			}
+			node.Status = diameterPeerStatus(st)
 		}
 
 		nodes = append(nodes, node)
 	}
 
 	return SMSC{Name: s.Name, ServiceCentres: centres, Nodes: nodes}
-}
-
-func smscPeerStatuses(node DiameterNode) map[string]diameternode.PeerStatus {
-	statuses := map[string]diameternode.PeerStatus{}
-
-	if node == nil {
-		return statuses
-	}
-
-	for _, st := range node.Peers() {
-		statuses[st.ID] = st
-	}
-
-	return statuses
 }
 
 func smscFromParams(smsc *db.SMSC, centres []string, nodes []SMSCNodeParams, existing []db.SMSCNode) string {
@@ -166,12 +137,12 @@ func smscFromParams(smsc *db.SMSC, centres []string, nodes []SMSCNodeParams, exi
 
 func smscNodeFromParams(params SMSCNodeParams) (db.SMSCNode, string) {
 	node := db.SMSCNode{
-		DiameterIdentity: strings.TrimSpace(params.DiameterIdentity),
+		DiameterIdentity: strings.TrimSpace(params.OriginHost),
 		Port:             params.Port,
 	}
 
 	if node.DiameterIdentity != "" && !db.IsValidDiameterIdentity(node.DiameterIdentity) {
-		return db.SMSCNode{}, "diameterIdentity must be a fully qualified domain name, for example smsc.example.org"
+		return db.SMSCNode{}, "originHost must be a fully qualified domain name, for example smsc.example.org"
 	}
 
 	if node.Port == 0 {
@@ -250,7 +221,7 @@ func ListSMSCs(dbInstance *db.Database, node DiameterNode) http.Handler {
 			return
 		}
 
-		statuses := smscPeerStatuses(node)
+		statuses := diameterPeerStatuses(node)
 		resp := ListSMSCsResponse{Items: make([]SMSC, 0, len(smscs))}
 
 		for _, s := range smscs {
@@ -269,7 +240,7 @@ func GetSMSC(dbInstance *db.Database, node DiameterNode) http.Handler {
 			return
 		}
 
-		writeResponse(r.Context(), w, smscResponse(*smsc, smscPeerStatuses(node)), http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, smscResponse(*smsc, diameterPeerStatuses(node)), http.StatusOK, logger.APILog)
 	})
 }
 

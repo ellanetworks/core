@@ -218,6 +218,10 @@ func (d *drainTestDB) GetSubscriber(context.Context, string) (*db.Subscriber, er
 	return nil, errNotImplementedInDrainTest
 }
 
+func (d *drainTestDB) GetSubscriberOrVisitor(context.Context, string) (*db.Subscriber, error) {
+	return nil, errNotImplementedInDrainTest
+}
+
 func (d *drainTestDB) GetDataNetworkByID(context.Context, string) (*db.DataNetwork, error) {
 	return nil, errNotImplementedInDrainTest
 }

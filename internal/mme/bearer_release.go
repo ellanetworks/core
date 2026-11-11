@@ -123,7 +123,7 @@ func (m *MME) DeactivateBearerLocally(ctx context.Context, ue *UeContext, p *Pdn
 	ueConn := ue.Conn()
 
 	if !ue.BearerReleaseOnly(p) && ueConn != nil && ue.Secured() {
-		m.sendNetworkDetach(ctx, ue, ueConn, eps.DetachTypeReattachRequired, cause)
+		m.sendNetworkDetach(ctx, ue, ueConn, eps.DetachTypeReattachRequired, nil, cause)
 
 		return
 	}

@@ -105,6 +105,7 @@ var mandatoryBit = map[uint32]bool{
 	AVPAdditionalContextIdentifier:               false,
 	AVPSubscriptionDataDeletion:                  false,
 	AVPInterworking5GSIndicator:                  false,
+	AVPCoreNetworkRestrictions:                   false,
 	AVPEthernetPDNTypeIndicator:                  false,
 	AVPThirdContextIdentifier:                    false,
 	AVPSCEFID:                                    false,

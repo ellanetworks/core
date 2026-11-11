@@ -69,6 +69,22 @@ func (e IMEI) IMEI() string {
 	}
 }
 
+func (e IMEI) TACAndSNR() string {
+	if len(e.digits) < 14 {
+		return ""
+	}
+
+	return e.digits[:14]
+}
+
+func (e IMEI) SoftwareVersion() string {
+	if len(e.digits) != 16 {
+		return ""
+	}
+
+	return e.digits[14:]
+}
+
 // String returns the identity in its NAS-prefixed form ("imei-…" / "imeisv-…"),
 // preserving the software version, or "" when unset. Use IMEI() for the
 // normalized 15-digit device identity.

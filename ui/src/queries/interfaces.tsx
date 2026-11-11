@@ -27,6 +27,11 @@ export type InterfacesInfo = {
   network_instances?: { name: string; n6?: N6Info }[];
   api?: { addresses?: string[]; port?: number };
   diameter?: { addresses?: string[]; port?: number; interface?: string };
+  n32?: {
+    addresses?: string[];
+    port?: number;
+    interface?: string;
+  };
 };
 
 export const getInterfaces = async (

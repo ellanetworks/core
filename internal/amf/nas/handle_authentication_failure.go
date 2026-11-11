@@ -64,6 +64,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 	switch fail.Cause {
 	case fgs.GMMCauseMACFailure:
 		logger.From(ctx, logger.AmfLog).Warn("amf.Authentication Failure Cause: Mac Failure")
+		amfInstance.AuthenticationFailed(ctx, ue)
 		ue.Deregister(ctx, models.ReleaseFor(models.ReleaseRegistrationFailure).WithRanNas(models.Received5GMMCause(uint8(fail.Cause))))
 
 		amf.SendAuthenticationReject(ctx, ueConn)
@@ -71,6 +72,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		return nasreply.Handled()
 	case fgs.GMMCauseNon5GAuthenticationUnacceptable:
 		logger.From(ctx, logger.AmfLog).Warn("amf.Authentication Failure Cause: Non-5G amf.Authentication Unacceptable")
+		amfInstance.AuthenticationFailed(ctx, ue)
 		ue.Deregister(ctx, models.ReleaseFor(models.ReleaseRegistrationFailure).WithRanNas(models.Received5GMMCause(uint8(fail.Cause))))
 
 		amf.SendAuthenticationReject(ctx, ueConn)
@@ -93,6 +95,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 
 		if conn.ResyncTried() {
 			logger.From(ctx, logger.AmfLog).Warn("2 consecutive Synch Failure, terminate authentication procedure")
+			amfInstance.AuthenticationFailed(ctx, ue)
 			ue.Deregister(ctx, models.ReleaseFor(models.ReleaseRegistrationFailure).WithRanNas(models.Received5GMMCause(uint8(fail.Cause))))
 
 			amf.SendAuthenticationReject(ctx, ueConn)
@@ -113,33 +116,11 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 			Auts: hex.EncodeToString(fail.AUTS),
 		}
 
-		response, err := sendUEAuthenticationAuthenticateRequest(ctx, amfInstance, ue, resynchronizationInfo)
-		if err != nil {
-			cause, permanent := registrationRejectCauseForAuthFailure(err)
-			if !permanent {
-				logger.From(ctx, logger.AmfLog).Warn("re-synchronised authentication vector unavailable on a transient error; releasing the NAS signalling connection so the UE retries when T3511 expires", zap.Error(err))
+		requestChallenge(ctx, amfInstance, ue, ueConn, resynchronizationInfo, func(ctx context.Context, err error) {
+			rejectAuthentication(ctx, amfInstance, ue, err)
+		})
 
-				abortRegistration(ctx, amfInstance, ue, "transient authentication re-synchronisation failure", err)
-
-				return nasreply.Handled()
-			}
-
-			logger.From(ctx, logger.AmfLog).Warn("re-synchronised authentication vector unavailable, rejecting registration", zap.Error(err))
-
-			ue.Deregister(ctx, models.ReleaseFor(models.ReleaseRegistrationFailure).WithRanNas(models.Received5GMMCause(uint8(fail.Cause))))
-
-			amf.SendRegistrationReject(ctx, ueConn, cause)
-
-			return nasreply.Handled()
-		}
-
-		conn.AuthenticationCtx = response
-
-		ue.SetAbba([]uint8{0x00, 0x00})
-
-		amf.SendAuthenticationRequest(ctx, amfInstance, ueConn)
-
-		logger.From(ctx, logger.AmfLog).Info("Sent authentication request")
+		logger.From(ctx, logger.AmfLog).Info("Requested a re-synchronised authentication vector")
 	}
 
 	return nasreply.Handled()

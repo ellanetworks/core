@@ -367,6 +367,7 @@ const Dashboard = () => {
   type TopUser = {
     id: string;
     subscriber: string;
+    roamer: boolean;
     total_bytes: number;
     uplink_bytes: number;
     downlink_bytes: number;
@@ -379,6 +380,7 @@ const Dashboard = () => {
       items.push({
         id: usage.imsi,
         subscriber: usage.imsi,
+        roamer: usage.home_plmn !== undefined,
         total_bytes: usage.total_bytes,
         uplink_bytes: usage.uplink_bytes,
         downlink_bytes: usage.downlink_bytes,
@@ -788,7 +790,7 @@ const Dashboard = () => {
                       <TableRow key={row.id} hover>
                         <TableCell>
                           <Link
-                            to={`/subscribers/${encodeURIComponent(row.subscriber)}`}
+                            to={`/subscribers/${row.roamer ? "roamers/" : ""}${encodeURIComponent(row.subscriber)}`}
                             style={{ textDecoration: "none" }}
                           >
                             <Typography

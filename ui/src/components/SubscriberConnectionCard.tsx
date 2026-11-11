@@ -20,7 +20,7 @@ import type {
   IPSMGW,
   SubscriberDetailStatus,
 } from "@/queries/subscribers";
-import type { IMSVoiceStatus, OperatorIMS } from "@/queries/operator";
+import type { IMSSettings, IMSVoiceStatus } from "@/queries/integrations";
 import { formatRelativeTime } from "@/utils/formatters";
 import { IMS_DATA_NETWORK } from "@/utils/voice";
 
@@ -28,7 +28,7 @@ interface SubscriberConnectionCardProps {
   status: SubscriberDetailStatus;
   ims?: IMSSubscription;
   ipSMGW?: IPSMGW;
-  network?: OperatorIMS;
+  network?: IMSSettings;
   onDeregisterIMS?: () => void;
 }
 
@@ -166,7 +166,7 @@ const imsUserStates: Record<IMSUserState, VoiceState> = {
 };
 
 const networkReasons: Record<Exclude<IMSVoiceStatus, "enabled">, string> = {
-  no_pcscf: "No P-CSCF address is set on the Operator page",
+  no_pcscf: "No P-CSCF address is set in Integrations › IMS",
   no_ims_data_network: `There is no IMS data network named ${IMS_DATA_NETWORK}`,
   ip_family_mismatch: `No P-CSCF address matches the ${IMS_DATA_NETWORK} data network's IP family`,
 };
@@ -174,7 +174,7 @@ const networkReasons: Record<Exclude<IMSVoiceStatus, "enabled">, string> = {
 export const voiceState = (
   status: SubscriberDetailStatus,
   ims?: IMSSubscription,
-  network?: OperatorIMS,
+  network?: IMSSettings,
 ): VoiceState | undefined => {
   if (!ims) {
     if (!network?.pcscfAddresses.length) return undefined;
@@ -199,6 +199,14 @@ export const voiceState = (
       label: "Off",
       color: "warning",
       detail: networkReasons[network.voiceStatus],
+    };
+  }
+
+  if (network?.advertiseVoice === false) {
+    return {
+      label: "Not offered to the phone",
+      color: "warning",
+      detail: "Advertise IMS Voice is off in Integrations › IMS",
     };
   }
 

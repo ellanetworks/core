@@ -100,6 +100,8 @@ type SmfRegistration struct {
 	SingleNssai       *Snssai           `json:"singleNssai"`
 	Dnn               string            `json:"dnn,omitempty"`
 	PlmnID            *PlmnID           `json:"plmnId"`
+	PgwFqdn           string            `json:"pgwFqdn,omitempty"`
+	DeregCallbackURI  string            `json:"deregCallbackUri,omitempty"`
 }
 
 func (r SmfRegistration) Check(p Policy) error {
@@ -118,18 +120,29 @@ func (r SmfRegistration) Check(p Policy) error {
 		CheckRequired("/singleNssai", r.SingleNssai, p),
 		checkString("/dnn", r.Dnn, ValidDnn, true),
 		CheckRequired("/plmnId", r.PlmnID, p),
+		checkString("/pgwFqdn", r.PgwFqdn, ValidFqdn, true),
+		checkAbsoluteURI("/deregCallbackUri", r.DeregCallbackURI, true),
 		Nest("/supportedFeatures", r.SupportedFeatures.Check(p)),
 	)
 }
 
 type DeregistrationData struct {
-	DeregReason DeregistrationReason `json:"deregReason"`
-	AccessType  AccessType           `json:"accessType,omitempty"`
+	DeregReason      DeregistrationReason `json:"deregReason"`
+	AccessType       AccessType           `json:"accessType,omitempty"`
+	PduSessionID     *int                 `json:"pduSessionId,omitempty"`
+	NewSmfInstanceID string               `json:"newSmfInstanceId,omitempty"`
 }
 
 func (d DeregistrationData) Check(p Policy) error {
-	return firstError(
+	if err := firstError(
 		CheckEnum("/deregReason", d.DeregReason, p, false),
 		CheckEnum("/accessType", d.AccessType, p, true),
+	); err != nil || p != Strict {
+		return err
+	}
+
+	return firstError(
+		checkOptionalRange("/pduSessionId", d.PduSessionID, 0, 255),
+		checkString("/newSmfInstanceId", d.NewSmfInstanceID, ValidNfInstanceID, true),
 	)
 }

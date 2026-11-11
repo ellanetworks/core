@@ -25,10 +25,6 @@ type GetOperatorSPNResponseResult struct {
 	ShortName string `json:"shortName"`
 }
 
-type GetOperatorSMSResponseResult struct {
-	SMSNumber string `json:"smsNumber"`
-}
-
 type SMSCResultItem struct {
 	Name           string               `json:"name"`
 	ServiceCentres []string             `json:"serviceCentres"`
@@ -36,14 +32,9 @@ type SMSCResultItem struct {
 }
 
 type SMSCNodeResultItem struct {
-	DiameterIdentity string `json:"diameterIdentity"`
-	Address          string `json:"address"`
-	Port             int    `json:"port"`
-}
-
-type GetOperatorIMSResponseResult struct {
-	PCSCFAddresses []string `json:"pcscfAddresses"`
-	VoiceStatus    string   `json:"voiceStatus"`
+	OriginHost string `json:"originHost"`
+	Address    string `json:"address"`
+	Port       int    `json:"port"`
 }
 
 type GetOperatorTrackingResponseResult struct {
@@ -61,8 +52,6 @@ type GetOperatorResponseResult struct {
 	NASSecurity     GetOperatorNASSecurityResponseResult `json:"nasSecurity,omitempty"`
 	HomeNetworkKeys []HomeNetworkKeyResponseItem         `json:"homeNetworkKeys"`
 	SPN             GetOperatorSPNResponseResult         `json:"spn"`
-	SMS             GetOperatorSMSResponseResult         `json:"sms"`
-	IMS             GetOperatorIMSResponseResult         `json:"ims"`
 }
 
 type GetOperatorResponse struct {

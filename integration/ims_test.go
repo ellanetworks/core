@@ -60,7 +60,18 @@ func TestIntegrationIMS(t *testing.T) {
 	baseline.DataNetwork(fixture.DefaultDataNetworkSpec())
 	baseline.Policy(fixture.DefaultPolicySpec())
 
+	requireOpenIMSPeerPolicy(ctx, t, env.Client)
+
+	imsHost := allowEllaIMS(ctx, t, env.Client)
+
 	addIMSCorePeer(ctx, t, env.Client)
+
+	if err := waitForIMSPeerLink(ctx, env.Client, imsHost, ellaIMSPeerName); err != nil {
+		t.Fatal(err)
+	}
+
+	requireUnknownPeerRejected(ctx, t, env.Client)
+	requireIMSPeerRemovalDisconnects(ctx, t, env.Client, imsHost)
 
 	if err := sendIMS(ctx, http.MethodPut, "/api/v1/policy", map[string]string{"interface": "rx"}); err != nil {
 		t.Fatalf("set Ella Core as the PCRF of Ella IMS: %v", err)
@@ -90,6 +101,10 @@ func TestIntegrationIMS(t *testing.T) {
 		})
 	}
 
+	t.Run("home_domain", func(t *testing.T) {
+		runIMSHomeDomainChecks(ctx, t, env.Client, imsHost)
+	})
+
 	printTesterSummary(t)
 }
 
@@ -102,7 +117,7 @@ func addIMSCorePeer(ctx context.Context, t *testing.T, cl *client.Client, applic
 	}
 
 	peer := map[string]any{
-		"host":         status.Host,
+		"host":         status.LocalOriginHost(),
 		"address":      N2Address(0),
 		"port":         coreDiameterPort,
 		"transport":    "sctp",
@@ -132,7 +147,7 @@ func waitForCxLink(ctx context.Context, cl *client.Client) error {
 		status, err := cl.GetDiameterStatus(ctx)
 		if err == nil {
 			for _, p := range status.Peers {
-				if p.Role == "ims" && p.State == "open" {
+				if p.Direction == "inbound" && p.State == "open" {
 					return nil
 				}
 			}

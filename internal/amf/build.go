@@ -127,6 +127,10 @@ func BuildServiceReject(cause fgs.GMMCause) ([]byte, error) {
 }
 
 func BuildRegistrationReject(t3502Value int, cause5GMM fgs.GMMCause) ([]byte, error) {
+	return BuildRegistrationRejectWithBackoff(t3502Value, cause5GMM, 0)
+}
+
+func BuildRegistrationRejectWithBackoff(t3502Value int, cause5GMM fgs.GMMCause, t3346 time.Duration) ([]byte, error) {
 	m := &fgs.RegistrationReject{Cause: cause5GMM}
 
 	if t3502Value != 0 {
@@ -136,6 +140,15 @@ func BuildRegistrationReject(t3502Value int, cause5GMM fgs.GMMCause) ([]byte, er
 		}
 
 		m.T3502 = &timer
+	}
+
+	if t3346 > 0 {
+		timer, err := nas.GPRSTimer2FromDuration(t3346)
+		if err != nil {
+			return nil, err
+		}
+
+		m.T3346 = &timer
 	}
 
 	return m.MarshalBinary()
@@ -282,14 +295,29 @@ func BuildRegistrationAccept(
 		m.TAIList = &taiListNas
 	}
 
+	visitor := ue.IsVisitor()
+
 	for _, s := range ue.AllowedNssai() {
 		snssai, err := util.SnssaiToNas(s)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert SNSSAI to NAS: %s", err)
 		}
 
+		if visitor {
+			snssai, err = withMappedHPLMN(snssai, HPLMNSnssai(s))
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert the mapped HPLMN SNSSAI to NAS: %s", err)
+			}
+		}
+
 		m.AllowedNSSAI = append(m.AllowedNSSAI, snssai)
 	}
+
+	if sor := amfInstance.SoRContainer(ue); sor != nil {
+		m.SORTransparentContainer = sor
+	}
+
+	amfInstance.reregistrationFulfilled(ue)
 
 	if nfs := amfInstance.NetworkFeatureSupport(); nfs.Enable {
 		m.NetworkFeatureSupport = &fgs.NetworkFeatureSupport{
@@ -382,4 +410,16 @@ func BuildConfigurationUpdateCommand(guti etsi.GUTI5G, spnFullName, spnShortName
 
 func BuildStatus5GMM(cause fgs.GMMCause) ([]byte, error) {
 	return (&fgs.GMMStatus{Cause: cause}).MarshalBinary()
+}
+
+func withMappedHPLMN(s fgs.SNSSAI, hplmn models.Snssai) (fgs.SNSSAI, error) {
+	mapped, err := util.SnssaiToNas(hplmn)
+	if err != nil {
+		return fgs.SNSSAI{}, err
+	}
+
+	s.MappedHPLMNSST = &mapped.SST
+	s.MappedHPLMNSD = mapped.SD
+
+	return s, nil
 }

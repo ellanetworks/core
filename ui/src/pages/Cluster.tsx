@@ -24,6 +24,7 @@ import {
 import EntityGrid from "@/components/grid/EntityGrid";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStatusQuery } from "@/hooks/useStatus";
+import { useDiameterStatus } from "@/hooks/useDiameterStatus";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { PRODUCT } from "@/utils/product";
 import EmptyState from "@/components/EmptyState";
@@ -57,6 +58,7 @@ import {
 type JoinedRow = ClusterMember & {
   id: string;
   autopilot?: AutopilotServer;
+  originHost?: string;
 };
 
 const CLUSTER_PAGE_DESCRIPTION =
@@ -135,6 +137,8 @@ const ClusterPage: React.FC = () => {
     refetchInterval: 5000,
   });
 
+  const diameterQuery = useDiameterStatus(clusterEnabled);
+
   const autopilotQuery = useQuery<AutopilotState>({
     queryKey: ["cluster-autopilot"],
     queryFn: () => getAutopilotState(accessToken || ""),
@@ -149,17 +153,24 @@ const ClusterPage: React.FC = () => {
     : undefined;
   const autopilot = autopilotError ? undefined : autopilotQuery.data;
 
+  const diameterNodes = diameterQuery.data?.nodes;
+
   const rows: JoinedRow[] = useMemo(() => {
     const apByNode = new Map<string, AutopilotServer>();
     for (const s of autopilot?.servers ?? []) {
       apByNode.set(nodeIdKey(s.nodeId), s);
     }
+    const hostByNode = new Map<string, string>();
+    for (const n of diameterNodes ?? []) {
+      hostByNode.set(nodeIdKey(n.nodeId), n.originHost);
+    }
     return members.map((m) => ({
       ...m,
       id: nodeIdKey(m.nodeId),
       autopilot: apByNode.get(nodeIdKey(m.nodeId)),
+      originHost: hostByNode.get(nodeIdKey(m.nodeId)),
     }));
-  }, [members, autopilot]);
+  }, [members, autopilot, diameterNodes]);
 
   const versionsDiffer = useMemo(() => {
     const versions = new Set(
@@ -300,6 +311,15 @@ const ClusterPage: React.FC = () => {
         minWidth: 190,
         renderCell: (p: GridRenderCellParams<JoinedRow>) => (
           <TruncatedText value={p.row.apiAddress} />
+        ),
+      },
+      {
+        field: "originHost",
+        headerName: "Origin-Host",
+        flex: 1.2,
+        minWidth: 220,
+        renderCell: (p: GridRenderCellParams<JoinedRow>) => (
+          <TruncatedText value={p.row.originHost ?? ""} />
         ),
       },
       {

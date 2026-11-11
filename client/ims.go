@@ -12,8 +12,8 @@ import (
 
 type IMSApplicationServer struct {
 	Name                    string   `json:"name"`
-	ServerName              string   `json:"server_name"`
-	PublicServiceIdentities []string `json:"public_service_identities"`
+	ServerName              string   `json:"serverName"`
+	PublicServiceIdentities []string `json:"publicServiceIdentities"`
 }
 
 type ListIMSApplicationServersResponse struct {
@@ -22,13 +22,13 @@ type ListIMSApplicationServersResponse struct {
 
 type CreateIMSApplicationServerOptions struct {
 	Name                    string   `json:"name"`
-	ServerName              string   `json:"server_name"`
-	PublicServiceIdentities []string `json:"public_service_identities"`
+	ServerName              string   `json:"serverName"`
+	PublicServiceIdentities []string `json:"publicServiceIdentities"`
 }
 
 type UpdateIMSApplicationServerOptions struct {
-	ServerName              string   `json:"server_name"`
-	PublicServiceIdentities []string `json:"public_service_identities"`
+	ServerName              string   `json:"serverName"`
+	PublicServiceIdentities []string `json:"publicServiceIdentities"`
 }
 
 type IMSHeaderMatch struct {
@@ -43,12 +43,12 @@ type IMSSessionDescription struct {
 
 type IMSCondition struct {
 	Negated            bool                   `json:"negated,omitempty"`
-	RequestURI         *string                `json:"request_uri,omitempty"`
+	RequestURI         *string                `json:"requestURI,omitempty"`
 	Method             *string                `json:"method,omitempty"`
-	RegistrationTypes  []string               `json:"registration_types,omitempty"`
-	SIPHeader          *IMSHeaderMatch        `json:"sip_header,omitempty"`
-	SessionCase        *string                `json:"session_case,omitempty"`
-	SessionDescription *IMSSessionDescription `json:"session_description,omitempty"`
+	RegistrationTypes  []string               `json:"registrationTypes,omitempty"`
+	SIPHeader          *IMSHeaderMatch        `json:"sipHeader,omitempty"`
+	SessionCase        *string                `json:"sessionCase,omitempty"`
+	SessionDescription *IMSSessionDescription `json:"sessionDescription,omitempty"`
 }
 
 type IMSConditionGroup struct {
@@ -56,24 +56,24 @@ type IMSConditionGroup struct {
 }
 
 type IMSTrigger struct {
-	ConditionsMatch string              `json:"conditions_match"`
+	ConditionsMatch string              `json:"conditionsMatch"`
 	Groups          []IMSConditionGroup `json:"groups"`
 }
 
 type IMSInitialFilterCriterion struct {
 	Priority                int         `json:"priority"`
-	ApplicationServerName   string      `json:"application_server_name"`
+	ApplicationServerName   string      `json:"applicationServerName"`
 	Trigger                 *IMSTrigger `json:"trigger,omitempty"`
-	ProfilePart             *string     `json:"profile_part,omitempty"`
-	DefaultHandling         *string     `json:"default_handling,omitempty"`
-	ServiceInfo             *string     `json:"service_info,omitempty"`
-	IncludeRegisterRequest  bool        `json:"include_register_request"`
-	IncludeRegisterResponse bool        `json:"include_register_response"`
+	ProfilePart             *string     `json:"profilePart,omitempty"`
+	DefaultHandling         *string     `json:"defaultHandling,omitempty"`
+	ServiceInfo             *string     `json:"serviceInfo,omitempty"`
+	IncludeRegisterRequest  bool        `json:"includeRegisterRequest"`
+	IncludeRegisterResponse bool        `json:"includeRegisterResponse"`
 }
 
 type IMSServiceProfile struct {
 	Name                  string                      `json:"name"`
-	InitialFilterCriteria []IMSInitialFilterCriterion `json:"initial_filter_criteria"`
+	InitialFilterCriteria []IMSInitialFilterCriterion `json:"initialFilterCriteria"`
 }
 
 type ListIMSServiceProfilesResponse struct {
@@ -82,11 +82,11 @@ type ListIMSServiceProfilesResponse struct {
 
 type CreateIMSServiceProfileOptions struct {
 	Name                  string                      `json:"name"`
-	InitialFilterCriteria []IMSInitialFilterCriterion `json:"initial_filter_criteria"`
+	InitialFilterCriteria []IMSInitialFilterCriterion `json:"initialFilterCriteria"`
 }
 
 type UpdateIMSServiceProfileOptions struct {
-	InitialFilterCriteria []IMSInitialFilterCriterion `json:"initial_filter_criteria"`
+	InitialFilterCriteria []IMSInitialFilterCriterion `json:"initialFilterCriteria"`
 }
 
 // ProfileIMSServiceProfiles names the IMS service profile of each implicit registration set of a profile's subscribers.
@@ -96,8 +96,8 @@ type ProfileIMSServiceProfiles struct {
 }
 
 const (
-	imsApplicationServersPath = "api/v1/operator/ims/application-servers"
-	imsServiceProfilesPath    = "api/v1/operator/ims/service-profiles"
+	imsApplicationServersPath = "api/v1/integrations/ims/application-servers"
+	imsServiceProfilesPath    = "api/v1/integrations/ims/service-profiles"
 )
 
 func (c *Client) imsRequest(ctx context.Context, method, path string, payload any, result any) error {

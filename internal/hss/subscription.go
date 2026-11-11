@@ -5,7 +5,6 @@ package hss
 
 import (
 	"context"
-	"strings"
 )
 
 type UserState string
@@ -45,12 +44,15 @@ func (h *HSS) Subscription(ctx context.Context, imsi string) (*IMSSubscription, 
 		return nil, nil
 	}
 
-	domain, err := h.store.IMSDomain(ctx)
+	impi := ""
+	if reg != nil {
+		impi = reg.PrivateIdentity
+	}
+
+	s, err := h.subjectOf(ctx, sub, impi)
 	if err != nil {
 		return nil, err
 	}
-
-	s := subject{Subscriber: *sub, domain: strings.ToLower(domain)}
 
 	out := &IMSSubscription{PrivateIdentity: s.privateIdentity()}
 

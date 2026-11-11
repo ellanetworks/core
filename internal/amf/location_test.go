@@ -203,7 +203,9 @@ func TestUpdateLocationConcurrentReadWrite(t *testing.T) {
 
 type operatorOnlyDB struct {
 	DBer
-	operator *db.Operator
+	operator  *db.Operator
+	visitor   bool
+	lookupErr error
 }
 
 func (d operatorOnlyDB) GetOperator(context.Context) (*db.Operator, error) {
@@ -211,6 +213,20 @@ func (d operatorOnlyDB) GetOperator(context.Context) (*db.Operator, error) {
 }
 
 func (d operatorOnlyDB) AMFPointer() int { return 1 }
+
+func (d operatorOnlyDB) GetSubscriberOrVisitor(_ context.Context, imsi string) (*db.Subscriber, error) {
+	if d.lookupErr != nil {
+		return nil, d.lookupErr
+	}
+
+	if !d.visitor {
+		return &db.Subscriber{Imsi: imsi}, nil
+	}
+
+	partner := "partner"
+
+	return &db.Subscriber{Imsi: imsi, RoamingPartnerID: &partner}, nil
+}
 
 func TestUpdateLocationN3IWF(t *testing.T) {
 	c := &UeConn{amf: &AMF{DBInstance: operatorOnlyDB{operator: &db.Operator{

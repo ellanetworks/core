@@ -65,7 +65,7 @@ func activateFromAccept(t *testing.T, m *mme.MME, ue *mme.UeContext) *eps.Activa
 
 type fakeIMSVoice bool
 
-func (f fakeIMSVoice) VoiceSupported(context.Context, string) (bool, error) {
+func (f fakeIMSVoice) AdvertiseIMSVoice(context.Context) (bool, error) {
 	return bool(f), nil
 }
 
@@ -77,8 +77,8 @@ func TestAttachAcceptIMSVoPS(t *testing.T) {
 		want  bool
 	}{
 		{"no IMS", nil, false},
-		{"IMS voice not supported for the subscriber", fakeIMSVoice(false), false},
-		{"IMS voice supported for the subscriber", fakeIMSVoice(true), true},
+		{"IMS voice not advertised", fakeIMSVoice(false), false},
+		{"IMS voice advertised", fakeIMSVoice(true), true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := newTestMME(t)

@@ -387,6 +387,18 @@ func (db *Database) applyCreateSubscriber(ctx context.Context, s *Subscriber) (a
 		return nil, err
 	}
 
+	if db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		if _, err := db.getVisitor(ctx, db.runner(ctx), s.Imsi); err == nil {
+			return nil, fmt.Errorf("%w: IMSI %s is a visitor", ErrAlreadyExists, s.Imsi)
+		} else if !errors.Is(err, ErrNotFound) {
+			return nil, err
+		}
+	}
+
+	if err := db.checkSubscriberCapacity(ctx); err != nil {
+		return nil, err
+	}
+
 	err := db.runner(ctx).Query(ctx, db.createSubscriberStmt, s).Run()
 	if err != nil {
 		if isUniqueNameError(err) {
@@ -460,11 +472,40 @@ func (db *Database) applyDeleteSubscriber(ctx context.Context, p *stringPayload)
 		return nil, ErrNotFound
 	}
 
+	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		return nil, nil
+	}
+
+	if err := db.deleteIMSIState(ctx, p.Value); err != nil {
+		return nil, err
+	}
+
 	return nil, nil
 }
 
+func (db *Database) requireKnownIMSI(ctx context.Context, imsi string) error {
+	known, err := db.imsiKnown(ctx, imsi)
+	if err != nil {
+		return err
+	}
+
+	if !known {
+		return fmt.Errorf("%w: IMSI %s is neither a subscriber nor a visitor", ErrNotFound, imsi)
+	}
+
+	return nil
+}
+
+func (db *Database) incrementDailyUsageStatement(ctx context.Context) *sqlair.Statement {
+	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		return db.incrementDailyUsagePreV27Stmt
+	}
+
+	return db.incrementDailyUsageStmt
+}
+
 func (db *Database) applyIncrementDailyUsage(ctx context.Context, du *DailyUsage) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.incrementDailyUsageStmt, du).Run()
+	err := db.runner(ctx).Query(ctx, db.incrementDailyUsageStatement(ctx), du).Run()
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -475,8 +516,10 @@ func (db *Database) applyIncrementDailyUsage(ctx context.Context, du *DailyUsage
 func (db *Database) applyIncrementDailyUsageBatch(ctx context.Context, batch *DailyUsageBatch) (any, error) {
 	var dropped droppedDailyUsage
 
+	stmt := db.incrementDailyUsageStatement(ctx)
+
 	for i := range batch.Rows {
-		err := db.runner(ctx).Query(ctx, db.incrementDailyUsageStmt, &batch.Rows[i]).Run()
+		err := db.runner(ctx).Query(ctx, stmt, &batch.Rows[i]).Run()
 		if err == nil {
 			continue
 		}
@@ -505,7 +548,12 @@ func (db *Database) applyClearDailyUsage(ctx context.Context) error {
 }
 
 func (db *Database) applyDeleteOldDailyUsage(ctx context.Context, p *int64Payload) error {
-	err := db.runner(ctx).Query(ctx, db.deleteOldDailyUsageStmt, cutoffDaysArgs{CutoffDays: p.Value}).Run()
+	stmt := db.deleteOldDailyUsageStmt
+	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		stmt = db.deleteOldDailyUsagePreV27Stmt
+	}
+
+	err := db.runner(ctx).Query(ctx, stmt, cutoffDaysArgs{CutoffDays: p.Value}).Run()
 	if err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
@@ -514,6 +562,10 @@ func (db *Database) applyDeleteOldDailyUsage(ctx context.Context, p *int64Payloa
 }
 
 func (db *Database) applyCreateLease(ctx context.Context, lease *IPLease) (any, error) {
+	if err := db.requireKnownIMSI(ctx, lease.IMSI); err != nil {
+		return nil, err
+	}
+
 	if lease.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
@@ -585,6 +637,14 @@ func (db *Database) applyUpdateLeaseNode(ctx context.Context, lease *IPLease) (a
 // family) check is race-free; a duplicate address is caught by
 // UNIQUE(poolID, addressBin).
 func (db *Database) applyCreateStaticLease(ctx context.Context, lease *IPLease) (any, error) {
+	if err := db.runner(ctx).Query(ctx, db.ownSubscriberStmt(ctx), Subscriber{Imsi: lease.IMSI}).Get(&Subscriber{}); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
 	existing := IPLease{PoolID: lease.PoolID, PoolType: lease.PoolType, IMSI: lease.IMSI}
 
 	err := db.runner(ctx).Query(ctx, db.getStaticLeaseStmt, existing).Get(&existing)
@@ -763,6 +823,10 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 		if err != nil {
 			return nil, fmt.Errorf("parse pool %q: %w", dn.IPv4Pool, err)
 		}
+	}
+
+	if err := db.requireKnownIMSI(ctx, p.IMSI); err != nil {
+		return nil, err
 	}
 
 	sessionID := p.SessionID
@@ -1062,6 +1126,10 @@ func (db *Database) applyDeleteProfile(ctx context.Context, p *stringPayload) (a
 
 	err := db.runner(ctx).Query(ctx, db.deleteProfileStmt, Profile{Name: p.Value}).Get(&outcome)
 	if err != nil {
+		if isForeignKeyRestrictError(err) {
+			return nil, ErrInUse
+		}
+
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -1569,6 +1637,11 @@ func (db *Database) applyUpdateOperatorTracking(ctx context.Context, op *Operato
 }
 
 func (db *Database) applyUpdateOperatorID(ctx context.Context, op *Operator) (any, error) {
+	seppIdentityDeleted, err := db.prepareHomePLMNChange(ctx, op)
+	if err != nil {
+		return nil, err
+	}
+
 	from, err := db.imsDomain(ctx)
 	if err != nil {
 		return nil, err
@@ -1584,7 +1657,11 @@ func (db *Database) applyUpdateOperatorID(ctx context.Context, op *Operator) (an
 		return nil, err
 	}
 
-	return nil, db.rehomeIMSApplicationServers(ctx, from, to)
+	if err := db.rehomeIMSApplicationServers(ctx, from, to); err != nil {
+		return nil, err
+	}
+
+	return seppIdentityDeleted, nil
 }
 
 func (db *Database) applyUpdateOperatorCode(ctx context.Context, op *Operator) (any, error) {
@@ -1821,6 +1898,19 @@ func (db *Database) applyUpsertClusterMember(ctx context.Context, m *ClusterMemb
 }
 
 func (db *Database) applyDeleteClusterMember(ctx context.Context, p *nodeIDPayload) (any, error) {
+	seppID := 0
+
+	if db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		var member ClusterMember
+
+		err := db.runner(ctx).Query(ctx, db.getClusterMemberStmt, ClusterMember{NodeID: string(p.Value)}).Get(&member)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("query failed: %w", err)
+		}
+
+		seppID = member.AMFPointer
+	}
+
 	var outcome sqlair.Outcome
 
 	err := db.runner(ctx).Query(ctx, db.deleteClusterMemberStmt, ClusterMember{NodeID: string(p.Value)}).Get(&outcome)
@@ -1839,6 +1929,18 @@ func (db *Database) applyDeleteClusterMember(ctx context.Context, p *nodeIDPaylo
 
 	if err := db.purgeUERegistrationsByNode(ctx, string(p.Value)); err != nil {
 		return nil, err
+	}
+
+	if db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		if err := db.deleteUnregisteredVisitors(ctx); err != nil {
+			return nil, err
+		}
+
+		if ValidSEPPID(seppID) {
+			if err := db.deleteGeneratedSEPPIdentity(ctx, seppID); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	return nil, nil

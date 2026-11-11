@@ -99,6 +99,7 @@ func TestScaleSubscribers(t *testing.T) {
 	n := scaleSubscriberCount(t)
 	ctx := context.Background()
 	database, dn, profile := setupScaleDB(t)
+	database.SetMaxSubscribers(n + 1)
 
 	timeIt(t, fmt.Sprintf("create %d subscribers", n), func() {
 		for i := range n {
@@ -201,33 +202,33 @@ func TestScaleSubscribers(t *testing.T) {
 	days := db.DayRange{First: today - 6, Last: today}
 
 	timeIt(t, "usage per subscriber, top 10", func() {
-		usage, err := database.GetUsagePerSubscriber(ctx, "", days, 10)
+		usage, err := database.GetUsagePerSubscriber(ctx, "", days, nil, 10)
 		if err != nil || len(usage) != min(10, n) {
 			t.Fatalf("GetUsagePerSubscriber = %d, %v", len(usage), err)
 		}
 	})
 
 	timeIt(t, "usage per subscriber, unbounded", func() {
-		usage, err := database.GetUsagePerSubscriber(ctx, "", days, db.NoUsageLimit)
+		usage, err := database.GetUsagePerSubscriber(ctx, "", days, nil, db.NoUsageLimit)
 		if err != nil || len(usage) != n {
 			t.Fatalf("GetUsagePerSubscriber = %d, %v", len(usage), err)
 		}
 	})
 
 	timeIt(t, "usage per subscriber, one IMSI", func() {
-		if _, err := database.GetUsagePerSubscriber(ctx, scaleIMSI(n/2), days, db.NoUsageLimit); err != nil {
+		if _, err := database.GetUsagePerSubscriber(ctx, scaleIMSI(n/2), days, nil, db.NoUsageLimit); err != nil {
 			t.Fatalf("GetUsagePerSubscriber: %s", err)
 		}
 	})
 
 	timeIt(t, "usage per day, all subscribers", func() {
-		if _, err := database.GetUsagePerDay(ctx, "", days); err != nil {
+		if _, err := database.GetUsagePerDay(ctx, "", days, nil); err != nil {
 			t.Fatalf("GetUsagePerDay: %s", err)
 		}
 	})
 
 	timeIt(t, "usage per day, one IMSI", func() {
-		if _, err := database.GetUsagePerDay(ctx, scaleIMSI(n/2), days); err != nil {
+		if _, err := database.GetUsagePerDay(ctx, scaleIMSI(n/2), days, nil); err != nil {
 			t.Fatalf("GetUsagePerDay: %s", err)
 		}
 	})

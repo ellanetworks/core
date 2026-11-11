@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
@@ -68,6 +69,7 @@ type Config struct {
 	Identity                    Identity
 	Handler                     Handler
 	AcceptUnknownPeers          bool
+	UnknownPeerFilter           func(host, realm string, remote netip.Addr) bool
 	UnknownPeerApplications     []Application
 	UnknownPeerSupportedVendors []uint32
 	ServedRealms                []string
@@ -84,6 +86,7 @@ type Config struct {
 	OnPeerStateChange           func(PeerStatus)
 	OnReroute                   func(Reroute)
 	SourceAddress               func(remote netip.Addr) (netip.Addr, error)
+	DialControl                 func(network, address string, c syscall.RawConn) error
 	Resolver                    Resolver
 	Logger                      *slog.Logger
 	TracerProvider              trace.TracerProvider
@@ -141,6 +144,8 @@ type Node struct {
 	sessionHigh uint32
 	sessionLow  atomic.Uint32
 	endToEnd    atomic.Uint32
+
+	servedRealms atomic.Pointer[[]string]
 }
 
 func New(cfg Config) (*Node, error) {
@@ -169,8 +174,18 @@ func New(cfg Config) (*Node, error) {
 	}
 
 	n.endToEnd.Store(uint32(time.Now().Unix()&0xfff)<<20 | randomUint32()&0xfffff)
+	n.servedRealms.Store(&cfg.ServedRealms)
 
 	return n, nil
+}
+
+func (n *Node) SetServedRealms(realms []string) {
+	realms = slices.Clone(realms)
+	n.servedRealms.Store(&realms)
+}
+
+func (n *Node) ServedRealms() []string {
+	return slices.Clone(*n.servedRealms.Load())
 }
 
 func validateConfig(cfg *Config) error {
@@ -814,7 +829,7 @@ func (n *Node) servesRealm(realm string) bool {
 		return true
 	}
 
-	for _, r := range n.cfg.ServedRealms {
+	for _, r := range *n.servedRealms.Load() {
 		if strings.EqualFold(realm, r) {
 			return true
 		}
@@ -917,6 +932,26 @@ func (n *Node) ShutdownWithCause(ctx context.Context, cause uint32) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+func (n *Node) DisconnectUnknownPeers(keep func(host, realm string, remote netip.Addr) bool, cause uint32) int {
+	n.mu.Lock()
+
+	var drop []*Conn
+
+	for c := range n.conns {
+		if c.peer != nil && c.peer.cfg == nil && !keep(c.peerHost, c.peerRealm, c.t.remoteAddr()) {
+			drop = append(drop, c)
+		}
+	}
+
+	n.mu.Unlock()
+
+	for _, c := range drop {
+		go c.disconnect(cause)
+	}
+
+	return len(drop)
 }
 
 func (n *Node) allConns() []*Conn {

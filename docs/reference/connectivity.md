@@ -13,7 +13,9 @@ Ella Core uses 4 different interfaces by default:
 | N3 / S1-U | User plane between Ella Core and the radio | UDP `2152` | Yes | Yes | IPv4, IPv6. |
 | N6 / SGi | User plane between Ella Core and the internet. Additional N6 interfaces can be set in `interfaces.network-instances`. | — | Yes | No | Not configurable |
 | SGd / S6c | SMS between Ella Core and the SMSCs, when SMS is enabled | SCTP, outbound to each SMSC node's port (`3868` by default) | No | No | IPv4, IPv6 |
-| Diameter | Diameter from SMSC nodes and the IMS, including its IP-SM-GW | SCTP and TCP, `interfaces.diameter.port` (`3868` by default). SMSC nodes over SCTP; IMS over SCTP or TCP. | Yes | Yes | IPv4, IPv6 |
+| Diameter | Diameter from SMSC nodes, the IMS, including its IP-SM-GW, and roaming Diameter peers | SCTP and TCP, `interfaces.diameter.port` (`3868` by default). SMSC nodes and roaming peers over SCTP; IMS over SCTP or TCP. | Yes | Yes | IPv4, IPv6 |
+| S6a | 4G roaming between Ella Core and the HSS or Diameter Edge Agent of roaming partners | SCTP, outbound to each roaming Diameter peer's port (`3868` by default) | No | No | IPv4, IPv6 |
+| N32 | 5G roaming between Ella Core and the SEPPs of roaming partners | TCP, `interfaces.n32.port` (`443` by default), inbound and outbound | Yes | Yes | IPv4, IPv6 |
 
 <figure markdown="span">
   ![Connectivity](../images/connectivity.svg){ width="800" }

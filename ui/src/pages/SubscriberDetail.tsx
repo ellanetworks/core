@@ -19,7 +19,7 @@ import {
   mergeRegistrations,
   type APISubscriber,
 } from "@/queries/subscribers";
-import { getOperator } from "@/queries/operator";
+import { getIMSSettings } from "@/queries/integrations";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import EditSubscriberProfileModal from "@/components/EditSubscriberProfileModal";
@@ -54,9 +54,9 @@ const SubscriberDetail: React.FC = () => {
     if (authReady && !accessToken) navigate("/login");
   }, [authReady, accessToken, navigate]);
 
-  const operatorQuery = useQuery({
-    queryKey: ["operator"],
-    queryFn: () => getOperator(accessToken!),
+  const imsSettingsQuery = useQuery({
+    queryKey: ["integrations-ims"],
+    queryFn: () => getIMSSettings(accessToken!),
     enabled: authReady && !!accessToken,
     retry: false,
   });
@@ -199,7 +199,7 @@ const SubscriberDetail: React.FC = () => {
                   status={mergeRegistrations(subscriber.registrations)}
                   ims={subscriber.ims}
                   ipSMGW={subscriber.ip_sm_gw}
-                  network={operatorQuery.data?.ims}
+                  network={imsSettingsQuery.data}
                   onDeregisterIMS={
                     canEdit ? () => setDeregisterIMSOpen(true) : undefined
                   }

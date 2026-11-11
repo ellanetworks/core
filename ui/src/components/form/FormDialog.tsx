@@ -31,7 +31,7 @@ interface FormDialogProps<T extends FieldValues> {
   onClose: () => void;
   onSuccess?: () => void;
   title: string;
-  description?: string;
+  description?: React.ReactNode;
   form: UseFormReturn<T>;
   onSubmit: (values: T) => Promise<void | false>;
   errorPrefix?: string;

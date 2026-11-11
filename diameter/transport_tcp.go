@@ -13,6 +13,7 @@ import (
 	"net/netip"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 )
 
@@ -81,11 +82,11 @@ func newTCPTransport(tc *net.TCPConn) *tcpTransport {
 	}
 }
 
-func dialTCP(ctx context.Context, local []netip.Addr, remote []netip.Addr, port uint16) (transport, error) {
+func dialTCP(ctx context.Context, local []netip.Addr, remote []netip.Addr, port uint16, control func(network, address string, c syscall.RawConn) error) (transport, error) {
 	var firstErr error
 
 	for i, addr := range remote {
-		d := net.Dialer{Deadline: attemptDeadline(ctx, len(remote)-i)}
+		d := net.Dialer{Deadline: attemptDeadline(ctx, len(remote)-i), Control: control}
 		if l, ok := sameFamily(local, addr); ok {
 			d.LocalAddr = net.TCPAddrFromAddrPort(netip.AddrPortFrom(l, 0))
 		}

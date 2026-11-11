@@ -10,11 +10,7 @@ import type {
 } from "@/queries/ims";
 
 export type ConditionType =
-  | "method"
-  | "request_uri"
-  | "sip_header"
-  | "session_case"
-  | "session_description";
+  "method" | "requestURI" | "sipHeader" | "sessionCase" | "sessionDescription";
 
 export type ConditionOperator = "is" | "is_not" | "present" | "absent";
 
@@ -22,25 +18,25 @@ export interface ConditionValues {
   type: ConditionType;
   operator: ConditionOperator;
   method: string;
-  registration_types: IMSRegistrationType[];
-  request_uri: string;
+  registrationTypes: IMSRegistrationType[];
+  requestURI: string;
   header: string;
   header_content: string;
-  session_case: IMSSessionCase;
+  sessionCase: IMSSessionCase;
   line: string;
   line_content: string;
 }
 
 export interface CriterionValues {
-  application_server_name: string;
-  default_handling: "SESSION_CONTINUED" | "SESSION_TERMINATED";
+  applicationServerName: string;
+  defaultHandling: "SESSION_CONTINUED" | "SESSION_TERMINATED";
   always: boolean;
-  conditions_match: IMSConditionsMatch;
+  conditionsMatch: IMSConditionsMatch;
   groups: { conditions: ConditionValues[] }[];
-  profile_part: "BOTH" | "REGISTERED" | "UNREGISTERED";
-  service_info: string;
-  include_register_request: boolean;
-  include_register_response: boolean;
+  profilePart: "BOTH" | "REGISTERED" | "UNREGISTERED";
+  serviceInfo: string;
+  includeRegisterRequest: boolean;
+  includeRegisterResponse: boolean;
 }
 
 export const allRegistrationTypes: IMSRegistrationType[] = [
@@ -66,11 +62,11 @@ export const emptyCondition = (): ConditionValues => ({
   type: "method",
   operator: "is",
   method: "",
-  registration_types: [...allRegistrationTypes],
-  request_uri: "",
+  registrationTypes: [...allRegistrationTypes],
+  requestURI: "",
   header: "",
   header_content: "",
-  session_case: "ORIGINATING_REGISTERED",
+  sessionCase: "ORIGINATING_REGISTERED",
   line: "",
   line_content: "",
 });
@@ -80,25 +76,25 @@ const conditionToValues = (c: IMSCondition): ConditionValues => {
   values.operator = c.negated ? "is_not" : "is";
   if (c.method !== undefined) {
     values.method = c.method;
-    if (c.registration_types?.length)
-      values.registration_types = [...c.registration_types];
-  } else if (c.request_uri !== undefined) {
-    values.type = "request_uri";
-    values.request_uri = c.request_uri;
-  } else if (c.sip_header !== undefined) {
-    values.type = "sip_header";
-    values.header = c.sip_header.header;
-    values.header_content = c.sip_header.content ?? "";
-    if (c.sip_header.content === undefined)
+    if (c.registrationTypes?.length)
+      values.registrationTypes = [...c.registrationTypes];
+  } else if (c.requestURI !== undefined) {
+    values.type = "requestURI";
+    values.requestURI = c.requestURI;
+  } else if (c.sipHeader !== undefined) {
+    values.type = "sipHeader";
+    values.header = c.sipHeader.header;
+    values.header_content = c.sipHeader.content ?? "";
+    if (c.sipHeader.content === undefined)
       values.operator = c.negated ? "absent" : "present";
-  } else if (c.session_case !== undefined) {
-    values.type = "session_case";
-    values.session_case = c.session_case;
-  } else if (c.session_description !== undefined) {
-    values.type = "session_description";
-    values.line = c.session_description.line;
-    values.line_content = c.session_description.content ?? "";
-    if (c.session_description.content === undefined)
+  } else if (c.sessionCase !== undefined) {
+    values.type = "sessionCase";
+    values.sessionCase = c.sessionCase;
+  } else if (c.sessionDescription !== undefined) {
+    values.type = "sessionDescription";
+    values.line = c.sessionDescription.line;
+    values.line_content = c.sessionDescription.content ?? "";
+    if (c.sessionDescription.content === undefined)
       values.operator = c.negated ? "absent" : "present";
   }
   return values;
@@ -108,19 +104,19 @@ export const criterionToValues = (
   ifc: IMSInitialFilterCriterionInput | undefined,
   defaultServer: string,
 ): CriterionValues => ({
-  application_server_name: ifc?.application_server_name ?? defaultServer,
-  default_handling: ifc?.default_handling ?? "SESSION_CONTINUED",
+  applicationServerName: ifc?.applicationServerName ?? defaultServer,
+  defaultHandling: ifc?.defaultHandling ?? "SESSION_CONTINUED",
   always: !!ifc && !ifc.trigger,
-  conditions_match: ifc?.trigger?.conditions_match ?? "all",
+  conditionsMatch: ifc?.trigger?.conditionsMatch ?? "all",
   groups: ifc?.trigger?.groups.length
     ? ifc.trigger.groups.map((g) => ({
         conditions: g.conditions.map(conditionToValues),
       }))
     : [{ conditions: [emptyCondition()] }],
-  profile_part: ifc?.profile_part ?? "BOTH",
-  service_info: ifc?.service_info ?? "",
-  include_register_request: ifc?.include_register_request ?? false,
-  include_register_response: ifc?.include_register_response ?? false,
+  profilePart: ifc?.profilePart ?? "BOTH",
+  serviceInfo: ifc?.serviceInfo ?? "",
+  includeRegisterRequest: ifc?.includeRegisterRequest ?? false,
+  includeRegisterResponse: ifc?.includeRegisterResponse ?? false,
 });
 
 export const isRegisterMethod = (c: ConditionValues) =>
@@ -135,25 +131,25 @@ const conditionFromValues = (v: ConditionValues): IMSCondition => {
       out.method = v.method.trim();
       if (
         isRegisterMethod(v) &&
-        v.registration_types.length < allRegistrationTypes.length
+        v.registrationTypes.length < allRegistrationTypes.length
       )
-        out.registration_types = allRegistrationTypes.filter((t) =>
-          v.registration_types.includes(t),
+        out.registrationTypes = allRegistrationTypes.filter((t) =>
+          v.registrationTypes.includes(t),
         );
       break;
-    case "request_uri":
-      out.request_uri = v.request_uri;
+    case "requestURI":
+      out.requestURI = v.requestURI;
       break;
-    case "sip_header":
-      out.sip_header = withContent
+    case "sipHeader":
+      out.sipHeader = withContent
         ? { header: v.header, content: v.header_content }
         : { header: v.header };
       break;
-    case "session_case":
-      out.session_case = v.session_case;
+    case "sessionCase":
+      out.sessionCase = v.sessionCase;
       break;
-    case "session_description":
-      out.session_description = withContent
+    case "sessionDescription":
+      out.sessionDescription = withContent
         ? { line: v.line, content: v.line_content }
         : { line: v.line };
       break;
@@ -164,22 +160,22 @@ const conditionFromValues = (v: ConditionValues): IMSCondition => {
 export const criterionFromValues = (
   v: CriterionValues,
 ): IMSInitialFilterCriterionInput => ({
-  application_server_name: v.application_server_name,
+  applicationServerName: v.applicationServerName,
   ...(v.always
     ? {}
     : {
         trigger: {
-          conditions_match: v.conditions_match,
+          conditionsMatch: v.conditionsMatch,
           groups: v.groups.map((g) => ({
             conditions: g.conditions.map(conditionFromValues),
           })),
         },
       }),
-  default_handling: v.default_handling,
-  ...(v.profile_part !== "BOTH" ? { profile_part: v.profile_part } : {}),
-  ...(v.service_info ? { service_info: v.service_info } : {}),
-  include_register_request: v.include_register_request,
-  include_register_response: v.include_register_response,
+  defaultHandling: v.defaultHandling,
+  ...(v.profilePart !== "BOTH" ? { profilePart: v.profilePart } : {}),
+  ...(v.serviceInfo ? { serviceInfo: v.serviceInfo } : {}),
+  includeRegisterRequest: v.includeRegisterRequest,
+  includeRegisterResponse: v.includeRegisterResponse,
 });
 
 const canonical = (value: unknown): unknown => {

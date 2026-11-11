@@ -474,7 +474,7 @@ func TestHandoverFromEPSAppliesThePolicyQoSTheUPFMissed(t *testing.T) {
 	s, upf := staleEPSUserPlane(t)
 	ctx := context.Background()
 
-	ref, _, _, err := s.PrepareSmContextFromEPS(ctx, testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai)
+	ref, _, _, err := s.PrepareSmContextFromEPS(ctx, testSUPI(), movedPDUSessionID, epsTestEBI, testDNN, testSnssai, nil)
 	if err != nil {
 		t.Fatalf("PrepareSmContextFromEPS: %v", err)
 	}

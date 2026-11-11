@@ -240,14 +240,24 @@ func rejectAttachESMWithBackoff(ctx context.Context, m *mme.MME, ue *mme.UeConte
 }
 
 func sendAttachReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, cause eps.EMMCause, esm []byte) {
-	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, attachTypeName(ue), logger.RegistrationRejected,
-		logger.Cause(cause.String()))
+	sendAttachRejection(ctx, m, ue, ueConn, &mme.Rejection{Cause: cause}, esm)
+}
+
+func sendAttachRejection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, r *mme.Rejection, esm []byte) {
+	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, attachTypeName(ue), m.IsRoamer(ctx, ue), logger.RegistrationRejected,
+		logger.Cause(r.Cause.String()))
 	ueConn.StopNASGuard(ctx)
 
-	reject := &eps.AttachReject{Cause: cause, ESMMessageContainer: esm}
+	reject := &eps.AttachReject{Cause: r.Cause, ESMMessageContainer: esm, ExtendedEMMCause: r.Extended}
 
 	if timer, err := nas.GPRSTimer2FromDuration(mme.T3402Backoff); err == nil {
 		reject.T3402 = &timer
+	}
+
+	if r.BackOff > 0 {
+		if timer, err := nas.GPRSTimer2FromDuration(r.BackOff); err == nil {
+			reject.T3346 = &timer
+		}
 	}
 
 	// A secured UE discards an unprotected downlink (TS 24.301 §4.4.4.2); the

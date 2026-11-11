@@ -69,17 +69,25 @@ func IsValidUERegistrationType(t string) bool {
 	return false
 }
 
-func (db *Database) RegisterUE(ctx context.Context, imsi, regType, nodeID, cancel string) (int64, error) {
+func validateRegisterUE(regType, nodeID, cancel string) error {
 	if !IsValidUERegistrationType(regType) {
-		return 0, fmt.Errorf("invalid UE registration type %q", regType)
+		return fmt.Errorf("invalid UE registration type %q", regType)
 	}
 
 	if cancel != "" && (!IsValidUERegistrationType(cancel) || cancel == regType) {
-		return 0, fmt.Errorf("invalid UE registration type to cancel %q", cancel)
+		return fmt.Errorf("invalid UE registration type to cancel %q", cancel)
 	}
 
 	if nodeID == "" {
-		return 0, fmt.Errorf("node ID is required")
+		return fmt.Errorf("node ID is required")
+	}
+
+	return nil
+}
+
+func (db *Database) RegisterUE(ctx context.Context, imsi, regType, nodeID, cancel string) (int64, error) {
+	if err := validateRegisterUE(regType, nodeID, cancel); err != nil {
+		return 0, err
 	}
 
 	ctx, span := startUERegistrationsSpan(ctx, "UPSERT")
@@ -218,9 +226,18 @@ func (db *Database) nextUERegistrationVersion(ctx context.Context) (int64, error
 }
 
 func (db *Database) applyRegisterUE(ctx context.Context, p *registerUEPayload) (any, error) {
+	known, err := db.imsiKnown(ctx, p.Imsi)
+	if err != nil {
+		return nil, err
+	}
+
+	if !known {
+		return nil, ErrNotFound
+	}
+
 	existing := UERegistration{Imsi: p.Imsi, Type: p.Type}
 
-	err := db.runner(ctx).Query(ctx, db.getUERegistrationStmt, existing).Get(&existing)
+	err = db.runner(ctx).Query(ctx, db.getUERegistrationStmt, existing).Get(&existing)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -274,7 +291,11 @@ func (db *Database) applyPurgeUERegistration(ctx context.Context, p *purgeUERegi
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	return nil, nil
+	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
+		return nil, nil
+	}
+
+	return nil, db.deleteVisitorIfUnregistered(ctx, p.Imsi)
 }
 
 func (db *Database) purgeUERegistrationsByNode(ctx context.Context, nodeID string) error {

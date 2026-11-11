@@ -81,14 +81,20 @@ type ProposeForwardErrorBody struct {
 }
 
 const (
-	ForwardCodeOutcomeUnknown = "outcome_unknown"
-	ForwardCodeNotFound       = "not_found"
-	ForwardCodeAlreadyExists  = "already_exists"
-	ForwardCodeMigrationPend  = "migration_pending"
-	ForwardCodeSMSCConflict   = "smsc_peer_conflict"
-	ForwardCodeTokenConsumed  = "join_token_consumed"      // #nosec G101 -- response code, not a credential
-	ForwardCodeTokenExpired   = "join_token_expired"       // #nosec G101 -- response code, not a credential
-	ForwardCodeTokenNodeMism  = "join_token_node_mismatch" // #nosec G101 -- response code, not a credential
+	ForwardCodeOutcomeUnknown  = "outcome_unknown"
+	ForwardCodeNotFound        = "not_found"
+	ForwardCodeAlreadyExists   = "already_exists"
+	ForwardCodeMigrationPend   = "migration_pending"
+	ForwardCodeSMSCConflict    = "smsc_peer_conflict"
+	ForwardCodeRoamingConflict = "roaming_conflict"
+	ForwardCodeRoamersAttached = "roamers_attached"
+	ForwardCodeRoamingRefused  = "roaming_refused"
+	ForwardCodeRoamerDereg     = "roamer_deregistering"
+	ForwardCodeInUse           = "in_use"
+	ForwardCodeSubscriberLimit = "subscriber_limit"
+	ForwardCodeTokenConsumed   = "join_token_consumed"      // #nosec G101 -- response code, not a credential
+	ForwardCodeTokenExpired    = "join_token_expired"       // #nosec G101 -- response code, not a credential
+	ForwardCodeTokenNodeMism   = "join_token_node_mismatch" // #nosec G101 -- response code, not a credential
 )
 
 type ForwardCodedError struct {

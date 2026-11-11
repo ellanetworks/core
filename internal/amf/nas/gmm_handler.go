@@ -59,7 +59,7 @@ func HandleGmmMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConte
 	case *fgs.SecurityModeReject:
 		return handleSecurityModeReject(ctx, ue, msg)
 	case *fgs.RegistrationComplete:
-		return handleRegistrationComplete(ctx, amfInstance, ue)
+		return handleRegistrationComplete(ctx, amfInstance, ue, msg)
 	case *fgs.DeregistrationAcceptUETerminated:
 		// The UE answers a network-initiated de-registration (TS 24.501 §8.2.15);
 		// §8.2.13 is the accept this AMF sends, and never one it receives.

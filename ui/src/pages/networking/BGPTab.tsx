@@ -47,6 +47,7 @@ import {
   type BGPLearnedRoute,
   type BGPImportPrefix,
 } from "@/queries/bgp";
+import { listRoamerPartners } from "@/queries/roamers";
 import { useSliceDataNetworks } from "@/hooks/useSliceDataNetworks";
 import CreateBGPPeerModal from "@/components/CreateBGPPeerModal";
 import EditBGPPeerModal from "@/components/EditBGPPeerModal";
@@ -277,6 +278,13 @@ export default function BGPTab() {
     retry: false,
   });
 
+  const { data: roamerPartners } = useQuery<Record<string, string>>({
+    queryKey: ["roamerPartners"],
+    queryFn: () => listRoamerPartners(accessToken || ""),
+    enabled: !!accessToken,
+    refetchInterval: 30000,
+  });
+
   const advertisedRows: (BGPAdvertisedRoute & { id: string })[] = useMemo(
     () =>
       (advertisedQuery.data?.routes ?? []).map((r, i) => ({
@@ -305,7 +313,7 @@ export default function BGPTab() {
             }}
           >
             <Link
-              to={`/subscribers/${imsi}`}
+              to={`/subscribers/${roamerPartners?.[imsi] === undefined ? "" : "roamers/"}${imsi}`}
               style={{ textDecoration: "none" }}
               onClick={(e: React.MouseEvent) => e.stopPropagation()}
             >

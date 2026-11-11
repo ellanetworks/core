@@ -103,6 +103,7 @@ type UpgradeConfig struct {
 	BGP                 *bgp.BGPService
 	LMF                 *lmf.LMF
 	Diameter            server.DiameterNode
+	SEPP                server.SEPPRuntime
 	EmbedFS             fs.FS
 	RegisterExtraRoutes func(*http.ServeMux)
 	ClusterListener     *listener.Listener
@@ -242,6 +243,7 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 		BGP:                opts.BGP,
 		LMF:                opts.LMF,
 		Diameter:           opts.Diameter,
+		SEPP:               opts.SEPP,
 		BcryptCost:         bcrypt.DefaultCost,
 		DatapathAttachMode: opts.DatapathAttachMode,
 		Context:            ctx,

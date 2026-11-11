@@ -19,6 +19,7 @@ Initial setup and configuration of Ella Core.
 - [Enable SMS](enable_sms.md)
 - [Enable Voice](enable_voice.md)
 - [Enable MCPTT](enable_mcptt.md)
+- [Configure Roaming](configure_roaming.md)
 
 ## Day 2 Operations
 

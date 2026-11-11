@@ -217,6 +217,10 @@ func (s *SMF) UpdateSmContextN2HandoverComplete(ctx context.Context, smContextRe
 	s.scheduleForwardingRelease(ctx, smContext)
 	smContext.Mutex.Unlock()
 
+	if err == nil {
+		s.registerHPLMNSubscription(ctx, smContext)
+	}
+
 	return s.finishBinding(ctx, smContext, dropped, err)
 }
 
@@ -343,8 +347,9 @@ func (s *SMF) UpdateSmContextN2HandoverCanceled(ctx context.Context, smContextRe
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	if smContext.pending != nil && smContext.pending.to == Access5G {
+	if move := smContext.pending; move != nil && move.to == Access5G {
 		smContext.clearPendingLocked()
+		smContext.unbindAbandonedMoveLocked(move)
 		s.clearTargetUplinkLocked(ctx, smContext)
 	}
 

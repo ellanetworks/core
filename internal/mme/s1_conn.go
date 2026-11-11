@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/interworking"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/serial"
 	"github.com/ellanetworks/core/internal/tracing"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas"
@@ -81,6 +82,7 @@ type UeConn struct {
 	releasing                 bool
 	releaseCommanded          atomic.Bool
 	ranUEAMBR                 atomic.Pointer[models.Ambr]
+	lane                      serial.Lane
 	rrcCause                  atomic.Pointer[s1ap.RRCEstablishmentCause]
 	indexedAt                 *s1ConnKey
 	trace                     tracing.ConnTrace

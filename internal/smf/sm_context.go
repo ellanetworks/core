@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/netip"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
@@ -57,6 +58,11 @@ type SMContext struct {
 	Snssai        *models.Snssai
 	Tunnel        *UPTunnel
 	PolicyData    *Policy
+
+	roamingHPLMN    models.PlmnID
+	hplmn           atomic.Pointer[hplmnBinding]
+	apnSubscription *models.APNSubscription
+	apnWithdrawn    bool
 
 	reconcileMu    sync.Mutex
 	subscribedQoS  SubscribedQoS

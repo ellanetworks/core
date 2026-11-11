@@ -581,6 +581,10 @@ func TestNetworkFQDN(t *testing.T) {
 		t.Fatal("NFFQDN")
 	}
 
+	if p.EPCNodeFQDN(FQDNLabelPGW+"2") != "pgw2.node.epc.mnc070.mcc999.3gppnetwork.org" {
+		t.Fatal("EPCNodeFQDN")
+	}
+
 	f, ok := ParseNetworkFQDN("AUSF1.Region.5GC.mnc070.mcc999.3gppnetwork.org.")
 	if !ok || f != (NetworkFQDN{Label: "ausf1.region", Mcc: "999", Mnc: "070"}) {
 		t.Fatalf("ParseNetworkFQDN = %+v, %v", f, ok)

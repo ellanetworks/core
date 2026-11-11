@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/url"
+	"strconv"
 )
 
 type GetUsageRetentionPolicy struct {
@@ -26,16 +27,19 @@ type DailySubscriberUsage struct {
 }
 
 type PerSubscriberUsage struct {
-	IMSI          string `json:"imsi"`
-	UplinkBytes   int64  `json:"uplink_bytes"`
-	DownlinkBytes int64  `json:"downlink_bytes"`
-	TotalBytes    int64  `json:"total_bytes"`
+	IMSI           string       `json:"imsi"`
+	HomePLMN       *RoamingPLMN `json:"home_plmn,omitempty"`
+	RoamingPartner string       `json:"roaming_partner,omitempty"`
+	UplinkBytes    int64        `json:"uplink_bytes"`
+	DownlinkBytes  int64        `json:"downlink_bytes"`
+	TotalBytes     int64        `json:"total_bytes"`
 }
 
 type ListUsageParams struct {
 	Start      string `json:"start"`
 	End        string `json:"end"`
 	Subscriber string `json:"subscriber"`
+	Roaming    *bool  `json:"roaming,omitempty"`
 }
 
 // ListUsagePerDay retrieves subscriber usage totalled per UTC day, oldest first.
@@ -61,6 +65,10 @@ func listUsage[T any](ctx context.Context, c *Client, p *ListUsageParams, groupB
 
 	if p.Subscriber != "" {
 		query.Set("subscriber", p.Subscriber)
+	}
+
+	if p.Roaming != nil {
+		query.Set("roaming", strconv.FormatBool(*p.Roaming))
 	}
 
 	resp, err := c.Requester.Do(ctx, &RequestOptions{

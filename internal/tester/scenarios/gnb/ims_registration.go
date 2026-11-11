@@ -98,8 +98,8 @@ func runIMSNotEntitled(ctx context.Context, env scenarios.Env) error {
 
 	defer closeIMSUE(g, session)
 
-	if registration.IMSVoPS {
-		return fmt.Errorf("the Registration Accept indicates IMS voice over PS sessions to a subscriber without the ims data network")
+	if !registration.IMSVoPS {
+		return fmt.Errorf("the Registration Accept does not indicate IMS voice over PS sessions, which Ella Core advertises to every home UE by default")
 	}
 
 	pcscf := scenarios.IMSServerAddress(!env.HasIPv4())

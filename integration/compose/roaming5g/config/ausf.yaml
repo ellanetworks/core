@@ -1,0 +1,17 @@
+logger:
+  level: info
+global:
+  max:
+    ue: 64
+ausf:
+  serving:
+    - plmn_id:
+        mcc: 001
+        mnc: 01
+  sbi:
+    server:
+      - address: ausf.5gc.mnc001.mcc001.3gppnetwork.org
+        port: 80
+    client:
+      nrf:
+        - uri: http://nrf.5gc.mnc001.mcc001.3gppnetwork.org

@@ -251,4 +251,50 @@ func TestSessionManagementCarriesIMSAndTheFullARP(t *testing.T) {
 	if !ok || internet.IMS || internet.Arp.PreemptCap != models.PreemptionCapabilityNotPreempt || internet.Arp.PreemptVuln != models.PreemptionVulnerabilityNotPreemptable {
 		t.Fatalf("internet configuration = %+v, %t; want not IMS and not pre-empting", internet, ok)
 	}
+
+	if c, ok := sm.ForDNN(snssai, "MCX"); !ok || c.DNN != "mcx" {
+		t.Fatalf("ForDNN(MCX) = %+v, %t; want the mcx configuration, DNNs compare case-insensitively (TS 23.003 §9.1)", c, ok)
+	}
+
+	if c, ok := sm.ForAPN("Mcx"); !ok || c.DNN != "mcx" {
+		t.Fatalf("ForAPN(Mcx) = %+v, %t; want the mcx configuration", c, ok)
+	}
+}
+
+type visitorLookupStore struct {
+	udm.SubscriptionStore
+	sub *db.Subscriber
+	err error
+}
+
+func (s visitorLookupStore) GetSubscriberOrVisitor(context.Context, string) (*db.Subscriber, error) {
+	return s.sub, s.err
+}
+
+func TestIsOwnSubscriber(t *testing.T) {
+	partner := "partner"
+	failure := errors.New("database unavailable")
+
+	for _, tc := range []struct {
+		name    string
+		store   visitorLookupStore
+		want    bool
+		wantErr error
+	}{
+		{name: "home subscriber", store: visitorLookupStore{sub: &db.Subscriber{Imsi: subscriptionIMSI}}, want: true},
+		{name: "visitor", store: visitorLookupStore{sub: &db.Subscriber{Imsi: subscriptionIMSI, RoamingPartnerID: &partner}}},
+		{name: "unknown", store: visitorLookupStore{err: db.ErrNotFound}},
+		{name: "lookup failure", store: visitorLookupStore{err: failure}, wantErr: failure},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := udm.NewSubscriptions(tc.store, nil).IsOwnSubscriber(context.Background(), subscriptionIMSI)
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("error = %v, want %v", err, tc.wantErr)
+			}
+
+			if got != tc.want {
+				t.Fatalf("IsOwnSubscriber = %v, want %v", got, tc.want)
+			}
+		})
+	}
 }

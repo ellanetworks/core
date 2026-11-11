@@ -19,6 +19,8 @@ configs:
         api:
           address: "2001:db8:1::10"
           port: 5002
+        diameter:
+          address: "2001:db8:1::10"
       datapath:
         attach-mode: "${ELLA_CORE_ATTACH_MODE:-xdp-generic}"
 

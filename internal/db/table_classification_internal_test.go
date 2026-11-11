@@ -23,6 +23,7 @@ var (
 		"home_network_keys",
 		"ims_application_servers",
 		"ims_initial_filter_criteria",
+		"ims_peers",
 		"ims_public_service_identities",
 		"ip_leases",
 		"jwt_secret",
@@ -34,11 +35,16 @@ var (
 		"ims_registration_sets",
 		"ims_service_profiles",
 		"ims_service_profile_assignments",
+		"ims_settings",
 		"ip_sm_gw_registrations",
 		"policies",
 		"profiles",
 		"retention_policies",
+		"roaming_partner_plmns",
+		"roaming_partners",
 		"schema_version",
+		"sepp_ca",
+		"sepp_identities",
 		"sessions",
 		"sms_message_waiting",
 		"sms_message_waiting_centres",
@@ -49,6 +55,7 @@ var (
 		"subscribers",
 		"ue_registrations",
 		"users",
+		"visitors",
 	}
 
 	pinnedLocalOnlyTables = []string{

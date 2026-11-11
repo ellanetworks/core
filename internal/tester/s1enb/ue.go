@@ -4,12 +4,14 @@
 package s1enb
 
 import (
+	"bytes"
 	"fmt"
 	"sync"
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/tester/smsue"
 	"github.com/ellanetworks/core/internal/udm"
+	"github.com/ellanetworks/core/internal/util/milenage"
 	"github.com/ellanetworks/core/internal/util/ueauth"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
@@ -44,6 +46,7 @@ type UE struct {
 	attachGUTI                *eps.EPSMobileIdentity // when set, the Attach Request presents this GUTI as the UE identity
 	n1Mode                    bool                   // gates the network's IWK N26 indication (TS 24.301 §5.5.1.2.4)
 	deferESMInfo              bool
+	detachGUTI                *eps.EPSMobileIdentity
 	attachType                eps.AttachType
 	requestType               eps.RequestType
 	pduSessionID              uint8 // sent in the PCO; 0 sends none
@@ -71,6 +74,9 @@ type UE struct {
 	nasMu                     sync.Mutex
 	mmeUEID                   atomic.Int64
 	enbUEID                   atomic.Int64
+	sqn                       []byte
+	resyncs                   int
+	resyncPending             bool
 }
 
 func (e *ENB) NewUE(imsi string, k, opc [16]byte) *UE {
@@ -117,6 +123,10 @@ func (ue *UE) protectUplink(plain []byte) ([]byte, error) {
 // (eps.PDNTypeIPv4 / IPv6 / IPv4v6).
 func (ue *UE) RequestPDNType(t uint8) { ue.pdnType = eps.PDNType(t) }
 
+func (ue *UE) TrackSequenceNumber(sqn [6]byte) { ue.sqn = append([]byte(nil), sqn[:]...) }
+
+func (ue *UE) Resynchronisations() int { return ue.resyncs }
+
 // RequestAPN sets the APN the UE requests in its Attach Request's PDN Connectivity
 // Request (TS 24.301 §6.5.1.2); empty selects the subscriber's default APN.
 func (ue *UE) RequestAPN(apn string) { ue.apn = apn }
@@ -126,6 +136,8 @@ func (ue *UE) DeferESMInformation() { ue.deferESMInfo = true }
 func (ue *UE) RequestPCSCFAddresses() { ue.requestPCSCF = true }
 
 func (ue *UE) RequestCombinedAttach() { ue.attachType = eps.AttachTypeCombined }
+
+func (ue *UE) DetachWithGUTI(guti *eps.EPSMobileIdentity) { ue.detachGUTI = guti }
 
 // UseUnknownGUTI makes the Attach Request present a GUTI the MME cannot resolve,
 // so the MME must obtain the IMSI with an IDENTITY REQUEST (TS 24.301 §5.4.4).
@@ -157,6 +169,43 @@ func (ue *UE) AnnounceN1Mode(pduSessionID uint8) {
 }
 
 func (ue *UE) buildAttachRequest() ([]byte, error) {
+	attach, err := ue.attachRequest()
+	if err != nil {
+		return nil, err
+	}
+
+	return attach.MarshalBinary()
+}
+
+func (ue *UE) buildProtectedGUTIAttachRequest(guti *eps.EPSMobileIdentity) ([]byte, error) {
+	if ue.sc == nil {
+		return nil, fmt.Errorf("s1enb: a GUTI re-attach needs the EPS security context of an earlier attach")
+	}
+
+	attach, err := ue.attachRequest()
+	if err != nil {
+		return nil, err
+	}
+
+	attach.EPSMobileIdentity = *guti
+	attach.NASKeySetIdentifier = nas.KeySetIdentifier{Value: ue.eksi}
+
+	plain, err := attach.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+
+	out, err := eps.Protect(plain, eps.SHTIntegrityProtected, nas.MakeCount(0, ue.ulCount), nas.DirectionUplink, ue.sc)
+	if err != nil {
+		return nil, fmt.Errorf("protect Attach Request: %w", err)
+	}
+
+	ue.ulCount++
+
+	return out, nil
+}
+
+func (ue *UE) attachRequest() (*eps.AttachRequest, error) {
 	pc := &eps.PDNConnectivityRequest{PTI: 1, RequestType: ue.requestType, PDNType: ue.pdnType}
 
 	if ue.deferESMInfo {
@@ -214,7 +263,7 @@ func (ue *UE) buildAttachRequest() ([]byte, error) {
 		attach.AdditionalUpdateType = &eps.AdditionalUpdateType{AUTV: true}
 	}
 
-	return attach.MarshalBinary()
+	return attach, nil
 }
 
 func (ue *UE) handleESMInformationRequest(wire []byte) ([]byte, error) {
@@ -259,6 +308,29 @@ func (ue *UE) handleAuthenticationRequest(plain []byte) ([]byte, error) {
 
 	if len(req.AUTN) < 6 {
 		return nil, fmt.Errorf("AUTN too short: %d", len(req.AUTN))
+	}
+
+	ue.resyncPending = false
+
+	if ue.sqn != nil {
+		sqnHN, _, _, _, _, err := milenage.GenerateKeysWithAUTN(ue.OPc[:], ue.K[:], req.RAND[:], req.AUTN[:])
+		if err != nil {
+			return nil, fmt.Errorf("verify AUTN: %w", err)
+		}
+
+		if bytes.Compare(sqnHN, ue.sqn) <= 0 {
+			auts, err := milenage.GenerateAUTS(ue.OPc[:], ue.K[:], req.RAND[:], ue.sqn)
+			if err != nil {
+				return nil, fmt.Errorf("generate AUTS: %w", err)
+			}
+
+			ue.resyncs++
+			ue.resyncPending = true
+
+			return (&eps.AuthenticationFailure{Cause: eps.EMMCauseSynchFailure, AUTS: auts}).MarshalBinary()
+		}
+
+		ue.sqn = sqnHN
 	}
 
 	res := make([]byte, 8)
@@ -482,6 +554,11 @@ func (ue *UE) buildDetachRequestWith(switchOff bool) ([]byte, error) {
 		TypeOfDetach:        eps.DetachTypeEPS,
 		NASKeySetIdentifier: nas.KeySetIdentifier{},
 		EPSMobileIdentity:   eps.IMSIIdentity(eps.IMSI(ue.IMSI)),
+	}
+
+	if ue.detachGUTI != nil {
+		req.EPSMobileIdentity = *ue.detachGUTI
+		req.NASKeySetIdentifier = nas.KeySetIdentifier{Value: ue.eksi}
 	}
 
 	plain, err := req.MarshalBinary()

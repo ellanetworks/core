@@ -82,7 +82,7 @@ func TestHandleRegistrationComplete_WrongState_Ignored(t *testing.T) {
 			ue := amf.NewUeContext()
 			tc.setup(ue)
 
-			handleRegistrationComplete(t.Context(), newTestAMF(), ue)
+			handleRegistrationComplete(t.Context(), newTestAMF(), ue, nil)
 
 			if ue.State() != tc.state {
 				t.Fatalf("expected out-of-context-setup Registration Complete to leave state %s unchanged, got %s", tc.state, ue.State())
@@ -96,7 +96,7 @@ func TestHandleRegistrationComplete_T3550StoppedAndCleared_RegistrationDataClear
 
 	amfInstance := newTestAMF()
 
-	handleRegistrationComplete(t.Context(), amfInstance, ue)
+	handleRegistrationComplete(t.Context(), amfInstance, ue, nil)
 
 	if len(ngapSender.SentUEContextReleaseCommand) != 0 {
 		t.Fatalf("should not have sent a UE Context Release Command message")
@@ -113,7 +113,7 @@ func TestHandleRegistrationComplete_SendsConfigurationUpdateCommand(t *testing.T
 
 	amfInstance := newTestAMF()
 
-	handleRegistrationComplete(t.Context(), amfInstance, ue)
+	handleRegistrationComplete(t.Context(), amfInstance, ue, nil)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("expected 1 DownlinkNASTransport (ConfigurationUpdateCommand), got %d", len(ngapSender.SentDownlinkNASTransport))
@@ -153,7 +153,7 @@ func TestHandleRegistrationComplete_ConfigurationUpdateCommandCarriesTime(t *tes
 
 	before := time.Now()
 
-	handleRegistrationComplete(t.Context(), newTestAMF(), ue)
+	handleRegistrationComplete(t.Context(), newTestAMF(), ue, nil)
 
 	after := time.Now()
 
@@ -200,7 +200,7 @@ func TestHandleRegistrationComplete_ReleasedWhenNoFORPending_NoUDSPending_and_No
 
 	amfInstance := newTestAMF()
 
-	handleRegistrationComplete(t.Context(), amfInstance, ue)
+	handleRegistrationComplete(t.Context(), amfInstance, ue, nil)
 
 	if len(ngapSender.SentUEContextReleaseCommand) != 1 {
 		t.Fatalf("should have sent a UE Context Release Command message")
@@ -220,7 +220,7 @@ func TestHandleRegistrationComplete_NotReleasedWhenFORPending(t *testing.T) {
 
 	amfInstance := newTestAMF()
 
-	handleRegistrationComplete(t.Context(), amfInstance, ue)
+	handleRegistrationComplete(t.Context(), amfInstance, ue, nil)
 
 	if len(ngapSender.SentUEContextReleaseCommand) != 0 {
 		t.Fatalf("should not have sent a UE Context Release Command message")
@@ -240,7 +240,7 @@ func TestHandleRegistrationComplete_NotReleasedWhenUDSPending(t *testing.T) {
 
 	amfInstance := newTestAMF()
 
-	handleRegistrationComplete(t.Context(), amfInstance, ue)
+	handleRegistrationComplete(t.Context(), amfInstance, ue, nil)
 
 	if len(ngapSender.SentUEContextReleaseCommand) != 0 {
 		t.Fatalf("should not have sent a UE Context Release Command message")
@@ -261,7 +261,7 @@ func TestHandleRegistrationComplete_NotReleasedWhenActiveSession(t *testing.T) {
 
 	amfInstance := newTestAMF()
 
-	handleRegistrationComplete(t.Context(), amfInstance, ue)
+	handleRegistrationComplete(t.Context(), amfInstance, ue, nil)
 
 	if len(ngapSender.SentUEContextReleaseCommand) != 0 {
 		t.Fatalf("should not have sent a UE Context Release Command message")
@@ -319,7 +319,7 @@ func TestRegistrationCompleteKeepsTheConnectionForAnSMSInProgress(t *testing.T) 
 	ue.Conn().RegistrationRequest = &fgs.RegistrationRequest{}
 	ue.SetSMSForTest(&fakeSMSHandler{pending: true})
 
-	handleRegistrationComplete(t.Context(), newTestAMF(), ue)
+	handleRegistrationComplete(t.Context(), newTestAMF(), ue, nil)
 
 	if n := len(ngapSender.SentUEContextReleaseCommand); n != 0 {
 		t.Fatalf("sent %d UE Context Release Commands while an SMS transaction was open, want the release deferred", n)

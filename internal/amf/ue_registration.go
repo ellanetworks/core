@@ -5,10 +5,15 @@ package amf
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/roaming"
+	"github.com/ellanetworks/core/internal/ueregistration"
+	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -16,9 +21,10 @@ var causeReleaseDueToCNDetectedMobility = ngap.Cause{Group: ngap.CauseGroupRadio
 
 type Registrar interface {
 	Register(ctx context.Context, imsi string) (int64, error)
+	RegisterVisitor(ctx context.Context, imsi, partnerID string) (int64, error)
 	Confirmed(ctx context.Context, imsi string, version int64) bool
 	Purge(imsi string)
-	Reconcile(ctx context.Context, imsi string, held func() int64, release func(context.Context), withdraw func(context.Context))
+	Reconcile(ctx context.Context, imsi string, visitor bool, held func() int64, release func(context.Context), withdraw func(context.Context, ueregistration.Withdrawal))
 }
 
 func (amf *AMF) RegisterUE(ctx context.Context, ue *UeContext) error {
@@ -27,12 +33,36 @@ func (amf *AMF) RegisterUE(ctx context.Context, ue *UeContext) error {
 		return nil
 	}
 
-	version, err := amf.Registrations.Register(ctx, supi.IMSI())
+	var (
+		version int64
+		err     error
+	)
+
+	if v, ok := ue.Visitor(); ok {
+		version, err = amf.Registrations.RegisterVisitor(ctx, supi.IMSI(), v.PartnerID)
+	} else {
+		version, err = amf.Registrations.Register(ctx, supi.IMSI())
+	}
+
+	if errors.Is(err, db.ErrRoamingRefused) {
+		return reject(fgs.GMMCausePLMNNotAllowed, "the roaming agreement is being withdrawn")
+	}
+
+	if errors.Is(err, db.ErrRoamerDeregistering) {
+		return reject(fgs.GMMCauseCongestion, "the operator is deregistering the visitor")
+	}
+
+	if errors.Is(err, db.ErrSubscriberLimit) {
+		return &Rejection{Cause: fgs.GMMCauseCongestion, BackOff: T3346CapacityBackoff, Reason: "maximum number of subscribers reached"}
+	}
+
 	if err != nil {
 		return err
 	}
 
 	ue.registrationVersion.Store(version)
+
+	amf.syncVisitorMSISDN(ctx, ue)
 
 	return nil
 }
@@ -82,14 +112,21 @@ func (amf *AMF) ReconcileRegistration(ctx context.Context, imsi string) {
 		return
 	}
 
-	amf.Registrations.Reconcile(ctx, imsi, ue.registrationVersion.Load, func(ctx context.Context) {
+	amf.Registrations.Reconcile(ctx, imsi, ue.IsVisitor(), ue.registrationVersion.Load, func(ctx context.Context) {
 		amf.releaseSuperseded(ctx, ue)
-	}, func(ctx context.Context) {
-		amf.withdrawSubscription(ctx, ue)
+	}, func(ctx context.Context, why ueregistration.Withdrawal) {
+		if why == ueregistration.SubscriberDeleted {
+			amf.withdrawSubscription(ctx, ue)
+			return
+		}
+
+		amf.withdrawRoamer(ctx, ue, why)
 	})
 }
 
 func (amf *AMF) ReconcileRegistrations(ctx context.Context) {
+	amf.renewHPLMNSubscriptions(ctx)
+
 	for _, ue := range amf.registeredUEs() {
 		if supi := ue.Supi(); supi.IsIMSI() {
 			amf.ReconcileRegistration(ctx, supi.IMSI())
@@ -115,6 +152,8 @@ func (amf *AMF) releaseSuperseded(ctx context.Context, ue *UeContext) {
 	if ueConn != nil && !ueConn.ReleaseWithAction(ctx, UeContextReleaseDueToNwInitiatedDeregistraion, causeReleaseDueToCNDetectedMobility) {
 		return
 	}
+
+	ue.updateVisitor(func(v *roaming.Visitor5G) { v.Registered = false })
 
 	logger.From(ctx, logger.AmfLog).Info("UE registered on another node; dropping its local 5GS registration and PDU sessions",
 		logger.SUPI(supi.String()))

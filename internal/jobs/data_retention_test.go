@@ -135,7 +135,7 @@ func countUsageDays(t *testing.T, database *db.Database, imsi string) int {
 	rows, err := database.GetUsagePerDay(context.Background(), imsi, db.DayRange{
 		First: db.DaysSinceEpoch(time.Now().UTC().AddDate(0, 0, -30)),
 		Last:  db.DaysSinceEpoch(time.Now().UTC().AddDate(0, 0, 1)),
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("get usage per day: %v", err)
 	}

@@ -41,5 +41,13 @@ func handleUplinkNASTransport(ctx context.Context, m *mme.MME, radio *mme.Radio,
 
 	// resolveUE guarantees the UE is connected on this association, so ueConn is
 	// the connection the message arrived on.
-	m.NAS.HandleNAS(ctx, ueConn, []byte(msg.NASPDU))
+	pdu := []byte(msg.NASPDU)
+
+	ueConn.Serialize(func() {
+		if ue.Conn() != ueConn {
+			return
+		}
+
+		m.NAS.HandleNAS(ctx, ueConn, pdu)
+	})
 }
