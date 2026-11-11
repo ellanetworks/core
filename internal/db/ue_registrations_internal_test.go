@@ -141,7 +141,7 @@ func TestNextUERegistrationVersion_UsesVersionIndex(t *testing.T) {
 
 	defer func() { _ = database.Close() }()
 
-	rows, err := database.conn().QueryContext(ctx, "EXPLAIN QUERY PLAN "+maxUERegistrationVersionStmt)
+	rows, err := database.conn().QueryContext(ctx, "EXPLAIN QUERY PLAN "+maxUERegistrationVersionSQL)
 	if err != nil {
 		t.Fatalf("explain: %s", err)
 	}

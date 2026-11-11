@@ -42,20 +42,20 @@ const (
 )
 
 const (
-	listNodeCertsStmt        = "SELECT nodeID, fingerprint, certPEM, addedAt FROM " + ClusterNodeCertsTableName + " ORDER BY nodeID ASC"
-	getNodeCertByFPStmt      = "SELECT nodeID, fingerprint, certPEM, addedAt FROM " + ClusterNodeCertsTableName + " WHERE fingerprint=?"
-	getNodeCertByNodeStmt    = "SELECT nodeID, fingerprint, certPEM, addedAt FROM " + ClusterNodeCertsTableName + " WHERE nodeID=?"
-	upsertNodeCertStmt       = "INSERT INTO " + ClusterNodeCertsTableName + " (nodeID, fingerprint, certPEM, addedAt) VALUES (?, ?, ?, ?) ON CONFLICT(nodeID) DO UPDATE SET fingerprint=excluded.fingerprint, certPEM=excluded.certPEM, addedAt=excluded.addedAt"
-	deleteNodeCertByNodeStmt = "DELETE FROM " + ClusterNodeCertsTableName + " WHERE nodeID=?"
+	listNodeCertsSQL        = "SELECT nodeID, fingerprint, certPEM, addedAt FROM " + ClusterNodeCertsTableName + " ORDER BY nodeID ASC"
+	getNodeCertByFPSQL      = "SELECT nodeID, fingerprint, certPEM, addedAt FROM " + ClusterNodeCertsTableName + " WHERE fingerprint=?"
+	getNodeCertByNodeSQL    = "SELECT nodeID, fingerprint, certPEM, addedAt FROM " + ClusterNodeCertsTableName + " WHERE nodeID=?"
+	upsertNodeCertSQL       = "INSERT INTO " + ClusterNodeCertsTableName + " (nodeID, fingerprint, certPEM, addedAt) VALUES (?, ?, ?, ?) ON CONFLICT(nodeID) DO UPDATE SET fingerprint=excluded.fingerprint, certPEM=excluded.certPEM, addedAt=excluded.addedAt"
+	deleteNodeCertByNodeSQL = "DELETE FROM " + ClusterNodeCertsTableName + " WHERE nodeID=?"
 
-	insertJoinTokenStmt       = "INSERT INTO " + ClusterJoinTokensTableName + " (id, claimsJSON, expiresAt, consumedAt, consumedBy) VALUES (?, ?, ?, 0, '')"           // #nosec G101 -- SQL statement
-	insertJoinTokenPreV20Stmt = "INSERT INTO " + ClusterJoinTokensTableName + " (id, nodeID, claimsJSON, expiresAt, consumedAt, consumedBy) VALUES (?, 0, ?, ?, 0, 0)" // #nosec G101 -- SQL statement
-	getJoinTokenStmt          = "SELECT id, claimsJSON, expiresAt, consumedAt, consumedBy FROM " + ClusterJoinTokensTableName + " WHERE id=?"
-	consumeJoinTokenStmt      = "UPDATE " + ClusterJoinTokensTableName + " SET consumedAt=?, consumedBy=? WHERE id=? AND consumedAt=0" // #nosec G101 -- SQL statement
-	deleteJoinTokensStaleStmt = "DELETE FROM " + ClusterJoinTokensTableName + " WHERE expiresAt<? OR (consumedAt>0 AND consumedAt<?)"  // #nosec G101 -- SQL statement
+	insertJoinTokenSQL       = "INSERT INTO " + ClusterJoinTokensTableName + " (id, claimsJSON, expiresAt, consumedAt, consumedBy) VALUES (?, ?, ?, 0, '')"           // #nosec G101 -- SQL statement
+	insertJoinTokenPreV20SQL = "INSERT INTO " + ClusterJoinTokensTableName + " (id, nodeID, claimsJSON, expiresAt, consumedAt, consumedBy) VALUES (?, 0, ?, ?, 0, 0)" // #nosec G101 -- SQL statement
+	getJoinTokenSQL          = "SELECT id, claimsJSON, expiresAt, consumedAt, consumedBy FROM " + ClusterJoinTokensTableName + " WHERE id=?"
+	consumeJoinTokenSQL      = "UPDATE " + ClusterJoinTokensTableName + " SET consumedAt=?, consumedBy=? WHERE id=? AND consumedAt=0" // #nosec G101 -- SQL statement
+	deleteJoinTokensStaleSQL = "DELETE FROM " + ClusterJoinTokensTableName + " WHERE expiresAt<? OR (consumedAt>0 AND consumedAt<?)"  // #nosec G101 -- SQL statement
 
-	getJoinHMACStmt  = "SELECT id, hmacKey FROM " + ClusterJoinHMACTableName + " WHERE id=1"
-	initJoinHMACStmt = "INSERT INTO " + ClusterJoinHMACTableName + " (id, hmacKey) VALUES (1, ?) ON CONFLICT(id) DO NOTHING"
+	getJoinHMACSQL  = "SELECT id, hmacKey FROM " + ClusterJoinHMACTableName + " WHERE id=1"
+	initJoinHMACSQL = "INSERT INTO " + ClusterJoinHMACTableName + " (id, hmacKey) VALUES (1, ?) ON CONFLICT(id) DO NOTHING"
 )
 
 // ClusterNodeCert pins one cluster member's self-signed leaf by
@@ -91,7 +91,7 @@ type ClusterJoinHMAC struct {
 // ---------------------------------------------------------------------------
 
 func (db *Database) applyUpsertNodeCert(ctx context.Context, r *ClusterNodeCert) (any, error) {
-	if _, err := db.runner(ctx).ExecContext(ctx, upsertNodeCertStmt, r.NodeID, r.Fingerprint, r.CertPEM, r.AddedAt); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, upsertNodeCertSQL, r.NodeID, r.Fingerprint, r.CertPEM, r.AddedAt); err != nil {
 		return nil, err
 	}
 
@@ -103,7 +103,7 @@ func (db *Database) applyUpsertNodeCert(ctx context.Context, r *ClusterNodeCert)
 }
 
 func (db *Database) applyDeleteNodeCert(ctx context.Context, r *ClusterNodeCert) (any, error) {
-	if _, err := db.runner(ctx).ExecContext(ctx, deleteNodeCertByNodeStmt, r.NodeID); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteNodeCertByNodeSQL, r.NodeID); err != nil {
 		return nil, err
 	}
 
@@ -114,9 +114,9 @@ func (db *Database) applyDeleteNodeCert(ctx context.Context, r *ClusterNodeCert)
 }
 
 func (db *Database) applyInsertJoinToken(ctx context.Context, r *ClusterJoinToken) (any, error) {
-	query := insertJoinTokenStmt
+	query := insertJoinTokenSQL
 	if !db.appliedSchemaAtLeast(ctx, clusterMemberIdentitySchema) {
-		query = insertJoinTokenPreV20Stmt
+		query = insertJoinTokenPreV20SQL
 	}
 
 	_, err := db.runner(ctx).ExecContext(ctx, query, r.ID, r.ClaimsJSON, r.ExpiresAt)
@@ -125,7 +125,7 @@ func (db *Database) applyInsertJoinToken(ctx context.Context, r *ClusterJoinToke
 }
 
 func (db *Database) applyConsumeJoinToken(ctx context.Context, r *ClusterJoinToken) (any, error) {
-	res, err := db.runner(ctx).ExecContext(ctx, consumeJoinTokenStmt, r.ConsumedAt, r.ConsumedBy, r.ID)
+	res, err := db.runner(ctx).ExecContext(ctx, consumeJoinTokenSQL, r.ConsumedAt, r.ConsumedBy, r.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +161,7 @@ func (db *Database) applyRedeemJoinToken(ctx context.Context, p *redeemJoinToken
 	runner := db.runner(ctx)
 	now := time.Now().Unix()
 
-	token, err := scanClusterJoinToken(runner.QueryRowContext(ctx, getJoinTokenStmt, p.TokenID))
+	token, err := scanClusterJoinToken(runner.QueryRowContext(ctx, getJoinTokenSQL, p.TokenID))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -179,7 +179,7 @@ func (db *Database) applyRedeemJoinToken(ctx context.Context, p *redeemJoinToken
 			return nil, ErrJoinTokenAlreadyConsumed
 		}
 
-		existing, err := scanClusterNodeCert(runner.QueryRowContext(ctx, getNodeCertByNodeStmt, string(p.NodeID)))
+		existing, err := scanClusterNodeCert(runner.QueryRowContext(ctx, getNodeCertByNodeSQL, string(p.NodeID)))
 		if err != nil {
 			return nil, ErrJoinTokenAlreadyConsumed
 		}
@@ -191,14 +191,14 @@ func (db *Database) applyRedeemJoinToken(ctx context.Context, p *redeemJoinToken
 		return db.pinSnapshot(ctx, runner)
 	}
 
-	if bound, err := scanClusterNodeCert(runner.QueryRowContext(ctx, getNodeCertByNodeStmt, string(p.NodeID))); err == nil && bound.Fingerprint != p.Fingerprint {
+	if bound, err := scanClusterNodeCert(runner.QueryRowContext(ctx, getNodeCertByNodeSQL, string(p.NodeID))); err == nil && bound.Fingerprint != p.Fingerprint {
 		return nil, ErrNodeIdentityBound
 	}
 
 	token.ConsumedAt = now
 	token.ConsumedBy = string(p.NodeID)
 
-	res, err := runner.ExecContext(ctx, consumeJoinTokenStmt, token.ConsumedAt, token.ConsumedBy, token.ID)
+	res, err := runner.ExecContext(ctx, consumeJoinTokenSQL, token.ConsumedAt, token.ConsumedBy, token.ID)
 	if err != nil {
 		return nil, fmt.Errorf("consume join token: %w", err)
 	}
@@ -218,7 +218,7 @@ func (db *Database) applyRedeemJoinToken(ctx context.Context, p *redeemJoinToken
 		CertPEM:     p.CertPEM,
 		AddedAt:     now,
 	}
-	if _, err := runner.ExecContext(ctx, upsertNodeCertStmt, cert.NodeID, cert.Fingerprint, cert.CertPEM, cert.AddedAt); err != nil {
+	if _, err := runner.ExecContext(ctx, upsertNodeCertSQL, cert.NodeID, cert.Fingerprint, cert.CertPEM, cert.AddedAt); err != nil {
 		return nil, fmt.Errorf("upsert node cert: %w", err)
 	}
 
@@ -230,7 +230,7 @@ func (db *Database) applyRedeemJoinToken(ctx context.Context, p *redeemJoinToken
 }
 
 func (db *Database) pinSnapshot(ctx context.Context, runner querier) (any, error) {
-	pins, err := queryAll(ctx, runner, listNodeCertsStmt, scanClusterNodeCert)
+	pins, err := queryAll(ctx, runner, listNodeCertsSQL, scanClusterNodeCert)
 	if err != nil {
 		return nil, fmt.Errorf("list pins: %w", err)
 	}
@@ -239,13 +239,13 @@ func (db *Database) pinSnapshot(ctx context.Context, runner querier) (any, error
 }
 
 func (db *Database) applyDeleteJoinTokensStale(ctx context.Context, cutoff *ClusterJoinToken) (any, error) {
-	_, err := db.runner(ctx).ExecContext(ctx, deleteJoinTokensStaleStmt, cutoff.ExpiresAt, cutoff.ConsumedAt)
+	_, err := db.runner(ctx).ExecContext(ctx, deleteJoinTokensStaleSQL, cutoff.ExpiresAt, cutoff.ConsumedAt)
 
 	return nil, err
 }
 
 func (db *Database) applyInitJoinHMAC(ctx context.Context, r *ClusterJoinHMAC) (any, error) {
-	_, err := db.runner(ctx).ExecContext(ctx, initJoinHMACStmt, r.HMACKey)
+	_, err := db.runner(ctx).ExecContext(ctx, initJoinHMACSQL, r.HMACKey)
 
 	return nil, err
 }
@@ -273,7 +273,7 @@ func (db *Database) ListClusterNodeCerts(ctx context.Context) ([]ClusterNodeCert
 	)
 	defer span.End()
 
-	rows, err := queryAll(ctx, db.reader(), listNodeCertsStmt, scanClusterNodeCert)
+	rows, err := queryAll(ctx, db.reader(), listNodeCertsSQL, scanClusterNodeCert)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -302,7 +302,7 @@ func (db *Database) GetClusterNodeCertByFingerprint(ctx context.Context, fingerp
 	)
 	defer span.End()
 
-	row, err := scanClusterNodeCert(db.reader().QueryRowContext(ctx, getNodeCertByFPStmt, fingerprint))
+	row, err := scanClusterNodeCert(db.reader().QueryRowContext(ctx, getNodeCertByFPSQL, fingerprint))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -419,7 +419,7 @@ func (db *Database) GetJoinToken(ctx context.Context, id string) (*ClusterJoinTo
 	)
 	defer span.End()
 
-	row, err := scanClusterJoinToken(db.reader().QueryRowContext(ctx, getJoinTokenStmt, id))
+	row, err := scanClusterJoinToken(db.reader().QueryRowContext(ctx, getJoinTokenSQL, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -545,7 +545,7 @@ func (db *Database) GetClusterJoinHMACKey(ctx context.Context) ([]byte, error) {
 	)
 	defer span.End()
 
-	row, err := scanClusterJoinHMAC(db.reader().QueryRowContext(ctx, getJoinHMACStmt))
+	row, err := scanClusterJoinHMAC(db.reader().QueryRowContext(ctx, getJoinHMACSQL))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound

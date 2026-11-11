@@ -14,11 +14,11 @@ import (
 const FramedRoutesTableName = "subscriber_framed_routes"
 
 const (
-	createFramedRouteStmt        = "INSERT INTO " + FramedRoutesTableName + " (id, imsi, dataNetworkID, prefix) VALUES (?, ?, ?, ?)"
-	deleteFramedRoutesByPairStmt = "DELETE FROM " + FramedRoutesTableName + " WHERE imsi==? AND dataNetworkID==?"
-	listFramedRoutesByPairStmt   = "SELECT id, imsi, dataNetworkID, prefix FROM " + FramedRoutesTableName + " WHERE imsi==? AND dataNetworkID==? ORDER BY prefix"
-	listFramedRoutesByDNStmt     = "SELECT id, imsi, dataNetworkID, prefix FROM " + FramedRoutesTableName + " WHERE dataNetworkID==? ORDER BY imsi, prefix"
-	listAllFramedRoutesStmt      = "SELECT id, imsi, dataNetworkID, prefix FROM " + FramedRoutesTableName + " ORDER BY prefix"
+	createFramedRouteSQL        = "INSERT INTO " + FramedRoutesTableName + " (id, imsi, dataNetworkID, prefix) VALUES (?, ?, ?, ?)"
+	deleteFramedRoutesByPairSQL = "DELETE FROM " + FramedRoutesTableName + " WHERE imsi==? AND dataNetworkID==?"
+	listFramedRoutesByPairSQL   = "SELECT id, imsi, dataNetworkID, prefix FROM " + FramedRoutesTableName + " WHERE imsi==? AND dataNetworkID==? ORDER BY prefix"
+	listFramedRoutesByDNSQL     = "SELECT id, imsi, dataNetworkID, prefix FROM " + FramedRoutesTableName + " WHERE dataNetworkID==? ORDER BY imsi, prefix"
+	listAllFramedRoutesSQL      = "SELECT id, imsi, dataNetworkID, prefix FROM " + FramedRoutesTableName + " ORDER BY prefix"
 )
 
 type SubscriberFramedRoute struct {
@@ -67,7 +67,7 @@ func (db *Database) DeleteFramedRoutes(ctx context.Context, imsi, dataNetworkID 
 
 func (db *Database) applyReplaceFramedRoutes(ctx context.Context, payload *framedRoutesPayload) (any, error) {
 	del := SubscriberFramedRoute{Imsi: payload.Imsi, DataNetworkID: payload.DataNetworkID}
-	if _, err := db.runner(ctx).ExecContext(ctx, deleteFramedRoutesByPairStmt, del.Imsi, del.DataNetworkID); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteFramedRoutesByPairSQL, del.Imsi, del.DataNetworkID); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -84,7 +84,7 @@ func (db *Database) applyReplaceFramedRoutes(ctx context.Context, payload *frame
 			Prefix:        prefix,
 		}
 
-		if _, err := db.runner(ctx).ExecContext(ctx, createFramedRouteStmt, fr.ID, fr.Imsi, fr.DataNetworkID, fr.Prefix); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, createFramedRouteSQL, fr.ID, fr.Imsi, fr.DataNetworkID, fr.Prefix); err != nil {
 			if isUniqueNameError(err) {
 				return nil, ErrAlreadyExists
 			}
@@ -101,7 +101,7 @@ func (db *Database) ListFramedRoutesBySubscriberDataNetwork(ctx context.Context,
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	routes, err := queryAll(ctx, db.reader(), listFramedRoutesByPairStmt, scanSubscriberFramedRoute, imsi, dataNetworkID)
+	routes, err := queryAll(ctx, db.reader(), listFramedRoutesByPairSQL, scanSubscriberFramedRoute, imsi, dataNetworkID)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -120,7 +120,7 @@ func (db *Database) ListFramedRoutesByDataNetwork(ctx context.Context, dataNetwo
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	routes, err := queryAll(ctx, db.reader(), listFramedRoutesByDNStmt, scanSubscriberFramedRoute, dataNetworkID)
+	routes, err := queryAll(ctx, db.reader(), listFramedRoutesByDNSQL, scanSubscriberFramedRoute, dataNetworkID)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -139,7 +139,7 @@ func (db *Database) ListAllFramedRoutes(ctx context.Context) ([]SubscriberFramed
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	routes, err := queryAll(ctx, db.reader(), listAllFramedRoutesStmt, scanSubscriberFramedRoute)
+	routes, err := queryAll(ctx, db.reader(), listAllFramedRoutesSQL, scanSubscriberFramedRoute)
 	if err != nil {
 		recordSpanError(span, err)
 

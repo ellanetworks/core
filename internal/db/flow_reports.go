@@ -21,13 +21,13 @@ import (
 const FlowReportsTableName = "flow_reports"
 
 const (
-	insertFlowReportStmt            = "INSERT INTO " + FlowReportsTableName + " (subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-	insertFlowReportOfKnownIMSIStmt = "INSERT INTO " + FlowReportsTableName + " (subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM " + SubscribersTableName + " WHERE imsi = ?) OR EXISTS (SELECT 1 FROM " + VisitorsTableName + " WHERE imsi = ?)"
-	deleteOldFlowReportsStmt        = "DELETE FROM " + FlowReportsTableName + " WHERE end_time < ?"
-	deleteAllFlowReportsStmt        = "DELETE FROM " + FlowReportsTableName
+	insertFlowReportSQL            = "INSERT INTO " + FlowReportsTableName + " (subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	insertFlowReportOfKnownIMSISQL = "INSERT INTO " + FlowReportsTableName + " (subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM " + SubscribersTableName + " WHERE imsi = ?) OR EXISTS (SELECT 1 FROM " + VisitorsTableName + " WHERE imsi = ?)"
+	deleteOldFlowReportsSQL        = "DELETE FROM " + FlowReportsTableName + " WHERE end_time < ?"
+	deleteAllFlowReportsSQL        = "DELETE FROM " + FlowReportsTableName
 )
 
-const listFlowReportsPagedFilteredStmt = `
+const listFlowReportsPagedFilteredSQL = `
   SELECT id, subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action, COUNT(*) OVER()
   FROM ` + FlowReportsTableName + `
   WHERE
@@ -46,7 +46,7 @@ const listFlowReportsPagedFilteredStmt = `
   OFFSET ?12
 `
 
-const countFlowReportsFilteredStmt = `
+const countFlowReportsFilteredSQL = `
   SELECT COUNT(*)
   FROM ` + FlowReportsTableName + `
   WHERE
@@ -62,7 +62,7 @@ const countFlowReportsFilteredStmt = `
     AND (?10 IS NULL OR action = ?10)
 `
 
-const listFlowReportsFilteredByDayStmt = `
+const listFlowReportsFilteredByDaySQL = `
 SELECT id, subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action
 FROM ` + FlowReportsTableName + `
 WHERE
@@ -79,7 +79,7 @@ WHERE
 ORDER BY end_time ASC
 `
 
-const listFlowReportsFilteredBySubscriberStmt = `
+const listFlowReportsFilteredBySubscriberSQL = `
 SELECT id, subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action
 FROM ` + FlowReportsTableName + `
 WHERE
@@ -96,7 +96,7 @@ WHERE
 ORDER BY subscriber_id ASC, end_time ASC
 `
 
-const flowReportProtocolCountsStmt = `
+const flowReportProtocolCountsSQL = `
 SELECT protocol, COUNT(*)
 FROM ` + FlowReportsTableName + `
 WHERE
@@ -114,7 +114,7 @@ GROUP BY protocol
 ORDER BY COUNT(*) DESC
 `
 
-const flowReportTopDestinationsUplinkStmt = `
+const flowReportTopDestinationsUplinkSQL = `
 SELECT destination_ip, COUNT(*)
 FROM ` + FlowReportsTableName + `
 WHERE
@@ -223,7 +223,7 @@ func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwrit
 			continue
 		}
 
-		if _, err := tx.ExecContext(ctx, insertFlowReportStmt, fr.SubscriberID, fr.SourceIP, fr.DestinationIP, fr.SourcePort, fr.DestinationPort, fr.Protocol, fr.Packets, fr.Bytes, fr.StartTime, fr.EndTime, fr.Direction, fr.Action); err != nil {
+		if _, err := tx.ExecContext(ctx, insertFlowReportSQL, fr.SubscriberID, fr.SourceIP, fr.DestinationIP, fr.SourcePort, fr.DestinationPort, fr.Protocol, fr.Packets, fr.Bytes, fr.StartTime, fr.EndTime, fr.Direction, fr.Action); err != nil {
 			if isForeignKeyError(err) {
 				orphaned++
 				continue
@@ -263,7 +263,7 @@ func (db *Database) ListFlowReports(ctx context.Context, page int, perPage int, 
 		filters = &FlowReportFilters{}
 	}
 
-	reports, count, err := queryPage(ctx, db.reader(), listFlowReportsPagedFilteredStmt, scanFlowReport, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action, perPage, (page-1)*perPage)
+	reports, count, err := queryPageWithTotal(ctx, db.reader(), listFlowReportsPagedFilteredSQL, scanFlowReport, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action, perPage, (page-1)*perPage)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -271,9 +271,11 @@ func (db *Database) ListFlowReports(ctx context.Context, page int, perPage int, 
 	}
 
 	if len(reports) == 0 {
-		fallbackCount, countErr := queryCount(ctx, db.reader(), countFlowReportsFilteredStmt, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action)
-		if countErr != nil {
-			return nil, 0, nil
+		fallbackCount, err := queryCount(ctx, db.reader(), countFlowReportsFilteredSQL, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action)
+		if err != nil {
+			recordSpanError(span, err)
+
+			return nil, 0, fmt.Errorf("count failed: %w", err)
 		}
 
 		return nil, fallbackCount, nil
@@ -290,7 +292,7 @@ func (db *Database) DeleteOldFlowReports(ctx context.Context, days int) error {
 
 	cutoff := dbwriter.EpochMillis(time.Now().UTC().AddDate(0, 0, -days))
 
-	_, err := db.writer().ExecContext(ctx, deleteOldFlowReportsStmt, cutoff)
+	_, err := db.writer().ExecContext(ctx, deleteOldFlowReportsSQL, cutoff)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -305,7 +307,7 @@ func (db *Database) ClearFlowReports(ctx context.Context) error {
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	_, err := db.writer().ExecContext(ctx, deleteAllFlowReportsStmt)
+	_, err := db.writer().ExecContext(ctx, deleteAllFlowReportsSQL)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -324,7 +326,7 @@ func (db *Database) ListFlowReportsByDay(ctx context.Context, filters *FlowRepor
 		filters = &FlowReportFilters{}
 	}
 
-	results, err := queryAll(ctx, db.reader(), listFlowReportsFilteredByDayStmt, scanFlowReport, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action)
+	results, err := queryAll(ctx, db.reader(), listFlowReportsFilteredByDaySQL, scanFlowReport, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -343,7 +345,7 @@ func (db *Database) ListFlowReportsBySubscriber(ctx context.Context, filters *Fl
 		filters = &FlowReportFilters{}
 	}
 
-	results, err := queryAll(ctx, db.reader(), listFlowReportsFilteredBySubscriberStmt, scanFlowReport, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action)
+	results, err := queryAll(ctx, db.reader(), listFlowReportsFilteredBySubscriberSQL, scanFlowReport, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -363,14 +365,14 @@ func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportF
 		filters = &FlowReportFilters{}
 	}
 
-	protocols, err := queryAll(ctx, db.reader(), flowReportProtocolCountsStmt, scanFlowReportProtocolCount, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action)
+	protocols, err := queryAll(ctx, db.reader(), flowReportProtocolCountsSQL, scanFlowReportProtocolCount, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return nil, nil, fmt.Errorf("protocol counts query failed: %w", err)
 	}
 
-	destinationsUplink, err := queryAll(ctx, db.reader(), flowReportTopDestinationsUplinkStmt, scanFlowReportIPCount, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action)
+	destinationsUplink, err := queryAll(ctx, db.reader(), flowReportTopDestinationsUplinkSQL, scanFlowReportIPCount, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -381,7 +383,7 @@ func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportF
 }
 
 func insertFlowReportOfKnownIMSI(ctx context.Context, tx *sql.Tx, fr *dbwriter.FlowReport) (bool, error) {
-	res, err := tx.ExecContext(ctx, insertFlowReportOfKnownIMSIStmt, fr.SubscriberID, fr.SourceIP, fr.DestinationIP, fr.SourcePort, fr.DestinationPort, fr.Protocol, fr.Packets, fr.Bytes, fr.StartTime, fr.EndTime, fr.Direction, fr.Action, fr.SubscriberID, fr.SubscriberID)
+	res, err := tx.ExecContext(ctx, insertFlowReportOfKnownIMSISQL, fr.SubscriberID, fr.SourceIP, fr.DestinationIP, fr.SourcePort, fr.DestinationPort, fr.Protocol, fr.Packets, fr.Bytes, fr.StartTime, fr.EndTime, fr.Direction, fr.Action, fr.SubscriberID, fr.SubscriberID)
 	if err != nil {
 		return false, err
 	}

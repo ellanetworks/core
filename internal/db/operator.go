@@ -19,15 +19,15 @@ import (
 const OperatorTableName = "operator"
 
 const (
-	getOperatorStmt                      = "SELECT id, mcc, mnc, operatorCode, supportedTACs, ciphering, integrity, spnFullName, spnShortName, amfRegionID, amfSetID, clusterID FROM " + OperatorTableName + " WHERE id=1"
-	updateOperatorCodeStmt               = "UPDATE " + OperatorTableName + " SET operatorCode=? WHERE id=1"
-	updateOperatorIDStmt                 = "UPDATE " + OperatorTableName + " SET mcc=?, mnc=? WHERE id=1"
-	updateOperatorTrackingStmt           = "UPDATE " + OperatorTableName + " SET supportedTACs=? WHERE id=1"
-	updateOperatorSecurityAlgorithmsStmt = "UPDATE " + OperatorTableName + " SET ciphering=?, integrity=? WHERE id=1"
-	updateOperatorSPNStmt                = "UPDATE " + OperatorTableName + " SET spnFullName=?, spnShortName=? WHERE id=1"
-	updateOperatorAMFIdentityStmt        = "UPDATE " + OperatorTableName + " SET amfRegionID=?, amfSetID=? WHERE id=1"
-	updateOperatorClusterIDStmt          = "UPDATE " + OperatorTableName + " SET clusterID=? WHERE id=1"
-	initializeOperatorStmt               = "INSERT INTO " + OperatorTableName + " (mcc, mnc, operatorCode, supportedTACs, ciphering, integrity, clusterID) VALUES (?, ?, ?, ?, ?, ?, ?)"
+	getOperatorSQL                      = "SELECT id, mcc, mnc, operatorCode, COALESCE(supportedTACs, '[]'), ciphering, integrity, spnFullName, spnShortName, amfRegionID, amfSetID, clusterID FROM " + OperatorTableName + " WHERE id=1"
+	updateOperatorCodeSQL               = "UPDATE " + OperatorTableName + " SET operatorCode=? WHERE id=1"
+	updateOperatorIDSQL                 = "UPDATE " + OperatorTableName + " SET mcc=?, mnc=? WHERE id=1"
+	updateOperatorTrackingSQL           = "UPDATE " + OperatorTableName + " SET supportedTACs=? WHERE id=1"
+	updateOperatorSecurityAlgorithmsSQL = "UPDATE " + OperatorTableName + " SET ciphering=?, integrity=? WHERE id=1"
+	updateOperatorSPNSQL                = "UPDATE " + OperatorTableName + " SET spnFullName=?, spnShortName=? WHERE id=1"
+	updateOperatorAMFIdentitySQL        = "UPDATE " + OperatorTableName + " SET amfRegionID=?, amfSetID=? WHERE id=1"
+	updateOperatorClusterIDSQL          = "UPDATE " + OperatorTableName + " SET clusterID=? WHERE id=1"
+	initializeOperatorSQL               = "INSERT INTO " + OperatorTableName + " (mcc, mnc, operatorCode, supportedTACs, ciphering, integrity, clusterID) VALUES (?, ?, ?, ?, ?, ?, ?)"
 )
 
 type Operator struct {
@@ -152,7 +152,7 @@ func (operator *Operator) SetSupportedTacs(supportedTACs []string) error {
 func getOperator(ctx context.Context, q querier) (Operator, error) {
 	var op Operator
 
-	err := q.QueryRowContext(ctx, getOperatorStmt).Scan(&op.ID, &op.Mcc, &op.Mnc, &op.OperatorCode, &op.SupportedTACs, &op.Ciphering, &op.Integrity, &op.SpnFullName, &op.SpnShortName, &op.AmfRegionID, &op.AmfSetID, &op.ClusterID)
+	err := q.QueryRowContext(ctx, getOperatorSQL).Scan(&op.ID, &op.Mcc, &op.Mnc, &op.OperatorCode, &op.SupportedTACs, &op.Ciphering, &op.Integrity, &op.SpnFullName, &op.SpnShortName, &op.AmfRegionID, &op.AmfSetID, &op.ClusterID)
 
 	return op, err
 }

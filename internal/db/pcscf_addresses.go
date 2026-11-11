@@ -29,9 +29,9 @@ const MaxPCSCFAddresses = 2 * MaxPCSCFAddressesPerFamily
 var limitedBroadcast = netip.AddrFrom4([4]byte{255, 255, 255, 255})
 
 const (
-	listPCSCFAddressesStmt   = "SELECT priority, address FROM " + PCSCFAddressesTableName + " ORDER BY priority ASC"
-	insertPCSCFAddressStmt   = "INSERT INTO " + PCSCFAddressesTableName + " (priority, address) VALUES (?, ?)"
-	deletePCSCFAddressesStmt = "DELETE FROM " + PCSCFAddressesTableName
+	listPCSCFAddressesSQL   = "SELECT priority, address FROM " + PCSCFAddressesTableName + " ORDER BY priority ASC"
+	insertPCSCFAddressSQL   = "INSERT INTO " + PCSCFAddressesTableName + " (priority, address) VALUES (?, ?)"
+	deletePCSCFAddressesSQL = "DELETE FROM " + PCSCFAddressesTableName
 )
 
 type pcscfAddressRow struct {
@@ -106,7 +106,7 @@ func (db *Database) ListPCSCFAddresses(ctx context.Context) ([]string, error) {
 		return []string{}, nil
 	}
 
-	rows, err := queryAll(ctx, db.reader(), listPCSCFAddressesStmt, scanPCSCFAddressRow)
+	rows, err := queryAll(ctx, db.reader(), listPCSCFAddressesSQL, scanPCSCFAddressRow)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -122,12 +122,12 @@ func (db *Database) ListPCSCFAddresses(ctx context.Context) ([]string, error) {
 }
 
 func (db *Database) applyReplacePCSCFAddresses(ctx context.Context, payload *pcscfAddressesPayload) (any, error) {
-	if _, err := db.runner(ctx).ExecContext(ctx, deletePCSCFAddressesStmt); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deletePCSCFAddressesSQL); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	for i, addr := range payload.Addresses {
-		if _, err := db.runner(ctx).ExecContext(ctx, insertPCSCFAddressStmt, i, addr); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, insertPCSCFAddressSQL, i, addr); err != nil {
 			return nil, fmt.Errorf("query failed: %w", err)
 		}
 	}

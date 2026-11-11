@@ -18,15 +18,15 @@ import (
 const ProfilesTableName = "profiles"
 
 const (
-	profileColumns                = "id, name, ueAmbrUplink, ueAmbrDownlink, allow4G, allow5G"
-	listProfilesPagedStmt         = "SELECT " + profileColumns + ", COUNT(*) OVER() FROM " + ProfilesTableName + " LIMIT ? OFFSET ?"
-	getProfileStmt                = "SELECT " + profileColumns + " FROM " + ProfilesTableName + " WHERE name==?"
-	getProfileByIDStmt            = "SELECT " + profileColumns + " FROM " + ProfilesTableName + " WHERE id==?"
-	createProfileStmt             = "INSERT INTO " + ProfilesTableName + " (id, name, ueAmbrUplink, ueAmbrDownlink, allow4G, allow5G) VALUES (?, ?, ?, ?, ?, ?)"
-	editProfileStmt               = "UPDATE " + ProfilesTableName + " SET ueAmbrUplink=?, ueAmbrDownlink=?, allow4G=?, allow5G=? WHERE name==?"
-	deleteProfileStmt             = "DELETE FROM " + ProfilesTableName + " WHERE name==?"
-	countProfilesStmt             = "SELECT COUNT(*) FROM " + ProfilesTableName
-	countSubscribersInProfileStmt = "SELECT COUNT(*) FROM " + SubscribersTableName + " WHERE profileID=?"
+	profileColumns               = "id, name, ueAmbrUplink, ueAmbrDownlink, allow4G, allow5G"
+	listProfilesPagedSQL         = "SELECT " + profileColumns + ", COUNT(*) OVER() FROM " + ProfilesTableName + " LIMIT ? OFFSET ?"
+	getProfileSQL                = "SELECT " + profileColumns + " FROM " + ProfilesTableName + " WHERE name==?"
+	getProfileByIDSQL            = "SELECT " + profileColumns + " FROM " + ProfilesTableName + " WHERE id==?"
+	createProfileSQL             = "INSERT INTO " + ProfilesTableName + " (id, name, ueAmbrUplink, ueAmbrDownlink, allow4G, allow5G) VALUES (?, ?, ?, ?, ?, ?)"
+	editProfileSQL               = "UPDATE " + ProfilesTableName + " SET ueAmbrUplink=?, ueAmbrDownlink=?, allow4G=?, allow5G=? WHERE name==?"
+	deleteProfileSQL             = "DELETE FROM " + ProfilesTableName + " WHERE name==?"
+	countProfilesSQL             = "SELECT COUNT(*) FROM " + ProfilesTableName
+	countSubscribersInProfileSQL = "SELECT COUNT(*) FROM " + SubscribersTableName + " WHERE profileID=?"
 )
 
 type Profile struct {
@@ -53,7 +53,7 @@ func (db *Database) ListProfilesPage(ctx context.Context, page, perPage int) ([]
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	profiles, count, err := queryPage(ctx, db.reader(), listProfilesPagedStmt, scanProfile, perPage, (page-1)*perPage)
+	profiles, count, err := queryPageWithTotal(ctx, db.reader(), listProfilesPagedSQL, scanProfile, perPage, (page-1)*perPage)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -61,9 +61,11 @@ func (db *Database) ListProfilesPage(ctx context.Context, page, perPage int) ([]
 	}
 
 	if len(profiles) == 0 {
-		fallbackCount, countErr := db.CountProfiles(ctx)
-		if countErr != nil {
-			return nil, 0, nil
+		fallbackCount, err := db.CountProfiles(ctx)
+		if err != nil {
+			recordSpanError(span, err)
+
+			return nil, 0, fmt.Errorf("count failed: %w", err)
 		}
 
 		return nil, fallbackCount, nil
@@ -77,7 +79,7 @@ func (db *Database) GetProfile(ctx context.Context, name string) (*Profile, erro
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	row, err := scanProfile(db.reader().QueryRowContext(ctx, getProfileStmt, name))
+	row, err := scanProfile(db.reader().QueryRowContext(ctx, getProfileSQL, name))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -96,7 +98,7 @@ func (db *Database) GetProfileByID(ctx context.Context, id string) (*Profile, er
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	row, err := scanProfile(db.reader().QueryRowContext(ctx, getProfileByIDStmt, id))
+	row, err := scanProfile(db.reader().QueryRowContext(ctx, getProfileByIDSQL, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -171,7 +173,7 @@ func (db *Database) CountProfiles(ctx context.Context) (int, error) {
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	count, err := queryCount(ctx, db.reader(), countProfilesStmt)
+	count, err := queryCount(ctx, db.reader(), countProfilesSQL)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -186,7 +188,7 @@ func (db *Database) CountSubscribersInProfile(ctx context.Context, profileID str
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	count, err := queryCount(ctx, db.reader(), countSubscribersInProfileStmt, profileID)
+	count, err := queryCount(ctx, db.reader(), countSubscribersInProfileSQL, profileID)
 	if err != nil {
 		recordSpanError(span, err)
 

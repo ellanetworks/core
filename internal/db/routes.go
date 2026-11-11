@@ -17,12 +17,12 @@ import (
 const RoutesTableName = "routes"
 
 const (
-	listRoutesPageStmt = "SELECT id, destination, gateway, interface, metric, COUNT(*) OVER() FROM " + RoutesTableName + " ORDER BY id DESC LIMIT ? OFFSET ?"
-	listAllRoutesStmt  = "SELECT id, destination, gateway, interface, metric FROM " + RoutesTableName + " ORDER BY id ASC"
-	getRouteStmt       = "SELECT id, destination, gateway, interface, metric FROM " + RoutesTableName + " WHERE id==?"
-	createRouteStmt    = "INSERT INTO " + RoutesTableName + " (destination, gateway, interface, metric) VALUES (?, ?, ?, ?)"
-	deleteRouteStmt    = "DELETE FROM " + RoutesTableName + " WHERE id==?"
-	countRoutesStmt    = "SELECT COUNT(*) FROM " + RoutesTableName
+	listRoutesPageSQL = "SELECT id, destination, gateway, interface, metric, COUNT(*) OVER() FROM " + RoutesTableName + " ORDER BY id DESC LIMIT ? OFFSET ?"
+	listAllRoutesSQL  = "SELECT id, destination, gateway, interface, metric FROM " + RoutesTableName + " ORDER BY id ASC"
+	getRouteSQL       = "SELECT id, destination, gateway, interface, metric FROM " + RoutesTableName + " WHERE id==?"
+	createRouteSQL    = "INSERT INTO " + RoutesTableName + " (destination, gateway, interface, metric) VALUES (?, ?, ?, ?)"
+	deleteRouteSQL    = "DELETE FROM " + RoutesTableName + " WHERE id==?"
+	countRoutesSQL    = "SELECT COUNT(*) FROM " + RoutesTableName
 )
 
 // NetworkInterface is an enum for network interface keys.
@@ -58,7 +58,7 @@ func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) (
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	routes, count, err := queryPage(ctx, db.reader(), listRoutesPageStmt, scanRoute, perPage, (page-1)*perPage)
+	routes, count, err := queryPageWithTotal(ctx, db.reader(), listRoutesPageSQL, scanRoute, perPage, (page-1)*perPage)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -66,9 +66,11 @@ func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) (
 	}
 
 	if len(routes) == 0 {
-		fallbackCount, countErr := db.CountRoutes(ctx)
-		if countErr != nil {
-			return nil, 0, nil
+		fallbackCount, err := db.CountRoutes(ctx)
+		if err != nil {
+			recordSpanError(span, err)
+
+			return nil, 0, fmt.Errorf("count failed: %w", err)
 		}
 
 		return nil, fallbackCount, nil
@@ -84,7 +86,7 @@ func (db *Database) ListAllRoutes(ctx context.Context) ([]Route, error) {
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	routes, err := queryAll(ctx, db.reader(), listAllRoutesStmt, scanRoute)
+	routes, err := queryAll(ctx, db.reader(), listAllRoutesSQL, scanRoute)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -99,7 +101,7 @@ func (db *Database) GetRoute(ctx context.Context, id int64) (*Route, error) {
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	row, err := scanRoute(db.reader().QueryRowContext(ctx, getRouteStmt, id))
+	row, err := scanRoute(db.reader().QueryRowContext(ctx, getRouteSQL, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -111,43 +113,6 @@ func (db *Database) GetRoute(ctx context.Context, id int64) (*Route, error) {
 	}
 
 	return &row, nil
-}
-
-func (t *Transaction) CreateRoute(ctx context.Context, route *Route) (int64, error) {
-	ctx, span, timer := startDBQuery(ctx, RoutesTableName, "INSERT", "insert")
-	defer span.End()
-	defer timer.ObserveDuration()
-
-	res, err := t.tx.ExecContext(ctx, createRouteStmt, route.Destination, route.Gateway, route.Interface, route.Metric)
-	if err != nil {
-		recordSpanError(span, err)
-
-		return 0, fmt.Errorf("query failed: %w", err)
-	}
-
-	id, err := res.LastInsertId()
-	if err != nil {
-		recordSpanError(span, err)
-
-		return 0, fmt.Errorf("retrieving insert ID failed: %w", err)
-	}
-
-	return id, nil
-}
-
-func (t *Transaction) DeleteRoute(ctx context.Context, id int64) error {
-	ctx, span, timer := startDBQuery(ctx, RoutesTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
-
-	_, err := t.tx.ExecContext(ctx, deleteRouteStmt, id)
-	if err != nil {
-		recordSpanError(span, err)
-
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	return nil
 }
 
 func (db *Database) CreateRoute(ctx context.Context, route *Route) (int64, error) {
@@ -188,7 +153,7 @@ func (db *Database) CountRoutes(ctx context.Context) (int, error) {
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	count, err := queryCount(ctx, db.reader(), countRoutesStmt)
+	count, err := queryCount(ctx, db.reader(), countRoutesSQL)
 	if err != nil {
 		recordSpanError(span, err)
 

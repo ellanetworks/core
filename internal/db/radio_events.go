@@ -18,13 +18,13 @@ import (
 const RadioEventsTableName = "network_logs"
 
 const (
-	insertRadioEventStmt     = "INSERT INTO " + RadioEventsTableName + " (timestamp, protocol, message_type, direction, local_address, remote_address, radio_name, raw, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-	getRadioEventByIDStmt    = "SELECT id, timestamp, protocol, message_type, direction, local_address, remote_address, radio_name, raw, details FROM " + RadioEventsTableName + " WHERE id = ?"
-	deleteOldRadioEventsStmt = "DELETE FROM " + RadioEventsTableName + " WHERE timestamp < ?"
-	deleteAllRadioEventsStmt = "DELETE FROM " + RadioEventsTableName
+	insertRadioEventSQL     = "INSERT INTO " + RadioEventsTableName + " (timestamp, protocol, message_type, direction, local_address, remote_address, radio_name, raw, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	getRadioEventByIDSQL    = "SELECT id, timestamp, protocol, message_type, direction, local_address, remote_address, radio_name, raw, details FROM " + RadioEventsTableName + " WHERE id = ?"
+	deleteOldRadioEventsSQL = "DELETE FROM " + RadioEventsTableName + " WHERE timestamp < ?"
+	deleteAllRadioEventsSQL = "DELETE FROM " + RadioEventsTableName
 )
 
-const listRadioEventsPagedFilteredStmt = `
+const listRadioEventsPagedFilteredSQL = `
   SELECT id, timestamp, protocol, message_type, direction, local_address, remote_address, radio_name, raw, details, COUNT(*) OVER()
   FROM ` + RadioEventsTableName + `
   WHERE
@@ -39,7 +39,7 @@ const listRadioEventsPagedFilteredStmt = `
   OFFSET ?8
 `
 
-const countRadioEventsFilteredStmt = `
+const countRadioEventsFilteredSQL = `
   SELECT COUNT(*)
   FROM ` + RadioEventsTableName + `
   WHERE
@@ -65,7 +65,7 @@ func (db *Database) InsertRadioEvent(ctx context.Context, radioEvent *dbwriter.R
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	_, err := db.writer().ExecContext(ctx, insertRadioEventStmt, radioEvent.Timestamp, radioEvent.Protocol, radioEvent.MessageType, radioEvent.Direction, radioEvent.LocalAddress, radioEvent.RemoteAddress, radioEvent.RadioName, radioEvent.Raw, radioEvent.Details)
+	_, err := db.writer().ExecContext(ctx, insertRadioEventSQL, radioEvent.Timestamp, radioEvent.Protocol, radioEvent.MessageType, radioEvent.Direction, radioEvent.LocalAddress, radioEvent.RemoteAddress, radioEvent.RadioName, radioEvent.Raw, radioEvent.Details)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -95,7 +95,7 @@ func (db *Database) InsertRadioEvents(ctx context.Context, radioEvents []*dbwrit
 	}
 
 	for _, radioEvent := range radioEvents {
-		if _, err := tx.ExecContext(ctx, insertRadioEventStmt, radioEvent.Timestamp, radioEvent.Protocol, radioEvent.MessageType, radioEvent.Direction, radioEvent.LocalAddress, radioEvent.RemoteAddress, radioEvent.RadioName, radioEvent.Raw, radioEvent.Details); err != nil {
+		if _, err := tx.ExecContext(ctx, insertRadioEventSQL, radioEvent.Timestamp, radioEvent.Protocol, radioEvent.MessageType, radioEvent.Direction, radioEvent.LocalAddress, radioEvent.RemoteAddress, radioEvent.RadioName, radioEvent.Raw, radioEvent.Details); err != nil {
 			_ = tx.Rollback()
 
 			recordSpanError(span, err)
@@ -122,7 +122,7 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 		filters = &RadioEventFilters{}
 	}
 
-	logs, count, err := queryPage(ctx, db.reader(), listRadioEventsPagedFilteredStmt, scanRadioEvent, filters.Protocol, filters.Direction, filters.RadioName, filters.MessageType, filters.TimestampFrom, filters.TimestampTo, perPage, (page-1)*perPage)
+	logs, count, err := queryPageWithTotal(ctx, db.reader(), listRadioEventsPagedFilteredSQL, scanRadioEvent, filters.Protocol, filters.Direction, filters.RadioName, filters.MessageType, filters.TimestampFrom, filters.TimestampTo, perPage, (page-1)*perPage)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -130,9 +130,11 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 	}
 
 	if len(logs) == 0 {
-		fallbackCount, countErr := queryCount(ctx, db.reader(), countRadioEventsFilteredStmt, filters.Protocol, filters.Direction, filters.RadioName, filters.MessageType, filters.TimestampFrom, filters.TimestampTo)
-		if countErr != nil {
-			return nil, 0, nil
+		fallbackCount, err := queryCount(ctx, db.reader(), countRadioEventsFilteredSQL, filters.Protocol, filters.Direction, filters.RadioName, filters.MessageType, filters.TimestampFrom, filters.TimestampTo)
+		if err != nil {
+			recordSpanError(span, err)
+
+			return nil, 0, fmt.Errorf("count failed: %w", err)
 		}
 
 		return nil, fallbackCount, nil
@@ -149,7 +151,7 @@ func (db *Database) DeleteOldRadioEvents(ctx context.Context, days int) error {
 
 	cutoff := dbwriter.EpochMillis(time.Now().UTC().AddDate(0, 0, -days))
 
-	_, err := db.writer().ExecContext(ctx, deleteOldRadioEventsStmt, cutoff)
+	_, err := db.writer().ExecContext(ctx, deleteOldRadioEventsSQL, cutoff)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -164,7 +166,7 @@ func (db *Database) ClearRadioEvents(ctx context.Context) error {
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	_, err := db.writer().ExecContext(ctx, deleteAllRadioEventsStmt)
+	_, err := db.writer().ExecContext(ctx, deleteAllRadioEventsSQL)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -179,7 +181,7 @@ func (db *Database) GetRadioEventByID(ctx context.Context, id int) (*dbwriter.Ra
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	log, err := scanRadioEvent(db.reader().QueryRowContext(ctx, getRadioEventByIDStmt, id))
+	log, err := scanRadioEvent(db.reader().QueryRowContext(ctx, getRadioEventByIDSQL, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound

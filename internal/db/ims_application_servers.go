@@ -28,15 +28,15 @@ const (
 const imsServicesSchema = 25
 
 const (
-	listIMSApplicationServersStmt  = "SELECT id, name, serverName FROM " + IMSApplicationServersTableName + " ORDER BY name"
-	getIMSApplicationServerStmt    = "SELECT id, name, serverName FROM " + IMSApplicationServersTableName + " WHERE name==?"
-	insertIMSApplicationServerStmt = "INSERT INTO " + IMSApplicationServersTableName + " (id, name, serverName) VALUES (?, ?, ?)"
-	updateIMSApplicationServerStmt = "UPDATE " + IMSApplicationServersTableName + " SET serverName=? WHERE id==?"
-	deleteIMSApplicationServerStmt = "DELETE FROM " + IMSApplicationServersTableName + " WHERE name==?"
-	listIMSPSIsStmt                = "SELECT identity, applicationServerID FROM " + IMSPublicServiceIdentitiesTableName + " ORDER BY identity"
-	listIMSPSIsByASStmt            = "SELECT identity, applicationServerID FROM " + IMSPublicServiceIdentitiesTableName + " WHERE applicationServerID==? ORDER BY identity"
-	insertIMSPSIStmt               = "INSERT INTO " + IMSPublicServiceIdentitiesTableName + " (identity, applicationServerID) VALUES (?, ?)"
-	deleteIMSPSIsByASStmt          = "DELETE FROM " + IMSPublicServiceIdentitiesTableName + " WHERE applicationServerID==?"
+	listIMSApplicationServersSQL  = "SELECT id, name, serverName FROM " + IMSApplicationServersTableName + " ORDER BY name"
+	getIMSApplicationServerSQL    = "SELECT id, name, serverName FROM " + IMSApplicationServersTableName + " WHERE name==?"
+	insertIMSApplicationServerSQL = "INSERT INTO " + IMSApplicationServersTableName + " (id, name, serverName) VALUES (?, ?, ?)"
+	updateIMSApplicationServerSQL = "UPDATE " + IMSApplicationServersTableName + " SET serverName=? WHERE id==?"
+	deleteIMSApplicationServerSQL = "DELETE FROM " + IMSApplicationServersTableName + " WHERE name==?"
+	listIMSPSIsSQL                = "SELECT identity, applicationServerID FROM " + IMSPublicServiceIdentitiesTableName + " ORDER BY identity"
+	listIMSPSIsByASSQL            = "SELECT identity, applicationServerID FROM " + IMSPublicServiceIdentitiesTableName + " WHERE applicationServerID==? ORDER BY identity"
+	insertIMSPSISQL               = "INSERT INTO " + IMSPublicServiceIdentitiesTableName + " (identity, applicationServerID) VALUES (?, ?)"
+	deleteIMSPSIsByASSQL          = "DELETE FROM " + IMSPublicServiceIdentitiesTableName + " WHERE applicationServerID==?"
 )
 
 const imsMCPTTUserPrefix = "mcptt-"
@@ -118,13 +118,13 @@ func (db *Database) ListIMSApplicationServers(ctx context.Context) ([]IMSApplica
 		return nil, nil
 	}
 
-	rows, err := queryAll(ctx, db.reader(), listIMSApplicationServersStmt, scanIMSApplicationServerRow)
+	rows, err := queryAll(ctx, db.reader(), listIMSApplicationServersSQL, scanIMSApplicationServerRow)
 	if err != nil {
 		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	psis, err := queryAll(ctx, db.reader(), listIMSPSIsStmt, scanIMSPSIRow)
+	psis, err := queryAll(ctx, db.reader(), listIMSPSIsSQL, scanIMSPSIRow)
 	if err != nil {
 		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -170,7 +170,7 @@ func (db *Database) GetIMSApplicationServer(ctx context.Context, name string) (*
 }
 
 func (db *Database) getIMSApplicationServer(ctx context.Context, q querier, name string) (*IMSApplicationServer, error) {
-	row, err := scanIMSApplicationServerRow(q.QueryRowContext(ctx, getIMSApplicationServerStmt, name))
+	row, err := scanIMSApplicationServerRow(q.QueryRowContext(ctx, getIMSApplicationServerSQL, name))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -179,7 +179,7 @@ func (db *Database) getIMSApplicationServer(ctx context.Context, q querier, name
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	psis, err := queryAll(ctx, q, listIMSPSIsByASStmt, scanIMSPSIRow, row.ID)
+	psis, err := queryAll(ctx, q, listIMSPSIsByASSQL, scanIMSPSIRow, row.ID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -258,7 +258,7 @@ func (db *Database) applyCreateIMSApplicationServer(ctx context.Context, as *IMS
 
 	row := imsApplicationServerRow{ID: as.ID, Name: as.Name, ServerName: as.ServerName}
 
-	if _, err := db.runner(ctx).ExecContext(ctx, insertIMSApplicationServerStmt, row.ID, row.Name, row.ServerName); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, insertIMSApplicationServerSQL, row.ID, row.Name, row.ServerName); err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
 		}
@@ -281,7 +281,7 @@ func (db *Database) applyUpdateIMSApplicationServer(ctx context.Context, as *IMS
 
 	row := imsApplicationServerRow{ID: existing.ID, ServerName: as.ServerName}
 
-	if _, err := db.runner(ctx).ExecContext(ctx, updateIMSApplicationServerStmt, row.ServerName, row.ID); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, updateIMSApplicationServerSQL, row.ServerName, row.ID); err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
 		}
@@ -289,7 +289,7 @@ func (db *Database) applyUpdateIMSApplicationServer(ctx context.Context, as *IMS
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	if _, err := db.runner(ctx).ExecContext(ctx, deleteIMSPSIsByASStmt, existing.ID); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteIMSPSIsByASSQL, existing.ID); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -297,7 +297,7 @@ func (db *Database) applyUpdateIMSApplicationServer(ctx context.Context, as *IMS
 }
 
 func (db *Database) checkPSIsAvailable(ctx context.Context, applicationServerID string, identities []string) error {
-	stored, err := queryAll(ctx, db.runner(ctx), listIMSPSIsStmt, scanIMSPSIRow)
+	stored, err := queryAll(ctx, db.runner(ctx), listIMSPSIsSQL, scanIMSPSIRow)
 	if err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
@@ -357,7 +357,7 @@ func (db *Database) checkPSIFreeOfSubscribers(ctx context.Context, identity stri
 			return nil
 		}
 
-		holder, err := scanSubscriber(db.runner(ctx).QueryRowContext(ctx, getSubscriberByMSISDNStmt, msisdn))
+		holder, err := scanSubscriber(db.runner(ctx).QueryRowContext(ctx, getSubscriberByMSISDNSQL, msisdn))
 		if err == nil {
 			return fmt.Errorf("%w: %s is the public user identity of subscriber %s", ErrPSIConflict, identity, holder.Imsi)
 		}
@@ -369,7 +369,7 @@ func (db *Database) checkPSIFreeOfSubscribers(ctx context.Context, identity stri
 		return nil
 	}
 
-	holders, err := queryAll(ctx, db.runner(ctx), listSubscriberMSISDNsStmt, scanSubscriberMSISDN)
+	holders, err := queryAll(ctx, db.runner(ctx), listSubscriberMSISDNsSQL, scanSubscriberMSISDN)
 	if err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
@@ -401,12 +401,12 @@ func (db *Database) rehomeIMSApplicationServers(ctx context.Context, from, to st
 		return nil
 	}
 
-	rows, err := queryAll(ctx, db.runner(ctx), listIMSApplicationServersStmt, scanIMSApplicationServerRow)
+	rows, err := queryAll(ctx, db.runner(ctx), listIMSApplicationServersSQL, scanIMSApplicationServerRow)
 	if err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
 
-	stored, err := queryAll(ctx, db.runner(ctx), listIMSPSIsStmt, scanIMSPSIRow)
+	stored, err := queryAll(ctx, db.runner(ctx), listIMSPSIsSQL, scanIMSPSIRow)
 	if err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
@@ -414,7 +414,7 @@ func (db *Database) rehomeIMSApplicationServers(ctx context.Context, from, to st
 	for _, row := range rows {
 		if serverName, ok := psi.Rehome(row.ServerName, from, to); ok {
 			row.ServerName = serverName
-			if _, err := db.runner(ctx).ExecContext(ctx, updateIMSApplicationServerStmt, row.ServerName, row.ID); err != nil {
+			if _, err := db.runner(ctx).ExecContext(ctx, updateIMSApplicationServerSQL, row.ServerName, row.ID); err != nil {
 				return fmt.Errorf("query failed: %w", err)
 			}
 		}
@@ -438,7 +438,7 @@ func (db *Database) rehomeIMSApplicationServers(ctx context.Context, from, to st
 			continue
 		}
 
-		if _, err := db.runner(ctx).ExecContext(ctx, deleteIMSPSIsByASStmt, row.ID); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, deleteIMSPSIsByASSQL, row.ID); err != nil {
 			return fmt.Errorf("query failed: %w", err)
 		}
 
@@ -478,7 +478,7 @@ func (db *Database) msisdnPSI(ctx context.Context, msisdn string) (string, strin
 		return "", "", nil
 	}
 
-	stored, err := queryAll(ctx, db.runner(ctx), listIMSPSIsStmt, scanIMSPSIRow)
+	stored, err := queryAll(ctx, db.runner(ctx), listIMSPSIsSQL, scanIMSPSIRow)
 	if err != nil {
 		return "", "", fmt.Errorf("query failed: %w", err)
 	}
@@ -506,7 +506,7 @@ func (db *Database) msisdnPSI(ctx context.Context, msisdn string) (string, strin
 
 func (db *Database) insertIMSPSIs(ctx context.Context, applicationServerID string, psis []string) error {
 	for _, identity := range psis {
-		if _, err := db.runner(ctx).ExecContext(ctx, insertIMSPSIStmt, identity, applicationServerID); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, insertIMSPSISQL, identity, applicationServerID); err != nil {
 			if isPrimaryKeyError(err) {
 				return fmt.Errorf("%w: %s is hosted by another application server", ErrPSIConflict, identity)
 			}
@@ -519,7 +519,7 @@ func (db *Database) insertIMSPSIs(ctx context.Context, applicationServerID strin
 }
 
 func (db *Database) applyDeleteIMSApplicationServer(ctx context.Context, p *stringPayload) (any, error) {
-	res, err := db.runner(ctx).ExecContext(ctx, deleteIMSApplicationServerStmt, p.Value)
+	res, err := db.runner(ctx).ExecContext(ctx, deleteIMSApplicationServerSQL, p.Value)
 	if err != nil {
 		if isForeignKeyError(err) {
 			return nil, ErrInUse

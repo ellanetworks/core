@@ -16,8 +16,8 @@ import (
 const RetentionPolicyTableName = "retention_policies"
 
 const (
-	selectRetentionPolicyStmt = "SELECT retention_days FROM " + RetentionPolicyTableName + " WHERE category = ?"
-	upsertRetentionPolicyStmt = `
+	selectRetentionPolicySQL = "SELECT retention_days FROM " + RetentionPolicyTableName + " WHERE category = ?"
+	upsertRetentionPolicySQL = `
 INSERT INTO ` + RetentionPolicyTableName + ` (id, category, retention_days)
 VALUES (?, ?, ?)
 ON CONFLICT(category) DO UPDATE SET retention_days = excluded.retention_days
@@ -46,7 +46,7 @@ func (db *Database) GetRetentionPolicy(ctx context.Context, category RetentionCa
 
 	var days int
 
-	err := db.reader().QueryRowContext(ctx, selectRetentionPolicyStmt, string(category)).Scan(&days)
+	err := db.reader().QueryRowContext(ctx, selectRetentionPolicySQL, string(category)).Scan(&days)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -64,7 +64,7 @@ func (db *Database) IsRetentionPolicyInitialized(ctx context.Context, category R
 
 	var days int
 
-	err := db.reader().QueryRowContext(ctx, selectRetentionPolicyStmt, string(category)).Scan(&days)
+	err := db.reader().QueryRowContext(ctx, selectRetentionPolicySQL, string(category)).Scan(&days)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false

@@ -24,15 +24,15 @@ const (
 const imsRegistrationsSchema = 25
 
 const (
-	getIMSRegistrationStmt         = "SELECT imsi, serverName, originHost, originRealm, privateIdentity FROM " + IMSRegistrationsTableName + " WHERE imsi==?"
-	listAllIMSRegistrationsStmt    = "SELECT imsi, serverName, originHost, originRealm, privateIdentity FROM " + IMSRegistrationsTableName + " ORDER BY imsi ASC"
-	upsertIMSRegistrationStmt      = "INSERT INTO " + IMSRegistrationsTableName + " (imsi, serverName, originHost, originRealm, privateIdentity) VALUES (?, ?, ?, ?, ?) ON CONFLICT(imsi) DO UPDATE SET serverName=excluded.serverName, originHost=excluded.originHost, originRealm=excluded.originRealm, privateIdentity=excluded.privateIdentity"
-	deleteIMSRegistrationStmt      = "DELETE FROM " + IMSRegistrationsTableName + " WHERE imsi==?"
-	listIMSRegistrationSetsStmt    = "SELECT imsi, registrationSet, state, authPending, defaultIdentity, profileDigest, emergency FROM " + IMSRegistrationSetsTableName + " WHERE imsi==? ORDER BY registrationSet ASC"
-	listAllIMSRegistrationSetsStmt = "SELECT imsi, registrationSet, state, authPending, defaultIdentity, profileDigest, emergency FROM " + IMSRegistrationSetsTableName + " ORDER BY imsi ASC, registrationSet ASC"
-	insertIMSRegistrationSetStmt   = "INSERT INTO " + IMSRegistrationSetsTableName + " (imsi, registrationSet, state, authPending, defaultIdentity, profileDigest, emergency) VALUES (?, ?, ?, ?, ?, ?, ?)"
-	deleteIMSRegistrationSetsStmt  = "DELETE FROM " + IMSRegistrationSetsTableName + " WHERE imsi==?"
-	countIMSRegistrationsStmt      = "SELECT COUNT(DISTINCT imsi) FROM " + IMSRegistrationSetsTableName + " WHERE state==?"
+	getIMSRegistrationSQL         = "SELECT imsi, serverName, originHost, originRealm, privateIdentity FROM " + IMSRegistrationsTableName + " WHERE imsi==?"
+	listAllIMSRegistrationsSQL    = "SELECT imsi, serverName, originHost, originRealm, privateIdentity FROM " + IMSRegistrationsTableName + " ORDER BY imsi ASC"
+	upsertIMSRegistrationSQL      = "INSERT INTO " + IMSRegistrationsTableName + " (imsi, serverName, originHost, originRealm, privateIdentity) VALUES (?, ?, ?, ?, ?) ON CONFLICT(imsi) DO UPDATE SET serverName=excluded.serverName, originHost=excluded.originHost, originRealm=excluded.originRealm, privateIdentity=excluded.privateIdentity"
+	deleteIMSRegistrationSQL      = "DELETE FROM " + IMSRegistrationsTableName + " WHERE imsi==?"
+	listIMSRegistrationSetsSQL    = "SELECT imsi, registrationSet, state, authPending, defaultIdentity, profileDigest, emergency FROM " + IMSRegistrationSetsTableName + " WHERE imsi==? ORDER BY registrationSet ASC"
+	listAllIMSRegistrationSetsSQL = "SELECT imsi, registrationSet, state, authPending, defaultIdentity, profileDigest, emergency FROM " + IMSRegistrationSetsTableName + " ORDER BY imsi ASC, registrationSet ASC"
+	insertIMSRegistrationSetSQL   = "INSERT INTO " + IMSRegistrationSetsTableName + " (imsi, registrationSet, state, authPending, defaultIdentity, profileDigest, emergency) VALUES (?, ?, ?, ?, ?, ?, ?)"
+	deleteIMSRegistrationSetsSQL  = "DELETE FROM " + IMSRegistrationSetsTableName + " WHERE imsi==?"
+	countIMSRegistrationsSQL      = "SELECT COUNT(DISTINCT imsi) FROM " + IMSRegistrationSetsTableName + " WHERE state==?"
 )
 
 type IMSRegistrationState int
@@ -172,7 +172,7 @@ func (db *Database) ListAllIMSRegistrations(ctx context.Context) ([]IMSRegistrat
 		return nil, nil
 	}
 
-	tx, err := db.writer().BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := db.reader().BeginTx(ctx, nil)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -181,14 +181,14 @@ func (db *Database) ListAllIMSRegistrations(ctx context.Context) ([]IMSRegistrat
 
 	defer func() { _ = tx.Rollback() }()
 
-	rows, err := queryAll(ctx, tx, listAllIMSRegistrationsStmt, scanIMSRegistrationRow)
+	rows, err := queryAll(ctx, tx, listAllIMSRegistrationsSQL, scanIMSRegistrationRow)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	setRows, err := queryAll(ctx, tx, listAllIMSRegistrationSetsStmt, scanIMSRegistrationSetRow)
+	setRows, err := queryAll(ctx, tx, listAllIMSRegistrationSetsSQL, scanIMSRegistrationSetRow)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -222,7 +222,7 @@ func (db *Database) GetIMSRegistration(ctx context.Context, imsi string) (*IMSRe
 		return nil, nil
 	}
 
-	tx, err := db.writer().BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := db.reader().BeginTx(ctx, nil)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -254,7 +254,7 @@ func (db *Database) CountIMSRegistrations(ctx context.Context, state IMSRegistra
 		return 0, nil
 	}
 
-	count, err := queryCount(ctx, db.reader(), countIMSRegistrationsStmt, int(state))
+	count, err := queryCount(ctx, db.reader(), countIMSRegistrationsSQL, int(state))
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -327,12 +327,12 @@ func (db *Database) writeIMSRegistration(ctx context.Context, imsi string, next 
 		}
 	}
 
-	if _, err := db.runner(ctx).ExecContext(ctx, deleteIMSRegistrationSetsStmt, imsi); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteIMSRegistrationSetsSQL, imsi); err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
 
 	if next == nil {
-		if _, err := db.runner(ctx).ExecContext(ctx, deleteIMSRegistrationStmt, imsi); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, deleteIMSRegistrationSQL, imsi); err != nil {
 			return fmt.Errorf("query failed: %w", err)
 		}
 
@@ -347,7 +347,7 @@ func (db *Database) writeIMSRegistration(ctx context.Context, imsi string, next 
 		PrivateIdentity: next.PrivateIdentity,
 	}
 
-	if _, err := db.runner(ctx).ExecContext(ctx, upsertIMSRegistrationStmt, row.Imsi, row.ServerName, row.OriginHost, row.OriginRealm, row.PrivateIdentity); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, upsertIMSRegistrationSQL, row.Imsi, row.ServerName, row.OriginHost, row.OriginRealm, row.PrivateIdentity); err != nil {
 		if isForeignKeyError(err) {
 			return ErrNotFound
 		}
@@ -368,7 +368,7 @@ func (db *Database) writeIMSRegistration(ctx context.Context, imsi string, next 
 			Emergency:       s.Emergency,
 		}
 
-		if _, err := db.runner(ctx).ExecContext(ctx, insertIMSRegistrationSetStmt, setRow.Imsi, setRow.RegistrationSet, setRow.State, setRow.AuthPending, setRow.DefaultIdentity, setRow.ProfileDigest, setRow.Emergency); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, insertIMSRegistrationSetSQL, setRow.Imsi, setRow.RegistrationSet, setRow.State, setRow.AuthPending, setRow.DefaultIdentity, setRow.ProfileDigest, setRow.Emergency); err != nil {
 			return fmt.Errorf("query failed: %w", err)
 		}
 	}
@@ -377,7 +377,7 @@ func (db *Database) writeIMSRegistration(ctx context.Context, imsi string, next 
 }
 
 func (db *Database) getIMSRegistration(ctx context.Context, q querier, imsi string) (*IMSRegistration, error) {
-	row, err := scanIMSRegistrationRow(q.QueryRowContext(ctx, getIMSRegistrationStmt, imsi))
+	row, err := scanIMSRegistrationRow(q.QueryRowContext(ctx, getIMSRegistrationSQL, imsi))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -386,7 +386,7 @@ func (db *Database) getIMSRegistration(ctx context.Context, q querier, imsi stri
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	sets, err := queryAll(ctx, q, listIMSRegistrationSetsStmt, scanIMSRegistrationSetRow, imsi)
+	sets, err := queryAll(ctx, q, listIMSRegistrationSetsSQL, scanIMSRegistrationSetRow, imsi)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

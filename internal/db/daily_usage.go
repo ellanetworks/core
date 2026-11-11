@@ -22,15 +22,15 @@ import (
 const DailyUsageTableName = "daily_usage"
 
 const (
-	incrementDailyUsageStmt       = "INSERT INTO " + DailyUsageTableName + " (epochDay, imsi, mcc, mnc, bytesUplink, bytesDownlink) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(epochDay, imsi) DO UPDATE SET bytesUplink = bytesUplink + excluded.bytesUplink, bytesDownlink = bytesDownlink + excluded.bytesDownlink"
-	incrementDailyUsagePreV27Stmt = "INSERT INTO " + DailyUsageTableName + " (epoch_day, imsi, bytes_uplink, bytes_downlink) VALUES (?, ?, ?, ?) ON CONFLICT(epoch_day, imsi) DO UPDATE SET bytes_uplink = bytes_uplink + ?, bytes_downlink = bytes_downlink + ?"
-	deleteOldDailyUsageStmt       = "DELETE FROM " + DailyUsageTableName + " WHERE epochDay < ?"
-	deleteOldDailyUsagePreV27Stmt = "DELETE FROM " + DailyUsageTableName + " WHERE epoch_day < ?"
-	deleteAllDailyUsageStmt       = "DELETE FROM " + DailyUsageTableName
+	incrementDailyUsageSQL       = "INSERT INTO " + DailyUsageTableName + " (epochDay, imsi, mcc, mnc, bytesUplink, bytesDownlink) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(epochDay, imsi) DO UPDATE SET bytesUplink = bytesUplink + excluded.bytesUplink, bytesDownlink = bytesDownlink + excluded.bytesDownlink"
+	incrementDailyUsagePreV27SQL = "INSERT INTO " + DailyUsageTableName + " (epoch_day, imsi, bytes_uplink, bytes_downlink) VALUES (?, ?, ?, ?) ON CONFLICT(epoch_day, imsi) DO UPDATE SET bytes_uplink = bytes_uplink + ?, bytes_downlink = bytes_downlink + ?"
+	deleteOldDailyUsageSQL       = "DELETE FROM " + DailyUsageTableName + " WHERE epochDay < ?"
+	deleteOldDailyUsagePreV27SQL = "DELETE FROM " + DailyUsageTableName + " WHERE epoch_day < ?"
+	deleteAllDailyUsageSQL       = "DELETE FROM " + DailyUsageTableName
 )
 
 const (
-	getUsagePerDayStmt = `
+	getUsagePerDaySQL = `
 SELECT
     epochDay,
     SUM(bytesUplink),
@@ -44,7 +44,7 @@ WHERE
 GROUP BY epochDay
 ORDER BY epochDay ASC`
 
-	getUsagePerDayPreV27Stmt = `
+	getUsagePerDayPreV27SQL = `
 SELECT
     epoch_day,
     SUM(bytes_uplink),
@@ -65,7 +65,7 @@ ORDER BY epoch_day ASC`
     )
     SELECT d FROM days)`
 
-	getUsagePerDayByIMSIStmt = `
+	getUsagePerDayByIMSISQL = `
 SELECT
     epochDay,
     SUM(bytesUplink),
@@ -78,7 +78,7 @@ WHERE
 GROUP BY epochDay
 ORDER BY epochDay ASC`
 
-	getUsagePerDayByIMSIPreV27Stmt = `
+	getUsagePerDayByIMSIPreV27SQL = `
 SELECT
     epoch_day,
     SUM(bytes_uplink),
@@ -92,7 +92,7 @@ ORDER BY epoch_day ASC`
 )
 
 const (
-	getUsagePerSubscriberStmt = `
+	getUsagePerSubscriberSQL = `
 SELECT
     u.imsi,
     MAX(u.mcc),
@@ -114,7 +114,7 @@ GROUP BY u.imsi
 ORDER BY SUM(u.bytesUplink) + SUM(u.bytesDownlink) DESC, u.imsi ASC
 LIMIT ?5`
 
-	getUsagePerSubscriberPreV27Stmt = `
+	getUsagePerSubscriberPreV27SQL = `
 SELECT
     s.imsi,
     COALESCE(u.bytes_uplink, 0),
@@ -129,7 +129,7 @@ LEFT JOIN (
 ORDER BY COALESCE(u.bytes_uplink, 0) + COALESCE(u.bytes_downlink, 0) DESC, s.imsi ASC
 LIMIT ?5`
 
-	getUsagePerSubscriberByIMSIStmt = `
+	getUsagePerSubscriberByIMSISQL = `
 SELECT
     u.imsi,
     MAX(u.mcc),
@@ -149,7 +149,7 @@ WHERE ?2 IS NULL OR (u.mcc IS NOT NULL) == ?2
 GROUP BY u.imsi
 LIMIT ?5`
 
-	getUsagePerSubscriberByIMSIPreV27Stmt = `
+	getUsagePerSubscriberByIMSIPreV27SQL = `
 SELECT
     s.imsi,
     COALESCE(SUM(u.bytes_uplink), 0),
@@ -354,9 +354,9 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, days DayRan
 		dailyUsageFilters.IMSI = &imsi
 	}
 
-	query := getUsagePerDayStmt
+	query := getUsagePerDaySQL
 	if imsi != "" {
-		query = getUsagePerDayByIMSIStmt
+		query = getUsagePerDayByIMSISQL
 	}
 
 	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
@@ -364,9 +364,9 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, days DayRan
 			return nil, nil
 		}
 
-		query = getUsagePerDayPreV27Stmt
+		query = getUsagePerDayPreV27SQL
 		if imsi != "" {
-			query = getUsagePerDayByIMSIPreV27Stmt
+			query = getUsagePerDayByIMSIPreV27SQL
 		}
 	}
 
@@ -396,9 +396,9 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, days
 		dailyUsageFilters.IMSI = &imsi
 	}
 
-	query, scan := getUsagePerSubscriberStmt, scanUsagePerSub
+	query, scan := getUsagePerSubscriberSQL, scanUsagePerSub
 	if imsi != "" {
-		query = getUsagePerSubscriberByIMSIStmt
+		query = getUsagePerSubscriberByIMSISQL
 	}
 
 	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
@@ -406,9 +406,9 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, days
 			return nil, nil
 		}
 
-		query, scan = getUsagePerSubscriberPreV27Stmt, scanUsagePerSubPreV27
+		query, scan = getUsagePerSubscriberPreV27SQL, scanUsagePerSubPreV27
 		if imsi != "" {
-			query = getUsagePerSubscriberByIMSIPreV27Stmt
+			query = getUsagePerSubscriberByIMSIPreV27SQL
 		}
 	}
 

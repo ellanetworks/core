@@ -21,42 +21,42 @@ const PoliciesTableName = "policies"
 const policyPreemptionSchema = 25
 
 const (
-	listPoliciesPagedStmt           = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault, COUNT(*) OVER() FROM " + PoliciesTableName + " LIMIT ? OFFSET ?"
-	getPolicyStmt                   = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault FROM " + PoliciesTableName + " WHERE name==?"
-	getPolicyByLookupStmt           = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault FROM " + PoliciesTableName + " WHERE profileID==? AND sliceID==? AND dataNetworkID==?"
-	createPolicyStmt                = "INSERT INTO " + PoliciesTableName + " (id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-	editPolicyStmt                  = "UPDATE " + PoliciesTableName + " SET profileID=?, sliceID=?, dataNetworkID=?, var5qi=?, arp=?, preemptionCapability=?, preemptionVulnerability=?, sessionAmbrUplink=?, sessionAmbrDownlink=? WHERE name==?"
-	deletePolicyStmt                = "DELETE FROM " + PoliciesTableName + " WHERE name==?"
-	countPoliciesStmt               = "SELECT COUNT(*) FROM " + PoliciesTableName
-	countPoliciesInProfileStmt      = "SELECT COUNT(*) FROM " + PoliciesTableName + " WHERE profileID=?"
-	countPoliciesInSliceStmt        = "SELECT COUNT(*) FROM " + PoliciesTableName + " WHERE sliceID=?"
-	countPoliciesInDataNetworkStmt  = "SELECT COUNT(*) FROM " + PoliciesTableName + " WHERE dataNetworkID=?"
-	listPolicy5QIsInDataNetworkStmt = "SELECT var5qi FROM " + PoliciesTableName + " WHERE dataNetworkID=?"
+	listPoliciesPagedSQL           = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault, COUNT(*) OVER() FROM " + PoliciesTableName + " LIMIT ? OFFSET ?"
+	getPolicySQL                   = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault FROM " + PoliciesTableName + " WHERE name==?"
+	getPolicyByLookupSQL           = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault FROM " + PoliciesTableName + " WHERE profileID==? AND sliceID==? AND dataNetworkID==?"
+	createPolicySQL                = "INSERT INTO " + PoliciesTableName + " (id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	editPolicySQL                  = "UPDATE " + PoliciesTableName + " SET profileID=?, sliceID=?, dataNetworkID=?, var5qi=?, arp=?, preemptionCapability=?, preemptionVulnerability=?, sessionAmbrUplink=?, sessionAmbrDownlink=? WHERE name==?"
+	deletePolicySQL                = "DELETE FROM " + PoliciesTableName + " WHERE name==?"
+	countPoliciesSQL               = "SELECT COUNT(*) FROM " + PoliciesTableName
+	countPoliciesInProfileSQL      = "SELECT COUNT(*) FROM " + PoliciesTableName + " WHERE profileID=?"
+	countPoliciesInSliceSQL        = "SELECT COUNT(*) FROM " + PoliciesTableName + " WHERE sliceID=?"
+	countPoliciesInDataNetworkSQL  = "SELECT COUNT(*) FROM " + PoliciesTableName + " WHERE dataNetworkID=?"
+	listPolicy5QIsInDataNetworkSQL = "SELECT var5qi FROM " + PoliciesTableName + " WHERE dataNetworkID=?"
 
-	getPolicyByProfileAndSliceStmt = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault FROM " + PoliciesTableName + " WHERE profileID==? AND sliceID==? LIMIT 1"
-	listPoliciesByProfilePagedStmt = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault, COUNT(*) OVER() FROM " + PoliciesTableName + " WHERE profileID==? LIMIT ? OFFSET ?"
-	listPoliciesByProfileAllStmt   = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault FROM " + PoliciesTableName + " WHERE profileID==? ORDER BY id ASC"
+	getPolicyByProfileAndSliceSQL = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault FROM " + PoliciesTableName + " WHERE profileID==? AND sliceID==? LIMIT 1"
+	listPoliciesByProfilePagedSQL = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault, COUNT(*) OVER() FROM " + PoliciesTableName + " WHERE profileID==? LIMIT ? OFFSET ?"
+	listPoliciesByProfileAllSQL   = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault FROM " + PoliciesTableName + " WHERE profileID==? ORDER BY id ASC"
 
 	// The default data-network binding for a profile (the default APN/DNN,
 	// TS 23.401 §3.1 / TS 23.501 §5.15). At most one per profile, kept by the
 	// atomic SetDefaultPolicy op (clear the profile's defaults, then set one).
-	getDefaultPolicyByProfileStmt = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault FROM " + PoliciesTableName + " WHERE profileID==? AND isDefault==true LIMIT 1"
-	clearDefaultPoliciesStmt      = "UPDATE " + PoliciesTableName + " SET isDefault=false WHERE profileID==?"
-	setDefaultPolicyStmt          = "UPDATE " + PoliciesTableName + " SET isDefault=true WHERE name==?"
+	getDefaultPolicyByProfileSQL = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault FROM " + PoliciesTableName + " WHERE profileID==? AND isDefault==true LIMIT 1"
+	clearDefaultPoliciesSQL      = "UPDATE " + PoliciesTableName + " SET isDefault=false WHERE profileID==?"
+	setDefaultPolicySQL          = "UPDATE " + PoliciesTableName + " SET isDefault=true WHERE name==?"
 )
 
 const policyColumnsPreV25 = "id, name, profileID, sliceID, dataNetworkID, var5qi, arp, sessionAmbrUplink, sessionAmbrDownlink, isDefault"
 
 const (
-	listPoliciesPagedPreV25Stmt          = "SELECT " + policyColumnsPreV25 + ", COUNT(*) OVER() FROM " + PoliciesTableName + " LIMIT ? OFFSET ?"
-	getPolicyPreV25Stmt                  = "SELECT " + policyColumnsPreV25 + " FROM " + PoliciesTableName + " WHERE name==?"
-	getPolicyByLookupPreV25Stmt          = "SELECT " + policyColumnsPreV25 + " FROM " + PoliciesTableName + " WHERE profileID==? AND sliceID==? AND dataNetworkID==?"
-	getPolicyByProfileAndSlicePreV25Stmt = "SELECT " + policyColumnsPreV25 + " FROM " + PoliciesTableName + " WHERE profileID==? AND sliceID==? LIMIT 1"
-	listPoliciesByProfilePagedPreV25Stmt = "SELECT " + policyColumnsPreV25 + ", COUNT(*) OVER() FROM " + PoliciesTableName + " WHERE profileID==? LIMIT ? OFFSET ?"
-	listPoliciesByProfileAllPreV25Stmt   = "SELECT " + policyColumnsPreV25 + " FROM " + PoliciesTableName + " WHERE profileID==? ORDER BY id ASC"
-	getDefaultPolicyByProfilePreV25Stmt  = "SELECT " + policyColumnsPreV25 + " FROM " + PoliciesTableName + " WHERE profileID==? AND isDefault==true LIMIT 1"
-	createPolicyPreV25Stmt               = "INSERT INTO " + PoliciesTableName + " (id, name, profileID, sliceID, dataNetworkID, var5qi, arp, sessionAmbrUplink, sessionAmbrDownlink) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-	editPolicyPreV25Stmt                 = "UPDATE " + PoliciesTableName + " SET profileID=?, sliceID=?, dataNetworkID=?, var5qi=?, arp=?, sessionAmbrUplink=?, sessionAmbrDownlink=? WHERE name==?"
+	listPoliciesPagedPreV25SQL          = "SELECT " + policyColumnsPreV25 + ", COUNT(*) OVER() FROM " + PoliciesTableName + " LIMIT ? OFFSET ?"
+	getPolicyPreV25SQL                  = "SELECT " + policyColumnsPreV25 + " FROM " + PoliciesTableName + " WHERE name==?"
+	getPolicyByLookupPreV25SQL          = "SELECT " + policyColumnsPreV25 + " FROM " + PoliciesTableName + " WHERE profileID==? AND sliceID==? AND dataNetworkID==?"
+	getPolicyByProfileAndSlicePreV25SQL = "SELECT " + policyColumnsPreV25 + " FROM " + PoliciesTableName + " WHERE profileID==? AND sliceID==? LIMIT 1"
+	listPoliciesByProfilePagedPreV25SQL = "SELECT " + policyColumnsPreV25 + ", COUNT(*) OVER() FROM " + PoliciesTableName + " WHERE profileID==? LIMIT ? OFFSET ?"
+	listPoliciesByProfileAllPreV25SQL   = "SELECT " + policyColumnsPreV25 + " FROM " + PoliciesTableName + " WHERE profileID==? ORDER BY id ASC"
+	getDefaultPolicyByProfilePreV25SQL  = "SELECT " + policyColumnsPreV25 + " FROM " + PoliciesTableName + " WHERE profileID==? AND isDefault==true LIMIT 1"
+	createPolicyPreV25SQL               = "INSERT INTO " + PoliciesTableName + " (id, name, profileID, sliceID, dataNetworkID, var5qi, arp, sessionAmbrUplink, sessionAmbrDownlink) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	editPolicyPreV25SQL                 = "UPDATE " + PoliciesTableName + " SET profileID=?, sliceID=?, dataNetworkID=?, var5qi=?, arp=?, sessionAmbrUplink=?, sessionAmbrDownlink=? WHERE name==?"
 )
 
 type Policy struct {
@@ -77,8 +77,6 @@ type Policy struct {
 }
 
 func (db *Database) policySchemaCurrent(ctx context.Context, p *Policy) (bool, error) {
-	p.defaultPreemption()
-
 	if db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
 		return true, nil
 	}
@@ -92,18 +90,18 @@ func (db *Database) policySchemaCurrent(ctx context.Context, p *Policy) (bool, e
 
 func createPolicyQuery(p *Policy, current bool) (string, []any) {
 	if current {
-		return createPolicyStmt, []any{p.ID, p.Name, p.ProfileID, p.SliceID, p.DataNetworkID, p.Var5qi, p.Arp, p.PreemptionCapability, p.PreemptionVulnerability, p.SessionAmbrUplink, p.SessionAmbrDownlink}
+		return createPolicySQL, []any{p.ID, p.Name, p.ProfileID, p.SliceID, p.DataNetworkID, p.Var5qi, p.Arp, p.PreemptionCapability, p.PreemptionVulnerability, p.SessionAmbrUplink, p.SessionAmbrDownlink}
 	}
 
-	return createPolicyPreV25Stmt, []any{p.ID, p.Name, p.ProfileID, p.SliceID, p.DataNetworkID, p.Var5qi, p.Arp, p.SessionAmbrUplink, p.SessionAmbrDownlink}
+	return createPolicyPreV25SQL, []any{p.ID, p.Name, p.ProfileID, p.SliceID, p.DataNetworkID, p.Var5qi, p.Arp, p.SessionAmbrUplink, p.SessionAmbrDownlink}
 }
 
 func editPolicyQuery(p *Policy, current bool) (string, []any) {
 	if current {
-		return editPolicyStmt, []any{p.ProfileID, p.SliceID, p.DataNetworkID, p.Var5qi, p.Arp, p.PreemptionCapability, p.PreemptionVulnerability, p.SessionAmbrUplink, p.SessionAmbrDownlink, p.Name}
+		return editPolicySQL, []any{p.ProfileID, p.SliceID, p.DataNetworkID, p.Var5qi, p.Arp, p.PreemptionCapability, p.PreemptionVulnerability, p.SessionAmbrUplink, p.SessionAmbrDownlink, p.Name}
 	}
 
-	return editPolicyPreV25Stmt, []any{p.ProfileID, p.SliceID, p.DataNetworkID, p.Var5qi, p.Arp, p.SessionAmbrUplink, p.SessionAmbrDownlink, p.Name}
+	return editPolicyPreV25SQL, []any{p.ProfileID, p.SliceID, p.DataNetworkID, p.Var5qi, p.Arp, p.SessionAmbrUplink, p.SessionAmbrDownlink, p.Name}
 }
 
 func defaultPoliciesPreemption(policies []Policy) {
@@ -127,12 +125,12 @@ func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int)
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	query, scan := listPoliciesPagedStmt, scanPolicy
+	query, scan := listPoliciesPagedSQL, scanPolicy
 	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
-		query, scan = listPoliciesPagedPreV25Stmt, scanPolicyPreV25
+		query, scan = listPoliciesPagedPreV25SQL, scanPolicyPreV25
 	}
 
-	policies, count, err := queryPage(ctx, db.reader(), query, scan, perPage, (page-1)*perPage)
+	policies, count, err := queryPageWithTotal(ctx, db.reader(), query, scan, perPage, (page-1)*perPage)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -140,9 +138,11 @@ func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int)
 	}
 
 	if len(policies) == 0 {
-		fallbackCount, countErr := db.CountPolicies(ctx)
-		if countErr != nil {
-			return nil, 0, nil
+		fallbackCount, err := db.CountPolicies(ctx)
+		if err != nil {
+			recordSpanError(span, err)
+
+			return nil, 0, fmt.Errorf("count failed: %w", err)
 		}
 
 		return nil, fallbackCount, nil
@@ -158,12 +158,12 @@ func (db *Database) ListPoliciesByProfilePage(ctx context.Context, profileID str
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	query, scan := listPoliciesByProfilePagedStmt, scanPolicy
+	query, scan := listPoliciesByProfilePagedSQL, scanPolicy
 	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
-		query, scan = listPoliciesByProfilePagedPreV25Stmt, scanPolicyPreV25
+		query, scan = listPoliciesByProfilePagedPreV25SQL, scanPolicyPreV25
 	}
 
-	policies, count, err := queryPage(ctx, db.reader(), query, scan, profileID, perPage, (page-1)*perPage)
+	policies, count, err := queryPageWithTotal(ctx, db.reader(), query, scan, profileID, perPage, (page-1)*perPage)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -180,9 +180,9 @@ func (db *Database) ListPoliciesByProfile(ctx context.Context, profileID string)
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	query, scan := listPoliciesByProfileAllStmt, scanPolicy
+	query, scan := listPoliciesByProfileAllSQL, scanPolicy
 	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
-		query, scan = listPoliciesByProfileAllPreV25Stmt, scanPolicyPreV25
+		query, scan = listPoliciesByProfileAllPreV25SQL, scanPolicyPreV25
 	}
 
 	policies, err := queryAll(ctx, db.reader(), query, scan, profileID)
@@ -202,9 +202,9 @@ func (db *Database) GetPolicy(ctx context.Context, name string) (*Policy, error)
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	query, scan := getPolicyStmt, scanPolicy
+	query, scan := getPolicySQL, scanPolicy
 	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
-		query, scan = getPolicyPreV25Stmt, scanPolicyPreV25
+		query, scan = getPolicyPreV25SQL, scanPolicyPreV25
 	}
 
 	row, err := scan(db.reader().QueryRowContext(ctx, query, name))
@@ -229,9 +229,9 @@ func (db *Database) GetPolicyByLookup(ctx context.Context, profileID, sliceID, d
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	query, scan := getPolicyByLookupStmt, scanPolicy
+	query, scan := getPolicyByLookupSQL, scanPolicy
 	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
-		query, scan = getPolicyByLookupPreV25Stmt, scanPolicyPreV25
+		query, scan = getPolicyByLookupPreV25SQL, scanPolicyPreV25
 	}
 
 	row, err := scan(db.reader().QueryRowContext(ctx, query, profileID, sliceID, dataNetworkID))
@@ -259,9 +259,9 @@ func (db *Database) GetDefaultPolicyByProfile(ctx context.Context, profileID str
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	query, scan := getDefaultPolicyByProfileStmt, scanPolicy
+	query, scan := getDefaultPolicyByProfileSQL, scanPolicy
 	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
-		query, scan = getDefaultPolicyByProfilePreV25Stmt, scanPolicyPreV25
+		query, scan = getDefaultPolicyByProfilePreV25SQL, scanPolicyPreV25
 	}
 
 	row, err := scan(db.reader().QueryRowContext(ctx, query, profileID))
@@ -302,9 +302,9 @@ func (db *Database) GetPolicyByProfileAndSlice(ctx context.Context, profileID, s
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	query, scan := getPolicyByProfileAndSliceStmt, scanPolicy
+	query, scan := getPolicyByProfileAndSliceSQL, scanPolicy
 	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
-		query, scan = getPolicyByProfileAndSlicePreV25Stmt, scanPolicyPreV25
+		query, scan = getPolicyByProfileAndSlicePreV25SQL, scanPolicyPreV25
 	}
 
 	row, err := scan(db.reader().QueryRowContext(ctx, query, profileID, sliceID))
@@ -487,7 +487,7 @@ func (db *Database) CountPolicies(ctx context.Context) (int, error) {
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	count, err := queryCount(ctx, db.reader(), countPoliciesStmt)
+	count, err := queryCount(ctx, db.reader(), countPoliciesSQL)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -502,7 +502,7 @@ func (db *Database) CountPoliciesInProfile(ctx context.Context, profileID string
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	count, err := queryCount(ctx, db.reader(), countPoliciesInProfileStmt, profileID)
+	count, err := queryCount(ctx, db.reader(), countPoliciesInProfileSQL, profileID)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -517,7 +517,7 @@ func (db *Database) CountPoliciesInSlice(ctx context.Context, sliceID string) (i
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	count, err := queryCount(ctx, db.reader(), countPoliciesInSliceStmt, sliceID)
+	count, err := queryCount(ctx, db.reader(), countPoliciesInSliceSQL, sliceID)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -532,7 +532,7 @@ func (db *Database) CountPoliciesInDataNetwork(ctx context.Context, dataNetworkI
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	count, err := queryCount(ctx, db.reader(), countPoliciesInDataNetworkStmt, dataNetworkID)
+	count, err := queryCount(ctx, db.reader(), countPoliciesInDataNetworkSQL, dataNetworkID)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -547,7 +547,7 @@ func (db *Database) DataNetworkPolicy5QIs(ctx context.Context, dataNetworkID str
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	fiveQIs, err := queryAll(ctx, db.reader(), listPolicy5QIsInDataNetworkStmt, scanInt32, dataNetworkID)
+	fiveQIs, err := queryAll(ctx, db.reader(), listPolicy5QIsInDataNetworkSQL, scanValue[int32], dataNetworkID)
 	if err != nil {
 		recordSpanError(span, err)
 

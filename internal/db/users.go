@@ -18,14 +18,14 @@ import (
 const UsersTableName = "users"
 
 const (
-	listUsersPageStmt    = "SELECT id, email, roleID, hashedPassword, COUNT(*) OVER() from " + UsersTableName + " ORDER BY id LIMIT ? OFFSET ?"
-	getUserStmt          = "SELECT id, email, roleID, hashedPassword from " + UsersTableName + " WHERE email==?"
-	getUserByIDStmt      = "SELECT id, email, roleID, hashedPassword from " + UsersTableName + " WHERE id==?"
-	createUserStmt       = "INSERT INTO " + UsersTableName + " (id, email, roleID, hashedPassword) VALUES (?, ?, ?, ?)"
-	editUserStmt         = "UPDATE " + UsersTableName + " SET roleID=? WHERE email==?"
-	editUserPasswordStmt = "UPDATE " + UsersTableName + " SET hashedPassword=? WHERE email==?" // #nosec: G101
-	deleteUserStmt       = "DELETE FROM " + UsersTableName + " WHERE email==?"
-	countUsersStmt       = "SELECT COUNT(*) FROM " + UsersTableName
+	listUsersPageSQL    = "SELECT id, email, roleID, hashedPassword, COUNT(*) OVER() from " + UsersTableName + " ORDER BY id LIMIT ? OFFSET ?"
+	getUserSQL          = "SELECT id, email, roleID, hashedPassword from " + UsersTableName + " WHERE email==?"
+	getUserByIDSQL      = "SELECT id, email, roleID, hashedPassword from " + UsersTableName + " WHERE id==?"
+	createUserSQL       = "INSERT INTO " + UsersTableName + " (id, email, roleID, hashedPassword) VALUES (?, ?, ?, ?)"
+	editUserSQL         = "UPDATE " + UsersTableName + " SET roleID=? WHERE email==?"
+	editUserPasswordSQL = "UPDATE " + UsersTableName + " SET hashedPassword=? WHERE email==?" // #nosec: G101
+	deleteUserSQL       = "DELETE FROM " + UsersTableName + " WHERE email==?"
+	countUsersSQL       = "SELECT COUNT(*) FROM " + UsersTableName
 )
 
 type RoleID int
@@ -48,7 +48,7 @@ func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]Use
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	users, count, err := queryPage(ctx, db.reader(), listUsersPageStmt, scanUser, perPage, (page-1)*perPage)
+	users, count, err := queryPageWithTotal(ctx, db.reader(), listUsersPageSQL, scanUser, perPage, (page-1)*perPage)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -56,9 +56,11 @@ func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]Use
 	}
 
 	if len(users) == 0 {
-		fallbackCount, countErr := db.CountUsers(ctx)
-		if countErr != nil {
-			return nil, 0, nil
+		fallbackCount, err := db.CountUsers(ctx)
+		if err != nil {
+			recordSpanError(span, err)
+
+			return nil, 0, fmt.Errorf("count failed: %w", err)
 		}
 
 		return nil, fallbackCount, nil
@@ -73,7 +75,7 @@ func (db *Database) GetUser(ctx context.Context, email string) (*User, error) {
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	row, err := scanUser(db.reader().QueryRowContext(ctx, getUserStmt, email))
+	row, err := scanUser(db.reader().QueryRowContext(ctx, getUserSQL, email))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -93,7 +95,7 @@ func (db *Database) GetUserByID(ctx context.Context, id string) (*User, error) {
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	row, err := scanUser(db.reader().QueryRowContext(ctx, getUserByIDStmt, id))
+	row, err := scanUser(db.reader().QueryRowContext(ctx, getUserByIDSQL, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -196,7 +198,7 @@ func (db *Database) CountUsers(ctx context.Context) (int, error) {
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	count, err := queryCount(ctx, db.reader(), countUsersStmt)
+	count, err := queryCount(ctx, db.reader(), countUsersSQL)
 	if err != nil {
 		recordSpanError(span, err)
 

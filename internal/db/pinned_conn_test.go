@@ -10,6 +10,8 @@ import (
 	"errors"
 	"io"
 	"testing"
+
+	"github.com/mattn/go-sqlite3"
 )
 
 type recordingConn struct {
@@ -71,4 +73,33 @@ func TestPinnedConnUsesDirectExecAndQuery(t *testing.T) {
 	if inner.prepares != 0 {
 		t.Fatalf("expected no Prepare fallback, got %d", inner.prepares)
 	}
+}
+
+func TestPinnedConnForwardsEveryOptionalDriverInterface(t *testing.T) {
+	var conn any = &sqlite3.SQLiteConn{}
+
+	for name, ok := range map[string]bool{
+		"NamedValueChecker": implements[driver.NamedValueChecker](conn),
+		"SessionResetter":   implements[driver.SessionResetter](conn),
+		"Validator":         implements[driver.Validator](conn),
+	} {
+		if ok {
+			t.Errorf("go-sqlite3 now implements driver.%s; noCloseConn must forward it", name)
+		}
+	}
+
+	for name, ok := range map[string]bool{
+		"ExecerContext":      implements[driver.ExecerContext](conn),
+		"QueryerContext":     implements[driver.QueryerContext](conn),
+		"ConnPrepareContext": implements[driver.ConnPrepareContext](conn),
+	} {
+		if !ok {
+			t.Errorf("go-sqlite3 no longer implements driver.%s", name)
+		}
+	}
+}
+
+func implements[T any](v any) bool {
+	_, ok := v.(T)
+	return ok
 }

@@ -33,31 +33,10 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 		Metric:      1,
 	}
 
-	tx, err := database.BeginTransaction(context.Background())
-	if err != nil {
-		t.Fatalf("Couldn't complete BeginTransaction: %s", err)
-	}
-
-	committedCreate := false
-
-	defer func() {
-		if !committedCreate {
-			if rbErr := tx.Rollback(); rbErr != nil {
-				t.Fatalf("Couldn't complete Rollback: %s", rbErr)
-			}
-		}
-	}()
-
-	routeID, err := tx.CreateRoute(context.Background(), route)
+	routeID, err := database.CreateRoute(context.Background(), route)
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
-
-	if err := tx.Commit(); err != nil {
-		t.Fatalf("Couldn't complete Commit: %s", err)
-	}
-
-	committedCreate = true
 
 	if routeID != 1 {
 		t.Fatalf("expected routeID 1, got %d", routeID)
@@ -93,30 +72,9 @@ func TestDBRoutesEndToEnd(t *testing.T) {
 		t.Fatalf("The OPC value from the database doesn't match the OPC value that was given")
 	}
 
-	tx, err = database.BeginTransaction(context.Background())
-	if err != nil {
-		t.Fatalf("Couldn't complete BeginTransaction: %s", err)
-	}
-
-	committedDelete := false
-
-	defer func() {
-		if !committedDelete {
-			if rbErr := tx.Rollback(); rbErr != nil {
-				t.Fatalf("Couldn't complete Rollback: %s", rbErr)
-			}
-		}
-	}()
-
-	if err := tx.DeleteRoute(context.Background(), routeID); err != nil {
+	if err := database.DeleteRoute(context.Background(), routeID); err != nil {
 		t.Fatalf("Couldn't complete Delete: %s", err)
 	}
-
-	if err := tx.Commit(); err != nil {
-		t.Fatalf("Couldn't complete Commit: %s", err)
-	}
-
-	committedDelete = true
 
 	res, total, err = database.ListRoutesPage(context.Background(), 1, 10)
 	if err != nil {

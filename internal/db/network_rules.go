@@ -19,12 +19,12 @@ import (
 const NetworkRulesTableName = "network_rules"
 
 const (
-	getNetworkRuleStmt             = "SELECT id, policy_id, description, direction, remote_prefix, protocol, port_low, port_high, action, precedence, created_at, updated_at FROM " + NetworkRulesTableName + " WHERE id==?"
-	createNetworkRuleStmt          = "INSERT INTO " + NetworkRulesTableName + " (id, policy_id, description, direction, remote_prefix, protocol, port_low, port_high, action, precedence, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-	updateNetworkRuleStmt          = "UPDATE " + NetworkRulesTableName + " SET description=?, direction=?, remote_prefix=?, protocol=?, port_low=?, port_high=?, action=?, precedence=?, updated_at=? WHERE id==?"
-	deleteNetworkRuleStmt          = "DELETE FROM " + NetworkRulesTableName + " WHERE id==?"
-	deleteNetworkRulesByPolicyStmt = "DELETE FROM " + NetworkRulesTableName + " WHERE policy_id==?"
-	listRulesForPolicyStmt         = "SELECT id, policy_id, description, direction, remote_prefix, protocol, port_low, port_high, action, precedence, created_at, updated_at FROM " + NetworkRulesTableName + " WHERE policy_id==? ORDER BY precedence ASC"
+	getNetworkRuleSQL             = "SELECT id, policy_id, description, direction, remote_prefix, COALESCE(protocol, 255), COALESCE(port_low, 0), COALESCE(port_high, 0), action, precedence, created_at, updated_at FROM " + NetworkRulesTableName + " WHERE id==?"
+	createNetworkRuleSQL          = "INSERT INTO " + NetworkRulesTableName + " (id, policy_id, description, direction, remote_prefix, protocol, port_low, port_high, action, precedence, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	updateNetworkRuleSQL          = "UPDATE " + NetworkRulesTableName + " SET description=?, direction=?, remote_prefix=?, protocol=?, port_low=?, port_high=?, action=?, precedence=?, updated_at=? WHERE id==?"
+	deleteNetworkRuleSQL          = "DELETE FROM " + NetworkRulesTableName + " WHERE id==?"
+	deleteNetworkRulesByPolicySQL = "DELETE FROM " + NetworkRulesTableName + " WHERE policy_id==?"
+	listRulesForPolicySQL         = "SELECT id, policy_id, description, direction, remote_prefix, COALESCE(protocol, 255), COALESCE(port_low, 0), COALESCE(port_high, 0), action, precedence, created_at, updated_at FROM " + NetworkRulesTableName + " WHERE policy_id==? ORDER BY precedence ASC"
 )
 
 const gap = 100
@@ -81,7 +81,7 @@ func (db *Database) GetNetworkRule(ctx context.Context, id string) (*NetworkRule
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	row, err := scanNetworkRule(db.reader().QueryRowContext(ctx, getNetworkRuleStmt, id))
+	row, err := scanNetworkRule(db.reader().QueryRowContext(ctx, getNetworkRuleSQL, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -216,7 +216,7 @@ func (db *Database) ListRulesForPolicy(ctx context.Context, policyID string) ([]
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	rules, err := queryAll(ctx, db.reader(), listRulesForPolicyStmt, scanNetworkRule, policyID)
+	rules, err := queryAll(ctx, db.reader(), listRulesForPolicySQL, scanNetworkRule, policyID)
 	if err != nil {
 		recordSpanError(span, err)
 

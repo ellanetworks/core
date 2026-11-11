@@ -20,32 +20,32 @@ import (
 const IPLeasesTableName = "ip_leases"
 
 const (
-	createLeaseStmt              = "INSERT INTO " + IPLeasesTableName + " (id, poolID, poolType, addressBin, imsi, sessionID, type, createdAt, nodeID) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-	getDynamicLeaseBySessionStmt = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE +poolID==? AND poolType==? AND imsi==? AND +sessionID==? AND type='dynamic'"
-	getLeaseBySessionStmt        = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE +poolID==? AND poolType==? AND +sessionID==? AND imsi==?"
-	getActiveLeaseByAddressStmt  = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE poolID==? AND addressBin==? AND sessionID IS NOT NULL"
-	updateLeaseSessionStmt       = "UPDATE " + IPLeasesTableName + " SET sessionID=? WHERE id==?"
-	updateLeaseNodeStmt          = "UPDATE " + IPLeasesTableName + " SET nodeID=?, sessionID=? WHERE id==?"
-	deleteLeaseStmt              = "DELETE FROM " + IPLeasesTableName + " WHERE id==? AND type='dynamic'"
-	deleteAllDynamicLeasesStmt   = "DELETE FROM " + IPLeasesTableName + " WHERE type='dynamic'"
-	deleteDynLeasesByNodeStmt    = "DELETE FROM " + IPLeasesTableName + " WHERE type='dynamic' AND nodeID==?"
-	listActiveLeasesStmt         = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE sessionID IS NOT NULL"
-	listActiveLeasesByNodeStmt   = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE sessionID IS NOT NULL AND nodeID==?"
-	listLeasesByPoolStmt         = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==?"
-	listLeaseAddressRangeStmt    = "SELECT addressBin FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? AND addressBin >= ? AND addressBin <= ? ORDER BY addressBin"
-	getNewestLeaseInPoolStmt     = "SELECT addressBin FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? ORDER BY rowid DESC LIMIT 1"
-	countLeasesByPoolStmt        = "SELECT COUNT(*) FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==?"
-	countIPv4LeasesByPoolStmt    = "SELECT COUNT(*) FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? AND substr(addressBin, 1, 12) = X'00000000000000000000FFFF'"
-	countIPv6LeasesByPoolStmt    = "SELECT COUNT(*) FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? AND substr(addressBin, 1, 12) != X'00000000000000000000FFFF'"
-	countActiveLeasesStmt        = "SELECT COUNT(*) FROM " + IPLeasesTableName + " WHERE sessionID IS NOT NULL"
-	countLeasesByIMSIStmt        = "SELECT COUNT(*) FROM " + IPLeasesTableName + " WHERE imsi==?"
-	listLeasesByPoolPageStmt     = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? ORDER BY addressBin LIMIT ? OFFSET ?"
-	listAllLeasesStmt            = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName
-	getStaticLeaseStmt           = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? AND imsi==? AND type='static'"
-	listStaticLeasesByDNStmt     = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE poolID==? AND type='static' ORDER BY poolType, addressBin"
-	listStaticLeasesByIMSIStmt   = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE imsi==? AND type='static' ORDER BY addressBin"
-	updateStaticLeaseAddressStmt = "UPDATE " + IPLeasesTableName + " SET addressBin=? WHERE id==? AND type='static'"
-	deleteStaticLeaseStmt        = "DELETE FROM " + IPLeasesTableName + " WHERE id==? AND type='static'"
+	createLeaseSQL              = "INSERT INTO " + IPLeasesTableName + " (id, poolID, poolType, addressBin, imsi, sessionID, type, createdAt, nodeID) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	getDynamicLeaseBySessionSQL = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE +poolID==? AND poolType==? AND imsi==? AND +sessionID==? AND type='dynamic'"
+	getLeaseBySessionSQL        = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE +poolID==? AND poolType==? AND +sessionID==? AND imsi==?"
+	getActiveLeaseByAddressSQL  = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE poolID==? AND addressBin==? AND sessionID IS NOT NULL"
+	updateLeaseSessionSQL       = "UPDATE " + IPLeasesTableName + " SET sessionID=? WHERE id==?"
+	updateLeaseNodeSQL          = "UPDATE " + IPLeasesTableName + " SET nodeID=?, sessionID=? WHERE id==?"
+	deleteLeaseSQL              = "DELETE FROM " + IPLeasesTableName + " WHERE id==? AND type='dynamic'"
+	deleteAllDynamicLeasesSQL   = "DELETE FROM " + IPLeasesTableName + " WHERE type='dynamic'"
+	deleteDynLeasesByNodeSQL    = "DELETE FROM " + IPLeasesTableName + " WHERE type='dynamic' AND nodeID==?"
+	listActiveLeasesSQL         = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE sessionID IS NOT NULL"
+	listActiveLeasesByNodeSQL   = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE sessionID IS NOT NULL AND nodeID==?"
+	listLeasesByPoolSQL         = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==?"
+	listLeaseAddressRangeSQL    = "SELECT addressBin FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? AND addressBin >= ? AND addressBin <= ? ORDER BY addressBin"
+	getNewestLeaseInPoolSQL     = "SELECT addressBin FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? ORDER BY rowid DESC LIMIT 1"
+	countLeasesByPoolSQL        = "SELECT COUNT(*) FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==?"
+	countIPv4LeasesByPoolSQL    = "SELECT COUNT(*) FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? AND substr(addressBin, 1, 12) = X'00000000000000000000FFFF'"
+	countIPv6LeasesByPoolSQL    = "SELECT COUNT(*) FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? AND substr(addressBin, 1, 12) != X'00000000000000000000FFFF'"
+	countActiveLeasesSQL        = "SELECT COUNT(*) FROM " + IPLeasesTableName + " WHERE sessionID IS NOT NULL"
+	countLeasesByIMSISQL        = "SELECT COUNT(*) FROM " + IPLeasesTableName + " WHERE imsi==?"
+	listLeasesByPoolPageSQL     = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? ORDER BY addressBin LIMIT ? OFFSET ?"
+	listAllLeasesSQL            = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName
+	getStaticLeaseSQL           = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? AND imsi==? AND type='static'"
+	listStaticLeasesByDNSQL     = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE poolID==? AND type='static' ORDER BY poolType, addressBin"
+	listStaticLeasesByIMSISQL   = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE imsi==? AND type='static' ORDER BY addressBin"
+	updateStaticLeaseAddressSQL = "UPDATE " + IPLeasesTableName + " SET addressBin=? WHERE id==? AND type='static'"
+	deleteStaticLeaseSQL        = "DELETE FROM " + IPLeasesTableName + " WHERE id==? AND type='static'"
 )
 
 // IPLease represents a row in the ip_leases table.
@@ -178,7 +178,7 @@ func (db *Database) GetLeaseBySession(ctx context.Context, poolID string, poolTy
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	row, err := scanIPLease(db.reader().QueryRowContext(ctx, getLeaseBySessionStmt, poolID, poolType, &sessionID, imsi))
+	row, err := scanIPLease(db.reader().QueryRowContext(ctx, getLeaseBySessionSQL, poolID, poolType, sessionID, imsi))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -199,7 +199,7 @@ func (db *Database) GetActiveLeaseByAddress(ctx context.Context, poolID string, 
 
 	b := address.As16()
 
-	row, err := scanIPLease(db.reader().QueryRowContext(ctx, getActiveLeaseByAddressStmt, poolID, b[:]))
+	row, err := scanIPLease(db.reader().QueryRowContext(ctx, getActiveLeaseByAddressSQL, poolID, b[:]))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -340,7 +340,7 @@ func (db *Database) ListActiveLeases(ctx context.Context) ([]IPLease, error) {
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	leases, err := queryAll(ctx, db.reader(), listActiveLeasesStmt, scanIPLease)
+	leases, err := queryAll(ctx, db.reader(), listActiveLeasesSQL, scanIPLease)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -360,7 +360,7 @@ func (db *Database) ListActiveLeasesByNode(ctx context.Context, nodeID string) (
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	leases, err := queryAll(ctx, db.reader(), listActiveLeasesByNodeStmt, scanIPLease, nodeID)
+	leases, err := queryAll(ctx, db.reader(), listActiveLeasesByNodeSQL, scanIPLease, nodeID)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -372,7 +372,7 @@ func (db *Database) ListActiveLeasesByNode(ctx context.Context, nodeID string) (
 
 // listAllLeases returns every lease row. Used only by the support bundle export.
 func (db *Database) listAllLeases(ctx context.Context) ([]IPLease, error) {
-	leases, err := queryAll(ctx, db.reader(), listAllLeasesStmt, scanIPLease)
+	leases, err := queryAll(ctx, db.reader(), listAllLeasesSQL, scanIPLease)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -386,7 +386,7 @@ func (db *Database) ListLeasesByPool(ctx context.Context, poolID string, poolTyp
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	leases, err := queryAll(ctx, db.reader(), listLeasesByPoolStmt, scanIPLease, poolID, poolType)
+	leases, err := queryAll(ctx, db.reader(), listLeasesByPoolSQL, scanIPLease, poolID, poolType)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -403,7 +403,7 @@ func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID, poolType s
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	leases, err := queryAll(ctx, db.reader(), listLeasesByPoolPageStmt, scanIPLease, poolID, poolType, perPage, (page-1)*perPage)
+	leases, err := queryAll(ctx, db.reader(), listLeasesByPoolPageSQL, scanIPLease, poolID, poolType, perPage, (page-1)*perPage)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -426,7 +426,7 @@ func (db *Database) CountLeasesByPool(ctx context.Context, poolID, poolType stri
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	count, err := queryCount(ctx, db.reader(), countLeasesByPoolStmt, poolID, poolType)
+	count, err := queryCount(ctx, db.reader(), countLeasesByPoolSQL, poolID, poolType)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -443,7 +443,7 @@ func (db *Database) CountIPv4LeasesByPool(ctx context.Context, poolID, poolType 
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	count, err := queryCount(ctx, db.reader(), countIPv4LeasesByPoolStmt, poolID, poolType)
+	count, err := queryCount(ctx, db.reader(), countIPv4LeasesByPoolSQL, poolID, poolType)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -459,7 +459,7 @@ func (db *Database) CountIPv6LeasesByPool(ctx context.Context, poolID, poolType 
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	count, err := queryCount(ctx, db.reader(), countIPv6LeasesByPoolStmt, poolID, poolType)
+	count, err := queryCount(ctx, db.reader(), countIPv6LeasesByPoolSQL, poolID, poolType)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -475,7 +475,7 @@ func (db *Database) CountActiveLeases(ctx context.Context) (int, error) {
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	count, err := queryCount(ctx, db.reader(), countActiveLeasesStmt)
+	count, err := queryCount(ctx, db.reader(), countActiveLeasesSQL)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -491,7 +491,7 @@ func (db *Database) CountLeasesByIMSI(ctx context.Context, imsi string) (int, er
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	count, err := queryCount(ctx, db.reader(), countLeasesByIMSIStmt, imsi)
+	count, err := queryCount(ctx, db.reader(), countLeasesByIMSISQL, imsi)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -534,7 +534,7 @@ func (db *Database) GetStaticLease(ctx context.Context, poolID, poolType, imsi s
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	row, err := scanIPLease(db.reader().QueryRowContext(ctx, getStaticLeaseStmt, poolID, poolType, imsi))
+	row, err := scanIPLease(db.reader().QueryRowContext(ctx, getStaticLeaseSQL, poolID, poolType, imsi))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -555,7 +555,7 @@ func (db *Database) ListStaticLeasesByIMSI(ctx context.Context, imsi string) ([]
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	leases, err := queryAll(ctx, db.reader(), listStaticLeasesByIMSIStmt, scanIPLease, imsi)
+	leases, err := queryAll(ctx, db.reader(), listStaticLeasesByIMSISQL, scanIPLease, imsi)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -572,7 +572,7 @@ func (db *Database) ListStaticLeasesByDataNetwork(ctx context.Context, poolID st
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	leases, err := queryAll(ctx, db.reader(), listStaticLeasesByDNStmt, scanIPLease, poolID)
+	leases, err := queryAll(ctx, db.reader(), listStaticLeasesByDNSQL, scanIPLease, poolID)
 	if err != nil {
 		recordSpanError(span, err)
 

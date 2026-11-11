@@ -20,12 +20,12 @@ const (
 
 const N3SettingsTableName = "n3_settings"
 
-const upsertN3SettingsStmt = `
+const upsertN3SettingsSQL = `
 INSERT INTO ` + N3SettingsTableName + ` (singleton, external_address) VALUES (TRUE, ?)
 ON CONFLICT(singleton) DO UPDATE SET external_address=excluded.external_address;
 `
 
-const getN3SettingsStmt = `SELECT external_address FROM ` + N3SettingsTableName + ` WHERE singleton=TRUE;`
+const getN3SettingsSQL = `SELECT external_address FROM ` + N3SettingsTableName + ` WHERE singleton=TRUE;`
 
 type N3Settings struct {
 	ExternalAddress string
@@ -84,7 +84,7 @@ func (db *Database) GetN3Settings(ctx context.Context) (*N3Settings, error) {
 
 	var n3Settings N3Settings
 
-	if err := db.reader().QueryRowContext(ctx, getN3SettingsStmt).Scan(&n3Settings.ExternalAddress); err != nil {
+	if err := db.reader().QueryRowContext(ctx, getN3SettingsSQL).Scan(&n3Settings.ExternalAddress); err != nil {
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)

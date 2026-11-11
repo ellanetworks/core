@@ -38,17 +38,17 @@ func (db *Database) requireIdentitySchemaFor(ctx context.Context, nodeID string)
 const clusterMemberColumnsPreV20 = "nodeID, apiAddress, binaryVersion, drainState, drainUpdatedAt"
 
 const (
-	listClusterMembersStmt        = "SELECT nodeID, amfPointer, displayName, apiAddress, binaryVersion, drainState, drainUpdatedAt FROM " + ClusterMembersTableName + " ORDER BY nodeID ASC"
-	listClusterMembersPreV20Stmt  = "SELECT " + clusterMemberColumnsPreV20 + " FROM " + ClusterMembersTableName + " ORDER BY nodeID ASC"
-	getClusterMemberStmt          = "SELECT nodeID, amfPointer, displayName, apiAddress, binaryVersion, drainState, drainUpdatedAt FROM " + ClusterMembersTableName + " WHERE nodeID==?"
-	getClusterMemberPreV20Stmt    = "SELECT " + clusterMemberColumnsPreV20 + " FROM " + ClusterMembersTableName + " WHERE nodeID==?"
-	upsertClusterMemberStmt       = "INSERT INTO " + ClusterMembersTableName + " (nodeID, amfPointer, displayName, apiAddress, binaryVersion) VALUES (?, ?, ?, ?, ?) ON CONFLICT(nodeID) DO UPDATE SET amfPointer=excluded.amfPointer, apiAddress=?, binaryVersion=?"
-	upsertClusterMemberPreV20Stmt = "INSERT INTO " + ClusterMembersTableName + " (nodeID, raftAddress, apiAddress, binaryVersion) VALUES (?, '', ?, ?) ON CONFLICT(nodeID) DO UPDATE SET apiAddress=?, binaryVersion=?"
-	deleteClusterMemberStmt       = "DELETE FROM " + ClusterMembersTableName + " WHERE nodeID==?"
-	countClusterMembersStmt       = "SELECT COUNT(*) FROM " + ClusterMembersTableName
-	getDrainStateStmt             = "SELECT drainState FROM " + ClusterMembersTableName + " WHERE nodeID==?"
-	setDrainStateStmt             = "UPDATE " + ClusterMembersTableName + " SET drainState=?, drainUpdatedAt=? WHERE nodeID==?"
-	setDisplayNameStmt            = "UPDATE " + ClusterMembersTableName + " SET displayName=? WHERE nodeID==?"
+	listClusterMembersSQL        = "SELECT nodeID, amfPointer, displayName, apiAddress, binaryVersion, drainState, drainUpdatedAt FROM " + ClusterMembersTableName + " ORDER BY nodeID ASC"
+	listClusterMembersPreV20SQL  = "SELECT " + clusterMemberColumnsPreV20 + " FROM " + ClusterMembersTableName + " ORDER BY nodeID ASC"
+	getClusterMemberSQL          = "SELECT nodeID, amfPointer, displayName, apiAddress, binaryVersion, drainState, drainUpdatedAt FROM " + ClusterMembersTableName + " WHERE nodeID==?"
+	getClusterMemberPreV20SQL    = "SELECT " + clusterMemberColumnsPreV20 + " FROM " + ClusterMembersTableName + " WHERE nodeID==?"
+	upsertClusterMemberSQL       = "INSERT INTO " + ClusterMembersTableName + " (nodeID, amfPointer, displayName, apiAddress, binaryVersion) VALUES (?, ?, ?, ?, ?) ON CONFLICT(nodeID) DO UPDATE SET amfPointer=excluded.amfPointer, apiAddress=?, binaryVersion=?"
+	upsertClusterMemberPreV20SQL = "INSERT INTO " + ClusterMembersTableName + " (nodeID, raftAddress, apiAddress, binaryVersion) VALUES (?, '', ?, ?) ON CONFLICT(nodeID) DO UPDATE SET apiAddress=?, binaryVersion=?"
+	deleteClusterMemberSQL       = "DELETE FROM " + ClusterMembersTableName + " WHERE nodeID==?"
+	countClusterMembersSQL       = "SELECT COUNT(*) FROM " + ClusterMembersTableName
+	getDrainStateSQL             = "SELECT drainState FROM " + ClusterMembersTableName + " WHERE nodeID==?"
+	setDrainStateSQL             = "UPDATE " + ClusterMembersTableName + " SET drainState=?, drainUpdatedAt=? WHERE nodeID==?"
+	setDisplayNameSQL            = "UPDATE " + ClusterMembersTableName + " SET displayName=? WHERE nodeID==?"
 )
 
 const (
@@ -80,9 +80,9 @@ func (db *Database) ListClusterMembers(ctx context.Context) ([]ClusterMember, er
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	query, scan := listClusterMembersStmt, scanClusterMember
+	query, scan := listClusterMembersSQL, scanClusterMember
 	if !db.appliedSchemaAtLeast(ctx, clusterMemberIdentitySchema) {
-		query, scan = listClusterMembersPreV20Stmt, scanClusterMemberPreV20
+		query, scan = listClusterMembersPreV20SQL, scanClusterMemberPreV20
 	}
 
 	members, err := queryAll(ctx, db.reader(), query, scan)
@@ -100,9 +100,9 @@ func (db *Database) GetClusterMember(ctx context.Context, nodeID string) (*Clust
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	query, scan := getClusterMemberStmt, scanClusterMember
+	query, scan := getClusterMemberSQL, scanClusterMember
 	if !db.appliedSchemaAtLeast(ctx, clusterMemberIdentitySchema) {
-		query, scan = getClusterMemberPreV20Stmt, scanClusterMemberPreV20
+		query, scan = getClusterMemberPreV20SQL, scanClusterMemberPreV20
 	}
 
 	row, err := scan(db.reader().QueryRowContext(ctx, query, nodeID))
@@ -202,7 +202,7 @@ func (db *Database) CountClusterMembers(ctx context.Context) (int, error) {
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	count, err := queryCount(ctx, db.reader(), countClusterMembersStmt)
+	count, err := queryCount(ctx, db.reader(), countClusterMembersSQL)
 	if err != nil {
 		recordSpanError(span, err)
 

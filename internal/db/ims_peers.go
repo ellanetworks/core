@@ -27,10 +27,10 @@ const (
 )
 
 const (
-	listIMSPeersStmt  = "SELECT id, name, originHost, realm, addresses FROM " + IMSPeersTableName + " ORDER BY name"
-	insertIMSPeerStmt = "INSERT INTO " + IMSPeersTableName + " (id, name, originHost, realm, addresses) VALUES (?, ?, ?, ?, ?)"
-	updateIMSPeerStmt = "UPDATE " + IMSPeersTableName + " SET originHost=?, realm=?, addresses=? WHERE id==?"
-	deleteIMSPeerStmt = "DELETE FROM " + IMSPeersTableName + " WHERE id==?"
+	listIMSPeersSQL  = "SELECT id, name, originHost, realm, addresses FROM " + IMSPeersTableName + " ORDER BY name"
+	insertIMSPeerSQL = "INSERT INTO " + IMSPeersTableName + " (id, name, originHost, realm, addresses) VALUES (?, ?, ?, ?, ?)"
+	updateIMSPeerSQL = "UPDATE " + IMSPeersTableName + " SET originHost=?, realm=?, addresses=? WHERE id==?"
+	deleteIMSPeerSQL = "DELETE FROM " + IMSPeersTableName + " WHERE id==?"
 )
 
 var ErrIMSPeerConflict = errors.New("allowed IMS peer conflict")
@@ -319,7 +319,7 @@ func (db *Database) listIMSPeers(ctx context.Context) ([]IMSPeer, error) {
 		return []IMSPeer{}, nil
 	}
 
-	rows, err := queryAll(ctx, db.runner(ctx), listIMSPeersStmt, scanIMSPeerRow)
+	rows, err := queryAll(ctx, db.runner(ctx), listIMSPeersSQL, scanIMSPeerRow)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -361,7 +361,7 @@ func (db *Database) applyCreateIMSPeer(ctx context.Context, p *IMSPeer) (any, er
 		return nil, err
 	}
 
-	if _, err := db.runner(ctx).ExecContext(ctx, insertIMSPeerStmt, row.ID, row.Name, row.OriginHost, row.Realm, row.Addresses); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, insertIMSPeerSQL, row.ID, row.Name, row.OriginHost, row.Realm, row.Addresses); err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
 		}
@@ -398,7 +398,7 @@ func (db *Database) applyUpdateIMSPeer(ctx context.Context, p *IMSPeer) (any, er
 		return nil, err
 	}
 
-	if _, err := db.runner(ctx).ExecContext(ctx, updateIMSPeerStmt, row.OriginHost, row.Realm, row.Addresses, row.ID); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, updateIMSPeerSQL, row.OriginHost, row.Realm, row.Addresses, row.ID); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -415,7 +415,7 @@ func (db *Database) applyDeleteIMSPeer(ctx context.Context, p *stringPayload) (a
 		return nil, ErrNotFound
 	}
 
-	if _, err := db.runner(ctx).ExecContext(ctx, deleteIMSPeerStmt, p.Value); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteIMSPeerSQL, p.Value); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 

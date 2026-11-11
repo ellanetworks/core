@@ -16,12 +16,12 @@ const (
 
 const FlowAccountingSettingsTableName = "flow_accounting_settings"
 
-const upsertFlowAccountingSettingsStmt = `
+const upsertFlowAccountingSettingsSQL = `
 INSERT INTO ` + FlowAccountingSettingsTableName + ` (singleton, enabled) VALUES (TRUE, ?)
 ON CONFLICT(singleton) DO UPDATE SET enabled=excluded.enabled;
 `
 
-const getFlowAccountingSettingsStmt = `SELECT enabled FROM ` + FlowAccountingSettingsTableName + ` WHERE singleton=TRUE;`
+const getFlowAccountingSettingsSQL = `SELECT enabled FROM ` + FlowAccountingSettingsTableName + ` WHERE singleton=TRUE;`
 
 // InitializeFlowAccountingSettings inserts the default flow accounting
 // settings row if the singleton row does not yet exist. Idempotent.
@@ -45,7 +45,7 @@ func (db *Database) IsFlowAccountingEnabled(ctx context.Context) (bool, error) {
 
 	var enabled bool
 
-	err := db.reader().QueryRowContext(ctx, getFlowAccountingSettingsStmt).Scan(&enabled)
+	err := db.reader().QueryRowContext(ctx, getFlowAccountingSettingsSQL).Scan(&enabled)
 	if err != nil {
 		recordSpanError(span, err)
 

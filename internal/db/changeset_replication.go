@@ -171,7 +171,7 @@ var fsmInternalTables = []string{
 }
 
 func (db *Database) assertTableReplicationClassification(ctx context.Context) error {
-	rows, err := db.conn().QueryContext(ctx,
+	rows, err := db.writer().QueryContext(ctx,
 		"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
 	if err != nil {
 		return fmt.Errorf("list sqlite tables: %w", err)
@@ -242,7 +242,7 @@ func (db *Database) applyChangesetBatch(ctx context.Context, payload *changesetB
 }
 
 func (db *Database) applyChangesets(ctx context.Context, changesets [][]byte, operations []string, logIndex, logTerm uint64) error {
-	conn, err := db.conn().Conn(ctx)
+	conn, err := db.writer().Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("acquire sqlite conn for apply: %w", err)
 	}
@@ -309,7 +309,7 @@ func (db *Database) applyChangesets(ctx context.Context, changesets [][]byte, op
 }
 
 func (db *Database) captureChangeset(ctx context.Context, applyFn func(context.Context) (any, error), operation string) ([]byte, any, int, error) {
-	conn, err := db.conn().Conn(ctx)
+	conn, err := db.writer().Conn(ctx)
 	if err != nil {
 		return nil, nil, 0, fmt.Errorf("acquire sqlite conn for capture: %w", err)
 	}
@@ -400,7 +400,7 @@ func readSchemaVersionRaw(ctx context.Context, conn *sqlite3.SQLiteConn) (int, e
 }
 
 func (db *Database) applyLocalTx(ctx context.Context, operation string, applyFn func(context.Context) (any, error)) (any, error) {
-	conn, err := db.conn().Conn(ctx)
+	conn, err := db.writer().Conn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("acquire sqlite conn for %s: %w", operation, err)
 	}
@@ -449,27 +449,27 @@ func (db *Database) applyLocalTx(ctx context.Context, operation string, applyFn 
 	return result, nil
 }
 
-// pinnedRunnerCtxKey is the context key under which applyWithPinnedConn stores
-// the pinned *sql.DB for apply functions. Applier methods resolve the
-// runner via (*Database).runner so they target the pinned connection during
-// capture without mutating the shared db.conn pointer (which would race with
-// concurrent non-capture DB users and return "sql: database is closed" once
-// the pinned handle is Close'd at capture end).
+// pinnedRunnerCtxKey is the context key under which applyWithPinnedConn
+// stores a querier over the pinned connection for apply functions. Applier
+// methods resolve the runner via (*Database).runner so they target the pinned
+// connection during capture without mutating the shared db.conn pointer
+// (which would race with concurrent non-capture DB users and return "sql:
+// database is closed" once the pinned handle is Close'd at capture end).
 type pinnedRunnerCtxKey struct{}
 
 func (db *Database) writer() *sql.DB {
 	return db.conn()
 }
 
-func (db *Database) reader() querier {
+func (db *Database) reader() *sql.DB {
 	return db.conn()
 }
 
 // runner returns the querier to use for the current operation. Inside a
-// changeset capture, applyFn receives a context carrying the pinned *sql.DB;
+// changeset capture, applyFn receives a context carrying the pinned querier;
 // outside of capture, callers get the shared writer pool.
 func (db *Database) runner(ctx context.Context) querier {
-	if r, ok := ctx.Value(pinnedRunnerCtxKey{}).(*sql.DB); ok {
+	if r, ok := ctx.Value(pinnedRunnerCtxKey{}).(pinnedQuerier); ok {
 		return r
 	}
 
@@ -483,9 +483,25 @@ func (db *Database) applyWithPinnedConn(ctx context.Context, conn driver.Conn, a
 
 	defer func() { _ = pinned.Close() }()
 
-	ctx = context.WithValue(ctx, pinnedRunnerCtxKey{}, pinned)
+	ctx = context.WithValue(ctx, pinnedRunnerCtxKey{}, pinnedQuerier{db: pinned})
 
 	return applyFn(ctx)
+}
+
+type pinnedQuerier struct {
+	db *sql.DB
+}
+
+func (q pinnedQuerier) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	return q.db.ExecContext(ctx, query, args...)
+}
+
+func (q pinnedQuerier) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+	return q.db.QueryContext(ctx, query, args...)
+}
+
+func (q pinnedQuerier) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
+	return q.db.QueryRowContext(ctx, query, args...)
 }
 
 type pinnedConnector struct {

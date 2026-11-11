@@ -21,15 +21,15 @@ import (
 const NetworkSlicesTableName = "network_slices"
 
 const (
-	listNetworkSlicesPagedStmt = "SELECT id, sst, sd, name, COUNT(*) OVER() FROM " + NetworkSlicesTableName + " LIMIT ? OFFSET ?"
-	listAllNetworkSlicesStmt   = "SELECT id, sst, sd, name FROM " + NetworkSlicesTableName + " ORDER BY id ASC"
-	getNetworkSliceStmt        = "SELECT id, sst, sd, name FROM " + NetworkSlicesTableName + " WHERE name==?"
-	getNetworkSliceByIDStmt    = "SELECT id, sst, sd, name FROM " + NetworkSlicesTableName + " WHERE id==?"
-	createNetworkSliceStmt     = "INSERT INTO " + NetworkSlicesTableName + " (id, sst, sd, name) VALUES (?, ?, ?, ?)"
-	editNetworkSliceStmt       = "UPDATE " + NetworkSlicesTableName + " SET sst=?, sd=? WHERE name==?"
-	deleteNetworkSliceStmt     = "DELETE FROM " + NetworkSlicesTableName + " WHERE name==?"
-	countNetworkSlicesStmt     = "SELECT COUNT(*) FROM " + NetworkSlicesTableName
-	listNetworkSlicesByIDsStmt = "SELECT id, sst, sd, name FROM " + NetworkSlicesTableName + " WHERE id IN (SELECT value FROM json_each(?))"
+	listNetworkSlicesPagedSQL = "SELECT id, sst, sd, name, COUNT(*) OVER() FROM " + NetworkSlicesTableName + " LIMIT ? OFFSET ?"
+	listAllNetworkSlicesSQL   = "SELECT id, sst, sd, name FROM " + NetworkSlicesTableName + " ORDER BY id ASC"
+	getNetworkSliceSQL        = "SELECT id, sst, sd, name FROM " + NetworkSlicesTableName + " WHERE name==?"
+	getNetworkSliceByIDSQL    = "SELECT id, sst, sd, name FROM " + NetworkSlicesTableName + " WHERE id==?"
+	createNetworkSliceSQL     = "INSERT INTO " + NetworkSlicesTableName + " (id, sst, sd, name) VALUES (?, ?, ?, ?)"
+	editNetworkSliceSQL       = "UPDATE " + NetworkSlicesTableName + " SET sst=?, sd=? WHERE name==?"
+	deleteNetworkSliceSQL     = "DELETE FROM " + NetworkSlicesTableName + " WHERE name==?"
+	countNetworkSlicesSQL     = "SELECT COUNT(*) FROM " + NetworkSlicesTableName
+	listNetworkSlicesByIDsSQL = "SELECT id, sst, sd, name FROM " + NetworkSlicesTableName + " WHERE id IN (SELECT value FROM json_each(?))"
 )
 
 type NetworkSlice struct {
@@ -44,7 +44,7 @@ func (db *Database) ListNetworkSlicesPage(ctx context.Context, page, perPage int
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	slices, count, err := queryPage(ctx, db.reader(), listNetworkSlicesPagedStmt, scanNetworkSlice, perPage, (page-1)*perPage)
+	slices, count, err := queryPageWithTotal(ctx, db.reader(), listNetworkSlicesPagedSQL, scanNetworkSlice, perPage, (page-1)*perPage)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -52,9 +52,11 @@ func (db *Database) ListNetworkSlicesPage(ctx context.Context, page, perPage int
 	}
 
 	if len(slices) == 0 {
-		fallbackCount, countErr := db.CountNetworkSlices(ctx)
-		if countErr != nil {
-			return nil, 0, nil
+		fallbackCount, err := db.CountNetworkSlices(ctx)
+		if err != nil {
+			recordSpanError(span, err)
+
+			return nil, 0, fmt.Errorf("count failed: %w", err)
 		}
 
 		return nil, fallbackCount, nil
@@ -68,7 +70,7 @@ func (db *Database) ListAllNetworkSlices(ctx context.Context) ([]NetworkSlice, e
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	slices, err := queryAll(ctx, db.reader(), listAllNetworkSlicesStmt, scanNetworkSlice)
+	slices, err := queryAll(ctx, db.reader(), listAllNetworkSlicesSQL, scanNetworkSlice)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -83,7 +85,7 @@ func (db *Database) GetNetworkSlice(ctx context.Context, name string) (*NetworkS
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	row, err := scanNetworkSlice(db.reader().QueryRowContext(ctx, getNetworkSliceStmt, name))
+	row, err := scanNetworkSlice(db.reader().QueryRowContext(ctx, getNetworkSliceSQL, name))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -102,7 +104,7 @@ func (db *Database) GetNetworkSliceByID(ctx context.Context, id string) (*Networ
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	row, err := scanNetworkSlice(db.reader().QueryRowContext(ctx, getNetworkSliceByIDStmt, id))
+	row, err := scanNetworkSlice(db.reader().QueryRowContext(ctx, getNetworkSliceByIDSQL, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -177,7 +179,7 @@ func (db *Database) CountNetworkSlices(ctx context.Context) (int, error) {
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	count, err := queryCount(ctx, db.reader(), countNetworkSlicesStmt)
+	count, err := queryCount(ctx, db.reader(), countNetworkSlicesSQL)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -212,14 +214,7 @@ func (db *Database) ListNetworkSlicesByIDs(ctx context.Context, ids []string) ([
 
 	DBQueriesTotal.WithLabelValues(NetworkSlicesTableName, "select").Inc()
 
-	idList, err := jsonArray(ids)
-	if err != nil {
-		recordSpanError(span, err)
-
-		return nil, err
-	}
-
-	slices, err := queryAll(ctx, db.reader(), listNetworkSlicesByIDsStmt, scanNetworkSlice, idList)
+	slices, err := queryAll(ctx, db.reader(), listNetworkSlicesByIDsSQL, scanNetworkSlice, jsonArray(ids))
 	if err != nil {
 		recordSpanError(span, err)
 

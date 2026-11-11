@@ -37,15 +37,15 @@ const (
 )
 
 const (
-	listSMSCsStmt                = "SELECT id, name FROM " + SMSCsTableName + " ORDER BY id"
-	listSMSCNodesStmt            = "SELECT id, diameterIdentity, address, port, smscId FROM " + DiameterPeersTableName + " WHERE role='smsc' ORDER BY id"
-	listSMSCServiceCentresStmt   = "SELECT serviceCentre, smscId FROM " + SMSCServiceCentresTableName + " ORDER BY serviceCentre"
-	insertSMSCStmt               = "INSERT INTO " + SMSCsTableName + " (id, name) VALUES (?, ?)"
-	deleteSMSCStmt               = "DELETE FROM " + SMSCsTableName + " WHERE id==?"
-	insertSMSCNodeStmt           = "INSERT INTO " + DiameterPeersTableName + " (id, role, diameterIdentity, address, port, smscId) VALUES (?, 'smsc', ?, ?, ?, ?)"
-	deleteSMSCNodesStmt          = "DELETE FROM " + DiameterPeersTableName + " WHERE smscId==? AND role='smsc'"
-	insertSMSCServiceCentreStmt  = "INSERT INTO " + SMSCServiceCentresTableName + " (serviceCentre, smscId) VALUES (?, ?)"
-	deleteSMSCServiceCentresStmt = "DELETE FROM " + SMSCServiceCentresTableName + " WHERE smscId==?"
+	listSMSCsSQL                = "SELECT id, name FROM " + SMSCsTableName + " ORDER BY id"
+	listSMSCNodesSQL            = "SELECT id, diameterIdentity, address, port, COALESCE(smscId, '') FROM " + DiameterPeersTableName + " WHERE role='smsc' ORDER BY id"
+	listSMSCServiceCentresSQL   = "SELECT serviceCentre, smscId FROM " + SMSCServiceCentresTableName + " ORDER BY serviceCentre"
+	insertSMSCSQL               = "INSERT INTO " + SMSCsTableName + " (id, name) VALUES (?, ?)"
+	deleteSMSCSQL               = "DELETE FROM " + SMSCsTableName + " WHERE id==?"
+	insertSMSCNodeSQL           = "INSERT INTO " + DiameterPeersTableName + " (id, role, diameterIdentity, address, port, smscId) VALUES (?, 'smsc', ?, ?, ?, ?)"
+	deleteSMSCNodesSQL          = "DELETE FROM " + DiameterPeersTableName + " WHERE smscId==? AND role='smsc'"
+	insertSMSCServiceCentreSQL  = "INSERT INTO " + SMSCServiceCentresTableName + " (serviceCentre, smscId) VALUES (?, ?)"
+	deleteSMSCServiceCentresSQL = "DELETE FROM " + SMSCServiceCentresTableName + " WHERE smscId==?"
 )
 
 var ErrSMSCConflict = errors.New("SMSC conflict")
@@ -327,17 +327,17 @@ func (db *Database) listSMSCs(ctx context.Context, q querier) ([]SMSC, error) {
 		return legacySMSCs(peers), nil
 	}
 
-	rows, err := queryAll(ctx, q, listSMSCsStmt, scanSMSCRow)
+	rows, err := queryAll(ctx, q, listSMSCsSQL, scanSMSCRow)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	nodes, err := queryAll(ctx, q, listSMSCNodesStmt, scanSMSCNodeRow)
+	nodes, err := queryAll(ctx, q, listSMSCNodesSQL, scanSMSCNodeRow)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	centres, err := queryAll(ctx, q, listSMSCServiceCentresStmt, scanSMSCServiceCentreRow)
+	centres, err := queryAll(ctx, q, listSMSCServiceCentresSQL, scanSMSCServiceCentreRow)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -383,7 +383,7 @@ func (db *Database) applyCreateSMSC(ctx context.Context, s *SMSC) (any, error) {
 		return nil, fmt.Errorf("%w: %w", ErrSMSCConflict, err)
 	}
 
-	if _, err := db.runner(ctx).ExecContext(ctx, insertSMSCStmt, s.ID, s.Name); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, insertSMSCSQL, s.ID, s.Name); err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
 		}
@@ -436,7 +436,7 @@ func (db *Database) applyDeleteSMSC(ctx context.Context, p *stringPayload) (any,
 		return nil, err
 	}
 
-	if _, err := db.runner(ctx).ExecContext(ctx, deleteSMSCStmt, p.Value); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteSMSCSQL, p.Value); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -444,11 +444,11 @@ func (db *Database) applyDeleteSMSC(ctx context.Context, p *stringPayload) (any,
 }
 
 func (db *Database) deleteSMSCChildren(ctx context.Context, id string) error {
-	if _, err := db.runner(ctx).ExecContext(ctx, deleteSMSCServiceCentresStmt, id); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteSMSCServiceCentresSQL, id); err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
 
-	if _, err := db.runner(ctx).ExecContext(ctx, deleteSMSCNodesStmt, id); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteSMSCNodesSQL, id); err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
 
@@ -459,7 +459,7 @@ func (db *Database) insertSMSCChildren(ctx context.Context, s *SMSC) error {
 	for _, n := range s.Nodes {
 		row := smscNodeRow{ID: n.ID, DiameterIdentity: n.DiameterIdentity, Address: n.Address, Port: n.Port, SMSCID: s.ID}
 
-		if _, err := db.runner(ctx).ExecContext(ctx, insertSMSCNodeStmt, row.ID, row.DiameterIdentity, row.Address, row.Port, row.SMSCID); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, insertSMSCNodeSQL, row.ID, row.DiameterIdentity, row.Address, row.Port, row.SMSCID); err != nil {
 			if isUniqueNameError(err) {
 				return fmt.Errorf("%w: SMSC node %s or its Diameter identity is already in use", ErrSMSCConflict, n.ID)
 			}
@@ -469,7 +469,7 @@ func (db *Database) insertSMSCChildren(ctx context.Context, s *SMSC) error {
 	}
 
 	for _, sc := range s.ServiceCentres {
-		if _, err := db.runner(ctx).ExecContext(ctx, insertSMSCServiceCentreStmt, sc, s.ID); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, insertSMSCServiceCentreSQL, sc, s.ID); err != nil {
 			if isUniqueNameError(err) {
 				return fmt.Errorf("%w: another SMSC serves the service centre number +%s", ErrSMSCConflict, sc)
 			}

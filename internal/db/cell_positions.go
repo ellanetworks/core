@@ -24,16 +24,16 @@ const (
 )
 
 const (
-	putCellPositionStmt       = `INSERT INTO ` + CellPositionsTableName + ` (id, rat, mcc, mnc, cell_identity, gnb_id, latitude, longitude, altitude, uncertainty_semi_major, uncertainty_semi_minor, orientation_major, confidence, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET rat=excluded.rat, mcc=excluded.mcc, mnc=excluded.mnc, cell_identity=excluded.cell_identity, gnb_id=excluded.gnb_id, latitude=excluded.latitude, longitude=excluded.longitude, altitude=excluded.altitude, uncertainty_semi_major=excluded.uncertainty_semi_major, uncertainty_semi_minor=excluded.uncertainty_semi_minor, orientation_major=excluded.orientation_major, confidence=excluded.confidence, updated_at=excluded.updated_at;`
-	getCellPositionStmt       = `SELECT id, rat, mcc, mnc, cell_identity, gnb_id, latitude, longitude, altitude, uncertainty_semi_major, uncertainty_semi_minor, orientation_major, confidence, source, created_at, updated_at FROM ` + CellPositionsTableName + ` WHERE id==?;`
-	getCellPositionByCellStmt = `SELECT id, rat, mcc, mnc, cell_identity, gnb_id, latitude, longitude, altitude, uncertainty_semi_major, uncertainty_semi_minor, orientation_major, confidence, source, created_at, updated_at FROM ` + CellPositionsTableName + ` WHERE rat==? AND mcc==? AND mnc==? AND cell_identity==?;`
-	listCellPositionsStmt     = `SELECT id, rat, mcc, mnc, cell_identity, gnb_id, latitude, longitude, altitude, uncertainty_semi_major, uncertainty_semi_minor, orientation_major, confidence, source, created_at, updated_at FROM ` + CellPositionsTableName + ` ORDER BY created_at DESC;`
+	putCellPositionSQL       = `INSERT INTO ` + CellPositionsTableName + ` (id, rat, mcc, mnc, cell_identity, gnb_id, latitude, longitude, altitude, uncertainty_semi_major, uncertainty_semi_minor, orientation_major, confidence, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET rat=excluded.rat, mcc=excluded.mcc, mnc=excluded.mnc, cell_identity=excluded.cell_identity, gnb_id=excluded.gnb_id, latitude=excluded.latitude, longitude=excluded.longitude, altitude=excluded.altitude, uncertainty_semi_major=excluded.uncertainty_semi_major, uncertainty_semi_minor=excluded.uncertainty_semi_minor, orientation_major=excluded.orientation_major, confidence=excluded.confidence, updated_at=excluded.updated_at;`
+	getCellPositionSQL       = `SELECT id, rat, mcc, mnc, cell_identity, gnb_id, latitude, longitude, altitude, uncertainty_semi_major, uncertainty_semi_minor, orientation_major, confidence, source, created_at, updated_at FROM ` + CellPositionsTableName + ` WHERE id==?;`
+	getCellPositionByCellSQL = `SELECT id, rat, mcc, mnc, cell_identity, gnb_id, latitude, longitude, altitude, uncertainty_semi_major, uncertainty_semi_minor, orientation_major, confidence, source, created_at, updated_at FROM ` + CellPositionsTableName + ` WHERE rat==? AND mcc==? AND mnc==? AND cell_identity==?;`
+	listCellPositionsSQL     = `SELECT id, rat, mcc, mnc, cell_identity, gnb_id, latitude, longitude, altitude, uncertainty_semi_major, uncertainty_semi_minor, orientation_major, confidence, source, created_at, updated_at FROM ` + CellPositionsTableName + ` ORDER BY created_at DESC;`
 	// source is intentionally excluded from the SET clause: it records how the
 	// row originated (currently always "provisioned") and must not change on
 	// edit. CellPositionRequest has no Source field, so leaving it in the SET
 	// clause would blank it on every update.
-	deleteCellPositionByCellStmt = `DELETE FROM ` + CellPositionsTableName + ` WHERE id!=? AND rat==? AND mcc==? AND mnc==? AND cell_identity==?;`
-	deleteCellPositionStmt       = `DELETE FROM ` + CellPositionsTableName + ` WHERE id==?;`
+	deleteCellPositionByCellSQL = `DELETE FROM ` + CellPositionsTableName + ` WHERE id!=? AND rat==? AND mcc==? AND mnc==? AND cell_identity==?;`
+	deleteCellPositionSQL       = `DELETE FROM ` + CellPositionsTableName + ` WHERE id==?;`
 )
 
 // CellPosition maps a serving cell (NCGI for NR, ECGI for E-UTRA) to a
@@ -103,7 +103,7 @@ func (db *Database) GetCellPosition(ctx context.Context, id string) (*CellPositi
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	c, err := scanCellPosition(db.reader().QueryRowContext(ctx, getCellPositionStmt, id))
+	c, err := scanCellPosition(db.reader().QueryRowContext(ctx, getCellPositionSQL, id))
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -122,7 +122,7 @@ func (db *Database) GetCellPositionByCell(ctx context.Context, rat, mcc, mnc, ce
 
 	filter := CellPosition{RAT: rat, Mcc: mcc, Mnc: mnc, CellIdentity: strings.ToLower(cellIdentity)}
 
-	c, err := scanCellPosition(db.reader().QueryRowContext(ctx, getCellPositionByCellStmt, filter.RAT, filter.Mcc, filter.Mnc, filter.CellIdentity))
+	c, err := scanCellPosition(db.reader().QueryRowContext(ctx, getCellPositionByCellSQL, filter.RAT, filter.Mcc, filter.Mnc, filter.CellIdentity))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -141,7 +141,7 @@ func (db *Database) ListCellPositions(ctx context.Context) ([]CellPosition, erro
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	positions, err := queryAll(ctx, db.reader(), listCellPositionsStmt, scanCellPosition)
+	positions, err := queryAll(ctx, db.reader(), listCellPositionsSQL, scanCellPosition)
 	if err != nil {
 		recordSpanError(span, err)
 

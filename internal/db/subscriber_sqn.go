@@ -49,7 +49,7 @@ func (db *Database) applyAdvanceSubscriberSQN(ctx context.Context, payload *Adva
 	defer lockSQN(payload.IMSI).Unlock()
 
 	for range maxSQNCASAttempts {
-		row, err := scanSubscriber(db.runner(ctx).QueryRowContext(ctx, getSubscriberStmt, payload.IMSI))
+		row, err := scanSubscriber(db.runner(ctx).QueryRowContext(ctx, getSubscriberSQL, payload.IMSI))
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return nil, ErrNotFound
@@ -67,7 +67,7 @@ func (db *Database) applyAdvanceSubscriberSQN(ctx context.Context, payload *Adva
 			return nil, err
 		}
 
-		res, err := db.runner(ctx).ExecContext(ctx, casSubscriberSeqNumStmt, next, payload.IMSI, row.SequenceNumber)
+		res, err := db.runner(ctx).ExecContext(ctx, casSubscriberSeqNumSQL, next, payload.IMSI, row.SequenceNumber)
 		if err != nil {
 			return nil, fmt.Errorf("query failed: %w", err)
 		}

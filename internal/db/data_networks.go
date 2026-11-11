@@ -21,25 +21,25 @@ const DataNetworksTableName = "data_networks"
 const dataNetworkIMSSchema = 25
 
 const (
-	listDataNetworksPagedStmt = "SELECT id, name, ipPool, ipv6Pool, dns, mtu, ims, COUNT(*) OVER() from " + DataNetworksTableName + " LIMIT ? OFFSET ?"
-	listAllDataNetworksStmt   = "SELECT id, name, ipPool, ipv6Pool, dns, mtu, ims FROM " + DataNetworksTableName + " ORDER BY id ASC"
-	getDataNetworkStmt        = "SELECT id, name, ipPool, ipv6Pool, dns, mtu, ims from " + DataNetworksTableName + " WHERE name==?"
-	getDataNetworkByIDStmt    = "SELECT id, name, ipPool, ipv6Pool, dns, mtu, ims FROM " + DataNetworksTableName + " WHERE id==?"
-	createDataNetworkStmt     = "INSERT INTO " + DataNetworksTableName + " (id, name, ipPool, ipv6Pool, dns, mtu, ims) VALUES (?, ?, ?, ?, ?, ?, ?)"
-	editDataNetworkStmt       = "UPDATE " + DataNetworksTableName + " SET ipPool=?, ipv6Pool=?, dns=?, mtu=?, ims=? WHERE name==?"
-	deleteDataNetworkStmt     = "DELETE FROM " + DataNetworksTableName + " WHERE name==?"
-	countDataNetworksStmt     = "SELECT COUNT(*) FROM " + DataNetworksTableName
+	listDataNetworksPagedSQL = "SELECT id, name, ipPool, ipv6Pool, dns, mtu, ims, COUNT(*) OVER() from " + DataNetworksTableName + " LIMIT ? OFFSET ?"
+	listAllDataNetworksSQL   = "SELECT id, name, ipPool, ipv6Pool, dns, mtu, ims FROM " + DataNetworksTableName + " ORDER BY id ASC"
+	getDataNetworkSQL        = "SELECT id, name, ipPool, ipv6Pool, dns, mtu, ims from " + DataNetworksTableName + " WHERE name==?"
+	getDataNetworkByIDSQL    = "SELECT id, name, ipPool, ipv6Pool, dns, mtu, ims FROM " + DataNetworksTableName + " WHERE id==?"
+	createDataNetworkSQL     = "INSERT INTO " + DataNetworksTableName + " (id, name, ipPool, ipv6Pool, dns, mtu, ims) VALUES (?, ?, ?, ?, ?, ?, ?)"
+	editDataNetworkSQL       = "UPDATE " + DataNetworksTableName + " SET ipPool=?, ipv6Pool=?, dns=?, mtu=?, ims=? WHERE name==?"
+	deleteDataNetworkSQL     = "DELETE FROM " + DataNetworksTableName + " WHERE name==?"
+	countDataNetworksSQL     = "SELECT COUNT(*) FROM " + DataNetworksTableName
 )
 
 const dataNetworkColumnsPreV25 = "id, name, ipPool, ipv6Pool, dns, mtu, iif(name = '" + models.IMSDataNetworkName + "', TRUE, FALSE)"
 
 const (
-	listDataNetworksPagedPreV25Stmt = "SELECT " + dataNetworkColumnsPreV25 + ", COUNT(*) OVER() from " + DataNetworksTableName + " LIMIT ? OFFSET ?"
-	listAllDataNetworksPreV25Stmt   = "SELECT " + dataNetworkColumnsPreV25 + " FROM " + DataNetworksTableName + " ORDER BY id ASC"
-	getDataNetworkPreV25Stmt        = "SELECT " + dataNetworkColumnsPreV25 + " from " + DataNetworksTableName + " WHERE name==?"
-	getDataNetworkByIDPreV25Stmt    = "SELECT " + dataNetworkColumnsPreV25 + " FROM " + DataNetworksTableName + " WHERE id==?"
-	createDataNetworkPreV25Stmt     = "INSERT INTO " + DataNetworksTableName + " (id, name, ipPool, ipv6Pool, dns, mtu) VALUES (?, ?, ?, ?, ?, ?)"
-	editDataNetworkPreV25Stmt       = "UPDATE " + DataNetworksTableName + " SET ipPool=?, ipv6Pool=?, dns=?, mtu=? WHERE name==?"
+	listDataNetworksPagedPreV25SQL = "SELECT " + dataNetworkColumnsPreV25 + ", COUNT(*) OVER() from " + DataNetworksTableName + " LIMIT ? OFFSET ?"
+	listAllDataNetworksPreV25SQL   = "SELECT " + dataNetworkColumnsPreV25 + " FROM " + DataNetworksTableName + " ORDER BY id ASC"
+	getDataNetworkPreV25SQL        = "SELECT " + dataNetworkColumnsPreV25 + " from " + DataNetworksTableName + " WHERE name==?"
+	getDataNetworkByIDPreV25SQL    = "SELECT " + dataNetworkColumnsPreV25 + " FROM " + DataNetworksTableName + " WHERE id==?"
+	createDataNetworkPreV25SQL     = "INSERT INTO " + DataNetworksTableName + " (id, name, ipPool, ipv6Pool, dns, mtu) VALUES (?, ?, ?, ?, ?, ?)"
+	editDataNetworkPreV25SQL       = "UPDATE " + DataNetworksTableName + " SET ipPool=?, ipv6Pool=?, dns=?, mtu=? WHERE name==?"
 )
 
 type DataNetwork struct {
@@ -66,18 +66,18 @@ func (db *Database) dataNetworkSchemaCurrent(ctx context.Context, dn *DataNetwor
 
 func createDataNetworkQuery(dn *DataNetwork, current bool) (string, []any) {
 	if current {
-		return createDataNetworkStmt, []any{dn.ID, dn.Name, dn.IPv4Pool, dn.IPv6Pool, dn.DNS, dn.MTU, dn.IMS}
+		return createDataNetworkSQL, []any{dn.ID, dn.Name, dn.IPv4Pool, dn.IPv6Pool, dn.DNS, dn.MTU, dn.IMS}
 	}
 
-	return createDataNetworkPreV25Stmt, []any{dn.ID, dn.Name, dn.IPv4Pool, dn.IPv6Pool, dn.DNS, dn.MTU}
+	return createDataNetworkPreV25SQL, []any{dn.ID, dn.Name, dn.IPv4Pool, dn.IPv6Pool, dn.DNS, dn.MTU}
 }
 
 func editDataNetworkQuery(dn *DataNetwork, current bool) (string, []any) {
 	if current {
-		return editDataNetworkStmt, []any{dn.IPv4Pool, dn.IPv6Pool, dn.DNS, dn.MTU, dn.IMS, dn.Name}
+		return editDataNetworkSQL, []any{dn.IPv4Pool, dn.IPv6Pool, dn.DNS, dn.MTU, dn.IMS, dn.Name}
 	}
 
-	return editDataNetworkPreV25Stmt, []any{dn.IPv4Pool, dn.IPv6Pool, dn.DNS, dn.MTU, dn.Name}
+	return editDataNetworkPreV25SQL, []any{dn.IPv4Pool, dn.IPv6Pool, dn.DNS, dn.MTU, dn.Name}
 }
 
 func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int) ([]DataNetwork, int, error) {
@@ -85,12 +85,12 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	query := listDataNetworksPagedStmt
+	query := listDataNetworksPagedSQL
 	if !db.appliedSchemaAtLeast(ctx, dataNetworkIMSSchema) {
-		query = listDataNetworksPagedPreV25Stmt
+		query = listDataNetworksPagedPreV25SQL
 	}
 
-	dataNetworks, count, err := queryPage(ctx, db.reader(), query, scanDataNetwork, perPage, (page-1)*perPage)
+	dataNetworks, count, err := queryPageWithTotal(ctx, db.reader(), query, scanDataNetwork, perPage, (page-1)*perPage)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -98,9 +98,11 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 	}
 
 	if len(dataNetworks) == 0 {
-		fallbackCount, countErr := db.CountDataNetworks(ctx)
-		if countErr != nil {
-			return nil, 0, nil
+		fallbackCount, err := db.CountDataNetworks(ctx)
+		if err != nil {
+			recordSpanError(span, err)
+
+			return nil, 0, fmt.Errorf("count failed: %w", err)
 		}
 
 		return nil, fallbackCount, nil
@@ -114,9 +116,9 @@ func (db *Database) ListAllDataNetworks(ctx context.Context) ([]DataNetwork, err
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	query := listAllDataNetworksStmt
+	query := listAllDataNetworksSQL
 	if !db.appliedSchemaAtLeast(ctx, dataNetworkIMSSchema) {
-		query = listAllDataNetworksPreV25Stmt
+		query = listAllDataNetworksPreV25SQL
 	}
 
 	dataNetworks, err := queryAll(ctx, db.reader(), query, scanDataNetwork)
@@ -134,9 +136,9 @@ func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwo
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	query := getDataNetworkStmt
+	query := getDataNetworkSQL
 	if !db.appliedSchemaAtLeast(ctx, dataNetworkIMSSchema) {
-		query = getDataNetworkPreV25Stmt
+		query = getDataNetworkPreV25SQL
 	}
 
 	row, err := scanDataNetwork(db.reader().QueryRowContext(ctx, query, name))
@@ -160,9 +162,9 @@ func (db *Database) GetDataNetworkByID(ctx context.Context, id string) (*DataNet
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	query := getDataNetworkByIDStmt
+	query := getDataNetworkByIDSQL
 	if !db.appliedSchemaAtLeast(ctx, dataNetworkIMSSchema) {
-		query = getDataNetworkByIDPreV25Stmt
+		query = getDataNetworkByIDPreV25SQL
 	}
 
 	row, err := scanDataNetwork(db.reader().QueryRowContext(ctx, query, id))
@@ -242,7 +244,7 @@ func (db *Database) CountDataNetworks(ctx context.Context) (int, error) {
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	count, err := queryCount(ctx, db.reader(), countDataNetworksStmt)
+	count, err := queryCount(ctx, db.reader(), countDataNetworksSQL)
 	if err != nil {
 		recordSpanError(span, err)
 

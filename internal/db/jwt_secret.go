@@ -14,8 +14,8 @@ import (
 const JWTSecretTableName = "jwt_secret"
 
 const (
-	getJWTSecretStmt    = `SELECT secret FROM ` + JWTSecretTableName + ` WHERE singleton=TRUE`                                                                      // #nosec: G101
-	upsertJWTSecretStmt = `INSERT INTO ` + JWTSecretTableName + ` (singleton, secret) VALUES (TRUE, ?) ON CONFLICT(singleton) DO UPDATE SET secret=excluded.secret` // #nosec: G101
+	getJWTSecretSQL    = `SELECT secret FROM ` + JWTSecretTableName + ` WHERE singleton=TRUE`                                                                      // #nosec: G101
+	upsertJWTSecretSQL = `INSERT INTO ` + JWTSecretTableName + ` (singleton, secret) VALUES (TRUE, ?) ON CONFLICT(singleton) DO UPDATE SET secret=excluded.secret` // #nosec: G101
 )
 
 type JWTSecret struct {
@@ -49,7 +49,7 @@ func (db *Database) GetJWTSecret(ctx context.Context) ([]byte, error) {
 
 	var row JWTSecret
 
-	err := db.reader().QueryRowContext(ctx, getJWTSecretStmt).Scan(&row.Secret)
+	err := db.reader().QueryRowContext(ctx, getJWTSecretSQL).Scan(&row.Secret)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound

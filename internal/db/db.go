@@ -541,10 +541,13 @@ func (db *Database) ForceSnapshot() error {
 // CurrentSchemaVersion reads the schema_version singleton.
 // Returns 0 on error.
 func (db *Database) CurrentSchemaVersion(ctx context.Context) (int, error) {
+	return readSchemaVersion(ctx, db.reader())
+}
+
+func readSchemaVersion(ctx context.Context, q querier) (int, error) {
 	var v int
 
-	if err := db.conn().QueryRowContext(ctx,
-		"SELECT version FROM schema_version WHERE id = 1").Scan(&v); err != nil {
+	if err := q.QueryRowContext(ctx, "SELECT version FROM schema_version WHERE id = 1").Scan(&v); err != nil {
 		return 0, fmt.Errorf("read schema_version: %w", err)
 	}
 
@@ -620,7 +623,7 @@ func (db *Database) checkOpSchema(minSchema int) error {
 func (db *Database) appliedSchemaAtLeast(ctx context.Context, minVersion int) bool {
 	applied := db.cachedAppliedSchema()
 	if applied == 0 {
-		v, err := db.CurrentSchemaVersion(ctx)
+		v, err := readSchemaVersion(ctx, db.runner(ctx))
 		if err != nil {
 			return false
 		}
@@ -643,7 +646,7 @@ func (db *Database) assertAppliedSchema(ctx context.Context, required int, label
 
 	applied := db.cachedAppliedSchema()
 	if applied == 0 {
-		v, err := db.CurrentSchemaVersion(ctx)
+		v, err := readSchemaVersion(ctx, db.runner(ctx))
 		if err != nil {
 			return fmt.Errorf("apply gate: read schema version: %w", err)
 		}
@@ -737,14 +740,14 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 		payload := migrateSharedPayload{TargetVersion: v}
 
 		if v == sliceDataNetworkSchema {
-			localSwitch, err := readLegacyToggle(ctx, db.conn(), LocalSwitchSettingsTableName, false)
+			localSwitch, err := readLegacyToggle(ctx, db.reader(), LocalSwitchSettingsTableName, false)
 			if err != nil {
 				return fmt.Errorf("read the local switching setting to carry into migration %d: %w", v, err)
 			}
 
 			payload.LocalSwitch = &localSwitch
 
-			nat, err := readLegacyToggle(ctx, db.conn(), NATSettingsTableName, NATDefaultEnabled)
+			nat, err := readLegacyToggle(ctx, db.reader(), NATSettingsTableName, NATDefaultEnabled)
 			if err != nil {
 				return fmt.Errorf("read the NAT setting to carry into migration %d: %w", v, err)
 			}
@@ -1231,7 +1234,7 @@ func (db *Database) selfUpsertClusterMember(ctx context.Context, binaryVersion s
 // connection the capture already holds, and deadlock until the propose
 // timeout fires.
 func (db *Database) resolveAMFPointer(ctx context.Context, nodeID string) (int, error) {
-	members, err := queryAll(ctx, db.runner(ctx), listClusterMembersStmt, scanClusterMember)
+	members, err := queryAll(ctx, db.runner(ctx), listClusterMembersSQL, scanClusterMember)
 	if err != nil {
 		return 0, fmt.Errorf("list cluster members: %w", err)
 	}
@@ -1670,29 +1673,6 @@ func (db *Database) Initialize(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-// BeginTransaction starts a transaction against the database.
-func (db *Database) BeginTransaction(ctx context.Context) (*Transaction, error) {
-	tx, err := db.writer().BeginTx(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Transaction{tx: tx}, nil
-}
-
-// Transaction wraps a database transaction.
-type Transaction struct {
-	tx *sql.Tx
-}
-
-func (t *Transaction) Commit() error {
-	return t.tx.Commit()
-}
-
-func (t *Transaction) Rollback() error {
-	return t.tx.Rollback()
 }
 
 func generateOperatorCode() (string, error) {

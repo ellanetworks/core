@@ -16,15 +16,15 @@ import (
 const SessionsTableName = "sessions"
 
 const (
-	createSessionStmt            = "INSERT INTO " + SessionsTableName + " (id, user_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)"
-	getSessionByTokenHashStmt    = "SELECT id, user_id, token_hash, created_at, expires_at FROM " + SessionsTableName + " WHERE token_hash==?"
-	deleteSessionByTokenHashStmt = "DELETE FROM " + SessionsTableName + " WHERE token_hash==?"   // #nosec: G101
-	deleteExpiredSessionsStmt    = "DELETE FROM " + SessionsTableName + " WHERE expires_at <= ?" // #nosec: G101
-	countSessionsByUserStmt      = "SELECT COUNT(*) FROM " + SessionsTableName + " WHERE user_id==?"
-	countExpiredSessionsStmt     = "SELECT COUNT(*) FROM " + SessionsTableName + " WHERE expires_at <= ?" // #nosec: G101
-	deleteOldestSessionsStmt     = "DELETE FROM " + SessionsTableName + " WHERE id IN (SELECT id FROM " + SessionsTableName + " WHERE user_id==? ORDER BY created_at ASC LIMIT ?)"
-	deleteAllSessionsForUserStmt = "DELETE FROM " + SessionsTableName + " WHERE user_id==?"
-	deleteAllSessionsStmt        = "DELETE FROM " + SessionsTableName
+	createSessionSQL            = "INSERT INTO " + SessionsTableName + " (id, user_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)"
+	getSessionByTokenHashSQL    = "SELECT id, user_id, token_hash, created_at, expires_at FROM " + SessionsTableName + " WHERE token_hash==?"
+	deleteSessionByTokenHashSQL = "DELETE FROM " + SessionsTableName + " WHERE token_hash==?"   // #nosec: G101
+	deleteExpiredSessionsSQL    = "DELETE FROM " + SessionsTableName + " WHERE expires_at <= ?" // #nosec: G101
+	countSessionsByUserSQL      = "SELECT COUNT(*) FROM " + SessionsTableName + " WHERE user_id==?"
+	countExpiredSessionsSQL     = "SELECT COUNT(*) FROM " + SessionsTableName + " WHERE expires_at <= ?" // #nosec: G101
+	deleteOldestSessionsSQL     = "DELETE FROM " + SessionsTableName + " WHERE id IN (SELECT id FROM " + SessionsTableName + " WHERE user_id==? ORDER BY created_at ASC LIMIT ?)"
+	deleteAllSessionsForUserSQL = "DELETE FROM " + SessionsTableName + " WHERE user_id==?"
+	deleteAllSessionsSQL        = "DELETE FROM " + SessionsTableName
 )
 
 type Session struct {
@@ -79,7 +79,7 @@ func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte)
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	row, err := scanSession(db.reader().QueryRowContext(ctx, getSessionByTokenHashStmt, tokenHash))
+	row, err := scanSession(db.reader().QueryRowContext(ctx, getSessionByTokenHashSQL, tokenHash))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -130,7 +130,7 @@ func (db *Database) CountSessionsByUser(ctx context.Context, userID string) (int
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	count, err := queryCount(ctx, db.reader(), countSessionsByUserStmt, userID)
+	count, err := queryCount(ctx, db.reader(), countSessionsByUserSQL, userID)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -145,7 +145,7 @@ func (db *Database) CountExpiredSessions(ctx context.Context, nowUnix int64) (in
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	count, err := queryCount(ctx, db.reader(), countExpiredSessionsStmt, nowUnix)
+	count, err := queryCount(ctx, db.reader(), countExpiredSessionsSQL, nowUnix)
 	if err != nil {
 		recordSpanError(span, err)
 

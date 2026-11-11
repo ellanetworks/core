@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -37,12 +36,12 @@ const subscriberDescriptionSchema = 18
 const subscriberMSISDNSchema = 22
 
 const (
-	createSubscriberStmt      = "INSERT INTO " + SubscribersTableName + " (id, imsi, sequenceNumber, permanentKey, opc, profileID, description, msisdn) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-	editSubscriberProfileStmt = "UPDATE " + SubscribersTableName + " SET profileID=?, description=?, msisdn=? WHERE imsi==?"
-	editSubscriberSeqNumStmt  = "UPDATE " + SubscribersTableName + " SET sequenceNumber=? WHERE imsi==?"
-	casSubscriberSeqNumStmt   = "UPDATE " + SubscribersTableName + " SET sequenceNumber=? WHERE imsi==? AND sequenceNumber==?"
-	deleteSubscriberStmt      = "DELETE FROM " + SubscribersTableName + " WHERE imsi==?"
-	countSubscribersStmt      = "SELECT COUNT(*) FROM " + SubscribersTableName
+	createSubscriberSQL      = "INSERT INTO " + SubscribersTableName + " (id, imsi, sequenceNumber, permanentKey, opc, profileID, description, msisdn) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+	editSubscriberProfileSQL = "UPDATE " + SubscribersTableName + " SET profileID=?, description=?, msisdn=? WHERE imsi==?"
+	editSubscriberSeqNumSQL  = "UPDATE " + SubscribersTableName + " SET sequenceNumber=? WHERE imsi==?"
+	casSubscriberSeqNumSQL   = "UPDATE " + SubscribersTableName + " SET sequenceNumber=? WHERE imsi==? AND sequenceNumber==?"
+	deleteSubscriberSQL      = "DELETE FROM " + SubscribersTableName + " WHERE imsi==?"
+	countSubscribersSQL      = "SELECT COUNT(*) FROM " + SubscribersTableName
 )
 
 const subscriberColumns = "id, imsi, sequenceNumber, permanentKey, opc, profileID, description, msisdn"
@@ -52,12 +51,12 @@ const subscriberColumnsPreV18 = "id, imsi, sequenceNumber, permanentKey, opc, pr
 const subscriberColumnsPreV22 = subscriberColumnsPreV18 + ", description"
 
 const (
-	getSubscriberStmt         = "SELECT " + subscriberColumns + " from " + SubscribersTableName + " WHERE imsi==?"
-	getSubscriberPreV22Stmt   = "SELECT " + subscriberColumnsPreV22 + " from " + SubscribersTableName + " WHERE imsi==?"
-	getSubscriberPreV18Stmt   = "SELECT " + subscriberColumnsPreV18 + " from " + SubscribersTableName + " WHERE imsi==?"
-	getSubscriberByMSISDNStmt = "SELECT " + subscriberColumns + " from " + SubscribersTableName + " WHERE msisdn==? AND msisdn!=''"
-	listIMSIsWithMSISDNStmt   = "SELECT imsi FROM " + SubscribersTableName + " WHERE msisdn!='' AND imsi IN (SELECT value FROM json_each(?))"
-	listSubscriberMSISDNsStmt = "SELECT imsi, msisdn FROM " + SubscribersTableName + " WHERE msisdn!=''"
+	getSubscriberSQL         = "SELECT " + subscriberColumns + " from " + SubscribersTableName + " WHERE imsi==?"
+	getSubscriberPreV22SQL   = "SELECT " + subscriberColumnsPreV22 + " from " + SubscribersTableName + " WHERE imsi==?"
+	getSubscriberPreV18SQL   = "SELECT " + subscriberColumnsPreV18 + " from " + SubscribersTableName + " WHERE imsi==?"
+	getSubscriberByMSISDNSQL = "SELECT " + subscriberColumns + " from " + SubscribersTableName + " WHERE msisdn==? AND msisdn!=''"
+	listIMSIsWithMSISDNSQL   = "SELECT imsi FROM " + SubscribersTableName + " WHERE msisdn!='' AND imsi IN (SELECT value FROM json_each(?))"
+	listSubscriberMSISDNsSQL = "SELECT imsi, msisdn FROM " + SubscribersTableName + " WHERE msisdn!=''"
 )
 
 const (
@@ -83,44 +82,44 @@ const (
 )
 
 const (
-	listSubscribersFilteredStmt = `
+	listSubscribersFilteredSQL = `
   SELECT ` + subscriberColumns + `
   FROM ` + SubscribersTableName + `
   WHERE` + subscriberSearchClause + subscriberDataNetworkClause + `
   ORDER BY imsi
   LIMIT ?4 OFFSET ?5`
 
-	listSubscribersFilteredPreV22Stmt = `
+	listSubscribersFilteredPreV22SQL = `
   SELECT ` + subscriberColumnsPreV22 + `
   FROM ` + SubscribersTableName + `
   WHERE` + subscriberSearchClausePreV22 + subscriberDataNetworkClause + `
   ORDER BY imsi
   LIMIT ?4 OFFSET ?5`
 
-	listSubscribersFilteredPreV18Stmt = `
+	listSubscribersFilteredPreV18SQL = `
   SELECT ` + subscriberColumnsPreV18 + `
   FROM ` + SubscribersTableName + `
   WHERE` + subscriberSearchClausePreV18 + subscriberDataNetworkClause + `
   ORDER BY imsi
   LIMIT ?4 OFFSET ?5`
 
-	countSubscribersFilteredStmt = `
+	countSubscribersFilteredSQL = `
   SELECT COUNT(*)
   FROM ` + SubscribersTableName + `
   WHERE` + subscriberSearchClause + subscriberDataNetworkClause
 
-	countSubscribersFilteredPreV22Stmt = `
+	countSubscribersFilteredPreV22SQL = `
   SELECT COUNT(*)
   FROM ` + SubscribersTableName + `
   WHERE` + subscriberSearchClausePreV22 + subscriberDataNetworkClause
 
-	countSubscribersFilteredPreV18Stmt = `
+	countSubscribersFilteredPreV18SQL = `
   SELECT COUNT(*)
   FROM ` + SubscribersTableName + `
   WHERE` + subscriberSearchClausePreV18 + subscriberDataNetworkClause
 )
 
-const countSubscribersAndVisitorsStmt = "SELECT COUNT(*) FROM (SELECT imsi FROM " + SubscribersTableName + " UNION ALL SELECT imsi FROM " + VisitorsTableName + ")"
+const countSubscribersAndVisitorsSQL = "SELECT COUNT(*) FROM (SELECT imsi FROM " + SubscribersTableName + " UNION ALL SELECT imsi FROM " + VisitorsTableName + ")"
 
 type Subscriber struct {
 	ID             string // UUIDv7
@@ -186,7 +185,7 @@ func (db *Database) ListSubscribersPage(ctx context.Context, filters *Subscriber
 		return nil, 0, err
 	}
 
-	query, scan := db.subscriberQuery(ctx, listSubscribersFilteredStmt, listSubscribersFilteredPreV22Stmt, listSubscribersFilteredPreV18Stmt)
+	query, scan := db.subscriberQuery(ctx, listSubscribersQueries)
 
 	subs, err := queryAll(ctx, db.reader(), query, scan, filterArgs.Search, filterArgs.DataNetworkID, filterArgs.IMSIs, perPage, (page-1)*perPage)
 	if err != nil {
@@ -217,7 +216,7 @@ func (db *Database) countSubscribersFiltered(ctx context.Context, filterArgs sub
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	query, _ := db.subscriberQuery(ctx, countSubscribersFilteredStmt, countSubscribersFilteredPreV22Stmt, countSubscribersFilteredPreV18Stmt)
+	query, _ := db.subscriberQuery(ctx, countSubscribersQueries)
 
 	count, err := queryCount(ctx, db.reader(), query, filterArgs.Search, filterArgs.DataNetworkID, filterArgs.IMSIs)
 	if err != nil {
@@ -248,24 +247,34 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 	return &row, nil
 }
 
-func (db *Database) subscriberQuery(ctx context.Context, current, preV22, preV18 string) (string, func(scanner) (Subscriber, error)) {
+type subscriberQueries struct {
+	current string
+	preV22  string
+	preV18  string
+}
+
+var (
+	listSubscribersQueries  = subscriberQueries{current: listSubscribersFilteredSQL, preV22: listSubscribersFilteredPreV22SQL, preV18: listSubscribersFilteredPreV18SQL}
+	countSubscribersQueries = subscriberQueries{current: countSubscribersFilteredSQL, preV22: countSubscribersFilteredPreV22SQL, preV18: countSubscribersFilteredPreV18SQL}
+	getSubscriberQueries    = subscriberQueries{current: getSubscriberSQL, preV22: getSubscriberPreV22SQL, preV18: getSubscriberPreV18SQL}
+)
+
+func (db *Database) subscriberQuery(ctx context.Context, q subscriberQueries) (string, func(scanner) (Subscriber, error)) {
 	switch {
 	case !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema):
-		return preV18, scanSubscriberPreV18
+		return q.preV18, scanSubscriberPreV18
 	case !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema):
-		return preV22, scanSubscriberPreV22
+		return q.preV22, scanSubscriberPreV22
 	default:
-		return current, scanSubscriber
+		return q.current, scanSubscriber
 	}
 }
 
 func (db *Database) getOwnSubscriber(ctx context.Context, q querier, imsi string) (Subscriber, error) {
-	query, scan := db.subscriberQuery(ctx, getSubscriberStmt, getSubscriberPreV22Stmt, getSubscriberPreV18Stmt)
+	query, scan := db.subscriberQuery(ctx, getSubscriberQueries)
 
 	return scan(q.QueryRowContext(ctx, query, imsi))
 }
-
-const maxIMSIsPerQuery = 500
 
 func (db *Database) IMSIsWithMSISDN(ctx context.Context, imsis []string) (map[string]bool, error) {
 	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+SubscribersTableName+" (with msisdn)", SubscribersTableName, "SELECT", "select")
@@ -278,22 +287,14 @@ func (db *Database) IMSIsWithMSISDN(ctx context.Context, imsis []string) (map[st
 		return found, nil
 	}
 
-	for chunk := range slices.Chunk(imsis, maxIMSIsPerQuery) {
-		ids, err := jsonArray(chunk)
-		if err != nil {
-			recordSpanError(span, err)
-			return nil, err
-		}
+	matched, err := queryAll(ctx, db.reader(), listIMSIsWithMSISDNSQL, scanValue[string], jsonArray(imsis))
+	if err != nil {
+		recordSpanError(span, err)
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
 
-		matched, err := queryAll(ctx, db.reader(), listIMSIsWithMSISDNStmt, scanString, ids)
-		if err != nil {
-			recordSpanError(span, err)
-			return nil, fmt.Errorf("query failed: %w", err)
-		}
-
-		for _, imsi := range matched {
-			found[imsi] = true
-		}
+	for _, imsi := range matched {
+		found[imsi] = true
 	}
 
 	return found, nil
@@ -308,7 +309,7 @@ func (db *Database) GetSubscriberByMSISDN(ctx context.Context, msisdn string) (*
 		return nil, ErrNotFound
 	}
 
-	row, err := scanSubscriber(db.reader().QueryRowContext(ctx, getSubscriberByMSISDNStmt, msisdn))
+	row, err := scanSubscriber(db.reader().QueryRowContext(ctx, getSubscriberByMSISDNSQL, msisdn))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -403,7 +404,7 @@ func (db *Database) CountSubscribers(ctx context.Context) (int, error) {
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	count, err := queryCount(ctx, db.reader(), countSubscribersStmt)
+	count, err := queryCount(ctx, db.reader(), countSubscribersSQL)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -444,9 +445,9 @@ func (db *Database) CountSubscribersAndVisitors(ctx context.Context) (int, error
 }
 
 func (db *Database) countSubscribersAndVisitors(ctx context.Context, q querier) (int, error) {
-	query := countSubscribersStmt
+	query := countSubscribersSQL
 	if db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		query = countSubscribersAndVisitorsStmt
+		query = countSubscribersAndVisitorsSQL
 	}
 
 	count, err := queryCount(ctx, q, query)

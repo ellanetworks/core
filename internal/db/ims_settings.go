@@ -26,8 +26,8 @@ const imsIntegrationsSchema = 27
 const threeGPPNetworkDomain = "3gppnetwork.org"
 
 const (
-	getIMSSettingsStmt    = "SELECT homeDomain, advertiseVoice, restrictPeers FROM " + IMSSettingsTableName + " WHERE singleton=TRUE"
-	upsertIMSSettingsStmt = "INSERT INTO " + IMSSettingsTableName + " (singleton, homeDomain, advertiseVoice, restrictPeers) VALUES (TRUE, ?, ?, ?) ON CONFLICT(singleton) DO UPDATE SET homeDomain=excluded.homeDomain, advertiseVoice=excluded.advertiseVoice, restrictPeers=excluded.restrictPeers"
+	getIMSSettingsSQL    = "SELECT homeDomain, advertiseVoice, restrictPeers FROM " + IMSSettingsTableName + " WHERE singleton=TRUE"
+	upsertIMSSettingsSQL = "INSERT INTO " + IMSSettingsTableName + " (singleton, homeDomain, advertiseVoice, restrictPeers) VALUES (TRUE, ?, ?, ?) ON CONFLICT(singleton) DO UPDATE SET homeDomain=excluded.homeDomain, advertiseVoice=excluded.advertiseVoice, restrictPeers=excluded.restrictPeers"
 )
 
 type IMSSettings struct {
@@ -176,7 +176,7 @@ func (db *Database) imsSettings(ctx context.Context) (*IMSSettings, error) {
 		return &settings, nil
 	}
 
-	if err := db.runner(ctx).QueryRowContext(ctx, getIMSSettingsStmt).Scan(&settings.HomeDomain, &settings.AdvertiseVoice, &settings.RestrictPeers); err != nil {
+	if err := db.runner(ctx).QueryRowContext(ctx, getIMSSettingsSQL).Scan(&settings.HomeDomain, &settings.AdvertiseVoice, &settings.RestrictPeers); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			defaults := DefaultIMSSettings()
 			return &defaults, nil
@@ -222,7 +222,7 @@ func (db *Database) applyUpdateIMSSettings(ctx context.Context, p *imsSettingsPa
 		return nil, err
 	}
 
-	if _, err := db.runner(ctx).ExecContext(ctx, upsertIMSSettingsStmt, p.Settings.HomeDomain, p.Settings.AdvertiseVoice, p.Settings.RestrictPeers); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, upsertIMSSettingsSQL, p.Settings.HomeDomain, p.Settings.AdvertiseVoice, p.Settings.RestrictPeers); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 

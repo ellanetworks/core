@@ -54,7 +54,7 @@ func queryAll[T any](ctx context.Context, q querier, query string, scan func(sca
 	return out, nil
 }
 
-func queryPage[T any](ctx context.Context, q querier, query string, scan func(scanner) (T, error), args ...any) ([]T, int, error) {
+func queryPageWithTotal[T any](ctx context.Context, q querier, query string, scan func(scanner) (T, error), args ...any) ([]T, int, error) {
 	rows, err := q.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, 0, err
@@ -83,33 +83,22 @@ func queryPage[T any](ctx context.Context, q querier, query string, scan func(sc
 	return out, total, nil
 }
 
-func scanString(row scanner) (string, error) {
-	var s string
-
-	if err := row.Scan(&s); err != nil {
-		return "", err
-	}
-
-	return s, nil
-}
-
-func scanInt32(row scanner) (int32, error) {
-	var v int32
+func scanValue[T any](row scanner) (T, error) {
+	var v T
 
 	if err := row.Scan(&v); err != nil {
-		return 0, err
+		var zero T
+
+		return zero, err
 	}
 
 	return v, nil
 }
 
-func jsonArray(values []string) (string, error) {
-	b, err := json.Marshal(values)
-	if err != nil {
-		return "", err
-	}
+func jsonArray(values []string) string {
+	b, _ := json.Marshal(values)
 
-	return string(b), nil
+	return string(b)
 }
 
 func queryCount(ctx context.Context, q querier, query string, args ...any) (int, error) {

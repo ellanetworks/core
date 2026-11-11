@@ -15,13 +15,13 @@ import (
 const BGPPeersTableName = "bgp_peers"
 
 const (
-	listBGPPeersPagedStmt = "SELECT id, address, remoteAS, holdTime, password, description, COUNT(*) OVER() FROM " + BGPPeersTableName + " ORDER BY id ASC LIMIT ? OFFSET ?"
-	listAllBGPPeersStmt   = "SELECT id, address, remoteAS, holdTime, password, description FROM " + BGPPeersTableName + " ORDER BY id ASC"
-	getBGPPeerStmt        = "SELECT id, address, remoteAS, holdTime, password, description FROM " + BGPPeersTableName + " WHERE id==?"
-	createBGPPeerStmt     = "INSERT INTO " + BGPPeersTableName + " (address, remoteAS, holdTime, password, description) VALUES (?, ?, ?, ?, ?)"
-	updateBGPPeerStmt     = "UPDATE " + BGPPeersTableName + " SET address=?, remoteAS=?, holdTime=?, password=?, description=? WHERE id==?"
-	deleteBGPPeerStmt     = "DELETE FROM " + BGPPeersTableName + " WHERE id==?"
-	countBGPPeersStmt     = "SELECT COUNT(*) FROM " + BGPPeersTableName
+	listBGPPeersPagedSQL = "SELECT id, address, remoteAS, holdTime, password, description, COUNT(*) OVER() FROM " + BGPPeersTableName + " ORDER BY id ASC LIMIT ? OFFSET ?"
+	listAllBGPPeersSQL   = "SELECT id, address, remoteAS, holdTime, password, description FROM " + BGPPeersTableName + " ORDER BY id ASC"
+	getBGPPeerSQL        = "SELECT id, address, remoteAS, holdTime, password, description FROM " + BGPPeersTableName + " WHERE id==?"
+	createBGPPeerSQL     = "INSERT INTO " + BGPPeersTableName + " (address, remoteAS, holdTime, password, description) VALUES (?, ?, ?, ?, ?)"
+	updateBGPPeerSQL     = "UPDATE " + BGPPeersTableName + " SET address=?, remoteAS=?, holdTime=?, password=?, description=? WHERE id==?"
+	deleteBGPPeerSQL     = "DELETE FROM " + BGPPeersTableName + " WHERE id==?"
+	countBGPPeersSQL     = "SELECT COUNT(*) FROM " + BGPPeersTableName
 )
 
 type BGPPeer struct {
@@ -38,7 +38,7 @@ func (db *Database) ListBGPPeersPage(ctx context.Context, page, perPage int) ([]
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	peers, count, err := queryPage(ctx, db.reader(), listBGPPeersPagedStmt, scanBGPPeer, perPage, (page-1)*perPage)
+	peers, count, err := queryPageWithTotal(ctx, db.reader(), listBGPPeersPagedSQL, scanBGPPeer, perPage, (page-1)*perPage)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -46,9 +46,11 @@ func (db *Database) ListBGPPeersPage(ctx context.Context, page, perPage int) ([]
 	}
 
 	if len(peers) == 0 {
-		fallbackCount, countErr := db.CountBGPPeers(ctx)
-		if countErr != nil {
-			return nil, 0, nil
+		fallbackCount, err := db.CountBGPPeers(ctx)
+		if err != nil {
+			recordSpanError(span, err)
+
+			return nil, 0, fmt.Errorf("count failed: %w", err)
 		}
 
 		return nil, fallbackCount, nil
@@ -62,7 +64,7 @@ func (db *Database) ListAllBGPPeers(ctx context.Context) ([]BGPPeer, error) {
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	peers, err := queryAll(ctx, db.reader(), listAllBGPPeersStmt, scanBGPPeer)
+	peers, err := queryAll(ctx, db.reader(), listAllBGPPeersSQL, scanBGPPeer)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -77,7 +79,7 @@ func (db *Database) GetBGPPeer(ctx context.Context, id int) (*BGPPeer, error) {
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	row, err := scanBGPPeer(db.reader().QueryRowContext(ctx, getBGPPeerStmt, id))
+	row, err := scanBGPPeer(db.reader().QueryRowContext(ctx, getBGPPeerSQL, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			recordSpanError(span, err)
@@ -151,7 +153,7 @@ func (db *Database) CountBGPPeers(ctx context.Context) (int, error) {
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	count, err := queryCount(ctx, db.reader(), countBGPPeersStmt)
+	count, err := queryCount(ctx, db.reader(), countBGPPeersSQL)
 	if err != nil {
 		recordSpanError(span, err)
 

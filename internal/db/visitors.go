@@ -18,17 +18,17 @@ import (
 const VisitorsTableName = "visitors"
 
 const (
-	visitorColumns                     = "v.imsi, v.partnerID, v.msisdn, v.since, v.deregisterUntil, p.profileID, p.withdrawingUntil"
-	visitorSource                      = " FROM " + VisitorsTableName + " AS v JOIN " + RoamingPartnersTableName + " AS p ON p.id = v.partnerID"
-	getVisitorStmt                     = "SELECT " + visitorColumns + visitorSource + " WHERE v.imsi = ?"
-	insertVisitorStmt                  = "INSERT INTO " + VisitorsTableName + " (imsi, partnerID, msisdn, since) VALUES (?, ?, ?, ?)"
-	updateVisitorMSISDNStmt            = "UPDATE " + VisitorsTableName + " SET msisdn=? WHERE imsi==?"
-	deleteVisitorIfUnregisteredStmt    = "DELETE FROM " + VisitorsTableName + " WHERE imsi==? AND NOT EXISTS (SELECT 1 FROM " + UERegistrationsTableName + " AS r WHERE r.imsi = " + VisitorsTableName + ".imsi AND r.purged = 0)"
-	listUnregisteredVisitorsStmt       = "SELECT v.imsi FROM " + VisitorsTableName + " AS v WHERE NOT EXISTS (SELECT 1 FROM " + UERegistrationsTableName + " AS r WHERE r.imsi = v.imsi AND r.purged = 0) ORDER BY v.imsi"
-	deleteUERegistrationsOfIMSIStmt    = "DELETE FROM " + UERegistrationsTableName + " WHERE imsi==?"
-	deleteLeasesOfIMSIStmt             = "DELETE FROM " + IPLeasesTableName + " WHERE imsi==?"
-	setVisitorDeregisteringStmt        = "UPDATE " + VisitorsTableName + " SET deregisterUntil=? WHERE imsi==?"
-	listVisitorRegistrationsOfNodeStmt = "SELECT imsi, type, nodeID, purged, version FROM " + UERegistrationsTableName + " WHERE nodeID==? AND purged==0 AND imsi IN (SELECT imsi FROM " + VisitorsTableName + ") ORDER BY imsi, type"
+	visitorColumns                    = "v.imsi, v.partnerID, v.msisdn, v.since, v.deregisterUntil, p.profileID, p.withdrawingUntil"
+	visitorSource                     = " FROM " + VisitorsTableName + " AS v JOIN " + RoamingPartnersTableName + " AS p ON p.id = v.partnerID"
+	getVisitorSQL                     = "SELECT " + visitorColumns + visitorSource + " WHERE v.imsi = ?"
+	insertVisitorSQL                  = "INSERT INTO " + VisitorsTableName + " (imsi, partnerID, msisdn, since) VALUES (?, ?, ?, ?)"
+	updateVisitorMSISDNSQL            = "UPDATE " + VisitorsTableName + " SET msisdn=? WHERE imsi==?"
+	deleteVisitorIfUnregisteredSQL    = "DELETE FROM " + VisitorsTableName + " WHERE imsi==? AND NOT EXISTS (SELECT 1 FROM " + UERegistrationsTableName + " AS r WHERE r.imsi = " + VisitorsTableName + ".imsi AND r.purged = 0)"
+	listUnregisteredVisitorsSQL       = "SELECT v.imsi FROM " + VisitorsTableName + " AS v WHERE NOT EXISTS (SELECT 1 FROM " + UERegistrationsTableName + " AS r WHERE r.imsi = v.imsi AND r.purged = 0) ORDER BY v.imsi"
+	deleteUERegistrationsOfIMSISQL    = "DELETE FROM " + UERegistrationsTableName + " WHERE imsi==?"
+	deleteLeasesOfIMSISQL             = "DELETE FROM " + IPLeasesTableName + " WHERE imsi==?"
+	setVisitorDeregisteringSQL        = "UPDATE " + VisitorsTableName + " SET deregisterUntil=? WHERE imsi==?"
+	listVisitorRegistrationsOfNodeSQL = "SELECT imsi, type, nodeID, purged, version FROM " + UERegistrationsTableName + " WHERE nodeID==? AND purged==0 AND imsi IN (SELECT imsi FROM " + VisitorsTableName + ") ORDER BY imsi, type"
 )
 
 const (
@@ -38,8 +38,8 @@ const (
          OR (v.msisdn != '' AND '+' || v.msisdn LIKE ?2 ESCAPE '\'))
     AND (?3 IS NULL
          OR v.partnerID IN (SELECT id FROM ` + RoamingPartnersTableName + ` WHERE profileID IN (SELECT profileID FROM ` + PoliciesTableName + ` WHERE dataNetworkID = ?3)))`
-	listVisitorsPageStmt  = "SELECT " + visitorColumns + ", COUNT(*) OVER()" + visitorSource + visitorPageFilterClause + " ORDER BY v.imsi LIMIT ?4 OFFSET ?5"
-	countVisitorsPageStmt = "SELECT COUNT(*) FROM " + VisitorsTableName + " AS v" + visitorPageFilterClause
+	listVisitorsPageSQL  = "SELECT " + visitorColumns + ", COUNT(*) OVER()" + visitorSource + visitorPageFilterClause + " ORDER BY v.imsi LIMIT ?4 OFFSET ?5"
+	countVisitorsPageSQL = "SELECT COUNT(*) FROM " + VisitorsTableName + " AS v" + visitorPageFilterClause
 )
 
 type Visitor struct {
@@ -193,14 +193,14 @@ func (db *Database) ListVisitorsPage(ctx context.Context, filters *VisitorFilter
 
 	filterArgs := filters.args()
 
-	rows, count, err := queryPage(ctx, db.reader(), listVisitorsPageStmt, scanVisitor, filterArgs.PartnerID, filterArgs.Search, filterArgs.DataNetworkID, perPage, (page-1)*perPage)
+	rows, count, err := queryPageWithTotal(ctx, db.reader(), listVisitorsPageSQL, scanVisitor, filterArgs.PartnerID, filterArgs.Search, filterArgs.DataNetworkID, perPage, (page-1)*perPage)
 	if err != nil {
 		recordSpanError(span, err)
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	if len(rows) == 0 {
-		total, err := queryCount(ctx, db.reader(), countVisitorsPageStmt, filterArgs.PartnerID, filterArgs.Search, filterArgs.DataNetworkID)
+		total, err := queryCount(ctx, db.reader(), countVisitorsPageSQL, filterArgs.PartnerID, filterArgs.Search, filterArgs.DataNetworkID)
 		if err != nil {
 			recordSpanError(span, err)
 			return nil, 0, fmt.Errorf("query failed: %w", err)
@@ -271,7 +271,7 @@ func (db *Database) ListVisitorRegistrationsOfNode(ctx context.Context, nodeID s
 		return nil, nil
 	}
 
-	regs, err := queryAll(ctx, db.reader(), listVisitorRegistrationsOfNodeStmt, scanUERegistration, nodeID)
+	regs, err := queryAll(ctx, db.reader(), listVisitorRegistrationsOfNodeSQL, scanUERegistration, nodeID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -280,7 +280,7 @@ func (db *Database) ListVisitorRegistrationsOfNode(ctx context.Context, nodeID s
 }
 
 func (db *Database) getVisitor(ctx context.Context, q querier, imsi string) (*Visitor, error) {
-	row, err := scanVisitor(q.QueryRowContext(ctx, getVisitorStmt, imsi))
+	row, err := scanVisitor(q.QueryRowContext(ctx, getVisitorSQL, imsi))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -348,7 +348,7 @@ func (db *Database) insertVisitorIfAbsent(ctx context.Context, imsi string, part
 		return err
 	}
 
-	_, err = scanSubscriber(db.runner(ctx).QueryRowContext(ctx, getSubscriberStmt, imsi))
+	_, err = scanSubscriber(db.runner(ctx).QueryRowContext(ctx, getSubscriberSQL, imsi))
 
 	switch {
 	case err == nil:
@@ -371,7 +371,7 @@ func (db *Database) insertVisitorIfAbsent(ctx context.Context, imsi string, part
 
 	visitor := Visitor{Imsi: imsi, PartnerID: partner.ID, Since: time.Now().Unix()}
 
-	if _, err := db.runner(ctx).ExecContext(ctx, insertVisitorStmt, visitor.Imsi, visitor.PartnerID, visitor.Msisdn, visitor.Since); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, insertVisitorSQL, visitor.Imsi, visitor.PartnerID, visitor.Msisdn, visitor.Since); err != nil {
 		return fmt.Errorf("insert visitor: %w", err)
 	}
 
@@ -379,7 +379,7 @@ func (db *Database) insertVisitorIfAbsent(ctx context.Context, imsi string, part
 }
 
 func (db *Database) applySetVisitorMSISDN(ctx context.Context, p *visitorMSISDNPayload) (any, error) {
-	res, err := db.runner(ctx).ExecContext(ctx, updateVisitorMSISDNStmt, p.Msisdn, p.Imsi)
+	res, err := db.runner(ctx).ExecContext(ctx, updateVisitorMSISDNSQL, p.Msisdn, p.Imsi)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -397,7 +397,7 @@ func (db *Database) applySetVisitorMSISDN(ctx context.Context, p *visitorMSISDNP
 }
 
 func (db *Database) deleteUnregisteredVisitors(ctx context.Context) error {
-	imsis, err := queryAll(ctx, db.runner(ctx), listUnregisteredVisitorsStmt, scanString)
+	imsis, err := queryAll(ctx, db.runner(ctx), listUnregisteredVisitorsSQL, scanValue[string])
 	if err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
@@ -412,7 +412,7 @@ func (db *Database) deleteUnregisteredVisitors(ctx context.Context) error {
 }
 
 func (db *Database) deleteVisitorIfUnregistered(ctx context.Context, imsi string) error {
-	res, err := db.runner(ctx).ExecContext(ctx, deleteVisitorIfUnregisteredStmt, imsi)
+	res, err := db.runner(ctx).ExecContext(ctx, deleteVisitorIfUnregisteredSQL, imsi)
 	if err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
@@ -432,11 +432,11 @@ func (db *Database) deleteVisitorIfUnregistered(ctx context.Context, imsi string
 func (db *Database) deleteIMSIState(ctx context.Context, imsi string) error {
 	runner := db.runner(ctx)
 
-	if _, err := runner.ExecContext(ctx, deleteUERegistrationsOfIMSIStmt, imsi); err != nil {
+	if _, err := runner.ExecContext(ctx, deleteUERegistrationsOfIMSISQL, imsi); err != nil {
 		return fmt.Errorf("delete UE registrations: %w", err)
 	}
 
-	if _, err := runner.ExecContext(ctx, deleteLeasesOfIMSIStmt, imsi); err != nil {
+	if _, err := runner.ExecContext(ctx, deleteLeasesOfIMSISQL, imsi); err != nil {
 		return fmt.Errorf("delete IP leases: %w", err)
 	}
 

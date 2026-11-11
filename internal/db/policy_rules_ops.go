@@ -106,6 +106,8 @@ func (db *Database) applyCreatePolicyWithRules(ctx context.Context, payload *pol
 		policy.ID = id.String()
 	}
 
+	policy.defaultPreemption()
+
 	current, err := db.policySchemaCurrent(ctx, &policy)
 	if err != nil {
 		return nil, err
@@ -141,7 +143,7 @@ func (db *Database) applyUpdatePolicyWithRules(ctx context.Context, payload *pol
 }
 
 func (db *Database) applyPolicyRulesPayload(ctx context.Context, policyID string, rules *PolicyRulesInput) error {
-	if _, err := db.runner(ctx).ExecContext(ctx, deleteNetworkRulesByPolicyStmt, policyID); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteNetworkRulesByPolicySQL, policyID); err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
 
@@ -186,7 +188,7 @@ func (db *Database) insertPolicyRules(ctx context.Context, policyID, direction s
 			nr.ID = id.String()
 		}
 
-		if _, err := db.runner(ctx).ExecContext(ctx, createNetworkRuleStmt, nr.ID, nr.PolicyID, nr.Description, nr.Direction, nr.RemotePrefix, nr.Protocol, nr.PortLow, nr.PortHigh, nr.Action, nr.Precedence, nr.CreatedAt, nr.UpdatedAt); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, createNetworkRuleSQL, nr.ID, nr.PolicyID, nr.Description, nr.Direction, nr.RemotePrefix, nr.Protocol, nr.PortLow, nr.PortHigh, nr.Action, nr.Precedence, nr.CreatedAt, nr.UpdatedAt); err != nil {
 			if isUniqueNameError(err) {
 				return ErrAlreadyExists
 			}

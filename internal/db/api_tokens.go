@@ -26,11 +26,11 @@ type APIToken struct {
 }
 
 const (
-	listAPITokensPagedStmt = `SELECT id, token_id, name, token_hash, user_id, expires_at, COUNT(*) OVER() FROM ` + APITokensTableName + ` WHERE user_id == ? ORDER BY id DESC LIMIT ? OFFSET ?`
-	getByTokenIDStmt       = "SELECT id, token_id, name, token_hash, user_id, expires_at FROM " + APITokensTableName + " WHERE token_id==?"
-	deleteAPITokenStmt     = "DELETE FROM " + APITokensTableName + " WHERE id==?"                                                                     // #nosec: G101
-	createAPITokenStmt     = "INSERT INTO " + APITokensTableName + " (id, token_id, name, token_hash, user_id, expires_at) VALUES (?, ?, ?, ?, ?, ?)" // #nosec: G101
-	countAPITokensStmt     = "SELECT COUNT(*) FROM " + APITokensTableName + " WHERE user_id==?"                                                       // #nosec: G101
+	listAPITokensPagedSQL = `SELECT id, token_id, name, token_hash, user_id, expires_at, COUNT(*) OVER() FROM ` + APITokensTableName + ` WHERE user_id == ? ORDER BY id DESC LIMIT ? OFFSET ?`
+	getByTokenIDSQL       = "SELECT id, token_id, name, token_hash, user_id, expires_at FROM " + APITokensTableName + " WHERE token_id==?"
+	deleteAPITokenSQL     = "DELETE FROM " + APITokensTableName + " WHERE id==?"                                                                     // #nosec: G101
+	createAPITokenSQL     = "INSERT INTO " + APITokensTableName + " (id, token_id, name, token_hash, user_id, expires_at) VALUES (?, ?, ?, ?, ?, ?)" // #nosec: G101
+	countAPITokensSQL     = "SELECT COUNT(*) FROM " + APITokensTableName + " WHERE user_id==?"                                                       // #nosec: G101
 )
 
 func (db *Database) ListAPITokensPage(ctx context.Context, userID string, page int, perPage int) ([]APIToken, int, error) {
@@ -38,7 +38,7 @@ func (db *Database) ListAPITokensPage(ctx context.Context, userID string, page i
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	tokens, count, err := queryPage(ctx, db.reader(), listAPITokensPagedStmt, scanAPIToken, userID, perPage, (page-1)*perPage)
+	tokens, count, err := queryPageWithTotal(ctx, db.reader(), listAPITokensPagedSQL, scanAPIToken, userID, perPage, (page-1)*perPage)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -46,9 +46,11 @@ func (db *Database) ListAPITokensPage(ctx context.Context, userID string, page i
 	}
 
 	if len(tokens) == 0 {
-		fallbackCount, countErr := db.CountAPITokens(ctx, userID)
-		if countErr != nil {
-			return nil, 0, nil
+		fallbackCount, err := db.CountAPITokens(ctx, userID)
+		if err != nil {
+			recordSpanError(span, err)
+
+			return nil, 0, fmt.Errorf("count failed: %w", err)
 		}
 
 		return nil, fallbackCount, nil
@@ -89,7 +91,7 @@ func (db *Database) GetAPITokenByTokenID(ctx context.Context, tokenID string) (*
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	row, err := scanAPIToken(db.reader().QueryRowContext(ctx, getByTokenIDStmt, tokenID))
+	row, err := scanAPIToken(db.reader().QueryRowContext(ctx, getByTokenIDSQL, tokenID))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -123,7 +125,7 @@ func (db *Database) CountAPITokens(ctx context.Context, userID string) (int, err
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	count, err := queryCount(ctx, db.reader(), countAPITokensStmt, userID)
+	count, err := queryCount(ctx, db.reader(), countAPITokensSQL, userID)
 	if err != nil {
 		recordSpanError(span, err)
 

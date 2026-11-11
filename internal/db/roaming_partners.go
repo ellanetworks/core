@@ -28,20 +28,20 @@ const (
 const roamingSchema = 27
 
 const (
-	listRoamingPartnersStmt          = "SELECT id, name, profileID, seppFQDN, seppN32cURI, seppN32fURI, seppTrustAnchorPEM, diameterPeerID, withdrawingUntil FROM " + RoamingPartnersTableName + " ORDER BY name"
-	getRoamingPartnerStmt            = "SELECT id, name, profileID, seppFQDN, seppN32cURI, seppN32fURI, seppTrustAnchorPEM, diameterPeerID, withdrawingUntil FROM " + RoamingPartnersTableName + " WHERE id==?"
-	insertRoamingPartnerStmt         = "INSERT INTO " + RoamingPartnersTableName + " (id, name, profileID, seppFQDN, seppN32cURI, seppN32fURI, seppTrustAnchorPEM, diameterPeerID) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-	updateRoamingPartnerStmt         = "UPDATE " + RoamingPartnersTableName + " SET name=?, profileID=?, seppFQDN=?, seppN32cURI=?, seppN32fURI=?, seppTrustAnchorPEM=?, diameterPeerID=? WHERE id==?"
-	deleteRoamingPartnerStmt         = "DELETE FROM " + RoamingPartnersTableName + " WHERE id==?"
-	listRoamingPartnerPLMNsStmt      = "SELECT partnerID, mcc, mnc, nrfAPIRoot FROM " + RoamingPartnerPLMNsTableName + " ORDER BY mcc, mnc"
-	listPLMNsOfRoamingPartnerStmt    = "SELECT partnerID, mcc, mnc, nrfAPIRoot FROM " + RoamingPartnerPLMNsTableName + " WHERE partnerID==? ORDER BY mcc, mnc"
-	insertRoamingPartnerPLMNStmt     = "INSERT INTO " + RoamingPartnerPLMNsTableName + " (partnerID, mcc, mnc, nrfAPIRoot) VALUES (?, ?, ?, ?)"
-	updateRoamingPartnerPLMNStmt     = "UPDATE " + RoamingPartnerPLMNsTableName + " SET nrfAPIRoot=? WHERE partnerID==? AND mcc==? AND mnc==?"
-	deleteRoamingPartnerPLMNStmt     = "DELETE FROM " + RoamingPartnerPLMNsTableName + " WHERE partnerID==? AND mcc==? AND mnc==?"
-	countVisitorsOfPartnerStmt       = "SELECT COUNT(*) FROM " + VisitorsTableName + " WHERE partnerID==? AND imsi GLOB ?"
-	countAttachedVisitorsOfRATStmt   = "SELECT COUNT(*) FROM " + VisitorsTableName + " AS v JOIN " + UERegistrationsTableName + " AS r ON r.imsi = v.imsi WHERE v.partnerID==? AND r.type==? AND r.purged = 0"
-	countRoamingPartnersStmt         = "SELECT COUNT(*) FROM " + RoamingPartnersTableName
-	setRoamingPartnerWithdrawingStmt = "UPDATE " + RoamingPartnersTableName + " SET withdrawingUntil=? WHERE id==?"
+	listRoamingPartnersSQL          = "SELECT id, name, profileID, seppFQDN, seppN32cURI, seppN32fURI, seppTrustAnchorPEM, diameterPeerID, withdrawingUntil FROM " + RoamingPartnersTableName + " ORDER BY name"
+	getRoamingPartnerSQL            = "SELECT id, name, profileID, seppFQDN, seppN32cURI, seppN32fURI, seppTrustAnchorPEM, diameterPeerID, withdrawingUntil FROM " + RoamingPartnersTableName + " WHERE id==?"
+	insertRoamingPartnerSQL         = "INSERT INTO " + RoamingPartnersTableName + " (id, name, profileID, seppFQDN, seppN32cURI, seppN32fURI, seppTrustAnchorPEM, diameterPeerID) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+	updateRoamingPartnerSQL         = "UPDATE " + RoamingPartnersTableName + " SET name=?, profileID=?, seppFQDN=?, seppN32cURI=?, seppN32fURI=?, seppTrustAnchorPEM=?, diameterPeerID=? WHERE id==?"
+	deleteRoamingPartnerSQL         = "DELETE FROM " + RoamingPartnersTableName + " WHERE id==?"
+	listRoamingPartnerPLMNsSQL      = "SELECT partnerID, mcc, mnc, nrfAPIRoot FROM " + RoamingPartnerPLMNsTableName + " ORDER BY mcc, mnc"
+	listPLMNsOfRoamingPartnerSQL    = "SELECT partnerID, mcc, mnc, nrfAPIRoot FROM " + RoamingPartnerPLMNsTableName + " WHERE partnerID==? ORDER BY mcc, mnc"
+	insertRoamingPartnerPLMNSQL     = "INSERT INTO " + RoamingPartnerPLMNsTableName + " (partnerID, mcc, mnc, nrfAPIRoot) VALUES (?, ?, ?, ?)"
+	updateRoamingPartnerPLMNSQL     = "UPDATE " + RoamingPartnerPLMNsTableName + " SET nrfAPIRoot=? WHERE partnerID==? AND mcc==? AND mnc==?"
+	deleteRoamingPartnerPLMNSQL     = "DELETE FROM " + RoamingPartnerPLMNsTableName + " WHERE partnerID==? AND mcc==? AND mnc==?"
+	countVisitorsOfPartnerSQL       = "SELECT COUNT(*) FROM " + VisitorsTableName + " WHERE partnerID==? AND imsi GLOB ?"
+	countAttachedVisitorsOfRATSQL   = "SELECT COUNT(*) FROM " + VisitorsTableName + " AS v JOIN " + UERegistrationsTableName + " AS r ON r.imsi = v.imsi WHERE v.partnerID==? AND r.type==? AND r.purged = 0"
+	countRoamingPartnersSQL         = "SELECT COUNT(*) FROM " + RoamingPartnersTableName
+	setRoamingPartnerWithdrawingSQL = "UPDATE " + RoamingPartnersTableName + " SET withdrawingUntil=? WHERE id==?"
 )
 
 var (
@@ -418,12 +418,12 @@ func (db *Database) DeleteRoamingPartner(ctx context.Context, id string) error {
 }
 
 func (db *Database) listRoamingPartners(ctx context.Context, q querier) ([]RoamingPartner, error) {
-	partners, err := queryAll(ctx, q, listRoamingPartnersStmt, scanRoamingPartner)
+	partners, err := queryAll(ctx, q, listRoamingPartnersSQL, scanRoamingPartner)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rows, err := queryAll(ctx, q, listRoamingPartnerPLMNsStmt, scanRoamingPartnerPLMNRow)
+	rows, err := queryAll(ctx, q, listRoamingPartnerPLMNsSQL, scanRoamingPartnerPLMNRow)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -441,7 +441,7 @@ func (db *Database) listRoamingPartners(ctx context.Context, q querier) ([]Roami
 }
 
 func (db *Database) getRoamingPartner(ctx context.Context, q querier, id string) (*RoamingPartner, error) {
-	row, err := scanRoamingPartner(q.QueryRowContext(ctx, getRoamingPartnerStmt, id))
+	row, err := scanRoamingPartner(q.QueryRowContext(ctx, getRoamingPartnerSQL, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -450,7 +450,7 @@ func (db *Database) getRoamingPartner(ctx context.Context, q querier, id string)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	rows, err := queryAll(ctx, q, listPLMNsOfRoamingPartnerStmt, scanRoamingPartnerPLMNRow, id)
+	rows, err := queryAll(ctx, q, listPLMNsOfRoamingPartnerSQL, scanRoamingPartnerPLMNRow, id)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -485,7 +485,7 @@ func (db *Database) prepareHomePLMNChange(ctx context.Context, op *Operator) (bo
 		return false, nil
 	}
 
-	count, err := queryCount(ctx, db.runner(ctx), countRoamingPartnersStmt)
+	count, err := queryCount(ctx, db.runner(ctx), countRoamingPartnersSQL)
 	if err != nil {
 		return false, fmt.Errorf("query failed: %w", err)
 	}
@@ -520,7 +520,7 @@ func (db *Database) checkRoamingPartner(ctx context.Context, p *RoamingPartner) 
 		}
 	}
 
-	if _, err := scanProfile(db.runner(ctx).QueryRowContext(ctx, getProfileByIDStmt, p.ProfileID)); err != nil {
+	if _, err := scanProfile(db.runner(ctx).QueryRowContext(ctx, getProfileByIDSQL, p.ProfileID)); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("%w: profile %s does not exist", ErrRoamingConflict, p.ProfileID)
 		}
@@ -529,7 +529,7 @@ func (db *Database) checkRoamingPartner(ctx context.Context, p *RoamingPartner) 
 	}
 
 	if p.DiameterPeerID != nil {
-		peer, err := scanDiameterPeerRow(db.runner(ctx).QueryRowContext(ctx, getDiameterPeerStmt, *p.DiameterPeerID))
+		peer, err := scanDiameterPeerRow(db.runner(ctx).QueryRowContext(ctx, getDiameterPeerSQL, *p.DiameterPeerID))
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return fmt.Errorf("%w: Diameter peer %s does not exist", ErrRoamingConflict, *p.DiameterPeerID)
@@ -569,7 +569,7 @@ func (db *Database) insertRoamingPartnerPLMNs(ctx context.Context, p *RoamingPar
 	for _, plmn := range plmns {
 		row := roamingPartnerPLMNRow{PartnerID: p.ID, Mcc: plmn.Mcc, Mnc: plmn.Mnc, NRFAPIRoot: p.NRFAPIRootOf(plmn)}
 
-		if _, err := db.runner(ctx).ExecContext(ctx, insertRoamingPartnerPLMNStmt, row.PartnerID, row.Mcc, row.Mnc, row.NRFAPIRoot); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, insertRoamingPartnerPLMNSQL, row.PartnerID, row.Mcc, row.Mnc, row.NRFAPIRoot); err != nil {
 			if isPrimaryKeyError(err) || isUniqueNameError(err) {
 				return fmt.Errorf("%w: PLMN %s belongs to another roaming partner", ErrRoamingConflict, plmn)
 			}
@@ -601,7 +601,7 @@ func (db *Database) applyCreateRoamingPartner(ctx context.Context, w *roamingPar
 		return nil, err
 	}
 
-	if err := db.insertRoamingPartnerRow(ctx, insertRoamingPartnerStmt, p.ID, p.Name, p.ProfileID, p.SEPPFQDN, p.SEPPN32cURI, p.SEPPN32fURI, p.SEPPTrustAnchorPEM, p.DiameterPeerID); err != nil {
+	if err := db.insertRoamingPartnerRow(ctx, insertRoamingPartnerSQL, p.ID, p.Name, p.ProfileID, p.SEPPFQDN, p.SEPPN32cURI, p.SEPPN32fURI, p.SEPPTrustAnchorPEM, p.DiameterPeerID); err != nil {
 		return nil, err
 	}
 
@@ -618,7 +618,7 @@ func (db *Database) checkRemovedAgreements(ctx context.Context, existing, p *Roa
 			continue
 		}
 
-		n, err := db.countVisitors(ctx, countVisitorsOfPartnerStmt, p.ID, plmn.imsiGlob())
+		n, err := db.countVisitors(ctx, countVisitorsOfPartnerSQL, p.ID, plmn.imsiGlob())
 		if err != nil {
 			return err
 		}
@@ -642,7 +642,7 @@ func (db *Database) checkRemovedAgreements(ctx context.Context, existing, p *Roa
 			continue
 		}
 
-		n, err := db.countVisitors(ctx, countAttachedVisitorsOfRATStmt, p.ID, rat.regType)
+		n, err := db.countVisitors(ctx, countAttachedVisitorsOfRATSQL, p.ID, rat.regType)
 		if err != nil {
 			return err
 		}
@@ -671,7 +671,7 @@ func (db *Database) applyUpdateRoamingPartner(ctx context.Context, w *roamingPar
 		return nil, err
 	}
 
-	if err := db.insertRoamingPartnerRow(ctx, updateRoamingPartnerStmt, p.Name, p.ProfileID, p.SEPPFQDN, p.SEPPN32cURI, p.SEPPN32fURI, p.SEPPTrustAnchorPEM, p.DiameterPeerID, p.ID); err != nil {
+	if err := db.insertRoamingPartnerRow(ctx, updateRoamingPartnerSQL, p.Name, p.ProfileID, p.SEPPFQDN, p.SEPPN32cURI, p.SEPPN32fURI, p.SEPPTrustAnchorPEM, p.DiameterPeerID, p.ID); err != nil {
 		return nil, err
 	}
 
@@ -683,7 +683,7 @@ func (db *Database) applyUpdateRoamingPartner(ctx context.Context, w *roamingPar
 		}
 
 		row := roamingPartnerPLMNRow{PartnerID: p.ID, Mcc: plmn.Mcc, Mnc: plmn.Mnc}
-		if _, err := db.runner(ctx).ExecContext(ctx, deleteRoamingPartnerPLMNStmt, row.PartnerID, row.Mcc, row.Mnc); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, deleteRoamingPartnerPLMNSQL, row.PartnerID, row.Mcc, row.Mnc); err != nil {
 			return nil, fmt.Errorf("delete roaming partner PLMN: %w", err)
 		}
 	}
@@ -695,7 +695,7 @@ func (db *Database) applyUpdateRoamingPartner(ctx context.Context, w *roamingPar
 		}
 
 		row := roamingPartnerPLMNRow{PartnerID: p.ID, Mcc: plmn.Mcc, Mnc: plmn.Mnc, NRFAPIRoot: p.NRFAPIRootOf(plmn)}
-		if _, err := db.runner(ctx).ExecContext(ctx, updateRoamingPartnerPLMNStmt, row.NRFAPIRoot, row.PartnerID, row.Mcc, row.Mnc); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, updateRoamingPartnerPLMNSQL, row.NRFAPIRoot, row.PartnerID, row.Mcc, row.Mnc); err != nil {
 			return nil, fmt.Errorf("update roaming partner PLMN: %w", err)
 		}
 	}
@@ -708,7 +708,7 @@ func (db *Database) applyUpdateRoamingPartner(ctx context.Context, w *roamingPar
 }
 
 func (db *Database) applyDeleteRoamingPartner(ctx context.Context, p *stringPayload) (any, error) {
-	n, err := db.countVisitors(ctx, countVisitorsOfPartnerStmt, p.Value, "*")
+	n, err := db.countVisitors(ctx, countVisitorsOfPartnerSQL, p.Value, "*")
 	if err != nil {
 		return nil, err
 	}
@@ -717,7 +717,7 @@ func (db *Database) applyDeleteRoamingPartner(ctx context.Context, p *stringPayl
 		return nil, fmt.Errorf("%w: the roaming partner cannot be deleted while %d of its roamers are attached", ErrRoamersAttached, n)
 	}
 
-	res, err := db.runner(ctx).ExecContext(ctx, deleteRoamingPartnerStmt, p.Value)
+	res, err := db.runner(ctx).ExecContext(ctx, deleteRoamingPartnerSQL, p.Value)
 	if err != nil {
 		if isForeignKeyRestrictError(err) {
 			return nil, ErrInUse
@@ -773,15 +773,15 @@ func (db *Database) CountVisitorsOfPartner(ctx context.Context, partnerID string
 		return 0, nil
 	}
 
-	return db.countVisitors(ctx, countVisitorsOfPartnerStmt, partnerID, "*")
+	return db.countVisitors(ctx, countVisitorsOfPartnerSQL, partnerID, "*")
 }
 
 func (db *Database) applySetRoamingPartnerWithdrawing(ctx context.Context, p *withdrawingPayload) (any, error) {
-	return nil, db.updateOne(ctx, setRoamingPartnerWithdrawingStmt, p.Until, p.Key)
+	return nil, db.updateOne(ctx, setRoamingPartnerWithdrawingSQL, p.Until, p.Key)
 }
 
 func (db *Database) applySetVisitorDeregistering(ctx context.Context, p *withdrawingPayload) (any, error) {
-	return nil, db.updateOne(ctx, setVisitorDeregisteringStmt, p.Until, p.Key)
+	return nil, db.updateOne(ctx, setVisitorDeregisteringSQL, p.Until, p.Key)
 }
 
 func (db *Database) updateOne(ctx context.Context, query string, args ...any) error {

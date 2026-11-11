@@ -24,13 +24,13 @@ const (
 )
 
 const (
-	upsertUERegistrationStmt         = "INSERT INTO " + UERegistrationsTableName + " (imsi, type, nodeID, purged, version) VALUES (?, ?, ?, 0, ?) ON CONFLICT(imsi, type) DO UPDATE SET nodeID=excluded.nodeID, purged=0, version=excluded.version"
-	purgeUERegistrationStmt          = "UPDATE " + UERegistrationsTableName + " SET purged=1, version=? WHERE imsi==? AND type==? AND nodeID==? AND purged==0"
-	cancelUERegistrationStmt         = "UPDATE " + UERegistrationsTableName + " SET purged=1, version=? WHERE imsi==? AND type==? AND purged==0"
-	purgeUERegistrationsByNodeStmt   = "UPDATE " + UERegistrationsTableName + " SET purged=1, version=? WHERE nodeID==? AND purged==0"
-	getUERegistrationStmt            = "SELECT imsi, type, nodeID, purged, version FROM " + UERegistrationsTableName + " WHERE imsi==? AND type==?"
-	listAllUERegistrationsStmt       = "SELECT imsi, type, nodeID, purged, version FROM " + UERegistrationsTableName + " ORDER BY imsi ASC"
-	maxUERegistrationVersionStmt     = "SELECT COALESCE(MAX(version), 0) FROM " + UERegistrationsTableName
+	upsertUERegistrationSQL          = "INSERT INTO " + UERegistrationsTableName + " (imsi, type, nodeID, purged, version) VALUES (?, ?, ?, 0, ?) ON CONFLICT(imsi, type) DO UPDATE SET nodeID=excluded.nodeID, purged=0, version=excluded.version"
+	purgeUERegistrationSQL           = "UPDATE " + UERegistrationsTableName + " SET purged=1, version=? WHERE imsi==? AND type==? AND nodeID==? AND purged==0"
+	cancelUERegistrationSQL          = "UPDATE " + UERegistrationsTableName + " SET purged=1, version=? WHERE imsi==? AND type==? AND purged==0"
+	purgeUERegistrationsByNodeSQL    = "UPDATE " + UERegistrationsTableName + " SET purged=1, version=? WHERE nodeID==? AND purged==0"
+	getUERegistrationSQL             = "SELECT imsi, type, nodeID, purged, version FROM " + UERegistrationsTableName + " WHERE imsi==? AND type==?"
+	listAllUERegistrationsSQL        = "SELECT imsi, type, nodeID, purged, version FROM " + UERegistrationsTableName + " ORDER BY imsi ASC"
+	maxUERegistrationVersionSQL      = "SELECT COALESCE(MAX(version), 0) FROM " + UERegistrationsTableName
 	resetUERegistrationsSQL          = "UPDATE %s SET purged=0, version=0"
 	ueRegistrationsTableExistsSQLFmt = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='%s'"
 )
@@ -145,7 +145,7 @@ func (db *Database) GetUERegistration(ctx context.Context, imsi, regType string)
 
 	DBQueriesTotal.WithLabelValues(UERegistrationsTableName, "select").Inc()
 
-	row, err := scanUERegistration(db.reader().QueryRowContext(ctx, getUERegistrationStmt, imsi, regType))
+	row, err := scanUERegistration(db.reader().QueryRowContext(ctx, getUERegistrationSQL, imsi, regType))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -172,7 +172,7 @@ func (db *Database) ListAllUERegistrations(ctx context.Context) ([]UERegistratio
 		return nil, nil
 	}
 
-	regs, err := queryAll(ctx, db.reader(), listAllUERegistrationsStmt, scanUERegistration)
+	regs, err := queryAll(ctx, db.reader(), listAllUERegistrationsSQL, scanUERegistration)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -201,7 +201,7 @@ func startUERegistrationsSpan(ctx context.Context, operation string) (context.Co
 func (db *Database) nextUERegistrationVersion(ctx context.Context) (int64, error) {
 	var version int64
 
-	if err := db.runner(ctx).QueryRowContext(ctx, maxUERegistrationVersionStmt).Scan(&version); err != nil {
+	if err := db.runner(ctx).QueryRowContext(ctx, maxUERegistrationVersionSQL).Scan(&version); err != nil {
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -224,7 +224,7 @@ func (db *Database) applyRegisterUE(ctx context.Context, p *registerUEPayload) (
 		return nil, ErrNotFound
 	}
 
-	existing, err := scanUERegistration(db.runner(ctx).QueryRowContext(ctx, getUERegistrationStmt, p.Imsi, p.Type))
+	existing, err := scanUERegistration(db.runner(ctx).QueryRowContext(ctx, getUERegistrationSQL, p.Imsi, p.Type))
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -248,7 +248,7 @@ func (db *Database) applyRegisterUE(ctx context.Context, p *registerUEPayload) (
 			Version: next,
 		}
 
-		if _, err := db.runner(ctx).ExecContext(ctx, upsertUERegistrationStmt, row.Imsi, row.Type, row.NodeID, row.Version); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, upsertUERegistrationSQL, row.Imsi, row.Type, row.NodeID, row.Version); err != nil {
 			if isForeignKeyError(err) {
 				return nil, ErrNotFound
 			}
@@ -258,7 +258,7 @@ func (db *Database) applyRegisterUE(ctx context.Context, p *registerUEPayload) (
 	}
 
 	if p.Cancel != "" {
-		if _, err := db.runner(ctx).ExecContext(ctx, cancelUERegistrationStmt, next, p.Imsi, p.Cancel); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, cancelUERegistrationSQL, next, p.Imsi, p.Cancel); err != nil {
 			return nil, fmt.Errorf("query failed: %w", err)
 		}
 	}
@@ -274,7 +274,7 @@ func (db *Database) applyPurgeUERegistration(ctx context.Context, p *purgeUERegi
 
 	row := UERegistration{Imsi: p.Imsi, Type: p.Type, NodeID: p.NodeID, Version: next}
 
-	if _, err := db.runner(ctx).ExecContext(ctx, purgeUERegistrationStmt, row.Version, row.Imsi, row.Type, row.NodeID); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, purgeUERegistrationSQL, row.Version, row.Imsi, row.Type, row.NodeID); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -295,7 +295,7 @@ func (db *Database) purgeUERegistrationsByNode(ctx context.Context, nodeID strin
 		return err
 	}
 
-	if _, err := db.runner(ctx).ExecContext(ctx, purgeUERegistrationsByNodeStmt, next, nodeID); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, purgeUERegistrationsByNodeSQL, next, nodeID); err != nil {
 		return fmt.Errorf("purge UE registrations of node %s: %w", nodeID, err)
 	}
 

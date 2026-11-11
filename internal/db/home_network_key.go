@@ -22,12 +22,12 @@ const HomeNetworkKeysTableName = "home_network_keys"
 const MaxHomeNetworkKeys = 12
 
 const (
-	listHomeNetworkKeysStmt                    = "SELECT id, key_identifier, scheme, private_key FROM " + HomeNetworkKeysTableName + " ORDER BY scheme, key_identifier"
-	getHomeNetworkKeyStmt                      = "SELECT id, key_identifier, scheme, private_key FROM " + HomeNetworkKeysTableName + " WHERE id==?"
-	getHomeNetworkKeyBySchemeAndIdentifierStmt = "SELECT id, key_identifier, scheme, private_key FROM " + HomeNetworkKeysTableName + " WHERE scheme==? AND key_identifier==?"
-	createHomeNetworkKeyStmt                   = "INSERT INTO " + HomeNetworkKeysTableName + " (id, key_identifier, scheme, private_key) VALUES (?, ?, ?, ?)"
-	deleteHomeNetworkKeyStmt                   = "DELETE FROM " + HomeNetworkKeysTableName + " WHERE id==?"
-	countHomeNetworkKeysStmt                   = "SELECT COUNT(*) FROM " + HomeNetworkKeysTableName
+	listHomeNetworkKeysSQL                    = "SELECT id, key_identifier, scheme, private_key FROM " + HomeNetworkKeysTableName + " ORDER BY scheme, key_identifier"
+	getHomeNetworkKeySQL                      = "SELECT id, key_identifier, scheme, private_key FROM " + HomeNetworkKeysTableName + " WHERE id==?"
+	getHomeNetworkKeyBySchemeAndIdentifierSQL = "SELECT id, key_identifier, scheme, private_key FROM " + HomeNetworkKeysTableName + " WHERE scheme==? AND key_identifier==?"
+	createHomeNetworkKeySQL                   = "INSERT INTO " + HomeNetworkKeysTableName + " (id, key_identifier, scheme, private_key) VALUES (?, ?, ?, ?)"
+	deleteHomeNetworkKeySQL                   = "DELETE FROM " + HomeNetworkKeysTableName + " WHERE id==?"
+	countHomeNetworkKeysSQL                   = "SELECT COUNT(*) FROM " + HomeNetworkKeysTableName
 )
 
 // HomeNetworkKey represents a home network key used for SUCI de-concealment.
@@ -84,7 +84,7 @@ func (db *Database) ListHomeNetworkKeys(ctx context.Context) ([]HomeNetworkKey, 
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	keys, err := queryAll(ctx, db.reader(), listHomeNetworkKeysStmt, scanHomeNetworkKey)
+	keys, err := queryAll(ctx, db.reader(), listHomeNetworkKeysSQL, scanHomeNetworkKey)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -100,7 +100,7 @@ func (db *Database) GetHomeNetworkKey(ctx context.Context, id string) (*HomeNetw
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	row, err := scanHomeNetworkKey(db.reader().QueryRowContext(ctx, getHomeNetworkKeyStmt, id))
+	row, err := scanHomeNetworkKey(db.reader().QueryRowContext(ctx, getHomeNetworkKeySQL, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -120,7 +120,7 @@ func (db *Database) GetHomeNetworkKeyBySchemeAndIdentifier(ctx context.Context, 
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	row, err := scanHomeNetworkKey(db.reader().QueryRowContext(ctx, getHomeNetworkKeyBySchemeAndIdentifierStmt, scheme, keyIdentifier))
+	row, err := scanHomeNetworkKey(db.reader().QueryRowContext(ctx, getHomeNetworkKeyBySchemeAndIdentifierSQL, scheme, keyIdentifier))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -179,7 +179,7 @@ func (db *Database) CountHomeNetworkKeys(ctx context.Context) (int, error) {
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	count, err := queryCount(ctx, db.reader(), countHomeNetworkKeysStmt)
+	count, err := queryCount(ctx, db.reader(), countHomeNetworkKeysSQL)
 	if err != nil {
 		recordSpanError(span, err)
 

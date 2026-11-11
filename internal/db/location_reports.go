@@ -9,9 +9,9 @@ import (
 )
 
 const (
-	insertLocationReportStmt = `INSERT INTO ` + LocationReportsTableName + ` (request_id, seq, reported_at, location_data) VALUES (?, ?, ?, ?)`
-	pruneLocationReportsStmt = `DELETE FROM ` + LocationReportsTableName + ` WHERE request_id = ? AND seq <= ?`
-	listLocationReportsStmt  = `SELECT request_id, seq, reported_at, location_data FROM ` + LocationReportsTableName + ` WHERE request_id = ? AND seq > ? ORDER BY seq LIMIT ?`
+	insertLocationReportSQL = `INSERT INTO ` + LocationReportsTableName + ` (request_id, seq, reported_at, location_data) VALUES (?, ?, ?, ?)`
+	pruneLocationReportsSQL = `DELETE FROM ` + LocationReportsTableName + ` WHERE request_id = ? AND seq <= ?`
+	listLocationReportsSQL  = `SELECT request_id, seq, reported_at, location_data FROM ` + LocationReportsTableName + ` WHERE request_id = ? AND seq > ? ORDER BY seq LIMIT ?`
 )
 
 type LocationReport struct {
@@ -39,7 +39,7 @@ func (db *Database) AddLocationReport(ctx context.Context, r *LocationReport, ke
 		return fmt.Errorf("begin transaction failed: %w", err)
 	}
 
-	if _, err := tx.ExecContext(ctx, insertLocationReportStmt, r.RequestID, r.Seq, r.ReportedAt, r.LocationData); err != nil {
+	if _, err := tx.ExecContext(ctx, insertLocationReportSQL, r.RequestID, r.Seq, r.ReportedAt, r.LocationData); err != nil {
 		_ = tx.Rollback()
 
 		recordSpanError(span, err)
@@ -48,7 +48,7 @@ func (db *Database) AddLocationReport(ctx context.Context, r *LocationReport, ke
 	}
 
 	if r.Seq > keep {
-		if _, err := tx.ExecContext(ctx, pruneLocationReportsStmt, r.RequestID, r.Seq-keep); err != nil {
+		if _, err := tx.ExecContext(ctx, pruneLocationReportsSQL, r.RequestID, r.Seq-keep); err != nil {
 			_ = tx.Rollback()
 
 			recordSpanError(span, err)
@@ -75,7 +75,7 @@ func (db *Database) ListLocationReports(ctx context.Context, requestID string, a
 		return nil, nil
 	}
 
-	reports, err := queryAll(ctx, db.reader(), listLocationReportsStmt, scanLocationReport, requestID, afterSeq, limit)
+	reports, err := queryAll(ctx, db.reader(), listLocationReportsSQL, scanLocationReport, requestID, afterSeq, limit)
 	if err != nil {
 		recordSpanError(span, err)
 

@@ -21,13 +21,13 @@ import (
 const IMSInitialFilterCriteriaTableName = "ims_initial_filter_criteria"
 
 const (
-	listServiceProfileIMSIFCsStmt   = "SELECT serviceProfileID, position, applicationServerID, triggerPoint, profilePart, defaultHandling, serviceInfo, includeRegisterRequest, includeRegisterResponse FROM " + IMSInitialFilterCriteriaTableName + " WHERE serviceProfileID==? ORDER BY position"
-	listAllIMSIFCsStmt              = "SELECT serviceProfileID, position, applicationServerID, triggerPoint, profilePart, defaultHandling, serviceInfo, includeRegisterRequest, includeRegisterResponse FROM " + IMSInitialFilterCriteriaTableName + " ORDER BY serviceProfileID, position"
-	insertIMSIFCStmt                = "INSERT INTO " + IMSInitialFilterCriteriaTableName + " (serviceProfileID, position, applicationServerID, triggerPoint, profilePart, defaultHandling, serviceInfo, includeRegisterRequest, includeRegisterResponse) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-	deleteServiceProfileIMSIFCsStmt = "DELETE FROM " + IMSInitialFilterCriteriaTableName + " WHERE serviceProfileID==?"
-	listProfilesOfIMSASStmt         = "SELECT DISTINCT x.profileID FROM " + IMSServiceProfileAssignmentsTableName + " AS x JOIN " + IMSInitialFilterCriteriaTableName + " AS f ON f.serviceProfileID = x.serviceProfileID WHERE f.applicationServerID==?"
-	listIMSRegisteredOfProfilesStmt = "SELECT DISTINCT s.imsi FROM " + SubscribersTableName + " AS s JOIN " + IMSRegistrationSetsTableName + " AS r ON r.imsi = s.imsi WHERE r.state != ? AND s.profileID IN (SELECT value FROM json_each(?)) ORDER BY s.imsi"
-	listSubscriberIMSIFCsStmt       = "SELECT f.serviceProfileID, f.position, f.applicationServerID, f.triggerPoint, f.profilePart, f.defaultHandling, f.serviceInfo, f.includeRegisterRequest, f.includeRegisterResponse, a.serverName FROM " + IMSInitialFilterCriteriaTableName + " AS f JOIN " + IMSServiceProfileAssignmentsTableName + " AS x ON x.serviceProfileID = f.serviceProfileID JOIN " + SubscribersTableName + " AS s ON s.profileID = x.profileID JOIN " + IMSApplicationServersTableName + " AS a ON a.id = f.applicationServerID WHERE s.imsi = ? AND x.registrationSet = ? ORDER BY f.position"
+	listServiceProfileIMSIFCsSQL   = "SELECT serviceProfileID, position, applicationServerID, triggerPoint, profilePart, defaultHandling, serviceInfo, includeRegisterRequest, includeRegisterResponse FROM " + IMSInitialFilterCriteriaTableName + " WHERE serviceProfileID==? ORDER BY position"
+	listAllIMSIFCsSQL              = "SELECT serviceProfileID, position, applicationServerID, triggerPoint, profilePart, defaultHandling, serviceInfo, includeRegisterRequest, includeRegisterResponse FROM " + IMSInitialFilterCriteriaTableName + " ORDER BY serviceProfileID, position"
+	insertIMSIFCSQL                = "INSERT INTO " + IMSInitialFilterCriteriaTableName + " (serviceProfileID, position, applicationServerID, triggerPoint, profilePart, defaultHandling, serviceInfo, includeRegisterRequest, includeRegisterResponse) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	deleteServiceProfileIMSIFCsSQL = "DELETE FROM " + IMSInitialFilterCriteriaTableName + " WHERE serviceProfileID==?"
+	listProfilesOfIMSASSQL         = "SELECT DISTINCT x.profileID FROM " + IMSServiceProfileAssignmentsTableName + " AS x JOIN " + IMSInitialFilterCriteriaTableName + " AS f ON f.serviceProfileID = x.serviceProfileID WHERE f.applicationServerID==?"
+	listIMSRegisteredOfProfilesSQL = "SELECT DISTINCT s.imsi FROM " + SubscribersTableName + " AS s JOIN " + IMSRegistrationSetsTableName + " AS r ON r.imsi = s.imsi WHERE r.state != ? AND s.profileID IN (SELECT value FROM json_each(?)) ORDER BY s.imsi"
+	listSubscriberIMSIFCsSQL       = "SELECT f.serviceProfileID, f.position, f.applicationServerID, f.triggerPoint, f.profilePart, f.defaultHandling, f.serviceInfo, f.includeRegisterRequest, f.includeRegisterResponse, a.serverName FROM " + IMSInitialFilterCriteriaTableName + " AS f JOIN " + IMSServiceProfileAssignmentsTableName + " AS x ON x.serviceProfileID = f.serviceProfileID JOIN " + SubscribersTableName + " AS s ON s.profileID = x.profileID JOIN " + IMSApplicationServersTableName + " AS a ON a.id = f.applicationServerID WHERE s.imsi = ? AND x.registrationSet = ? ORDER BY f.position"
 )
 
 type IMSProfilePart string
@@ -375,7 +375,7 @@ func (db *Database) ListSubscriberIMSFilterCriteria(ctx context.Context, imsi st
 		return nil, nil
 	}
 
-	rows, err := queryAll(ctx, db.reader(), listSubscriberIMSIFCsStmt, scanSubscriberIMSIFC, imsi, string(set))
+	rows, err := queryAll(ctx, db.reader(), listSubscriberIMSIFCsSQL, scanSubscriberIMSIFC, imsi, string(set))
 	if err != nil {
 		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -470,7 +470,7 @@ func (db *Database) ProfilesUsingIMSApplicationServer(ctx context.Context, appli
 		return nil, nil
 	}
 
-	profileIDs, err := queryAll(ctx, db.reader(), listProfilesOfIMSASStmt, scanString, applicationServerID)
+	profileIDs, err := queryAll(ctx, db.reader(), listProfilesOfIMSASSQL, scanValue[string], applicationServerID)
 	if err != nil {
 		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -496,13 +496,7 @@ func (db *Database) IMSRegisteredSubscribersOfProfiles(ctx context.Context, prof
 		return nil, nil
 	}
 
-	ids, err := jsonArray(profileIDs)
-	if err != nil {
-		recordSpanError(span, err)
-		return nil, err
-	}
-
-	imsis, err := queryAll(ctx, db.reader(), listIMSRegisteredOfProfilesStmt, scanString, int(IMSNotRegistered), ids)
+	imsis, err := queryAll(ctx, db.reader(), listIMSRegisteredOfProfilesSQL, scanValue[string], int(IMSNotRegistered), jsonArray(profileIDs))
 	if err != nil {
 		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)

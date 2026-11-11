@@ -25,11 +25,11 @@ const (
 )
 
 const (
-	listDiameterPeersStmt         = "SELECT id, role, diameterIdentity, address, port FROM " + DiameterPeersTableName + " ORDER BY id"
-	getDiameterPeerStmt           = "SELECT id, role, diameterIdentity, address, port FROM " + DiameterPeersTableName + " WHERE id==?"
-	insertRoamingDiameterPeerStmt = "INSERT INTO " + DiameterPeersTableName + " (id, role, diameterIdentity, address, port) VALUES (?, 'roaming', ?, ?, ?)"
-	updateRoamingDiameterPeerStmt = "UPDATE " + DiameterPeersTableName + " SET diameterIdentity=?, address=?, port=? WHERE id==? AND role='roaming'"
-	deleteRoamingDiameterPeerStmt = "DELETE FROM " + DiameterPeersTableName + " WHERE id==? AND role='roaming'"
+	listDiameterPeersSQL         = "SELECT id, role, diameterIdentity, address, port FROM " + DiameterPeersTableName + " ORDER BY id"
+	getDiameterPeerSQL           = "SELECT id, role, diameterIdentity, address, port FROM " + DiameterPeersTableName + " WHERE id==?"
+	insertRoamingDiameterPeerSQL = "INSERT INTO " + DiameterPeersTableName + " (id, role, diameterIdentity, address, port) VALUES (?, 'roaming', ?, ?, ?)"
+	updateRoamingDiameterPeerSQL = "UPDATE " + DiameterPeersTableName + " SET diameterIdentity=?, address=?, port=? WHERE id==? AND role='roaming'"
+	deleteRoamingDiameterPeerSQL = "DELETE FROM " + DiameterPeersTableName + " WHERE id==? AND role='roaming'"
 )
 
 type RoamingDiameterPeer struct {
@@ -93,7 +93,7 @@ func validateDiameterPeerEndpoints(peers []diameterPeerRow) error {
 }
 
 func (db *Database) listDiameterPeers(ctx context.Context, q querier) ([]diameterPeerRow, error) {
-	rows, err := queryAll(ctx, q, listDiameterPeersStmt, scanDiameterPeerRow)
+	rows, err := queryAll(ctx, q, listDiameterPeersSQL, scanDiameterPeerRow)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -233,7 +233,7 @@ func (db *Database) applyCreateRoamingDiameterPeer(ctx context.Context, p *Roami
 
 	row := p.row()
 
-	if _, err := db.runner(ctx).ExecContext(ctx, insertRoamingDiameterPeerStmt, row.ID, row.DiameterIdentity, row.Address, row.Port); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, insertRoamingDiameterPeerSQL, row.ID, row.DiameterIdentity, row.Address, row.Port); err != nil {
 		if isUniqueNameError(err) || isPrimaryKeyError(err) {
 			return nil, ErrAlreadyExists
 		}
@@ -245,7 +245,7 @@ func (db *Database) applyCreateRoamingDiameterPeer(ctx context.Context, p *Roami
 }
 
 func (db *Database) applyUpdateRoamingDiameterPeer(ctx context.Context, p *RoamingDiameterPeer) (any, error) {
-	existing, err := scanDiameterPeerRow(db.runner(ctx).QueryRowContext(ctx, getDiameterPeerStmt, p.ID))
+	existing, err := scanDiameterPeerRow(db.runner(ctx).QueryRowContext(ctx, getDiameterPeerSQL, p.ID))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -264,7 +264,7 @@ func (db *Database) applyUpdateRoamingDiameterPeer(ctx context.Context, p *Roami
 
 	row := p.row()
 
-	if _, err := db.runner(ctx).ExecContext(ctx, updateRoamingDiameterPeerStmt, row.DiameterIdentity, row.Address, row.Port, row.ID); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, updateRoamingDiameterPeerSQL, row.DiameterIdentity, row.Address, row.Port, row.ID); err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
 		}
@@ -276,7 +276,7 @@ func (db *Database) applyUpdateRoamingDiameterPeer(ctx context.Context, p *Roami
 }
 
 func (db *Database) applyDeleteRoamingDiameterPeer(ctx context.Context, p *stringPayload) (any, error) {
-	res, err := db.runner(ctx).ExecContext(ctx, deleteRoamingDiameterPeerStmt, p.Value)
+	res, err := db.runner(ctx).ExecContext(ctx, deleteRoamingDiameterPeerSQL, p.Value)
 	if err != nil {
 		if isForeignKeyRestrictError(err) {
 			return nil, ErrInUse

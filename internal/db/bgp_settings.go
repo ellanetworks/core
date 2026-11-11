@@ -31,12 +31,12 @@ func defaultBGPSettings() *BGPSettings {
 
 const BGPSettingsTableName = "bgp_settings"
 
-const upsertBGPSettingsStmt = `
+const upsertBGPSettingsSQL = `
 INSERT INTO ` + BGPSettingsTableName + ` (singleton, enabled, localAS, routerID, listenAddress) VALUES (TRUE, ?, ?, ?, ?)
 ON CONFLICT(singleton) DO UPDATE SET enabled=excluded.enabled, localAS=excluded.localAS, routerID=excluded.routerID, listenAddress=excluded.listenAddress;
 `
 
-const getBGPSettingsStmt = `SELECT enabled, localAS, routerID, listenAddress FROM ` + BGPSettingsTableName + ` WHERE singleton=TRUE;`
+const getBGPSettingsSQL = `SELECT enabled, localAS, routerID, listenAddress FROM ` + BGPSettingsTableName + ` WHERE singleton=TRUE;`
 
 type BGPSettings struct {
 	Enabled       bool
@@ -68,7 +68,7 @@ func (db *Database) GetBGPSettings(ctx context.Context) (*BGPSettings, error) {
 
 	var bgpSettings BGPSettings
 
-	err := db.reader().QueryRowContext(ctx, getBGPSettingsStmt).Scan(&bgpSettings.Enabled, &bgpSettings.LocalAS, &bgpSettings.RouterID, &bgpSettings.ListenAddress)
+	err := db.reader().QueryRowContext(ctx, getBGPSettingsSQL).Scan(&bgpSettings.Enabled, &bgpSettings.LocalAS, &bgpSettings.RouterID, &bgpSettings.ListenAddress)
 	if err != nil {
 		recordSpanError(span, err)
 

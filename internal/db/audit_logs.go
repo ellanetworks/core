@@ -17,14 +17,14 @@ import (
 const AuditLogsTableName = "audit_logs"
 
 const (
-	insertAuditLogStmt     = "INSERT INTO " + AuditLogsTableName + " (id, timestamp, level, actor, action, ip, details) VALUES (?, ?, ?, ?, ?, ?, ?)"
-	deleteOldAuditLogsStmt = "DELETE FROM " + AuditLogsTableName + " WHERE timestamp < ?"
+	insertAuditLogSQL     = "INSERT INTO " + AuditLogsTableName + " (id, timestamp, level, actor, action, ip, details) VALUES (?, ?, ?, ?, ?, ?, ?)"
+	deleteOldAuditLogsSQL = "DELETE FROM " + AuditLogsTableName + " WHERE timestamp < ?"
 )
 
 // id is a UUIDv7, so it's not strictly time-ordered (clock skew between
 // generators); the secondary sort by id keeps the ordering stable when
 // timestamps tie.
-const listAuditLogsFilteredPageStmt = `
+const listAuditLogsFilteredPageSQL = `
   SELECT id, timestamp, level, actor, action, ip, details, COUNT(*) OVER()
   FROM ` + AuditLogsTableName + `
   WHERE
@@ -58,7 +58,7 @@ func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.Audit
 		return err
 	}
 
-	_, err := db.writer().ExecContext(context.WithoutCancel(ctx), insertAuditLogStmt, auditLog.ID, auditLog.Timestamp, auditLog.Level, auditLog.Actor, auditLog.Action, auditLog.IP, auditLog.Details)
+	_, err := db.writer().ExecContext(context.WithoutCancel(ctx), insertAuditLogSQL, auditLog.ID, auditLog.Timestamp, auditLog.Level, auditLog.Actor, auditLog.Action, auditLog.IP, auditLog.Details)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -77,7 +77,7 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, filters *AuditLogFilt
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	logs, count, err := queryPage(ctx, db.reader(), listAuditLogsFilteredPageStmt, scanAuditLog, filters.Actor, filters.Action, filters.TimestampFrom, filters.TimestampTo, perPage, (page-1)*perPage)
+	logs, count, err := queryPageWithTotal(ctx, db.reader(), listAuditLogsFilteredPageSQL, scanAuditLog, filters.Actor, filters.Action, filters.TimestampFrom, filters.TimestampTo, perPage, (page-1)*perPage)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -96,7 +96,7 @@ func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
 	// Compute cutoff entirely in UTC so the boundary is timezone/DST-independent.
 	cutoff := dbwriter.EpochMillis(time.Now().UTC().AddDate(0, 0, -days))
 
-	_, err := db.writer().ExecContext(ctx, deleteOldAuditLogsStmt, cutoff)
+	_, err := db.writer().ExecContext(ctx, deleteOldAuditLogsSQL, cutoff)
 	if err != nil {
 		recordSpanError(span, err)
 

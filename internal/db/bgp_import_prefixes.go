@@ -13,9 +13,9 @@ import (
 const BGPImportPrefixesTableName = "bgp_import_prefixes"
 
 const (
-	listImportPrefixesByPeerStmt   = "SELECT id, peerID, prefix, maxLength FROM " + BGPImportPrefixesTableName + " WHERE peerID==? ORDER BY id ASC"
-	createImportPrefixStmt         = "INSERT INTO " + BGPImportPrefixesTableName + " (peerID, prefix, maxLength) VALUES (?, ?, ?)"
-	deleteImportPrefixesByPeerStmt = "DELETE FROM " + BGPImportPrefixesTableName + " WHERE peerID==?"
+	listImportPrefixesByPeerSQL   = "SELECT id, peerID, prefix, maxLength FROM " + BGPImportPrefixesTableName + " WHERE peerID==? ORDER BY id ASC"
+	createImportPrefixSQL         = "INSERT INTO " + BGPImportPrefixesTableName + " (peerID, prefix, maxLength) VALUES (?, ?, ?)"
+	deleteImportPrefixesByPeerSQL = "DELETE FROM " + BGPImportPrefixesTableName + " WHERE peerID==?"
 )
 
 type BGPImportPrefix struct {
@@ -30,7 +30,7 @@ func (db *Database) ListImportPrefixesByPeer(ctx context.Context, peerID int) ([
 	defer span.End()
 	defer timer.ObserveDuration()
 
-	prefixes, err := queryAll(ctx, db.reader(), listImportPrefixesByPeerStmt, scanBGPImportPrefix, peerID)
+	prefixes, err := queryAll(ctx, db.reader(), listImportPrefixesByPeerSQL, scanBGPImportPrefix, peerID)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -54,7 +54,7 @@ func (db *Database) SetImportPrefixesForPeer(ctx context.Context, peerID int, pr
 
 	defer func() { _ = tx.Rollback() }()
 
-	if _, err := tx.ExecContext(ctx, deleteImportPrefixesByPeerStmt, peerID); err != nil {
+	if _, err := tx.ExecContext(ctx, deleteImportPrefixesByPeerSQL, peerID); err != nil {
 		recordSpanError(span, err)
 
 		return fmt.Errorf("delete existing prefixes: %w", err)
@@ -63,7 +63,7 @@ func (db *Database) SetImportPrefixesForPeer(ctx context.Context, peerID int, pr
 	for _, prefix := range prefixes {
 		prefix.PeerID = peerID
 
-		if _, err := tx.ExecContext(ctx, createImportPrefixStmt, prefix.PeerID, prefix.Prefix, prefix.MaxLength); err != nil {
+		if _, err := tx.ExecContext(ctx, createImportPrefixSQL, prefix.PeerID, prefix.Prefix, prefix.MaxLength); err != nil {
 			recordSpanError(span, err)
 
 			return fmt.Errorf("insert prefix: %w", err)

@@ -32,16 +32,16 @@ const (
 )
 
 const (
-	insertDeferredLocationRequestStmt = `INSERT INTO ` + DeferredLocationRequestsTableName + ` (id, supi, ldr_type, method, mode, measurement_quantities, reporting_interval_s, reporting_amount, reporting_infinite, scheduled_loc_time, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	getDeferredLocationRequestStmt    = `SELECT id, supi, ldr_type, method, mode, measurement_quantities, reporting_interval_s, reporting_amount, reporting_infinite, scheduled_loc_time, status, termination_cause, termination_reason, created_at, terminated_at, COALESCE(p.last_seq, 0) FROM ` + DeferredLocationRequestsTableName + ` LEFT JOIN (SELECT request_id, MAX(seq) AS last_seq FROM ` + LocationReportsTableName + ` GROUP BY request_id) p ON p.request_id = id WHERE id = ?`
-	terminateDeferredLocationStmt     = `UPDATE ` + DeferredLocationRequestsTableName + ` SET status = 'TERMINATED', termination_cause = ?, termination_reason = ?, terminated_at = ? WHERE id = ? AND status = 'ACTIVE'`
-	terminateAllDeferredLocationStmt  = `UPDATE ` + DeferredLocationRequestsTableName + ` SET status = 'TERMINATED', termination_cause = ?, termination_reason = ?, terminated_at = ? WHERE status = 'ACTIVE'`
-	deleteDeferredLocationRequestStmt = `DELETE FROM ` + DeferredLocationRequestsTableName + ` WHERE id = ?`
-	deleteEndedDeferredLocationStmt   = `DELETE FROM ` + DeferredLocationRequestsTableName + ` WHERE status = 'TERMINATED' AND terminated_at < ?`
-	deleteOrphanLocationReportsStmt   = `DELETE FROM ` + LocationReportsTableName + ` WHERE request_id NOT IN (SELECT id FROM ` + DeferredLocationRequestsTableName + `)`
+	insertDeferredLocationRequestSQL = `INSERT INTO ` + DeferredLocationRequestsTableName + ` (id, supi, ldr_type, method, mode, measurement_quantities, reporting_interval_s, reporting_amount, reporting_infinite, scheduled_loc_time, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	getDeferredLocationRequestSQL    = `SELECT id, supi, ldr_type, method, mode, measurement_quantities, reporting_interval_s, reporting_amount, reporting_infinite, scheduled_loc_time, status, termination_cause, termination_reason, created_at, terminated_at, COALESCE(p.last_seq, 0) FROM ` + DeferredLocationRequestsTableName + ` LEFT JOIN (SELECT request_id, MAX(seq) AS last_seq FROM ` + LocationReportsTableName + ` GROUP BY request_id) p ON p.request_id = id WHERE id = ?`
+	terminateDeferredLocationSQL     = `UPDATE ` + DeferredLocationRequestsTableName + ` SET status = 'TERMINATED', termination_cause = ?, termination_reason = ?, terminated_at = ? WHERE id = ? AND status = 'ACTIVE'`
+	terminateAllDeferredLocationSQL  = `UPDATE ` + DeferredLocationRequestsTableName + ` SET status = 'TERMINATED', termination_cause = ?, termination_reason = ?, terminated_at = ? WHERE status = 'ACTIVE'`
+	deleteDeferredLocationRequestSQL = `DELETE FROM ` + DeferredLocationRequestsTableName + ` WHERE id = ?`
+	deleteEndedDeferredLocationSQL   = `DELETE FROM ` + DeferredLocationRequestsTableName + ` WHERE status = 'TERMINATED' AND terminated_at < ?`
+	deleteOrphanLocationReportsSQL   = `DELETE FROM ` + LocationReportsTableName + ` WHERE request_id NOT IN (SELECT id FROM ` + DeferredLocationRequestsTableName + `)`
 )
 
-const listDeferredLocationRequestsStmt = `
+const listDeferredLocationRequestsSQL = `
   SELECT id, supi, ldr_type, method, mode, measurement_quantities, reporting_interval_s, reporting_amount, reporting_infinite, scheduled_loc_time, status, termination_cause, termination_reason, created_at, terminated_at, COALESCE(p.last_seq, 0), COUNT(*) OVER()
   FROM ` + DeferredLocationRequestsTableName + `
   LEFT JOIN (SELECT request_id, MAX(seq) AS last_seq FROM ` + LocationReportsTableName + ` GROUP BY request_id) p ON p.request_id = id
@@ -53,7 +53,7 @@ const listDeferredLocationRequestsStmt = `
   OFFSET ?4
 `
 
-const countDeferredLocationRequestsStmt = `
+const countDeferredLocationRequestsSQL = `
   SELECT COUNT(*)
   FROM ` + DeferredLocationRequestsTableName + `
   WHERE
@@ -116,7 +116,7 @@ func (db *Database) CreateDeferredLocationRequest(ctx context.Context, r *Deferr
 	r.TerminatedAt = nil
 	r.CreatedAt = dbwriter.EpochMillis(time.Now())
 
-	if _, err := db.writer().ExecContext(ctx, insertDeferredLocationRequestStmt, r.ID, r.SUPI, r.LdrType, r.Method, r.Mode, r.MeasurementQuantities, r.ReportingIntervalS, r.ReportingAmount, r.ReportingInfinite, r.ScheduledLocTime, r.Status, r.CreatedAt); err != nil {
+	if _, err := db.writer().ExecContext(ctx, insertDeferredLocationRequestSQL, r.ID, r.SUPI, r.LdrType, r.Method, r.Mode, r.MeasurementQuantities, r.ReportingIntervalS, r.ReportingAmount, r.ReportingInfinite, r.ScheduledLocTime, r.Status, r.CreatedAt); err != nil {
 		if isUniqueNameError(err) {
 			return ErrAlreadyExists
 		}
@@ -138,7 +138,7 @@ func (db *Database) GetDeferredLocationRequest(ctx context.Context, id string) (
 		return nil, ErrNotFound
 	}
 
-	r, err := scanDeferredLocationRequest(db.reader().QueryRowContext(ctx, getDeferredLocationRequestStmt, id))
+	r, err := scanDeferredLocationRequest(db.reader().QueryRowContext(ctx, getDeferredLocationRequestSQL, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -165,7 +165,7 @@ func (db *Database) ListDeferredLocationRequests(ctx context.Context, page, perP
 		filters = &DeferredLocationRequestFilters{}
 	}
 
-	requests, total, err := queryPage(ctx, db.reader(), listDeferredLocationRequestsStmt, scanDeferredLocationRequest, filters.SUPI, filters.Status, perPage, (page-1)*perPage)
+	requests, total, err := queryPageWithTotal(ctx, db.reader(), listDeferredLocationRequestsSQL, scanDeferredLocationRequest, filters.SUPI, filters.Status, perPage, (page-1)*perPage)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -173,7 +173,7 @@ func (db *Database) ListDeferredLocationRequests(ctx context.Context, page, perP
 	}
 
 	if len(requests) == 0 {
-		count, err := queryCount(ctx, db.reader(), countDeferredLocationRequestsStmt, filters.SUPI, filters.Status)
+		count, err := queryCount(ctx, db.reader(), countDeferredLocationRequestsSQL, filters.SUPI, filters.Status)
 		if err != nil {
 			recordSpanError(span, err)
 
@@ -197,7 +197,7 @@ func (db *Database) TerminateDeferredLocationRequest(ctx context.Context, id str
 		return err
 	}
 
-	n, err := db.execCounting(ctx, terminateDeferredLocationStmt, t.Cause, t.Reason, dbwriter.EpochMillis(t.At), id)
+	n, err := db.execCounting(ctx, terminateDeferredLocationSQL, t.Cause, t.Reason, dbwriter.EpochMillis(t.At), id)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -220,7 +220,7 @@ func (db *Database) TerminateActiveDeferredLocationRequests(ctx context.Context,
 		return 0, nil
 	}
 
-	n, err := db.execCounting(ctx, terminateAllDeferredLocationStmt, t.Cause, t.Reason, dbwriter.EpochMillis(t.At))
+	n, err := db.execCounting(ctx, terminateAllDeferredLocationSQL, t.Cause, t.Reason, dbwriter.EpochMillis(t.At))
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -239,7 +239,7 @@ func (db *Database) DeleteDeferredLocationRequest(ctx context.Context, id string
 		return ErrNotFound
 	}
 
-	n, err := db.execCounting(ctx, deleteDeferredLocationRequestStmt, id)
+	n, err := db.execCounting(ctx, deleteDeferredLocationRequestSQL, id)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -262,13 +262,13 @@ func (db *Database) DeleteEndedDeferredLocationRequests(ctx context.Context, end
 		return nil
 	}
 
-	if _, err := db.writer().ExecContext(ctx, deleteEndedDeferredLocationStmt, dbwriter.EpochMillis(endedBefore)); err != nil {
+	if _, err := db.writer().ExecContext(ctx, deleteEndedDeferredLocationSQL, dbwriter.EpochMillis(endedBefore)); err != nil {
 		recordSpanError(span, err)
 
 		return fmt.Errorf("query failed: %w", err)
 	}
 
-	if _, err := db.writer().ExecContext(ctx, deleteOrphanLocationReportsStmt); err != nil {
+	if _, err := db.writer().ExecContext(ctx, deleteOrphanLocationReportsSQL); err != nil {
 		recordSpanError(span, err)
 
 		return fmt.Errorf("delete orphan reports: %w", err)
