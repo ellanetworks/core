@@ -89,6 +89,29 @@ func (a *Agent) HaveLeafOnDisk() bool {
 	return true
 }
 
+func (a *Agent) LeafClusterIDOnDisk() string {
+	if !a.HaveLeafOnDisk() {
+		return ""
+	}
+
+	certPEM, err := os.ReadFile(a.path(leafCertFile)) // #nosec G304 -- under dataDir
+	if err != nil {
+		return ""
+	}
+
+	cert, err := pki.ParseCertPEM(certPEM)
+	if err != nil {
+		return ""
+	}
+
+	cid, _, err := pki.IdentityFromCert(cert)
+	if err != nil {
+		return ""
+	}
+
+	return cid
+}
+
 // Load reads the on-disk cert and key into memory. Idempotent.
 func (a *Agent) Load() error {
 	certPEM, err := os.ReadFile(a.path(leafCertFile)) // #nosec G304 -- under dataDir

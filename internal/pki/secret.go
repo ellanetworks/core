@@ -40,7 +40,7 @@ func ParseSecrets(raw []byte) ([][]byte, error) {
 			continue
 		}
 
-		secret, err := decodeSecret(line)
+		secret, err := base64.StdEncoding.DecodeString(line)
 		if err != nil {
 			return nil, fmt.Errorf("%w: line %d is not base64", ErrInvalidSecret, i+1)
 		}
@@ -64,16 +64,6 @@ func ParseSecrets(raw []byte) ([][]byte, error) {
 	return keys, nil
 }
 
-func decodeSecret(s string) ([]byte, error) {
-	for _, enc := range []*base64.Encoding{base64.StdEncoding, base64.RawStdEncoding, base64.URLEncoding, base64.RawURLEncoding} {
-		if b, err := enc.DecodeString(s); err == nil {
-			return b, nil
-		}
-	}
-
-	return nil, errors.New("not base64")
-}
-
 func ReadSecrets(path string) ([][]byte, error) {
 	raw, err := os.ReadFile(path) // #nosec G304 -- operator-configured cluster.secret-file
 	if err != nil {
@@ -84,19 +74,18 @@ func ReadSecrets(path string) ([][]byte, error) {
 }
 
 type ProofInput struct {
-	Role        string
-	Exporter    []byte
-	NodeID      string
-	Fingerprint string
-	Address     string
-	BodyHash    []byte
+	Role     string
+	Exporter []byte
+	NodeID   string
+	Address  string
+	BodyHash []byte
 }
 
 func (p ProofInput) encode() []byte {
 	var b bytes.Buffer
 
 	for _, field := range [][]byte{
-		[]byte(p.Role), p.Exporter, []byte(p.NodeID), []byte(p.Fingerprint), []byte(p.Address), p.BodyHash,
+		[]byte(p.Role), p.Exporter, []byte(p.NodeID), []byte(p.Address), p.BodyHash,
 	} {
 		_ = binary.Write(&b, binary.BigEndian, uint32(len(field))) // #nosec G115 -- fields are bounded by the request body limit
 		b.Write(field)

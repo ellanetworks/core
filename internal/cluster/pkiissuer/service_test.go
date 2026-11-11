@@ -117,6 +117,21 @@ func (f *fakeStore) RedeemJoinToken(ctx context.Context, tokenID string, nodeID 
 	return f.ListClusterNodeCerts(ctx)
 }
 
+func (f *fakeStore) RegisterJoiningNodeCert(ctx context.Context, nodeID string, fingerprint, certPEM string) ([]db.ClusterNodeCert, error) {
+	f.mu.Lock()
+
+	if p, ok := f.pins[nodeID]; ok && p.Fingerprint != fingerprint {
+		f.mu.Unlock()
+		return nil, db.ErrNodeIdentityBound
+	}
+
+	f.pins[nodeID] = &db.ClusterNodeCert{NodeID: nodeID, Fingerprint: fingerprint, CertPEM: certPEM, AddedAt: time.Now().Unix()}
+
+	f.mu.Unlock()
+
+	return f.ListClusterNodeCerts(ctx)
+}
+
 // preregisterLeader inserts the leader's pin so MintJoinToken can
 // embed it in a token's claims.
 func preregisterLeader(t *testing.T, store *fakeStore, nodeID string) string {

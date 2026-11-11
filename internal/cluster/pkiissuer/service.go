@@ -44,6 +44,7 @@ type Store interface {
 
 	MintJoinTokenRecord(ctx context.Context, r *db.ClusterJoinToken) error
 	RedeemJoinToken(ctx context.Context, tokenID string, nodeID string, fingerprint, certPEM string) ([]db.ClusterNodeCert, error)
+	RegisterJoiningNodeCert(ctx context.Context, nodeID string, fingerprint, certPEM string) ([]db.ClusterNodeCert, error)
 
 	IsLeader() bool
 }
@@ -266,18 +267,12 @@ func (s *Service) RegisterJoiningCert(ctx context.Context, nodeID string, certPE
 		return "", nil, err
 	}
 
-	rows, err := s.store.ListClusterNodeCerts(ctx)
+	pins, err := s.store.RegisterJoiningNodeCert(ctx, nodeID, fp, string(pki.EncodeCertPEM(cert)))
 	if err != nil {
-		return "", nil, fmt.Errorf("list pins: %w", err)
+		return "", nil, err
 	}
 
-	for _, r := range rows {
-		if r.NodeID == nodeID && r.Fingerprint != fp {
-			return "", nil, db.ErrNodeIdentityBound
-		}
-	}
-
-	return s.RegisterCert(ctx, nodeID, pki.EncodeCertPEM(cert))
+	return fp, pins, nil
 }
 
 func (s *Service) validateNodeCert(ctx context.Context, nodeID string, certPEM []byte) (*x509.Certificate, string, error) {

@@ -24,9 +24,10 @@ import (
 )
 
 const (
-	StateForming = "forming"
-	StateJoining = "joining"
-	StateMember  = "member"
+	StateForming       = "forming"
+	StateBootstrapping = "bootstrapping"
+	StateJoining       = "joining"
+	StateMember        = "member"
 
 	discoverInterval = 2 * time.Second
 )
@@ -67,11 +68,11 @@ type Config struct {
 	Schema      int
 	Auth        *Auth
 
-	Local        func(ctx context.Context) LocalState
-	Register     func(ctx context.Context, nodeID string, certPEM []byte) (RegisterReply, error)
-	HaveLeaf     func() bool
-	PrepareJoin  func(clusterID string) ([]byte, error)
-	CompleteJoin func(clusterID string, pins []pkiagent.PinRecord) error
+	Local         func(ctx context.Context) LocalState
+	Register      func(ctx context.Context, nodeID string, certPEM []byte) (RegisterReply, error)
+	LeafClusterID func() string
+	PrepareJoin   func(clusterID string) ([]byte, error)
+	CompleteJoin  func(clusterID string, pins []pkiagent.PinRecord) error
 
 	Dial     func(ctx context.Context, addr string) (*tls.Conn, error)
 	LookupIP func(ctx context.Context, host string) ([]netip.Addr, error)
@@ -82,13 +83,17 @@ type Outcome struct {
 	Seeds     []string
 }
 
+var ErrForeignCluster = errors.New("this node holds the certificate of another cluster")
+
 type Node struct {
 	cfg Config
 
-	mu          sync.Mutex
-	candidate   string
-	logged      string
-	wrongSecret int
+	mu            sync.Mutex
+	candidate     string
+	bootstrapping bool
+	logged        string
+	wrongSecret   int
+	duplicates    int
 }
 
 func New(cfg Config) *Node {
@@ -106,11 +111,16 @@ func (n *Node) selfHello(ctx context.Context) Hello {
 	switch local.State {
 	case StateMember:
 		h.State, h.ClusterID, h.Leader = StateMember, local.ClusterID, local.Leader
-	case StateJoining:
-		h.State = StateJoining
 	default:
 		n.mu.Lock()
 		h.State, h.Candidate = StateForming, n.candidate
+
+		switch {
+		case n.bootstrapping:
+			h.State, h.Candidate = StateBootstrapping, n.cfg.NodeID
+		case local.State == StateJoining:
+			h.State, h.Candidate = StateJoining, ""
+		}
 		n.mu.Unlock()
 	}
 
@@ -136,7 +146,7 @@ type decision struct {
 }
 
 func decide(self Hello, peers []Hello) decision {
-	var forming, members []Hello
+	var forming, members, bootstrapping []Hello
 
 	clusters := map[string]bool{}
 
@@ -149,8 +159,12 @@ func decide(self Hello, peers []Hello) decision {
 		case StateMember:
 			members = append(members, p)
 			clusters[p.ClusterID] = true
+		case StateBootstrapping:
+			bootstrapping = append(bootstrapping, p)
 		case StateForming:
-			forming = append(forming, p)
+			if p.Expect != 0 {
+				forming = append(forming, p)
+			}
 		}
 	}
 
@@ -177,6 +191,10 @@ func decide(self Hello, peers []Hello) decision {
 		}
 
 		return d
+	}
+
+	if len(bootstrapping) > 0 {
+		return decision{detail: "waiting for node " + bootstrapping[0].NodeID + " to form the cluster"}
 	}
 
 	if self.Expect == 0 {
@@ -275,6 +293,7 @@ func (n *Node) resolveJoin(ctx context.Context) []string {
 type round struct {
 	peers       []Hello
 	wrongSecret int
+	duplicates  []string
 }
 
 func (n *Node) helloRound(ctx context.Context) round {
@@ -307,7 +326,15 @@ func (n *Node) helloRound(ctx context.Context) round {
 			}
 
 			var h Hello
-			if err := json.Unmarshal(r.body, &h); err != nil || h.NodeID != r.nodeID || h.NodeID == n.cfg.NodeID || byID[h.NodeID] {
+			if err := json.Unmarshal(r.body, &h); err != nil || h.NodeID != r.nodeID || byID[h.NodeID] {
+				return
+			}
+
+			if h.NodeID == n.cfg.NodeID {
+				if h.Address != n.cfg.Advertise {
+					out.duplicates = append(out.duplicates, h.Address)
+				}
+
 				return
 			}
 
@@ -345,6 +372,16 @@ func (n *Node) evaluate(ctx context.Context) decision {
 	if changed && rd.wrongSecret > 0 {
 		logger.EllaLog.Warn("peers refused this node's cluster secret, or answered without proving it: "+
 			"check that every node has the same cluster secret", zap.Int("peers", rd.wrongSecret))
+	}
+
+	n.mu.Lock()
+	dupChanged := len(rd.duplicates) != n.duplicates
+	n.duplicates = len(rd.duplicates)
+	n.mu.Unlock()
+
+	if dupChanged && len(rd.duplicates) > 0 {
+		logger.EllaLog.Error("other nodes use this node's node ID, probably because they were cloned from the same disk image: "+
+			"delete the data directory of every clone before starting it", zap.String("node", n.cfg.NodeID), zap.Strings("addresses", rd.duplicates))
 	}
 
 	d := decide(n.selfHello(ctx), rd.peers)
@@ -387,6 +424,10 @@ func (n *Node) Run(ctx context.Context) (Outcome, error) {
 			})
 		case d.action == actionJoin:
 			out, err := n.join(ctx, d)
+			if errors.Is(err, ErrForeignCluster) {
+				return Outcome{}, err
+			}
+
 			if err == nil {
 				logger.EllaLog.Info("registered with the cluster, joining it", zap.String("cluster", d.clusterID),
 					zap.Strings("members", d.members))
@@ -402,6 +443,10 @@ func (n *Node) Run(ctx context.Context) (Outcome, error) {
 				continue
 			}
 
+			n.mu.Lock()
+			n.bootstrapping = true
+			n.mu.Unlock()
+
 			logger.EllaLog.Info("forming the cluster: the other nodes join it", zap.Int("nodes", n.cfg.Expect))
 
 			return Outcome{Bootstrap: true}, nil
@@ -414,7 +459,12 @@ func (n *Node) join(ctx context.Context, d decision) (Outcome, error) {
 		return Outcome{}, errors.New("the cluster member reported no cluster id")
 	}
 
-	if n.cfg.HaveLeaf() {
+	if leafCluster := n.cfg.LeafClusterID(); leafCluster != "" {
+		if leafCluster != d.clusterID {
+			return Outcome{}, fmt.Errorf("%w: it holds a certificate for cluster %s, but the peers belong to cluster %s: "+
+				"delete its data directory before adding it to a cluster", ErrForeignCluster, leafCluster, d.clusterID)
+		}
+
 		return Outcome{Seeds: d.members}, nil
 	}
 

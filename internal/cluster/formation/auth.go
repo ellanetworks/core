@@ -6,6 +6,7 @@ package formation
 import (
 	"encoding/base64"
 	"errors"
+	"slices"
 	"sync"
 	"time"
 
@@ -17,7 +18,6 @@ import (
 const (
 	proofFailureWindow = time.Minute
 	proofFailureLimit  = 10
-	maxTrackedIPs      = 4096
 )
 
 var errNoSecret = errors.New("no cluster secret is configured")
@@ -28,12 +28,12 @@ type Auth struct {
 
 	mu       sync.Mutex
 	last     [][]byte
-	failures map[string][]time.Time
+	failures []time.Time
 	reported bool
 }
 
 func NewAuth(path string) *Auth {
-	return &Auth{path: path, now: time.Now, failures: map[string][]time.Time{}}
+	return &Auth{path: path, now: time.Now}
 }
 
 func (a *Auth) Enabled() bool {
@@ -92,44 +92,26 @@ func (a *Auth) verify(in pki.ProofInput, proof string) bool {
 	return pki.VerifyProof(keys, in, raw)
 }
 
-func (a *Auth) limited(ip string) bool {
+func (a *Auth) limited() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	return len(a.recent(ip)) >= proofFailureLimit
+	return len(a.recent()) >= proofFailureLimit
 }
 
-func (a *Auth) recent(ip string) []time.Time {
+func (a *Auth) recent() []time.Time {
 	cutoff := a.now().Add(-proofFailureWindow)
-	kept := a.failures[ip][:0]
 
-	for _, t := range a.failures[ip] {
-		if t.After(cutoff) {
-			kept = append(kept, t)
-		}
-	}
+	a.failures = slices.DeleteFunc(a.failures, func(t time.Time) bool { return !t.After(cutoff) })
 
-	if len(kept) == 0 {
-		delete(a.failures, ip)
-		return nil
-	}
-
-	a.failures[ip] = kept
-
-	return kept
+	return a.failures
 }
 
-func (a *Auth) fail(ip string) {
+func (a *Auth) fail() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if len(a.failures) >= maxTrackedIPs {
-		for other := range a.failures {
-			a.recent(other)
-		}
-	}
-
-	if len(a.failures) < maxTrackedIPs || a.failures[ip] != nil {
-		a.failures[ip] = append(a.recent(ip), a.now())
+	if len(a.recent()) < proofFailureLimit {
+		a.failures = append(a.failures, a.now())
 	}
 }

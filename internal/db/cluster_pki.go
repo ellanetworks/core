@@ -230,6 +230,39 @@ func (db *Database) applyRedeemJoinToken(ctx context.Context, p *redeemJoinToken
 	return db.pinSnapshot(ctx, runner)
 }
 
+type registerJoiningNodeCertPayload struct {
+	NodeID      pki.NodeID `json:"node_id"`
+	Fingerprint string     `json:"fingerprint"`
+	CertPEM     string     `json:"cert_pem"`
+}
+
+func (db *Database) applyRegisterJoiningNodeCert(ctx context.Context, p *registerJoiningNodeCertPayload) (any, error) {
+	if err := db.requireIdentitySchemaFor(ctx, string(p.NodeID)); err != nil {
+		return nil, err
+	}
+
+	runner := db.runner(ctx)
+
+	bound := ClusterNodeCert{NodeID: string(p.NodeID)}
+	if err := runner.Query(ctx, db.getNodeCertByNodeStmt, bound).Get(&bound); err == nil && bound.Fingerprint != p.Fingerprint {
+		return nil, ErrNodeIdentityBound
+	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("get node cert: %w", err)
+	}
+
+	cert := ClusterNodeCert{
+		NodeID:      string(p.NodeID),
+		Fingerprint: p.Fingerprint,
+		CertPEM:     p.CertPEM,
+		AddedAt:     time.Now().Unix(),
+	}
+	if err := runner.Query(ctx, db.upsertNodeCertStmt, cert).Run(); err != nil {
+		return nil, fmt.Errorf("upsert node cert: %w", err)
+	}
+
+	return db.pinSnapshot(ctx, runner)
+}
+
 func (db *Database) pinSnapshot(ctx context.Context, runner *sqlair.DB) (any, error) {
 	var pins []ClusterNodeCert
 
@@ -493,6 +526,33 @@ func (db *Database) RedeemJoinToken(ctx context.Context, tokenID string, nodeID 
 
 	if res == nil || len(res.Pins) == 0 {
 		err = fmt.Errorf("redeem returned an empty pin snapshot")
+		recordSpanError(span, err)
+
+		return nil, err
+	}
+
+	return res.Pins, nil
+}
+
+func (db *Database) RegisterJoiningNodeCert(ctx context.Context, nodeID string, fingerprint, certPEM string) ([]ClusterNodeCert, error) {
+	ctx, span := tracer.Start(ctx, "db/register_joining_node_cert",
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+	defer span.End()
+
+	res, err := opRegisterJoiningNodeCert.Invoke(ctx, db, &registerJoiningNodeCertPayload{
+		NodeID:      pki.NodeID(nodeID),
+		Fingerprint: fingerprint,
+		CertPEM:     certPEM,
+	})
+	if err != nil {
+		recordSpanError(span, err)
+
+		return nil, err
+	}
+
+	if res == nil || len(res.Pins) == 0 {
+		err = fmt.Errorf("register returned an empty pin snapshot")
 		recordSpanError(span, err)
 
 		return nil, err

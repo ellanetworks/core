@@ -56,9 +56,9 @@ func newFormation(cfg config.Config, raftID string, p *pkiState, dbInstance *db.
 
 			return formation.RegisterReply{ClusterID: p.agent.ClusterID, Pins: records}, nil
 		},
-		HaveLeaf:     p.agent.HaveLeafOnDisk,
-		PrepareJoin:  p.agent.PrepareSecretJoin,
-		CompleteJoin: p.agent.CompleteSecretJoin,
+		LeafClusterID: p.agent.LeafClusterIDOnDisk,
+		PrepareJoin:   p.agent.PrepareSecretJoin,
+		CompleteJoin:  p.agent.CompleteSecretJoin,
 	})
 }
 

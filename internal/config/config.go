@@ -1086,8 +1086,8 @@ func validateClusterFormation(c ClusterYaml, bindPort string) ([]string, error) 
 		}
 	}
 
-	if c.BootstrapExpect != 0 && len(join) >= 2*c.BootstrapExpect {
-		logger.EllaLog.Warn("cluster.bootstrap-expect is half of cluster.join or less: two groups of nodes that cannot reach each other "+
+	if c.BootstrapExpect != 0 && len(join) > c.BootstrapExpect {
+		logger.EllaLog.Warn("cluster.join lists more nodes than cluster.bootstrap-expect: two groups of nodes that cannot reach each other "+
 			"could each form a cluster; set it to the number of nodes in cluster.join",
 			zap.Int("bootstrap_expect", c.BootstrapExpect), zap.Int("join", len(join)))
 	}

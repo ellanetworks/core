@@ -363,3 +363,26 @@ func TestClusterNodeCerts_AcceptsUUIDIdentity(t *testing.T) {
 		t.Fatalf("pin owner: got %q, want %q", got.NodeID, uuidID)
 	}
 }
+
+func TestRegisterJoiningNodeCert_RefusesBoundIdentity(t *testing.T) {
+	database := setupPKIDB(t)
+	ctx := context.Background()
+
+	if _, err := database.RegisterJoiningNodeCert(ctx, "7", "sha256:aa", "PEM-7"); err != nil {
+		t.Fatalf("first register: %v", err)
+	}
+
+	pins, err := database.RegisterJoiningNodeCert(ctx, "7", "sha256:aa", "PEM-7")
+	if err != nil || len(pins) != 1 {
+		t.Fatalf("same cert again: pins %+v, err %v", pins, err)
+	}
+
+	if _, err := database.RegisterJoiningNodeCert(ctx, "7", "sha256:bb", "PEM-7b"); !errors.Is(err, db.ErrNodeIdentityBound) {
+		t.Fatalf("got %v, want ErrNodeIdentityBound", err)
+	}
+
+	rows, err := database.ListClusterNodeCerts(ctx)
+	if err != nil || len(rows) != 1 || rows[0].Fingerprint != "sha256:aa" {
+		t.Fatalf("pin was overwritten: %+v, %v", rows, err)
+	}
+}

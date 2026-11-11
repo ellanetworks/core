@@ -153,6 +153,14 @@ func (n *Node) call(ctx context.Context, addr, path string, in any) (reply, erro
 
 	peer := resp.Header.Get(HeaderNode)
 
+	if resp.Header.Get(HeaderProof) == "" && resp.StatusCode >= http.StatusBadRequest {
+		var e rpcError
+
+		_ = json.Unmarshal(raw, &e)
+
+		return reply{}, fmt.Errorf("the peer answered %d: %s", resp.StatusCode, e.Error)
+	}
+
 	if peer == "" || !n.cfg.Auth.verify(pki.ProofInput{
 		Role: pki.RoleServer, Exporter: ekm, NodeID: peer, Address: resp.Header.Get(HeaderAddress), BodyHash: responseHash(path, resp.StatusCode, raw),
 	}, resp.Header.Get(HeaderProof)) {
@@ -163,15 +171,13 @@ func (n *Node) call(ctx context.Context, addr, path string, in any) (reply, erro
 }
 
 func (n *Node) ServeSecret(conn net.Conn, w http.ResponseWriter, r *http.Request) {
-	ip, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
-
 	tlsConn, ok := listener.TLSConn(conn)
 	if !ok || !n.cfg.Auth.Enabled() {
 		writeJSON(w, http.StatusNotFound, rpcError{Error: "this node has no cluster secret"})
 		return
 	}
 
-	if n.cfg.Auth.limited(ip) {
+	if n.cfg.Auth.limited() {
 		writeJSON(w, http.StatusTooManyRequests, rpcError{Error: "too many failed proofs"})
 		return
 	}
@@ -188,7 +194,7 @@ func (n *Node) ServeSecret(conn net.Conn, w http.ResponseWriter, r *http.Request
 	if err != nil || callerID == "" || !n.cfg.Auth.verify(pki.ProofInput{
 		Role: pki.RoleClient, Exporter: ekm, NodeID: callerID, Address: r.Header.Get(HeaderAddress), BodyHash: requestHash(r.URL.Path, body),
 	}, r.Header.Get(HeaderProof)) {
-		n.cfg.Auth.fail(ip)
+		n.cfg.Auth.fail()
 
 		logger.EllaLog.Warn("refused a cluster request with a wrong secret proof",
 			zap.String("remote", conn.RemoteAddr().String()), zap.String("node", callerID))

@@ -13,6 +13,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -115,6 +116,21 @@ func TestDecide(t *testing.T) {
 				{NodeID: "b", State: StateJoining, Expect: 2, Schema: 7},
 			},
 			detail: "found 1 of 2 nodes",
+		},
+		{
+			name: "a bootstrapping peer stops the others from forming",
+			self: forming("c", 3, "c"),
+			peers: []Hello{
+				{NodeID: "a", State: StateBootstrapping, Expect: 3, Candidate: "a", Schema: 7},
+				forming("d", 3, "c"), forming("e", 3, "c"),
+			},
+			detail: "waiting for node a to form the cluster",
+		},
+		{
+			name:   "forming peers without bootstrap-expect are ignored",
+			self:   forming("a", 3, "a"),
+			peers:  []Hello{forming("b", 3, "a"), forming("c", 3, "a"), forming("0", 0, "")},
+			action: actionBootstrap,
 		},
 	}
 
@@ -257,13 +273,13 @@ func serve(t *testing.T, n *Node) string {
 }
 
 type fakeNode struct {
-	mu        sync.Mutex
-	state     string
-	clusterID string
-	leaf      bool
-	pending   string
-	pins      []pkiagent.PinRecord
-	admitted  []string
+	mu          sync.Mutex
+	state       string
+	clusterID   string
+	leafCluster string
+	pending     string
+	pins        []pkiagent.PinRecord
+	admitted    []string
 }
 
 func (f *fakeNode) local(context.Context) LocalState {
@@ -287,11 +303,11 @@ func newTestNode(t *testing.T, id, secretPath string, expect int, f *fakeNode, d
 
 			return RegisterReply{ClusterID: f.clusterID, Pins: []pkiagent.PinRecord{{NodeID: pki.NodeID(nodeID), Fingerprint: "fp-" + nodeID}}}, nil
 		},
-		HaveLeaf: func() bool {
+		LeafClusterID: func() string {
 			f.mu.Lock()
 			defer f.mu.Unlock()
 
-			return f.leaf
+			return f.leafCluster
 		},
 		PrepareJoin: func(clusterID string) ([]byte, error) {
 			f.mu.Lock()
@@ -309,7 +325,7 @@ func newTestNode(t *testing.T, id, secretPath string, expect int, f *fakeNode, d
 				return fmt.Errorf("completed %s, prepared %s", clusterID, f.pending)
 			}
 
-			f.leaf, f.state, f.pins = true, StateJoining, pins
+			f.leafCluster, f.state, f.pins = clusterID, StateJoining, pins
 
 			return nil
 		},
@@ -371,7 +387,7 @@ func TestThreeNodesFormOneCluster(t *testing.T) {
 			out, err := n.Run(ctx)
 			if err == nil && out.Bootstrap {
 				fakes[i].mu.Lock()
-				fakes[i].state, fakes[i].clusterID, fakes[i].leaf = StateMember, "cluster-1", true
+				fakes[i].state, fakes[i].clusterID, fakes[i].leafCluster = StateMember, "cluster-1", "cluster-1"
 				fakes[i].mu.Unlock()
 			}
 
@@ -409,14 +425,14 @@ func TestThreeNodesFormOneCluster(t *testing.T) {
 			continue
 		}
 
-		if f.pending != "cluster-1" || !f.leaf || len(f.pins) != 1 {
+		if f.pending != "cluster-1" || f.leafCluster != "cluster-1" || len(f.pins) != 1 {
 			t.Errorf("node %d did not register with cluster-1: %+v", i, f)
 		}
 	}
 }
 
 func TestWrongSecretIsRefused(t *testing.T) {
-	member := &fakeNode{state: StateMember, clusterID: "cluster-1", leaf: true}
+	member := &fakeNode{state: StateMember, clusterID: "cluster-1", leafCluster: "cluster-1"}
 	_, memberAddr := newTestNode(t, "0192a000-0000-7000-8000-00000000000a", writeSecretFile(t, secretA), 0, member, clientDial)
 
 	joiner := &fakeNode{state: StateForming}
@@ -438,7 +454,7 @@ func TestWrongSecretIsRefused(t *testing.T) {
 }
 
 func TestRotatedSecretIsAccepted(t *testing.T) {
-	member := &fakeNode{state: StateMember, clusterID: "cluster-1", leaf: true}
+	member := &fakeNode{state: StateMember, clusterID: "cluster-1", leafCluster: "cluster-1"}
 	_, memberAddr := newTestNode(t, "0192a000-0000-7000-8000-00000000000a", writeSecretFile(t, secretA, secretB), 0, member, clientDial)
 
 	joiner := &fakeNode{state: StateForming}
@@ -472,7 +488,7 @@ func TestRegisterRefusedBeforeMembership(t *testing.T) {
 func TestRegisterMustBeForTheCaller(t *testing.T) {
 	secret := writeSecretFile(t, secretA)
 
-	member := &fakeNode{state: StateMember, clusterID: "cluster-1", leaf: true}
+	member := &fakeNode{state: StateMember, clusterID: "cluster-1", leafCluster: "cluster-1"}
 	_, addr := newTestNode(t, "0192a000-0000-7000-8000-00000000000a", secret, 0, member, clientDial)
 
 	joiner := &fakeNode{state: StateForming}
@@ -485,5 +501,62 @@ func TestRegisterMustBeForTheCaller(t *testing.T) {
 
 	if r.status != http.StatusBadRequest || len(member.admitted) != 0 {
 		t.Fatalf("status = %d, admitted = %v: a node must not register another node id", r.status, member.admitted)
+	}
+}
+
+func TestBootstrappingNodeReportsIt(t *testing.T) {
+	n := New(Config{NodeID: "a", Expect: 3, Local: (&fakeNode{state: StateForming}).local})
+	n.bootstrapping = true
+
+	if h := n.selfHello(context.Background()); h.State != StateBootstrapping || h.Candidate != "a" {
+		t.Fatalf("hello = %+v, want state %s", h, StateBootstrapping)
+	}
+}
+
+func TestJoinRefusesCertificateOfAnotherCluster(t *testing.T) {
+	secret := writeSecretFile(t, secretA)
+
+	member := &fakeNode{state: StateMember, clusterID: "cluster-1", leafCluster: "cluster-1"}
+	_, memberAddr := newTestNode(t, "0192a000-0000-7000-8000-00000000000a", secret, 0, member, clientDial)
+
+	stale := &fakeNode{state: StateForming, leafCluster: "cluster-2"}
+	j, _ := newTestNode(t, "0192a000-0000-7000-8000-00000000000b", secret, 0, stale, clientDial)
+	j.cfg.Join = []string{memberAddr}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if _, err := j.Run(ctx); !errors.Is(err, ErrForeignCluster) {
+		t.Fatalf("err = %v, want ErrForeignCluster", err)
+	}
+
+	if len(member.admitted) != 0 {
+		t.Fatalf("the member registered a node of another cluster: %v", member.admitted)
+	}
+}
+
+func TestDuplicateNodeIDIsDetected(t *testing.T) {
+	secret := writeSecretFile(t, secretA)
+
+	_, cloneAddr := newTestNode(t, "0192a000-0000-7000-8000-00000000000a", secret, 3, &fakeNode{state: StateForming}, clientDial)
+
+	n, selfAddr := newTestNode(t, "0192a000-0000-7000-8000-00000000000a", secret, 3, &fakeNode{state: StateForming}, clientDial)
+	n.cfg.Join = []string{selfAddr, cloneAddr}
+
+	rd := n.helloRound(context.Background())
+	if len(rd.duplicates) != 1 || rd.duplicates[0] != cloneAddr || len(rd.peers) != 0 {
+		t.Fatalf("round = %+v, want one duplicate at %s", rd, cloneAddr)
+	}
+}
+
+func TestSecretMustBeStandardBase64(t *testing.T) {
+	raw := bytes.Repeat([]byte{0xfb}, 32)
+
+	if _, err := pki.ParseSecrets([]byte(base64.StdEncoding.EncodeToString(raw))); err != nil {
+		t.Fatalf("standard base64: %v", err)
+	}
+
+	if _, err := pki.ParseSecrets([]byte(base64.RawURLEncoding.EncodeToString(raw))); !errors.Is(err, pki.ErrInvalidSecret) {
+		t.Fatalf("url base64: err = %v, want ErrInvalidSecret", err)
 	}
 }

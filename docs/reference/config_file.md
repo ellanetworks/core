@@ -61,7 +61,7 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `advertise-address` (string, optional): `host:port` peers use to reach this node. Host may be an IP or DNS name. Defaults to `bind-address`. When `bind-address` has no host or an unspecified host (`0.0.0.0`, `::`), defaults to the source address of the default route and the `bind-address` port.
     - `join` (list of strings, optional): The `host` or `host:port` of the other nodes, on the `bind-address` port when the port is left out. A host name resolves to all its addresses. A node with no cluster state forms or joins a cluster through these nodes. Ignored on a node that has cluster state.
     - `bootstrap-expect` (int, optional): The number of nodes that form a new cluster together. 2 or more. Requires `join`. Without it, a node only joins an existing cluster.
-    - `secret-file` (string): The path to the cluster secret: base64 values of at least 32 bytes, one per line. The first line signs, every line verifies. Required with `join`.
+    - `secret-file` (string): The path to the cluster secret: standard base64 values (with padding) of at least 32 bytes, one per line. The first line signs, every line verifies. Required with `join`.
     - `peers`, `join-token`, `initial-suffrage` (**removed**): Ignored. Use `join` or the API or UI instead.
     - `join-timeout` (duration string, optional): How long a joining node keeps trying to reach a formed peer before it gives up and exits. Defaults to `2m`.
     - `propose-timeout` (duration string, optional): Maximum wait for a Raft commit before the API returns 503.

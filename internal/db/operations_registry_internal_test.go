@@ -52,6 +52,7 @@ var pinnedChangesetOps = map[string]int{
 	"InsertAuditLog":                    1,
 	"MintJoinToken":                     9,
 	"RedeemJoinToken":                   12,
+	"RegisterJoiningNodeCert":           12,
 	"PurgeUERegistration":               21,
 	"RegisterUE":                        21,
 	"ReleaseIPLease":                    13,
