@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/netutil"
+	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/vishvananda/netlink"
 	"gopkg.in/yaml.v2"
 )
@@ -47,8 +48,6 @@ const (
 	DefaultDiameterPort = 3868
 
 	DefaultN32Port = 443
-
-	MaxDatapathSessions = 1_000_000
 )
 
 // ErrNoInterfaceIP is returned when an interface exists but currently has no
@@ -767,8 +766,8 @@ func resolveMaxSessions(n *int) (uint32, error) {
 		return 0, nil
 	}
 
-	if *n < 1 || *n > MaxDatapathSessions {
-		return 0, fmt.Errorf("datapath.max-sessions must be between 1 and %d, got %d", MaxDatapathSessions, *n)
+	if *n < 1 || *n > ebpf.MaxSessionsLimit {
+		return 0, fmt.Errorf("datapath.max-sessions must be between 1 and %d, got %d", ebpf.MaxSessionsLimit, *n)
 	}
 
 	return uint32(*n), nil

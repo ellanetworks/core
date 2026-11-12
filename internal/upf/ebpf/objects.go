@@ -217,16 +217,30 @@ func (bpfObjects *BpfObjects) Load() error {
 		return err
 	}
 
-	if limit, warn := bpfObjects.Sizing.MemoryCheck(HostMemory); warn {
+	cpus, err := ebpf.PossibleCPU()
+	if err != nil {
+		return fmt.Errorf("get possible CPUs: %w", err)
+	}
+
+	projected := bpfObjects.Sizing.ProjectedBytes(n3n6Spec, cpus)
+
+	if limit, warn := MemoryCheck(HostMemory, projected); warn {
 		logger.UpfLog.Warn("datapath maps reserve more than a quarter of the memory available to Ella Core",
 			zap.Uint32("max_sessions", bpfObjects.Sizing.MaxSessions),
-			zap.Uint64("projected_bytes", bpfObjects.Sizing.ProjectedBytes()),
+			zap.Uint64("projected_bytes", projected),
 			zap.Uint64("memory_limit_bytes", limit))
+	}
+
+	if bpfObjects.Sizing.clamped() {
+		logger.UpfLog.Warn("NAT and flow tables are at their maximum size, so each session gets less than its nominal share",
+			zap.Uint32("max_sessions", bpfObjects.Sizing.MaxSessions),
+			zap.Uint32("nat_connections_per_session", bpfObjects.Sizing.natConnectionsPerSession()),
+			zap.Uint32("flows_per_session", bpfObjects.Sizing.flowsPerSession()))
 	}
 
 	if err := bpfObjects.loadAndAssignFromSpec(n3n6Spec, &bpfObjects.N3N6EntrypointObjects, nil); err != nil {
 		logger.UpfLog.Error("failed to load N3/N6 program", zap.Error(err))
-		return bpfObjects.Sizing.wrapCreateError(err)
+		return bpfObjects.Sizing.wrapCreateError(err, projected)
 	}
 
 	logger.UpfLog.Info("datapath maps sized",

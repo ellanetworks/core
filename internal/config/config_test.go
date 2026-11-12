@@ -701,10 +701,10 @@ interfaces:
 		{"absent is unset", "", 0, ""},
 		{"absent within datapath is unset", "datapath:\n  attach-mode: \"tcx\"\n", 0, ""},
 		{"explicit value", "datapath:\n  max-sessions: 100000\n", 100000, ""},
-		{"upper bound", "datapath:\n  max-sessions: 1000000\n", 1000000, ""},
-		{"zero", "datapath:\n  max-sessions: 0\n", 0, "datapath.max-sessions must be between 1 and 1000000"},
-		{"negative", "datapath:\n  max-sessions: -1\n", 0, "datapath.max-sessions must be between 1 and 1000000"},
-		{"above the bound", "datapath:\n  max-sessions: 1000001\n", 0, "datapath.max-sessions must be between 1 and 1000000"},
+		{"upper bound", "datapath:\n  max-sessions: 508400\n", 508400, ""},
+		{"zero", "datapath:\n  max-sessions: 0\n", 0, "datapath.max-sessions must be between 1 and 508400"},
+		{"negative", "datapath:\n  max-sessions: -1\n", 0, "datapath.max-sessions must be between 1 and 508400"},
+		{"above the bound", "datapath:\n  max-sessions: 508401\n", 0, "datapath.max-sessions must be between 1 and 508400"},
 	}
 
 	for _, tc := range cases {
