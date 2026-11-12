@@ -19,6 +19,8 @@ jobs:
   image-publish:
     needs: [image-build]
     uses: ./.github/workflows/image-publish.yaml
+    with:
+      kind: release
     secrets: inherit
   image-scan:
     needs: [image-build, image-publish]

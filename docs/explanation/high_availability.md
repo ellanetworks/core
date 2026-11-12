@@ -100,5 +100,5 @@ Skip-version upgrades (`vN → vN+2`) and downgrades are not supported.
 
 - [Deploy a High Availability Cluster](../how_to/deploy_ha_cluster.md) — step-by-step guide to bring up a cluster.
 - [Scale Up a High Availability Cluster](../how_to/scale_up_ha_cluster.md) — add nodes to an existing cluster.
-- [Perform a Rolling Upgrade](../how_to/rolling_upgrade.md) — upgrade every node without taking the cluster offline.
+- [Upgrade](../how_to/upgrade.md) — upgrade every node without taking the cluster offline.
 - [Cluster API reference](../reference/api/cluster.md) — cluster management endpoints.

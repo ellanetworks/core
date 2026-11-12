@@ -307,7 +307,7 @@ func awaitAPIJoin(ctx context.Context, pki *pkiState, dbInstance *db.Database) e
 
 	defer coord.Close()
 
-	logger.EllaLog.Info("Waiting to be told what cluster to be: POST /api/v1/cluster/bootstrap to found one, or /api/v1/cluster/join with a token and a seed address to join an existing one")
+	logger.EllaLog.Info("Waiting to be told what cluster to be: POST /api/v1/init to found one, or POST /api/v1/cluster/join with a token and a seed address to join an existing one")
 
 	for {
 		req, err := coord.Await(ctx)

@@ -99,6 +99,11 @@ func runMigrations(ctx context.Context, sqlConn *sql.DB, maxVersion int) error {
 		return fmt.Errorf("failed to read schema version: %w", err)
 	}
 
+	if current > SchemaVersion() {
+		return fmt.Errorf("%w: database schema is v%d, this binary supports up to v%d; downgrades are not supported, restore a backup taken on this version",
+			ErrSchemaNewerThanBinary, current, SchemaVersion())
+	}
+
 	from := current
 
 	for _, m := range migrations {

@@ -69,6 +69,77 @@ services:
               com.docker.network.endpoint.ifname: n6
         ipv4_address: 10.6.0.13
 
+  ella-core-tester-1:
+    image: ella-core-tester:latest
+    entrypoint:
+      - /bin/sh
+      - -c
+      - "sleep infinity"
+    restart: unless-stopped
+    privileged: true
+    networks:
+      cluster:
+        driver_opts:
+              com.docker.network.endpoint.ifname: eth0
+        ipv4_address: 10.100.0.21
+      n3:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.3.0.21
+  ella-core-tester-2:
+    image: ella-core-tester:latest
+    entrypoint:
+      - /bin/sh
+      - -c
+      - "sleep infinity"
+    restart: unless-stopped
+    privileged: true
+    networks:
+      cluster:
+        driver_opts:
+              com.docker.network.endpoint.ifname: eth0
+        ipv4_address: 10.100.0.22
+      n3:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.3.0.22
+  ella-core-tester-3:
+    image: ella-core-tester:latest
+    entrypoint:
+      - /bin/sh
+      - -c
+      - "sleep infinity"
+    restart: unless-stopped
+    privileged: true
+    networks:
+      cluster:
+        driver_opts:
+              com.docker.network.endpoint.ifname: eth0
+        ipv4_address: 10.100.0.23
+      n3:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.3.0.23
+  router:
+    image: ghcr.io/ellanetworks/ubuntu-router:0.1
+    command:
+      - exec
+      - /bin/bash
+      - -lc
+      - >
+        ip route add 10.45.0.0/22 dev n6 via 10.6.0.11;
+        ip route add 10.46.0.0/22 dev n6 via 10.6.0.12;
+        ip route add 10.47.0.0/22 dev n6 via 10.6.0.13;
+        trap : TERM INT;
+        python3 /responder.py 34242 & wait
+    restart: unless-stopped
+    privileged: true
+    networks:
+      n6:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.6.0.3
+
 volumes:
   data1:
   data2:
