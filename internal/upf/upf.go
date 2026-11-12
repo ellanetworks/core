@@ -150,7 +150,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 	bpfObjects = ebpf.NewBpfObjects(flowact, masquerade, n3Iface.Index, n6Iface.Index, n3Vlan, n6Vlan)
 	bpfObjects.N3RoutingIndex = uint32(n3RoutingIface.Index)
 	bpfObjects.N6RoutingIndex = uint32(n6RoutingIface.Index)
-	bpfObjects.Sizing = ebpf.NewMapSizing(ebpf.DefaultMaxSessions)
+	bpfObjects.Sizing = ebpf.NewMapSizing(datapath.MaxSessions)
 	bpfObjects.NetworkInstancesEnabled = len(networkInstances) > 0
 
 	if err := loadDatapathObjects(bpfObjects, attachMode); err != nil {

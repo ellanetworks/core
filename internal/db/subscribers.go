@@ -22,7 +22,7 @@ import (
 
 const SubscribersTableName = "subscribers"
 
-const MaxNumSubscribers = 1000
+const MaxNumSubscribers = 100000
 
 var ErrSubscriberLimit = errors.New("maximum number of subscribers reached")
 
