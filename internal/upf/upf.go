@@ -195,7 +195,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		logger.UpfLog.Info("network instance attached", zap.String("network_instance", ni.name), zap.String("n6", ni.interfaceName))
 	}
 
-	resourceManager, err := engine.NewFteIDResourceManager(FTEIDPool)
+	resourceManager, err := engine.NewFteIDResourceManager(teidPoolSize(bpfObjects.Sizing.MaxSessions))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Resource Manager: %w", err)
 	}
@@ -1139,4 +1139,8 @@ func parseNoNeighEvent(b []byte) (ifindex int, addr netip.Addr, ok bool) {
 
 func (u *UPF) HasNetworkInstance(name string) bool {
 	return u.se.HasNetworkInstance(name)
+}
+
+func teidPoolSize(maxSessions uint32) uint32 {
+	return max(FTEIDPool, maxSessions)
 }
