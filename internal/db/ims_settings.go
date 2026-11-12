@@ -176,7 +176,7 @@ func (db *Database) imsSettings(ctx context.Context) (*IMSSettings, error) {
 		return &settings, nil
 	}
 
-	if err := db.runner(ctx).QueryRowContext(ctx, getIMSSettingsSQL).Scan(&settings.HomeDomain, &settings.AdvertiseVoice, &settings.RestrictPeers); err != nil {
+	if err := db.readQuerier(ctx).QueryRowContext(ctx, getIMSSettingsSQL).Scan(&settings.HomeDomain, &settings.AdvertiseVoice, &settings.RestrictPeers); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			defaults := DefaultIMSSettings()
 			return &defaults, nil
@@ -189,7 +189,7 @@ func (db *Database) imsSettings(ctx context.Context) (*IMSSettings, error) {
 }
 
 func (db *Database) imsHomeDomains(ctx context.Context) (IMSHomeDomains, error) {
-	op, err := getOperator(ctx, db.runner(ctx))
+	op, err := getOperator(ctx, db.readQuerier(ctx))
 	if err != nil {
 		return IMSHomeDomains{}, fmt.Errorf("get operator: %w", err)
 	}

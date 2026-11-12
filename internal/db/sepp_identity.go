@@ -104,7 +104,7 @@ func (s SEPPIdentity) Validate() error {
 }
 
 func (db *Database) ownPLMN(ctx context.Context) (pki.PLMN, error) {
-	op, err := getOperator(ctx, db.runner(ctx))
+	op, err := getOperator(ctx, db.readQuerier(ctx))
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return pki.PLMN{}, fmt.Errorf("query failed: %w", err)
 	}

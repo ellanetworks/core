@@ -498,7 +498,7 @@ func (db *Database) prepareHomePLMNChange(ctx context.Context, op *Operator) (bo
 }
 
 func (db *Database) countVisitors(ctx context.Context, query string, args ...any) (int, error) {
-	count, err := queryCount(ctx, db.runner(ctx), query, args...)
+	count, err := queryCount(ctx, db.readQuerier(ctx), query, args...)
 	if err != nil {
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
