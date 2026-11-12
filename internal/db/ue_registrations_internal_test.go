@@ -6,7 +6,6 @@ package db
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -113,7 +112,7 @@ func TestRegisterUE_RewritesRestoredRegistration(t *testing.T) {
 		t.Fatalf("RegisterUE: %s", err)
 	}
 
-	if _, err := database.conn().PlainDB().ExecContext(ctx, "UPDATE ue_registrations SET version=0"); err != nil {
+	if _, err := database.conn().ExecContext(ctx, "UPDATE ue_registrations SET version=0"); err != nil {
 		t.Fatalf("zero versions: %s", err)
 	}
 
@@ -142,9 +141,7 @@ func TestNextUERegistrationVersion_UsesVersionIndex(t *testing.T) {
 
 	defer func() { _ = database.Close() }()
 
-	query := fmt.Sprintf(strings.ReplaceAll(maxUERegistrationVersionStmt, " AS &ueRegistrationVersion.version", ""), UERegistrationsTableName)
-
-	rows, err := database.conn().PlainDB().QueryContext(ctx, "EXPLAIN QUERY PLAN "+query)
+	rows, err := database.conn().QueryContext(ctx, "EXPLAIN QUERY PLAN "+maxUERegistrationVersionSQL)
 	if err != nil {
 		t.Fatalf("explain: %s", err)
 	}

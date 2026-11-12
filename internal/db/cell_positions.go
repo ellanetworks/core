@@ -12,9 +12,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -27,16 +24,16 @@ const (
 )
 
 const (
-	putCellPositionStmt       = `INSERT INTO %s (id, rat, mcc, mnc, cell_identity, gnb_id, latitude, longitude, altitude, uncertainty_semi_major, uncertainty_semi_minor, orientation_major, confidence, source, created_at, updated_at) VALUES ($CellPosition.id, $CellPosition.rat, $CellPosition.mcc, $CellPosition.mnc, $CellPosition.cell_identity, $CellPosition.gnb_id, $CellPosition.latitude, $CellPosition.longitude, $CellPosition.altitude, $CellPosition.uncertainty_semi_major, $CellPosition.uncertainty_semi_minor, $CellPosition.orientation_major, $CellPosition.confidence, $CellPosition.source, $CellPosition.created_at, $CellPosition.updated_at) ON CONFLICT(id) DO UPDATE SET rat=excluded.rat, mcc=excluded.mcc, mnc=excluded.mnc, cell_identity=excluded.cell_identity, gnb_id=excluded.gnb_id, latitude=excluded.latitude, longitude=excluded.longitude, altitude=excluded.altitude, uncertainty_semi_major=excluded.uncertainty_semi_major, uncertainty_semi_minor=excluded.uncertainty_semi_minor, orientation_major=excluded.orientation_major, confidence=excluded.confidence, updated_at=excluded.updated_at;`
-	getCellPositionStmt       = `SELECT &CellPosition.* FROM %s WHERE id==$CellPosition.id;`
-	getCellPositionByCellStmt = `SELECT &CellPosition.* FROM %s WHERE rat==$CellPosition.rat AND mcc==$CellPosition.mcc AND mnc==$CellPosition.mnc AND cell_identity==$CellPosition.cell_identity;`
-	listCellPositionsStmt     = `SELECT &CellPosition.* FROM %s ORDER BY created_at DESC;`
+	putCellPositionSQL       = `INSERT INTO ` + CellPositionsTableName + ` (id, rat, mcc, mnc, cell_identity, gnb_id, latitude, longitude, altitude, uncertainty_semi_major, uncertainty_semi_minor, orientation_major, confidence, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET rat=excluded.rat, mcc=excluded.mcc, mnc=excluded.mnc, cell_identity=excluded.cell_identity, gnb_id=excluded.gnb_id, latitude=excluded.latitude, longitude=excluded.longitude, altitude=excluded.altitude, uncertainty_semi_major=excluded.uncertainty_semi_major, uncertainty_semi_minor=excluded.uncertainty_semi_minor, orientation_major=excluded.orientation_major, confidence=excluded.confidence, updated_at=excluded.updated_at;`
+	getCellPositionSQL       = `SELECT id, rat, mcc, mnc, cell_identity, gnb_id, latitude, longitude, altitude, uncertainty_semi_major, uncertainty_semi_minor, orientation_major, confidence, source, created_at, updated_at FROM ` + CellPositionsTableName + ` WHERE id==?;`
+	getCellPositionByCellSQL = `SELECT id, rat, mcc, mnc, cell_identity, gnb_id, latitude, longitude, altitude, uncertainty_semi_major, uncertainty_semi_minor, orientation_major, confidence, source, created_at, updated_at FROM ` + CellPositionsTableName + ` WHERE rat==? AND mcc==? AND mnc==? AND cell_identity==?;`
+	listCellPositionsSQL     = `SELECT id, rat, mcc, mnc, cell_identity, gnb_id, latitude, longitude, altitude, uncertainty_semi_major, uncertainty_semi_minor, orientation_major, confidence, source, created_at, updated_at FROM ` + CellPositionsTableName + ` ORDER BY created_at DESC;`
 	// source is intentionally excluded from the SET clause: it records how the
 	// row originated (currently always "provisioned") and must not change on
 	// edit. CellPositionRequest has no Source field, so leaving it in the SET
 	// clause would blank it on every update.
-	deleteCellPositionByCellStmt = `DELETE FROM %s WHERE id!=$CellPosition.id AND rat==$CellPosition.rat AND mcc==$CellPosition.mcc AND mnc==$CellPosition.mnc AND cell_identity==$CellPosition.cell_identity;`
-	deleteCellPositionStmt       = `DELETE FROM %s WHERE id==$CellPosition.id;`
+	deleteCellPositionByCellSQL = `DELETE FROM ` + CellPositionsTableName + ` WHERE id!=? AND rat==? AND mcc==? AND mnc==? AND cell_identity==?;`
+	deleteCellPositionSQL       = `DELETE FROM ` + CellPositionsTableName + ` WHERE id==?;`
 )
 
 // CellPosition maps a serving cell (NCGI for NR, ECGI for E-UTRA) to a
@@ -48,44 +45,28 @@ const (
 // percentage (0..100). CellIdentity is the hex NR Cell Identity (36-bit) or
 // E-UTRA Cell Identity (28-bit), matching models.Ncgi.NrCellID / Ecgi.EutraCellID.
 type CellPosition struct {
-	ID                   string   `db:"id"`
-	RAT                  string   `db:"rat"`
-	Mcc                  string   `db:"mcc"`
-	Mnc                  string   `db:"mnc"`
-	CellIdentity         string   `db:"cell_identity"`
-	GNbID                *string  `db:"gnb_id"`
-	Latitude             float64  `db:"latitude"`
-	Longitude            float64  `db:"longitude"`
-	Altitude             *float64 `db:"altitude"`
-	UncertaintySemiMajor *float64 `db:"uncertainty_semi_major"`
-	UncertaintySemiMinor *float64 `db:"uncertainty_semi_minor"`
-	OrientationMajor     *int     `db:"orientation_major"`
-	Confidence           *int     `db:"confidence"`
-	Source               string   `db:"source"`
-	CreatedAt            string   `db:"created_at"`
-	UpdatedAt            string   `db:"updated_at"`
+	ID                   string
+	RAT                  string
+	Mcc                  string
+	Mnc                  string
+	CellIdentity         string
+	GNbID                *string
+	Latitude             float64
+	Longitude            float64
+	Altitude             *float64
+	UncertaintySemiMajor *float64
+	UncertaintySemiMinor *float64
+	OrientationMajor     *int
+	Confidence           *int
+	Source               string
+	CreatedAt            string
+	UpdatedAt            string
 }
 
 func (db *Database) CreateCellPosition(ctx context.Context, c *CellPosition) error {
-	querySummary := fmt.Sprintf("%s %s", "INSERT", CellPositionsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			semconv.DBCollectionName(CellPositionsTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, CellPositionsTableName, "INSERT", "insert")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(CellPositionsTableName, "insert"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(CellPositionsTableName, "insert").Inc()
 
 	if c.ID == "" {
 		id, err := uuid.NewV7()
@@ -118,29 +99,11 @@ func (db *Database) CreateCellPosition(ctx context.Context, c *CellPosition) err
 }
 
 func (db *Database) GetCellPosition(ctx context.Context, id string) (*CellPosition, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", CellPositionsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(CellPositionsTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, CellPositionsTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(CellPositionsTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(CellPositionsTableName, "select").Inc()
-
-	var c CellPosition
-
-	err := db.conn().Query(ctx, db.getCellPositionStmt, CellPosition{ID: id}).Get(&c)
+	c, err := scanCellPosition(db.reader().QueryRowContext(ctx, getCellPositionSQL, id))
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -153,31 +116,13 @@ func (db *Database) GetCellPosition(ctx context.Context, id string) (*CellPositi
 // GetCellPositionByCell looks up a provisioned position by its serving-cell
 // natural key. Returns ErrNotFound when no row matches.
 func (db *Database) GetCellPositionByCell(ctx context.Context, rat, mcc, mnc, cellIdentity string) (*CellPosition, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", CellPositionsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(CellPositionsTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, CellPositionsTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(CellPositionsTableName, "select"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(CellPositionsTableName, "select").Inc()
-
-	var c CellPosition
 
 	filter := CellPosition{RAT: rat, Mcc: mcc, Mnc: mnc, CellIdentity: strings.ToLower(cellIdentity)}
 
-	err := db.conn().Query(ctx, db.getCellPositionByCellStmt, filter).Get(&c)
+	c, err := scanCellPosition(db.reader().QueryRowContext(ctx, getCellPositionByCellSQL, filter.RAT, filter.Mcc, filter.Mnc, filter.CellIdentity))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -192,30 +137,12 @@ func (db *Database) GetCellPositionByCell(ctx context.Context, rat, mcc, mnc, ce
 }
 
 func (db *Database) ListCellPositions(ctx context.Context) ([]CellPosition, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", CellPositionsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(CellPositionsTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, CellPositionsTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(CellPositionsTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(CellPositionsTableName, "select").Inc()
-
-	var positions []CellPosition
-
-	err := db.conn().Query(ctx, db.listCellPositionsStmt).GetAll(&positions)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	positions, err := queryAll(ctx, db.reader(), listCellPositionsSQL, scanCellPosition)
+	if err != nil {
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -225,25 +152,9 @@ func (db *Database) ListCellPositions(ctx context.Context) ([]CellPosition, erro
 }
 
 func (db *Database) UpdateCellPosition(ctx context.Context, c *CellPosition) error {
-	querySummary := fmt.Sprintf("%s %s", "UPDATE", CellPositionsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(CellPositionsTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, CellPositionsTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(CellPositionsTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(CellPositionsTableName, "update").Inc()
 
 	c.UpdatedAt = time.Now().Format(time.RFC3339)
 	c.CreatedAt = c.UpdatedAt
@@ -263,25 +174,9 @@ func (db *Database) UpdateCellPosition(ctx context.Context, c *CellPosition) err
 }
 
 func (db *Database) DeleteCellPosition(ctx context.Context, id string) error {
-	querySummary := fmt.Sprintf("%s %s", "DELETE", CellPositionsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(CellPositionsTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, CellPositionsTableName, "DELETE", "delete")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(CellPositionsTableName, "delete"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(CellPositionsTableName, "delete").Inc()
 
 	if _, err := opDeleteCellPosition.Invoke(ctx, db, &stringPayload{Value: id}); err != nil {
 		recordSpanError(span, err)
@@ -290,4 +185,14 @@ func (db *Database) DeleteCellPosition(ctx context.Context, id string) error {
 	}
 
 	return nil
+}
+
+func scanCellPosition(row scanner) (CellPosition, error) {
+	var v CellPosition
+
+	if err := row.Scan(&v.ID, &v.RAT, &v.Mcc, &v.Mnc, &v.CellIdentity, &v.GNbID, &v.Latitude, &v.Longitude, &v.Altitude, &v.UncertaintySemiMajor, &v.UncertaintySemiMinor, &v.OrientationMajor, &v.Confidence, &v.Source, &v.CreatedAt, &v.UpdatedAt); err != nil {
+		return CellPosition{}, err
+	}
+
+	return v, nil
 }

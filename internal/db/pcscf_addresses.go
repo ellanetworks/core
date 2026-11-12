@@ -5,7 +5,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"net/netip"
@@ -30,14 +29,14 @@ const MaxPCSCFAddresses = 2 * MaxPCSCFAddressesPerFamily
 var limitedBroadcast = netip.AddrFrom4([4]byte{255, 255, 255, 255})
 
 const (
-	listPCSCFAddressesStmt   = "SELECT &pcscfAddressRow.* FROM %s ORDER BY priority ASC"
-	insertPCSCFAddressStmt   = "INSERT INTO %s (priority, address) VALUES ($pcscfAddressRow.priority, $pcscfAddressRow.address)"
-	deletePCSCFAddressesStmt = "DELETE FROM %s"
+	listPCSCFAddressesSQL   = "SELECT priority, address FROM " + PCSCFAddressesTableName + " ORDER BY priority ASC"
+	insertPCSCFAddressSQL   = "INSERT INTO " + PCSCFAddressesTableName + " (priority, address) VALUES (?, ?)"
+	deletePCSCFAddressesSQL = "DELETE FROM " + PCSCFAddressesTableName
 )
 
 type pcscfAddressRow struct {
-	Priority int    `db:"priority"`
-	Address  string `db:"address"`
+	Priority int
+	Address  string
 }
 
 type pcscfAddressesPayload struct {
@@ -107,10 +106,8 @@ func (db *Database) ListPCSCFAddresses(ctx context.Context) ([]string, error) {
 		return []string{}, nil
 	}
 
-	var rows []pcscfAddressRow
-
-	err := db.conn().Query(ctx, db.listPCSCFAddressesStmt).GetAll(&rows)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	rows, err := queryAll(ctx, db.reader(), listPCSCFAddressesSQL, scanPCSCFAddressRow)
+	if err != nil {
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -125,12 +122,12 @@ func (db *Database) ListPCSCFAddresses(ctx context.Context) ([]string, error) {
 }
 
 func (db *Database) applyReplacePCSCFAddresses(ctx context.Context, payload *pcscfAddressesPayload) (any, error) {
-	if err := db.runner(ctx).Query(ctx, db.deletePCSCFAddressesStmt).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deletePCSCFAddressesSQL); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	for i, addr := range payload.Addresses {
-		if err := db.runner(ctx).Query(ctx, db.insertPCSCFAddressStmt, pcscfAddressRow{Priority: i, Address: addr}).Run(); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, insertPCSCFAddressSQL, i, addr); err != nil {
 			return nil, fmt.Errorf("query failed: %w", err)
 		}
 	}
@@ -202,4 +199,14 @@ func (db *Database) IMSVoiceStatus(ctx context.Context) (IMSVoiceStatus, error) 
 	}
 
 	return IMSVoiceIPFamilyMismatch, nil
+}
+
+func scanPCSCFAddressRow(row scanner) (pcscfAddressRow, error) {
+	var v pcscfAddressRow
+
+	if err := row.Scan(&v.Priority, &v.Address); err != nil {
+		return pcscfAddressRow{}, err
+	}
+
+	return v, nil
 }

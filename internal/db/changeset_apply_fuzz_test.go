@@ -46,7 +46,7 @@ func FuzzApplyChangeset(f *testing.F) {
 				applyChangesetFuzzBudget, len(changeset), changeset))
 		}
 
-		if _, err := fuzzDB.conn().PlainDB().ExecContext(ctx,
+		if _, err := fuzzDB.conn().ExecContext(ctx,
 			"UPDATE fsm_state SET lastApplied = lastApplied WHERE id = 1"); err != nil {
 			t.Fatalf("database unusable after applying %d fuzz bytes: %v", len(changeset), err)
 		}

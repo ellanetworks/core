@@ -12,7 +12,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/canonical/sqlair"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
@@ -25,16 +24,16 @@ const (
 )
 
 const (
-	listIMSServiceProfilesStmt            = "SELECT &imsServiceProfileRow.* FROM %s ORDER BY name"
-	getIMSServiceProfileStmt              = "SELECT &imsServiceProfileRow.* FROM %s WHERE name==$imsServiceProfileRow.name"
-	insertIMSServiceProfileStmt           = "INSERT INTO %s (id, name) VALUES ($imsServiceProfileRow.id, $imsServiceProfileRow.name)"
-	deleteIMSServiceProfileStmt           = "DELETE FROM %s WHERE name==$imsServiceProfileRow.name"
-	listProfileIMSServiceProfilesStmt     = "SELECT &imsServiceProfileAssignmentRow.* FROM %s WHERE profileID==$imsServiceProfileAssignmentRow.profileID ORDER BY registrationSet"
-	listAllIMSServiceProfileAssignsStmt   = "SELECT &imsServiceProfileAssignmentRow.* FROM %s ORDER BY profileID, registrationSet"
-	insertIMSServiceProfileAssignStmt     = "INSERT INTO %s (profileID, registrationSet, serviceProfileID) VALUES ($imsServiceProfileAssignmentRow.profileID, $imsServiceProfileAssignmentRow.registrationSet, $imsServiceProfileAssignmentRow.serviceProfileID)"
-	deleteProfileIMSServiceProfilesStmt   = "DELETE FROM %s WHERE profileID==$imsServiceProfileAssignmentRow.profileID"
-	listProfilesOfIMSServiceProfileStmt   = "SELECT DISTINCT &imsServiceProfileAssignmentRow.profileID FROM %s WHERE serviceProfileID==$imsServiceProfileAssignmentRow.serviceProfileID"
-	countIMSServiceProfileAssignmentsStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE serviceProfileID==$imsServiceProfileAssignmentRow.serviceProfileID"
+	listIMSServiceProfilesSQL            = "SELECT id, name FROM " + IMSServiceProfilesTableName + " ORDER BY name"
+	getIMSServiceProfileSQL              = "SELECT id, name FROM " + IMSServiceProfilesTableName + " WHERE name==?"
+	insertIMSServiceProfileSQL           = "INSERT INTO " + IMSServiceProfilesTableName + " (id, name) VALUES (?, ?)"
+	deleteIMSServiceProfileSQL           = "DELETE FROM " + IMSServiceProfilesTableName + " WHERE name==?"
+	listProfileIMSServiceProfilesSQL     = "SELECT profileID, registrationSet, serviceProfileID FROM " + IMSServiceProfileAssignmentsTableName + " WHERE profileID==? ORDER BY registrationSet"
+	listAllIMSServiceProfileAssignsSQL   = "SELECT profileID, registrationSet, serviceProfileID FROM " + IMSServiceProfileAssignmentsTableName + " ORDER BY profileID, registrationSet"
+	insertIMSServiceProfileAssignSQL     = "INSERT INTO " + IMSServiceProfileAssignmentsTableName + " (profileID, registrationSet, serviceProfileID) VALUES (?, ?, ?)"
+	deleteProfileIMSServiceProfilesSQL   = "DELETE FROM " + IMSServiceProfileAssignmentsTableName + " WHERE profileID==?"
+	listProfilesOfIMSServiceProfileSQL   = "SELECT DISTINCT profileID FROM " + IMSServiceProfileAssignmentsTableName + " WHERE serviceProfileID==?"
+	countIMSServiceProfileAssignmentsSQL = "SELECT COUNT(*) FROM " + IMSServiceProfileAssignmentsTableName + " WHERE serviceProfileID==?"
 )
 
 type IMSServiceProfile struct {
@@ -49,14 +48,14 @@ type ProfileIMSServiceProfiles struct {
 }
 
 type imsServiceProfileRow struct {
-	ID   string `db:"id"`
-	Name string `db:"name"`
+	ID   string
+	Name string
 }
 
 type imsServiceProfileAssignmentRow struct {
-	ProfileID        string `db:"profileID"`
-	RegistrationSet  string `db:"registrationSet"`
-	ServiceProfileID string `db:"serviceProfileID"`
+	ProfileID        string
+	RegistrationSet  string
+	ServiceProfileID string
 }
 
 func (sp IMSServiceProfile) Validate() error {
@@ -80,17 +79,14 @@ func (db *Database) ListIMSServiceProfiles(ctx context.Context) ([]IMSServicePro
 		return nil, nil
 	}
 
-	var (
-		rows    []imsServiceProfileRow
-		ifcRows []imsIFCRow
-	)
-
-	if err := db.conn().Query(ctx, db.listIMSServiceProfilesStmt).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	rows, err := queryAll(ctx, db.reader(), listIMSServiceProfilesSQL, scanIMSServiceProfileRow)
+	if err != nil {
 		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	if err := db.conn().Query(ctx, db.listAllIMSIFCsStmt).GetAll(&ifcRows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	ifcRows, err := queryAll(ctx, db.reader(), listAllIMSIFCsSQL, scanIMSIFCRow)
+	if err != nil {
 		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -134,7 +130,7 @@ func (db *Database) GetIMSServiceProfile(ctx context.Context, name string) (*IMS
 		return nil, ErrNotFound
 	}
 
-	sp, err := db.getIMSServiceProfile(ctx, db.conn(), name)
+	sp, err := db.getIMSServiceProfile(ctx, db.reader(), name)
 	if err != nil {
 		recordSpanError(span, err)
 		return nil, err
@@ -143,10 +139,9 @@ func (db *Database) GetIMSServiceProfile(ctx context.Context, name string) (*IMS
 	return sp, nil
 }
 
-func (db *Database) getIMSServiceProfile(ctx context.Context, runner *sqlair.DB, name string) (*IMSServiceProfile, error) {
-	row := imsServiceProfileRow{Name: name}
-
-	if err := runner.Query(ctx, db.getIMSServiceProfileStmt, row).Get(&row); err != nil {
+func (db *Database) getIMSServiceProfile(ctx context.Context, q querier, name string) (*IMSServiceProfile, error) {
+	row, err := scanIMSServiceProfileRow(q.QueryRowContext(ctx, getIMSServiceProfileSQL, name))
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -154,9 +149,8 @@ func (db *Database) getIMSServiceProfile(ctx context.Context, runner *sqlair.DB,
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	var ifcRows []imsIFCRow
-
-	if err := runner.Query(ctx, db.listServiceProfileIMSIFCsStmt, imsIFCRow{ServiceProfileID: row.ID}).GetAll(&ifcRows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	ifcRows, err := queryAll(ctx, q, listServiceProfileIMSIFCsSQL, scanIMSIFCRow, row.ID)
+	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -213,7 +207,7 @@ func (db *Database) writeIMSServiceProfile(ctx context.Context, operation string
 }
 
 func (db *Database) applyCreateIMSServiceProfile(ctx context.Context, sp *IMSServiceProfile) (any, error) {
-	if err := db.runner(ctx).Query(ctx, db.insertIMSServiceProfileStmt, imsServiceProfileRow{ID: sp.ID, Name: sp.Name}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, insertIMSServiceProfileSQL, sp.ID, sp.Name); err != nil {
 		if isUniqueNameError(err) || isPrimaryKeyError(err) {
 			return nil, ErrAlreadyExists
 		}
@@ -230,7 +224,7 @@ func (db *Database) applyUpdateIMSServiceProfile(ctx context.Context, sp *IMSSer
 		return nil, err
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.deleteServiceProfileIMSIFCsStmt, imsIFCRow{ServiceProfileID: existing.ID}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteServiceProfileIMSIFCsSQL, existing.ID); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -244,7 +238,7 @@ func (db *Database) insertIMSIFCs(ctx context.Context, serviceProfileID string, 
 			return err
 		}
 
-		if err := db.runner(ctx).Query(ctx, db.insertIMSIFCStmt, row).Run(); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, insertIMSIFCSQL, row.ServiceProfileID, row.Position, row.ApplicationServerID, row.TriggerPoint, row.ProfilePart, row.DefaultHandling, row.ServiceInfo, row.IncludeRegisterRequest, row.IncludeRegisterResponse); err != nil {
 			if isForeignKeyError(err) {
 				return fmt.Errorf("application server %s: %w", ifc.ApplicationServerID, ErrNotFound)
 			}
@@ -279,21 +273,20 @@ func (db *Database) applyDeleteIMSServiceProfile(ctx context.Context, p *stringP
 		return nil, err
 	}
 
-	var assigned NumItems
-
-	if err := db.runner(ctx).Query(ctx, db.countIMSServiceProfileAssignmentsStmt, imsServiceProfileAssignmentRow{ServiceProfileID: existing.ID}).Get(&assigned); err != nil {
+	assigned, err := queryCount(ctx, db.runner(ctx), countIMSServiceProfileAssignmentsSQL, existing.ID)
+	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	if assigned.Count > 0 {
+	if assigned > 0 {
 		return nil, ErrInUse
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.deleteServiceProfileIMSIFCsStmt, imsIFCRow{ServiceProfileID: existing.ID}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteServiceProfileIMSIFCsSQL, existing.ID); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.deleteIMSServiceProfileStmt, imsServiceProfileRow{Name: p.Value}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteIMSServiceProfileSQL, p.Value); err != nil {
 		if isForeignKeyError(err) {
 			return nil, ErrInUse
 		}
@@ -319,9 +312,8 @@ func (db *Database) GetProfileIMSServiceProfiles(ctx context.Context, profileID 
 		return out, nil
 	}
 
-	var rows []imsServiceProfileAssignmentRow
-
-	if err := db.conn().Query(ctx, db.listProfileIMSServiceProfilesStmt, imsServiceProfileAssignmentRow{ProfileID: profileID}).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	rows, err := queryAll(ctx, db.reader(), listProfileIMSServiceProfilesSQL, scanIMSServiceProfileAssignmentRow, profileID)
+	if err != nil {
 		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -346,9 +338,8 @@ func (db *Database) ListIMSServiceProfileAssignments(ctx context.Context) ([]Pro
 		return nil, nil
 	}
 
-	var rows []imsServiceProfileAssignmentRow
-
-	if err := db.conn().Query(ctx, db.listAllIMSServiceProfileAssignsStmt).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	rows, err := queryAll(ctx, db.reader(), listAllIMSServiceProfileAssignsSQL, scanIMSServiceProfileAssignmentRow)
+	if err != nil {
 		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -394,14 +385,14 @@ func (db *Database) SetProfileIMSServiceProfiles(ctx context.Context, profileID 
 }
 
 func (db *Database) applySetProfileIMSServiceProfiles(ctx context.Context, p *ProfileIMSServiceProfiles) (any, error) {
-	if err := db.runner(ctx).Query(ctx, db.deleteProfileIMSServiceProfilesStmt, imsServiceProfileAssignmentRow{ProfileID: p.ProfileID}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteProfileIMSServiceProfilesSQL, p.ProfileID); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	for _, set := range slices.Sorted(maps.Keys(p.ServiceProfiles)) {
 		row := imsServiceProfileAssignmentRow{ProfileID: p.ProfileID, RegistrationSet: string(set), ServiceProfileID: p.ServiceProfiles[set]}
 
-		if err := db.runner(ctx).Query(ctx, db.insertIMSServiceProfileAssignStmt, row).Run(); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, insertIMSServiceProfileAssignSQL, row.ProfileID, row.RegistrationSet, row.ServiceProfileID); err != nil {
 			if isForeignKeyError(err) {
 				return nil, fmt.Errorf("profile %s or service profile %s: %w", p.ProfileID, row.ServiceProfileID, ErrNotFound)
 			}
@@ -426,16 +417,14 @@ func (db *Database) ProfilesUsingIMSServiceProfile(ctx context.Context, serviceP
 		return nil, nil
 	}
 
-	var rows []imsServiceProfileAssignmentRow
-
-	if err := db.conn().Query(ctx, db.listProfilesOfIMSServiceProfileStmt, imsServiceProfileAssignmentRow{ServiceProfileID: serviceProfileID}).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	profileIDs, err := queryAll(ctx, db.reader(), listProfilesOfIMSServiceProfileSQL, scanValue[string], serviceProfileID)
+	if err != nil {
 		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	profileIDs := make([]string, 0, len(rows))
-	for _, r := range rows {
-		profileIDs = append(profileIDs, r.ProfileID)
+	if profileIDs == nil {
+		return []string{}, nil
 	}
 
 	return profileIDs, nil
@@ -455,4 +444,24 @@ func startIMSServiceProfilesSpan(ctx context.Context, operation string) (context
 			semconv.DBCollectionName(IMSServiceProfilesTableName),
 		),
 	)
+}
+
+func scanIMSServiceProfileRow(row scanner) (imsServiceProfileRow, error) {
+	var v imsServiceProfileRow
+
+	if err := row.Scan(&v.ID, &v.Name); err != nil {
+		return imsServiceProfileRow{}, err
+	}
+
+	return v, nil
+}
+
+func scanIMSServiceProfileAssignmentRow(row scanner) (imsServiceProfileAssignmentRow, error) {
+	var v imsServiceProfileAssignmentRow
+
+	if err := row.Scan(&v.ProfileID, &v.RegistrationSet, &v.ServiceProfileID); err != nil {
+		return imsServiceProfileAssignmentRow{}, err
+	}
+
+	return v, nil
 }

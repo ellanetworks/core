@@ -11,10 +11,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 
-	"github.com/canonical/sqlair"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
@@ -38,98 +36,100 @@ const subscriberDescriptionSchema = 18
 const subscriberMSISDNSchema = 22
 
 const (
-	createSubscriberStmt      = "INSERT INTO %s (id, imsi, sequenceNumber, permanentKey, opc, profileID, description, msisdn) VALUES ($Subscriber.id, $Subscriber.imsi, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.profileID, $Subscriber.description, $Subscriber.msisdn)"
-	editSubscriberProfileStmt = "UPDATE %s SET profileID=$Subscriber.profileID, description=$Subscriber.description, msisdn=$Subscriber.msisdn WHERE imsi==$Subscriber.imsi"
-	editSubscriberSeqNumStmt  = "UPDATE %s SET sequenceNumber=$Subscriber.sequenceNumber WHERE imsi==$Subscriber.imsi"
-	casSubscriberSeqNumStmt   = "UPDATE %s SET sequenceNumber=$sqnCAS.next WHERE imsi==$sqnCAS.imsi AND sequenceNumber==$sqnCAS.expected"
-	deleteSubscriberStmt      = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
-	countSubscribersStmt      = "SELECT COUNT(*) AS &NumItems.count FROM %s"
+	createSubscriberSQL      = "INSERT INTO " + SubscribersTableName + " (id, imsi, sequenceNumber, permanentKey, opc, profileID, description, msisdn) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+	editSubscriberProfileSQL = "UPDATE " + SubscribersTableName + " SET profileID=?, description=?, msisdn=? WHERE imsi==?"
+	editSubscriberSeqNumSQL  = "UPDATE " + SubscribersTableName + " SET sequenceNumber=? WHERE imsi==?"
+	casSubscriberSeqNumSQL   = "UPDATE " + SubscribersTableName + " SET sequenceNumber=? WHERE imsi==? AND sequenceNumber==?"
+	deleteSubscriberSQL      = "DELETE FROM " + SubscribersTableName + " WHERE imsi==?"
+	countSubscribersSQL      = "SELECT COUNT(*) FROM " + SubscribersTableName
 )
 
-const subscriberColumnsPreV18 = "&Subscriber.id, &Subscriber.imsi, &Subscriber.sequenceNumber, &Subscriber.permanentKey, &Subscriber.opc, &Subscriber.profileID"
+const subscriberColumns = "id, imsi, sequenceNumber, permanentKey, opc, profileID, description, msisdn"
 
-const subscriberColumnsPreV22 = subscriberColumnsPreV18 + ", &Subscriber.description"
+const subscriberColumnsPreV18 = "id, imsi, sequenceNumber, permanentKey, opc, profileID"
+
+const subscriberColumnsPreV22 = subscriberColumnsPreV18 + ", description"
 
 const (
-	getSubscriberStmt         = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
-	getSubscriberPreV22Stmt   = "SELECT " + subscriberColumnsPreV22 + " from %s WHERE imsi==$Subscriber.imsi"
-	getSubscriberPreV18Stmt   = "SELECT " + subscriberColumnsPreV18 + " from %s WHERE imsi==$Subscriber.imsi"
-	getSubscriberByMSISDNStmt = "SELECT &Subscriber.* from %s WHERE msisdn==$Subscriber.msisdn AND msisdn!=''"
-	listIMSIsWithMSISDNStmt   = "SELECT &subscriberIMSI.imsi FROM %s WHERE msisdn!='' AND imsi IN ($SliceIDs[:])"
-	listSubscriberMSISDNsStmt = "SELECT &Subscriber.imsi, &Subscriber.msisdn FROM %s WHERE msisdn!=''"
+	getSubscriberSQL         = "SELECT " + subscriberColumns + " from " + SubscribersTableName + " WHERE imsi==?"
+	getSubscriberPreV22SQL   = "SELECT " + subscriberColumnsPreV22 + " from " + SubscribersTableName + " WHERE imsi==?"
+	getSubscriberPreV18SQL   = "SELECT " + subscriberColumnsPreV18 + " from " + SubscribersTableName + " WHERE imsi==?"
+	getSubscriberByMSISDNSQL = "SELECT " + subscriberColumns + " from " + SubscribersTableName + " WHERE msisdn==? AND msisdn!=''"
+	listIMSIsWithMSISDNSQL   = "SELECT imsi FROM " + SubscribersTableName + " WHERE msisdn!='' AND imsi IN (SELECT value FROM json_each(?))"
+	listSubscriberMSISDNsSQL = "SELECT imsi, msisdn FROM " + SubscribersTableName + " WHERE msisdn!=''"
 )
 
 const (
 	subscriberSearchClause = `
-    ($subscriberFilterArgs.search IS NULL
-     OR imsi LIKE $subscriberFilterArgs.search ESCAPE '\'
-     OR (msisdn != '' AND '+' || msisdn LIKE $subscriberFilterArgs.search ESCAPE '\')
-     OR description LIKE $subscriberFilterArgs.search ESCAPE '\')`
+    (?1 IS NULL
+     OR imsi LIKE ?1 ESCAPE '\'
+     OR (msisdn != '' AND '+' || msisdn LIKE ?1 ESCAPE '\')
+     OR description LIKE ?1 ESCAPE '\')`
 
 	subscriberSearchClausePreV22 = `
-    ($subscriberFilterArgs.search IS NULL
-     OR imsi LIKE $subscriberFilterArgs.search ESCAPE '\'
-     OR description LIKE $subscriberFilterArgs.search ESCAPE '\')`
+    (?1 IS NULL
+     OR imsi LIKE ?1 ESCAPE '\'
+     OR description LIKE ?1 ESCAPE '\')`
 
 	subscriberSearchClausePreV18 = `
-    ($subscriberFilterArgs.search IS NULL OR imsi LIKE $subscriberFilterArgs.search ESCAPE '\')`
+    (?1 IS NULL OR imsi LIKE ?1 ESCAPE '\')`
 
 	subscriberDataNetworkClause = `
-    AND ($subscriberFilterArgs.data_network_id IS NULL
-         OR profileID IN (SELECT profileID FROM %s WHERE dataNetworkID = $subscriberFilterArgs.data_network_id))
-    AND ($subscriberFilterArgs.imsis IS NULL
-         OR imsi IN (SELECT value FROM json_each($subscriberFilterArgs.imsis)))`
+    AND (?2 IS NULL
+         OR profileID IN (SELECT profileID FROM ` + PoliciesTableName + ` WHERE dataNetworkID = ?2))
+    AND (?3 IS NULL
+         OR imsi IN (SELECT value FROM json_each(?3)))`
 )
 
 const (
-	listSubscribersFilteredStmt = `
-  SELECT &Subscriber.*
-  FROM %s
+	listSubscribersFilteredSQL = `
+  SELECT ` + subscriberColumns + `
+  FROM ` + SubscribersTableName + `
   WHERE` + subscriberSearchClause + subscriberDataNetworkClause + `
   ORDER BY imsi
-  LIMIT $ListArgs.limit OFFSET $ListArgs.offset`
+  LIMIT ?4 OFFSET ?5`
 
-	listSubscribersFilteredPreV22Stmt = `
+	listSubscribersFilteredPreV22SQL = `
   SELECT ` + subscriberColumnsPreV22 + `
-  FROM %s
+  FROM ` + SubscribersTableName + `
   WHERE` + subscriberSearchClausePreV22 + subscriberDataNetworkClause + `
   ORDER BY imsi
-  LIMIT $ListArgs.limit OFFSET $ListArgs.offset`
+  LIMIT ?4 OFFSET ?5`
 
-	listSubscribersFilteredPreV18Stmt = `
+	listSubscribersFilteredPreV18SQL = `
   SELECT ` + subscriberColumnsPreV18 + `
-  FROM %s
+  FROM ` + SubscribersTableName + `
   WHERE` + subscriberSearchClausePreV18 + subscriberDataNetworkClause + `
   ORDER BY imsi
-  LIMIT $ListArgs.limit OFFSET $ListArgs.offset`
+  LIMIT ?4 OFFSET ?5`
 
-	countSubscribersFilteredStmt = `
-  SELECT COUNT(*) AS &NumItems.count
-  FROM %s
+	countSubscribersFilteredSQL = `
+  SELECT COUNT(*)
+  FROM ` + SubscribersTableName + `
   WHERE` + subscriberSearchClause + subscriberDataNetworkClause
 
-	countSubscribersFilteredPreV22Stmt = `
-  SELECT COUNT(*) AS &NumItems.count
-  FROM %s
+	countSubscribersFilteredPreV22SQL = `
+  SELECT COUNT(*)
+  FROM ` + SubscribersTableName + `
   WHERE` + subscriberSearchClausePreV22 + subscriberDataNetworkClause
 
-	countSubscribersFilteredPreV18Stmt = `
-  SELECT COUNT(*) AS &NumItems.count
-  FROM %s
+	countSubscribersFilteredPreV18SQL = `
+  SELECT COUNT(*)
+  FROM ` + SubscribersTableName + `
   WHERE` + subscriberSearchClausePreV18 + subscriberDataNetworkClause
 )
 
-const countSubscribersAndVisitorsStmt = "SELECT COUNT(*) AS &NumItems.count FROM (SELECT imsi FROM %s UNION ALL SELECT imsi FROM %s)"
+const countSubscribersAndVisitorsSQL = "SELECT COUNT(*) FROM (SELECT imsi FROM " + SubscribersTableName + " UNION ALL SELECT imsi FROM " + VisitorsTableName + ")"
 
 type Subscriber struct {
-	ID             string `db:"id"` // UUIDv7
-	Imsi           string `db:"imsi"`
-	SequenceNumber string `db:"sequenceNumber"`
-	PermanentKey   string `db:"permanentKey"`
-	Opc            string `db:"opc"`
-	ProfileID      string `db:"profileID"`
-	Description    string `db:"description"`
-	Msisdn         string `db:"msisdn"`
+	ID             string // UUIDv7
+	Imsi           string
+	SequenceNumber string
+	PermanentKey   string
+	Opc            string
+	ProfileID      string
+	Description    string
+	Msisdn         string
 
 	RoamingPartnerID *string
 }
@@ -141,9 +141,9 @@ type SubscriberFilters struct {
 }
 
 type subscriberFilterArgs struct {
-	Search        *string `db:"search"`
-	DataNetworkID *string `db:"data_network_id"`
-	IMSIs         *string `db:"imsis"`
+	Search        *string
+	DataNetworkID *string
+	IMSIs         *string
 }
 
 var likeEscaper = strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
@@ -174,34 +174,9 @@ func (f *SubscriberFilters) args() (subscriberFilterArgs, error) {
 }
 
 func (db *Database) ListSubscribersPage(ctx context.Context, filters *SubscriberFilters, page int, perPage int) ([]Subscriber, int, error) {
-	querySummary := fmt.Sprintf("%s %s (paged)", "SELECT", SubscribersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(SubscribersTableName),
-			attribute.Int("ella.db.page", page),
-			attribute.Int("ella.db.page_size", perPage),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+SubscribersTableName+" (paged)", SubscribersTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
-
-	var subs []Subscriber
-
-	args := ListArgs{
-		Limit:  perPage,
-		Offset: (page - 1) * perPage,
-	}
 
 	filterArgs, err := filters.args()
 	if err != nil {
@@ -210,15 +185,10 @@ func (db *Database) ListSubscribersPage(ctx context.Context, filters *Subscriber
 		return nil, 0, err
 	}
 
-	stmt := db.listSubscribersStmt
-	if !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema) {
-		stmt = db.listSubscribersPreV18Stmt
-	} else if !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema) {
-		stmt = db.listSubscribersPreV22Stmt
-	}
+	query, scan := db.subscriberQuery(ctx, listSubscribersQueries)
 
-	err = db.conn().Query(ctx, stmt, args, filterArgs).GetAll(&subs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	subs, err := queryAll(ctx, db.reader(), query, scan, filterArgs.Search, filterArgs.DataNetworkID, filterArgs.IMSIs, perPage, (page-1)*perPage)
+	if err != nil {
 		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
@@ -242,68 +212,28 @@ func (db *Database) ListSubscribersPage(ctx context.Context, filters *Subscriber
 }
 
 func (db *Database) countSubscribersFiltered(ctx context.Context, filterArgs subscriberFilterArgs) (int, error) {
-	querySummary := fmt.Sprintf("%s %s (filtered count)", "SELECT", SubscribersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(SubscribersTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+SubscribersTableName+" (filtered count)", SubscribersTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
+	query, _ := db.subscriberQuery(ctx, countSubscribersQueries)
 
-	var result NumItems
-
-	stmt := db.countSubscribersFilteredStmt
-	if !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema) {
-		stmt = db.countSubscribersFilteredPreV18Stmt
-	} else if !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema) {
-		stmt = db.countSubscribersFilteredPreV22Stmt
-	}
-
-	if err := db.conn().Query(ctx, stmt, filterArgs).Get(&result); err != nil {
+	count, err := queryCount(ctx, db.reader(), query, filterArgs.Search, filterArgs.DataNetworkID, filterArgs.IMSIs)
+	if err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	return result.Count, nil
+	return count, nil
 }
 
 func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", SubscribersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(SubscribersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, SubscribersTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
-
-	row := Subscriber{Imsi: imsi}
-
-	err := db.conn().Query(ctx, db.ownSubscriberStmt(ctx), row).Get(&row)
+	row, err := db.getOwnSubscriber(ctx, db.reader(), imsi)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -317,43 +247,39 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 	return &row, nil
 }
 
-func (db *Database) ownSubscriberStmt(ctx context.Context) *sqlair.Statement {
+type subscriberQueries struct {
+	current string
+	preV22  string
+	preV18  string
+}
+
+var (
+	listSubscribersQueries  = subscriberQueries{current: listSubscribersFilteredSQL, preV22: listSubscribersFilteredPreV22SQL, preV18: listSubscribersFilteredPreV18SQL}
+	countSubscribersQueries = subscriberQueries{current: countSubscribersFilteredSQL, preV22: countSubscribersFilteredPreV22SQL, preV18: countSubscribersFilteredPreV18SQL}
+	getSubscriberQueries    = subscriberQueries{current: getSubscriberSQL, preV22: getSubscriberPreV22SQL, preV18: getSubscriberPreV18SQL}
+)
+
+func (db *Database) subscriberQuery(ctx context.Context, q subscriberQueries) (string, func(scanner) (Subscriber, error)) {
 	switch {
 	case !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema):
-		return db.getSubscriberPreV18Stmt
+		return q.preV18, scanSubscriberPreV18
 	case !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema):
-		return db.getSubscriberPreV22Stmt
+		return q.preV22, scanSubscriberPreV22
 	default:
-		return db.getSubscriberStmt
+		return q.current, scanSubscriber
 	}
 }
 
-const maxIMSIsPerQuery = 500
+func (db *Database) getOwnSubscriber(ctx context.Context, q querier, imsi string) (Subscriber, error) {
+	query, scan := db.subscriberQuery(ctx, getSubscriberQueries)
 
-type subscriberIMSI struct {
-	Imsi string `db:"imsi"`
+	return scan(q.QueryRowContext(ctx, query, imsi))
 }
 
 func (db *Database) IMSIsWithMSISDN(ctx context.Context, imsis []string) (map[string]bool, error) {
-	querySummary := fmt.Sprintf("%s %s (with msisdn)", "SELECT", SubscribersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(SubscribersTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+SubscribersTableName+" (with msisdn)", SubscribersTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
 
 	found := make(map[string]bool, len(imsis))
 
@@ -361,50 +287,29 @@ func (db *Database) IMSIsWithMSISDN(ctx context.Context, imsis []string) (map[st
 		return found, nil
 	}
 
-	for chunk := range slices.Chunk(imsis, maxIMSIsPerQuery) {
-		var rows []subscriberIMSI
+	matched, err := queryAll(ctx, db.reader(), listIMSIsWithMSISDNSQL, scanValue[string], jsonArray(imsis))
+	if err != nil {
+		recordSpanError(span, err)
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
 
-		if err := db.conn().Query(ctx, db.listIMSIsWithMSISDNStmt, SliceIDs(chunk)).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
-			recordSpanError(span, err)
-			return nil, fmt.Errorf("query failed: %w", err)
-		}
-
-		for _, r := range rows {
-			found[r.Imsi] = true
-		}
+	for _, imsi := range matched {
+		found[imsi] = true
 	}
 
 	return found, nil
 }
 
 func (db *Database) GetSubscriberByMSISDN(ctx context.Context, msisdn string) (*Subscriber, error) {
-	querySummary := fmt.Sprintf("%s %s (by msisdn)", "SELECT", SubscribersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(SubscribersTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+SubscribersTableName+" (by msisdn)", SubscribersTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
 
 	if msisdn == "" || !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema) {
 		return nil, ErrNotFound
 	}
 
-	row := Subscriber{Msisdn: msisdn}
-
-	err := db.conn().Query(ctx, db.getSubscriberByMSISDNStmt, row).Get(&row)
+	row, err := scanSubscriber(db.reader().QueryRowContext(ctx, getSubscriberByMSISDNSQL, msisdn))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -419,25 +324,9 @@ func (db *Database) GetSubscriberByMSISDN(ctx context.Context, msisdn string) (*
 }
 
 func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber) error {
-	querySummary := fmt.Sprintf("%s %s", "INSERT", SubscribersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			semconv.DBCollectionName(SubscribersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, SubscribersTableName, "INSERT", "insert")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "insert"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SubscribersTableName, "insert").Inc()
 
 	if subscriber.ID == "" {
 		id, err := uuid.NewV7()
@@ -461,25 +350,9 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 }
 
 func (db *Database) UpdateSubscriberProfile(ctx context.Context, subscriber *Subscriber) error {
-	querySummary := fmt.Sprintf("%s %s", "UPDATE", SubscribersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(SubscribersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, SubscribersTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SubscribersTableName, "update").Inc()
 
 	_, err := opUpdateSubscriberProfile.Invoke(ctx, db, subscriber)
 	if err != nil {
@@ -492,25 +365,9 @@ func (db *Database) UpdateSubscriberProfile(ctx context.Context, subscriber *Sub
 }
 
 func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi string, sequenceNumber string) error {
-	querySummary := fmt.Sprintf("%s %s (sequence number)", "UPDATE", SubscribersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(SubscribersTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "UPDATE "+SubscribersTableName+" (sequence number)", SubscribersTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SubscribersTableName, "update").Inc()
 
 	subscriber := &Subscriber{
 		Imsi:           imsi,
@@ -528,25 +385,9 @@ func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi strin
 }
 
 func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
-	querySummary := fmt.Sprintf("%s %s", "DELETE", SubscribersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(SubscribersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, SubscribersTableName, "DELETE", "delete")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "delete"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SubscribersTableName, "delete").Inc()
 
 	_, err := opDeleteSubscriber.Invoke(ctx, db, &stringPayload{Value: imsi})
 	if err != nil {
@@ -559,36 +400,18 @@ func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
 }
 
 func (db *Database) CountSubscribers(ctx context.Context) (int, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", SubscribersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(SubscribersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, SubscribersTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
-
-	var result NumItems
-
-	err := db.conn().Query(ctx, db.countSubscribersStmt).Get(&result)
+	count, err := queryCount(ctx, db.reader(), countSubscribersSQL)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	return result.Count, nil
+	return count, nil
 }
 
 func (db *Database) CountSubscribersAndVisitors(ctx context.Context) (int, error) {
@@ -612,7 +435,7 @@ func (db *Database) CountSubscribersAndVisitors(ctx context.Context) (int, error
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
 
-	n, err := db.countSubscribersAndVisitors(ctx, db.conn())
+	n, err := db.countSubscribersAndVisitors(ctx, db.reader())
 	if err != nil {
 		recordSpanError(span, err)
 		return 0, err
@@ -621,19 +444,18 @@ func (db *Database) CountSubscribersAndVisitors(ctx context.Context) (int, error
 	return n, nil
 }
 
-func (db *Database) countSubscribersAndVisitors(ctx context.Context, runner *sqlair.DB) (int, error) {
-	stmt := db.countSubscribersStmt
+func (db *Database) countSubscribersAndVisitors(ctx context.Context, q querier) (int, error) {
+	query := countSubscribersSQL
 	if db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		stmt = db.countSubscribersAndVisitorsStmt
+		query = countSubscribersAndVisitorsSQL
 	}
 
-	var result NumItems
-
-	if err := runner.Query(ctx, stmt).Get(&result); err != nil {
+	count, err := queryCount(ctx, q, query)
+	if err != nil {
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	return result.Count, nil
+	return count, nil
 }
 
 func (db *Database) checkSubscriberCapacity(ctx context.Context) error {
@@ -655,4 +477,44 @@ func (db *Database) subscriberCap() int {
 	}
 
 	return MaxNumSubscribers
+}
+
+func scanSubscriber(row scanner) (Subscriber, error) {
+	var v Subscriber
+
+	if err := row.Scan(&v.ID, &v.Imsi, &v.SequenceNumber, &v.PermanentKey, &v.Opc, &v.ProfileID, &v.Description, &v.Msisdn); err != nil {
+		return Subscriber{}, err
+	}
+
+	return v, nil
+}
+
+func scanSubscriberPreV22(row scanner) (Subscriber, error) {
+	var v Subscriber
+
+	if err := row.Scan(&v.ID, &v.Imsi, &v.SequenceNumber, &v.PermanentKey, &v.Opc, &v.ProfileID, &v.Description); err != nil {
+		return Subscriber{}, err
+	}
+
+	return v, nil
+}
+
+func scanSubscriberPreV18(row scanner) (Subscriber, error) {
+	var v Subscriber
+
+	if err := row.Scan(&v.ID, &v.Imsi, &v.SequenceNumber, &v.PermanentKey, &v.Opc, &v.ProfileID); err != nil {
+		return Subscriber{}, err
+	}
+
+	return v, nil
+}
+
+func scanSubscriberMSISDN(row scanner) (Subscriber, error) {
+	var v Subscriber
+
+	if err := row.Scan(&v.Imsi, &v.Msisdn); err != nil {
+		return Subscriber{}, err
+	}
+
+	return v, nil
 }

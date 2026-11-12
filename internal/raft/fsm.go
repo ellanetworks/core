@@ -33,9 +33,9 @@ type Applier interface {
 	// is the Raft log index of the entry being applied; the
 	// implementation uses it to publish post-apply change events. The
 	// implementation dispatches on cmd.Type to the appropriate applyX
-	// method, which uses sqlair to execute the SQL. SQLite's
+	// method, which executes the SQL through database/sql. SQLite's
 	// MaxOpenConns(1) serialises access, so no explicit transaction
-	// wrapping is needed here — sqlair methods manage their own
+	// wrapping is needed here — the apply methods manage their own
 	// transactions as they do in standalone mode.
 	ApplyCommand(ctx context.Context, cmd *Command, logIndex, logTerm uint64) (any, error)
 
@@ -47,8 +47,7 @@ type Applier interface {
 	Path() string
 
 	// Reopen makes the database handle serve the new file without closing
-	// it, re-prepares all sqlair statements. Called after FSM.Restore
-	// replaces the database file on disk.
+	// it. Called after FSM.Restore replaces the database file on disk.
 	Reopen(ctx context.Context) error
 
 	// RestoreLocalTables replaces the local-only tables (radio_events,

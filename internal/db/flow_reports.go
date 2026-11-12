@@ -6,11 +6,9 @@ package db
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"time"
 
-	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/prometheus/client_golang/prometheus"
@@ -23,139 +21,139 @@ import (
 const FlowReportsTableName = "flow_reports"
 
 const (
-	insertFlowReportStmt            = "INSERT INTO %s (subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action) VALUES ($FlowReport.subscriber_id, $FlowReport.source_ip, $FlowReport.destination_ip, $FlowReport.source_port, $FlowReport.destination_port, $FlowReport.protocol, $FlowReport.packets, $FlowReport.bytes, $FlowReport.start_time, $FlowReport.end_time, $FlowReport.direction, $FlowReport.action)"
-	insertFlowReportOfKnownIMSIStmt = "INSERT INTO %s (subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action) SELECT $FlowReport.subscriber_id, $FlowReport.source_ip, $FlowReport.destination_ip, $FlowReport.source_port, $FlowReport.destination_port, $FlowReport.protocol, $FlowReport.packets, $FlowReport.bytes, $FlowReport.start_time, $FlowReport.end_time, $FlowReport.direction, $FlowReport.action WHERE EXISTS (SELECT 1 FROM %s WHERE imsi = $FlowReport.subscriber_id) OR EXISTS (SELECT 1 FROM %s WHERE imsi = $FlowReport.subscriber_id)"
-	deleteOldFlowReportsStmt        = "DELETE FROM %s WHERE end_time < $cutoffArgs.cutoff"
-	deleteAllFlowReportsStmt        = "DELETE FROM %s"
+	insertFlowReportSQL            = "INSERT INTO " + FlowReportsTableName + " (subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	insertFlowReportOfKnownIMSISQL = "INSERT INTO " + FlowReportsTableName + " (subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM " + SubscribersTableName + " WHERE imsi = ?) OR EXISTS (SELECT 1 FROM " + VisitorsTableName + " WHERE imsi = ?)"
+	deleteOldFlowReportsSQL        = "DELETE FROM " + FlowReportsTableName + " WHERE end_time < ?"
+	deleteAllFlowReportsSQL        = "DELETE FROM " + FlowReportsTableName
 )
 
-const listFlowReportsPagedFilteredStmt = `
-  SELECT &FlowReport.*, COUNT(*) OVER() AS &NumItems.count
-  FROM %s
+const listFlowReportsPagedFilteredSQL = `
+  SELECT id, subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action, COUNT(*) OVER()
+  FROM ` + FlowReportsTableName + `
   WHERE
-    ($FlowReportFilters.subscriber_id IS NULL OR subscriber_id = $FlowReportFilters.subscriber_id)
-    AND ($FlowReportFilters.protocol IS NULL OR protocol = $FlowReportFilters.protocol)
-    AND ($FlowReportFilters.source_ip IS NULL OR source_ip = $FlowReportFilters.source_ip)
-    AND ($FlowReportFilters.destination_ip IS NULL OR destination_ip = $FlowReportFilters.destination_ip)
-    AND ($FlowReportFilters.source_port IS NULL OR source_port = $FlowReportFilters.source_port)
-    AND ($FlowReportFilters.destination_port IS NULL OR destination_port = $FlowReportFilters.destination_port)
-    AND ($FlowReportFilters.range_start IS NULL OR end_time >= $FlowReportFilters.range_start)
-    AND ($FlowReportFilters.range_end IS NULL OR start_time < $FlowReportFilters.range_end)
-    AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
-    AND ($FlowReportFilters.action IS NULL OR action = $FlowReportFilters.action)
+    (?1 IS NULL OR subscriber_id = ?1)
+    AND (?2 IS NULL OR protocol = ?2)
+    AND (?3 IS NULL OR source_ip = ?3)
+    AND (?4 IS NULL OR destination_ip = ?4)
+    AND (?5 IS NULL OR source_port = ?5)
+    AND (?6 IS NULL OR destination_port = ?6)
+    AND (?7 IS NULL OR end_time >= ?7)
+    AND (?8 IS NULL OR start_time < ?8)
+    AND (?9 IS NULL OR direction = ?9)
+    AND (?10 IS NULL OR action = ?10)
   ORDER BY id DESC
-  LIMIT $ListArgs.limit
-  OFFSET $ListArgs.offset
+  LIMIT ?11
+  OFFSET ?12
 `
 
-const countFlowReportsFilteredStmt = `
-  SELECT COUNT(*) AS &NumItems.count
-  FROM %s
+const countFlowReportsFilteredSQL = `
+  SELECT COUNT(*)
+  FROM ` + FlowReportsTableName + `
   WHERE
-    ($FlowReportFilters.subscriber_id IS NULL OR subscriber_id = $FlowReportFilters.subscriber_id)
-    AND ($FlowReportFilters.protocol IS NULL OR protocol = $FlowReportFilters.protocol)
-    AND ($FlowReportFilters.source_ip IS NULL OR source_ip = $FlowReportFilters.source_ip)
-    AND ($FlowReportFilters.destination_ip IS NULL OR destination_ip = $FlowReportFilters.destination_ip)
-    AND ($FlowReportFilters.source_port IS NULL OR source_port = $FlowReportFilters.source_port)
-    AND ($FlowReportFilters.destination_port IS NULL OR destination_port = $FlowReportFilters.destination_port)
-    AND ($FlowReportFilters.range_start IS NULL OR end_time >= $FlowReportFilters.range_start)
-    AND ($FlowReportFilters.range_end IS NULL OR start_time < $FlowReportFilters.range_end)
-    AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
-    AND ($FlowReportFilters.action IS NULL OR action = $FlowReportFilters.action)
+    (?1 IS NULL OR subscriber_id = ?1)
+    AND (?2 IS NULL OR protocol = ?2)
+    AND (?3 IS NULL OR source_ip = ?3)
+    AND (?4 IS NULL OR destination_ip = ?4)
+    AND (?5 IS NULL OR source_port = ?5)
+    AND (?6 IS NULL OR destination_port = ?6)
+    AND (?7 IS NULL OR end_time >= ?7)
+    AND (?8 IS NULL OR start_time < ?8)
+    AND (?9 IS NULL OR direction = ?9)
+    AND (?10 IS NULL OR action = ?10)
 `
 
-const listFlowReportsFilteredByDayStmt = `
-SELECT &FlowReport.*
-FROM %s
+const listFlowReportsFilteredByDaySQL = `
+SELECT id, subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action
+FROM ` + FlowReportsTableName + `
 WHERE
-    ($FlowReportFilters.subscriber_id IS NULL OR subscriber_id = $FlowReportFilters.subscriber_id)
-    AND ($FlowReportFilters.protocol IS NULL OR protocol = $FlowReportFilters.protocol)
-    AND ($FlowReportFilters.source_ip IS NULL OR source_ip = $FlowReportFilters.source_ip)
-    AND ($FlowReportFilters.destination_ip IS NULL OR destination_ip = $FlowReportFilters.destination_ip)
-    AND ($FlowReportFilters.source_port IS NULL OR source_port = $FlowReportFilters.source_port)
-    AND ($FlowReportFilters.destination_port IS NULL OR destination_port = $FlowReportFilters.destination_port)
-    AND ($FlowReportFilters.range_start IS NULL OR end_time >= $FlowReportFilters.range_start)
-    AND ($FlowReportFilters.range_end IS NULL OR start_time < $FlowReportFilters.range_end)
-    AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
-    AND ($FlowReportFilters.action IS NULL OR action = $FlowReportFilters.action)
+    (?1 IS NULL OR subscriber_id = ?1)
+    AND (?2 IS NULL OR protocol = ?2)
+    AND (?3 IS NULL OR source_ip = ?3)
+    AND (?4 IS NULL OR destination_ip = ?4)
+    AND (?5 IS NULL OR source_port = ?5)
+    AND (?6 IS NULL OR destination_port = ?6)
+    AND (?7 IS NULL OR end_time >= ?7)
+    AND (?8 IS NULL OR start_time < ?8)
+    AND (?9 IS NULL OR direction = ?9)
+    AND (?10 IS NULL OR action = ?10)
 ORDER BY end_time ASC
 `
 
-const listFlowReportsFilteredBySubscriberStmt = `
-SELECT &FlowReport.*
-FROM %s
+const listFlowReportsFilteredBySubscriberSQL = `
+SELECT id, subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action
+FROM ` + FlowReportsTableName + `
 WHERE
-    ($FlowReportFilters.subscriber_id IS NULL OR subscriber_id = $FlowReportFilters.subscriber_id)
-    AND ($FlowReportFilters.protocol IS NULL OR protocol = $FlowReportFilters.protocol)
-    AND ($FlowReportFilters.source_ip IS NULL OR source_ip = $FlowReportFilters.source_ip)
-    AND ($FlowReportFilters.destination_ip IS NULL OR destination_ip = $FlowReportFilters.destination_ip)
-    AND ($FlowReportFilters.source_port IS NULL OR source_port = $FlowReportFilters.source_port)
-    AND ($FlowReportFilters.destination_port IS NULL OR destination_port = $FlowReportFilters.destination_port)
-    AND ($FlowReportFilters.range_start IS NULL OR end_time >= $FlowReportFilters.range_start)
-    AND ($FlowReportFilters.range_end IS NULL OR start_time < $FlowReportFilters.range_end)
-    AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
-    AND ($FlowReportFilters.action IS NULL OR action = $FlowReportFilters.action)
+    (?1 IS NULL OR subscriber_id = ?1)
+    AND (?2 IS NULL OR protocol = ?2)
+    AND (?3 IS NULL OR source_ip = ?3)
+    AND (?4 IS NULL OR destination_ip = ?4)
+    AND (?5 IS NULL OR source_port = ?5)
+    AND (?6 IS NULL OR destination_port = ?6)
+    AND (?7 IS NULL OR end_time >= ?7)
+    AND (?8 IS NULL OR start_time < ?8)
+    AND (?9 IS NULL OR direction = ?9)
+    AND (?10 IS NULL OR action = ?10)
 ORDER BY subscriber_id ASC, end_time ASC
 `
 
-const flowReportProtocolCountsStmt = `
-SELECT protocol AS &FlowReportProtocolCount.protocol, COUNT(*) AS &FlowReportProtocolCount.count
-FROM %s
+const flowReportProtocolCountsSQL = `
+SELECT protocol, COUNT(*)
+FROM ` + FlowReportsTableName + `
 WHERE
-    ($FlowReportFilters.subscriber_id IS NULL OR subscriber_id = $FlowReportFilters.subscriber_id)
-    AND ($FlowReportFilters.protocol IS NULL OR protocol = $FlowReportFilters.protocol)
-    AND ($FlowReportFilters.source_ip IS NULL OR source_ip = $FlowReportFilters.source_ip)
-    AND ($FlowReportFilters.destination_ip IS NULL OR destination_ip = $FlowReportFilters.destination_ip)
-    AND ($FlowReportFilters.source_port IS NULL OR source_port = $FlowReportFilters.source_port)
-    AND ($FlowReportFilters.destination_port IS NULL OR destination_port = $FlowReportFilters.destination_port)
-    AND ($FlowReportFilters.range_start IS NULL OR end_time >= $FlowReportFilters.range_start)
-    AND ($FlowReportFilters.range_end IS NULL OR start_time < $FlowReportFilters.range_end)
-    AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
-    AND ($FlowReportFilters.action IS NULL OR action = $FlowReportFilters.action)
+    (?1 IS NULL OR subscriber_id = ?1)
+    AND (?2 IS NULL OR protocol = ?2)
+    AND (?3 IS NULL OR source_ip = ?3)
+    AND (?4 IS NULL OR destination_ip = ?4)
+    AND (?5 IS NULL OR source_port = ?5)
+    AND (?6 IS NULL OR destination_port = ?6)
+    AND (?7 IS NULL OR end_time >= ?7)
+    AND (?8 IS NULL OR start_time < ?8)
+    AND (?9 IS NULL OR direction = ?9)
+    AND (?10 IS NULL OR action = ?10)
 GROUP BY protocol
 ORDER BY COUNT(*) DESC
 `
 
-const flowReportTopDestinationsUplinkStmt = `
-SELECT destination_ip AS &FlowReportIPCount.ip, COUNT(*) AS &FlowReportIPCount.count
-FROM %s
+const flowReportTopDestinationsUplinkSQL = `
+SELECT destination_ip, COUNT(*)
+FROM ` + FlowReportsTableName + `
 WHERE
-    ($FlowReportFilters.subscriber_id IS NULL OR subscriber_id = $FlowReportFilters.subscriber_id)
-    AND ($FlowReportFilters.protocol IS NULL OR protocol = $FlowReportFilters.protocol)
-    AND ($FlowReportFilters.source_ip IS NULL OR source_ip = $FlowReportFilters.source_ip)
-    AND ($FlowReportFilters.destination_ip IS NULL OR destination_ip = $FlowReportFilters.destination_ip)
-    AND ($FlowReportFilters.source_port IS NULL OR source_port = $FlowReportFilters.source_port)
-    AND ($FlowReportFilters.destination_port IS NULL OR destination_port = $FlowReportFilters.destination_port)
-    AND ($FlowReportFilters.range_start IS NULL OR end_time >= $FlowReportFilters.range_start)
-    AND ($FlowReportFilters.range_end IS NULL OR start_time < $FlowReportFilters.range_end)
+    (?1 IS NULL OR subscriber_id = ?1)
+    AND (?2 IS NULL OR protocol = ?2)
+    AND (?3 IS NULL OR source_ip = ?3)
+    AND (?4 IS NULL OR destination_ip = ?4)
+    AND (?5 IS NULL OR source_port = ?5)
+    AND (?6 IS NULL OR destination_port = ?6)
+    AND (?7 IS NULL OR end_time >= ?7)
+    AND (?8 IS NULL OR start_time < ?8)
     AND direction = 'uplink'
-    AND ($FlowReportFilters.action IS NULL OR action = $FlowReportFilters.action)
+    AND (?10 IS NULL OR action = ?10)
 GROUP BY destination_ip
 ORDER BY COUNT(*) DESC
 LIMIT 10
 `
 
 type FlowReportProtocolCount struct {
-	Protocol uint8 `db:"protocol"`
-	Count    int   `db:"count"`
+	Protocol uint8
+	Count    int
 }
 
 type FlowReportIPCount struct {
-	IP    string `db:"ip"`
-	Count int    `db:"count"`
+	IP    string
+	Count int
 }
 
 type FlowReportFilters struct {
-	SubscriberID    *string `db:"subscriber_id"`    // exact match (IMSI)
-	Protocol        *uint8  `db:"protocol"`         // exact match
-	SourceIP        *string `db:"source_ip"`        // exact match
-	DestinationIP   *string `db:"destination_ip"`   // exact match
-	SourcePort      *uint16 `db:"source_port"`      // exact match
-	DestinationPort *uint16 `db:"destination_port"` // exact match
-	RangeStart      *int64  `db:"range_start"`      // epoch milliseconds, inclusive
-	RangeEnd        *int64  `db:"range_end"`        // epoch milliseconds, exclusive
-	Direction       *string `db:"direction"`        // "uplink" or "downlink"
-	Action          *uint8  `db:"action"`           // 0 = "allow", 1 = "drop"
+	SubscriberID    *string // exact match (IMSI)
+	Protocol        *uint8  // exact match
+	SourceIP        *string // exact match
+	DestinationIP   *string // exact match
+	SourcePort      *uint16 // exact match
+	DestinationPort *uint16 // exact match
+	RangeStart      *int64  // epoch milliseconds, inclusive
+	RangeEnd        *int64  // epoch milliseconds, exclusive
+	Direction       *string // "uplink" or "downlink"
+	Action          *uint8  // 0 = "allow", 1 = "drop"
 }
 
 // InsertFlowReports inserts multiple flow reports in a single SQLite
@@ -196,7 +194,7 @@ func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwrit
 
 	DBQueriesTotal.WithLabelValues(FlowReportsTableName, "batch_insert").Inc()
 
-	tx, err := db.conn().Begin(ctx, nil)
+	tx, err := db.writer().BeginTx(ctx, nil)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -209,7 +207,7 @@ func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwrit
 
 	for _, fr := range flowReports {
 		if knownIMSIOnly {
-			inserted, err := insertFlowReportOfKnownIMSI(ctx, tx, db.insertFlowReportOfKnownIMSIStmt, fr)
+			inserted, err := insertFlowReportOfKnownIMSI(ctx, tx, fr)
 			if err != nil {
 				_ = tx.Rollback()
 
@@ -225,7 +223,7 @@ func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwrit
 			continue
 		}
 
-		if err := tx.Query(ctx, db.insertFlowReportStmt, fr).Run(); err != nil {
+		if _, err := tx.ExecContext(ctx, insertFlowReportSQL, fr.SubscriberID, fr.SourceIP, fr.DestinationIP, fr.SourcePort, fr.DestinationPort, fr.Protocol, fr.Packets, fr.Bytes, fr.StartTime, fr.EndTime, fr.Direction, fr.Action); err != nil {
 			if isForeignKeyError(err) {
 				orphaned++
 				continue
@@ -257,62 +255,30 @@ func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwrit
 }
 
 func (db *Database) ListFlowReports(ctx context.Context, page int, perPage int, filters *FlowReportFilters) ([]dbwriter.FlowReport, int, error) {
-	querySummary := fmt.Sprintf("%s %s (paged+filtered)", "SELECT", FlowReportsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(FlowReportsTableName),
-			attribute.Int("ella.db.page", page),
-			attribute.Int("ella.db.page_size", perPage),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+FlowReportsTableName+" (paged+filtered)", FlowReportsTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(FlowReportsTableName, "select"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(FlowReportsTableName, "select").Inc()
 
 	if filters == nil {
 		filters = &FlowReportFilters{}
 	}
 
-	args := ListArgs{
-		Limit:  perPage,
-		Offset: (page - 1) * perPage,
-	}
-
-	var reports []dbwriter.FlowReport
-
-	var counts []NumItems
-
-	err := db.conn().Query(ctx, db.listFlowReportsStmt, args, filters).GetAll(&reports, &counts)
+	reports, count, err := queryPageWithTotal(ctx, db.reader(), listFlowReportsPagedFilteredSQL, scanFlowReport, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action, perPage, (page-1)*perPage)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			var fallbackCount NumItems
-
-			countErr := db.conn().Query(ctx, db.countFlowReportsStmt, filters).Get(&fallbackCount)
-			if countErr != nil {
-				return nil, 0, nil
-			}
-
-			return nil, fallbackCount.Count, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	count := 0
-	if len(counts) > 0 {
-		count = counts[0].Count
+	if len(reports) == 0 {
+		fallbackCount, err := queryCount(ctx, db.reader(), countFlowReportsFilteredSQL, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action)
+		if err != nil {
+			recordSpanError(span, err)
+
+			return nil, 0, fmt.Errorf("count failed: %w", err)
+		}
+
+		return nil, fallbackCount, nil
 	}
 
 	return reports, count, nil
@@ -320,32 +286,13 @@ func (db *Database) ListFlowReports(ctx context.Context, page int, perPage int, 
 
 // DeleteOldFlowReports removes flow reports older than the specified retention period in days.
 func (db *Database) DeleteOldFlowReports(ctx context.Context, days int) error {
-	querySummary := fmt.Sprintf("%s %s (retention)", "DELETE", FlowReportsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(FlowReportsTableName),
-			attribute.Int("retention.days", days),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "DELETE "+FlowReportsTableName+" (retention)", FlowReportsTableName, "DELETE", "delete", attribute.Int("retention.days", days))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(FlowReportsTableName, "delete"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(FlowReportsTableName, "delete").Inc()
 
 	cutoff := dbwriter.EpochMillis(time.Now().UTC().AddDate(0, 0, -days))
 
-	args := cutoffArgs{Cutoff: cutoff}
-
-	err := db.conn().Query(ctx, db.deleteOldFlowReportsStmt, args).Run()
+	_, err := db.writer().ExecContext(ctx, deleteOldFlowReportsSQL, cutoff)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -356,27 +303,11 @@ func (db *Database) DeleteOldFlowReports(ctx context.Context, days int) error {
 }
 
 func (db *Database) ClearFlowReports(ctx context.Context) error {
-	querySummary := fmt.Sprintf("%s %s (all)", "DELETE", FlowReportsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(FlowReportsTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "DELETE "+FlowReportsTableName+" (all)", FlowReportsTableName, "DELETE", "delete")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(FlowReportsTableName, "delete"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(FlowReportsTableName, "delete").Inc()
-
-	err := db.conn().Query(ctx, db.deleteAllFlowReportsStmt).Run()
+	_, err := db.writer().ExecContext(ctx, deleteAllFlowReportsSQL)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -387,38 +318,16 @@ func (db *Database) ClearFlowReports(ctx context.Context) error {
 }
 
 func (db *Database) ListFlowReportsByDay(ctx context.Context, filters *FlowReportFilters) ([]dbwriter.FlowReport, error) {
-	querySummary := fmt.Sprintf("%s %s (by day)", "SELECT", FlowReportsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(FlowReportsTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+FlowReportsTableName+" (by day)", FlowReportsTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(FlowReportsTableName, "select"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(FlowReportsTableName, "select").Inc()
 
 	if filters == nil {
 		filters = &FlowReportFilters{}
 	}
 
-	var results []dbwriter.FlowReport
-
-	err := db.conn().Query(ctx, db.listFlowReportsByDayStmt, filters).GetAll(&results)
+	results, err := queryAll(ctx, db.reader(), listFlowReportsFilteredByDaySQL, scanFlowReport, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -428,38 +337,16 @@ func (db *Database) ListFlowReportsByDay(ctx context.Context, filters *FlowRepor
 }
 
 func (db *Database) ListFlowReportsBySubscriber(ctx context.Context, filters *FlowReportFilters) ([]dbwriter.FlowReport, error) {
-	querySummary := fmt.Sprintf("%s %s (by subscriber)", "SELECT", FlowReportsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(FlowReportsTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+FlowReportsTableName+" (by subscriber)", FlowReportsTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(FlowReportsTableName, "select"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(FlowReportsTableName, "select").Inc()
 
 	if filters == nil {
 		filters = &FlowReportFilters{}
 	}
 
-	var results []dbwriter.FlowReport
-
-	err := db.conn().Query(ctx, db.listFlowReportsBySubscriberStmt, filters).GetAll(&results)
+	results, err := queryAll(ctx, db.reader(), listFlowReportsFilteredBySubscriberSQL, scanFlowReport, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -470,43 +357,23 @@ func (db *Database) ListFlowReportsBySubscriber(ctx context.Context, filters *Fl
 
 // GetFlowReportStats returns aggregated protocol counts and top destination IPs for uplink traffic.
 func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportFilters) ([]FlowReportProtocolCount, []FlowReportIPCount, error) {
-	querySummary := fmt.Sprintf("%s %s (stats)", "SELECT", FlowReportsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(FlowReportsTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+FlowReportsTableName+" (stats)", FlowReportsTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(FlowReportsTableName, "select"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(FlowReportsTableName, "select").Inc()
 
 	if filters == nil {
 		filters = &FlowReportFilters{}
 	}
 
-	var protocols []FlowReportProtocolCount
-
-	err := db.conn().Query(ctx, db.flowReportProtocolCountsStmt, filters).GetAll(&protocols)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	protocols, err := queryAll(ctx, db.reader(), flowReportProtocolCountsSQL, scanFlowReportProtocolCount, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action)
+	if err != nil {
 		recordSpanError(span, err)
 
 		return nil, nil, fmt.Errorf("protocol counts query failed: %w", err)
 	}
 
-	var destinationsUplink []FlowReportIPCount
-
-	err = db.conn().Query(ctx, db.flowReportTopDestinationsUplinkStmt, filters).GetAll(&destinationsUplink)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	destinationsUplink, err := queryAll(ctx, db.reader(), flowReportTopDestinationsUplinkSQL, scanFlowReportIPCount, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action)
+	if err != nil {
 		recordSpanError(span, err)
 
 		return nil, nil, fmt.Errorf("top destinations uplink query failed: %w", err)
@@ -515,17 +382,46 @@ func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportF
 	return protocols, destinationsUplink, nil
 }
 
-func insertFlowReportOfKnownIMSI(ctx context.Context, tx *sqlair.TX, stmt *sqlair.Statement, fr *dbwriter.FlowReport) (bool, error) {
-	var outcome sqlair.Outcome
-
-	if err := tx.Query(ctx, stmt, fr).Get(&outcome); err != nil {
+func insertFlowReportOfKnownIMSI(ctx context.Context, tx *sql.Tx, fr *dbwriter.FlowReport) (bool, error) {
+	res, err := tx.ExecContext(ctx, insertFlowReportOfKnownIMSISQL, fr.SubscriberID, fr.SourceIP, fr.DestinationIP, fr.SourcePort, fr.DestinationPort, fr.Protocol, fr.Packets, fr.Bytes, fr.StartTime, fr.EndTime, fr.Direction, fr.Action, fr.SubscriberID, fr.SubscriberID)
+	if err != nil {
 		return false, err
 	}
 
-	n, err := outcome.Result().RowsAffected()
+	n, err := res.RowsAffected()
 	if err != nil {
 		return false, err
 	}
 
 	return n > 0, nil
+}
+
+func scanFlowReport(row scanner) (dbwriter.FlowReport, error) {
+	var v dbwriter.FlowReport
+
+	if err := row.Scan(&v.ID, &v.SubscriberID, &v.SourceIP, &v.DestinationIP, &v.SourcePort, &v.DestinationPort, &v.Protocol, &v.Packets, &v.Bytes, &v.StartTime, &v.EndTime, &v.Direction, &v.Action); err != nil {
+		return dbwriter.FlowReport{}, err
+	}
+
+	return v, nil
+}
+
+func scanFlowReportProtocolCount(row scanner) (FlowReportProtocolCount, error) {
+	var v FlowReportProtocolCount
+
+	if err := row.Scan(&v.Protocol, &v.Count); err != nil {
+		return FlowReportProtocolCount{}, err
+	}
+
+	return v, nil
+}
+
+func scanFlowReportIPCount(row scanner) (FlowReportIPCount, error) {
+	var v FlowReportIPCount
+
+	if err := row.Scan(&v.IP, &v.Count); err != nil {
+		return FlowReportIPCount{}, err
+	}
+
+	return v, nil
 }
