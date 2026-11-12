@@ -1,0 +1,99 @@
+name: CNTi Essential
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'k8s/**'
+      - '.github/cnti/**'
+      - '.github/workflows/cnti.yaml'
+  pull_request:
+    paths:
+      - 'k8s/**'
+      - '.github/cnti/**'
+      - '.github/workflows/cnti.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: cnti-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  essential:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      MULTUS_VERSION: v4.3.2
+      CNI_PLUGINS_VERSION: v1.9.1
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Create kind cluster
+        run: |
+          mkdir -p /tmp/kind-shared-storage
+          sudo modprobe sctp
+          kind create cluster --name cnti-testsuite --config .github/cnti/kind.yaml --wait 5m
+
+      - name: Configure the Multus RAN attachment
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/cni-plugins.tgz" \
+            "https://github.com/containernetworking/plugins/releases/download/${CNI_PLUGINS_VERSION}/cni-plugins-linux-amd64-${CNI_PLUGINS_VERSION}.tgz"
+          printf '%s  %s\n' b98f74a0f8522f0a83867178729c1aa70f2158f90c45a2ca8fa791db1c76b303 "$RUNNER_TEMP/cni-plugins.tgz" | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/cni"
+          tar -xzf "$RUNNER_TEMP/cni-plugins.tgz" -C "$RUNNER_TEMP/cni" ./macvlan ./static ./tuning
+
+          # The shipped NetworkAttachmentDefinition uses eth1 on each node.
+          docker network create ella-ran
+          for node in $(kind get nodes --name cnti-testsuite); do
+            docker network connect ella-ran "$node"
+            docker exec "$node" ip link show eth1
+            for plugin in macvlan static tuning; do
+              docker cp "$RUNNER_TEMP/cni/$plugin" "$node:/opt/cni/bin/$plugin"
+            done
+          done
+
+          curl -fsSL --retry 3 "https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/${MULTUS_VERSION}/deployments/multus-daemonset-thick.yml" |
+            sed "s|multus-cni:snapshot-thick|multus-cni:${MULTUS_VERSION}-thick|g" |
+            kubectl apply -f -
+          kubectl -n kube-system rollout status daemonset/kube-multus-ds --timeout=5m
+
+      - name: Configure shared test storage
+        run: |
+          # Let the volume follow the pod during the node-drain test.
+          kubectl -n local-path-storage patch configmap local-path-config --type merge \
+            -p '{"data":{"config.json":"{\"nodePathMap\":[],\"sharedFileSystemPath\":\"/var/local-path-provisioner\"}"}}'
+          kubectl -n local-path-storage rollout restart deployment/local-path-provisioner
+          kubectl -n local-path-storage rollout status deployment/local-path-provisioner --timeout=2m
+
+      - name: Render Ella Core manifests
+        run: |
+          mkdir -p .github/cnti/rendered
+          kubectl kustomize k8s > .github/cnti/rendered/ella-core.yaml
+
+      - name: Run CNTi essential tests
+        uses: lfn-cnti/testsuite-action@3c0e163cbbdde302cdd9abb9dbe8c2cbd6a72c71 # v1.4.0
+        with:
+          version: v2.4.1
+          cnf_config: .github/cnti/cnti-testsuite.yaml
+          create_kind_cluster: false
+          install_timeout: 600
+          tests: cert
+          badge_branch: ${{ github.ref_name == github.event.repository.default_branch && 'badges' || '' }}
+
+      - name: Collect deployment diagnostics
+        if: failure()
+        run: |
+          kubectl get pods -A -o wide
+          kubectl -n ella logs statefulset/ella-core --tail=100 || true
+          kubectl -n ella get events --sort-by=.lastTimestamp | tail -40
