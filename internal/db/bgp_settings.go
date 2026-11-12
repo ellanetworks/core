@@ -61,17 +61,14 @@ func (db *Database) InitializeBGPSettings(ctx context.Context) error {
 	return db.UpdateBGPSettings(ctx, defaultBGPSettings())
 }
 
-func (db *Database) GetBGPSettings(ctx context.Context) (*BGPSettings, error) {
-	ctx, span, timer := startDBQuery(ctx, BGPSettingsTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetBGPSettings(ctx context.Context) (_ *BGPSettings, err error) {
+	ctx, finish := startDBQuery(ctx, BGPSettingsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	var bgpSettings BGPSettings
 
-	err := db.reader().QueryRowContext(ctx, getBGPSettingsSQL).Scan(&bgpSettings.Enabled, &bgpSettings.LocalAS, &bgpSettings.RouterID, &bgpSettings.ListenAddress)
+	err = db.reader().QueryRowContext(ctx, getBGPSettingsSQL).Scan(&bgpSettings.Enabled, &bgpSettings.LocalAS, &bgpSettings.RouterID, &bgpSettings.ListenAddress)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -87,15 +84,12 @@ func (db *Database) IsBGPEnabled(ctx context.Context) (bool, error) {
 	return settings.Enabled, nil
 }
 
-func (db *Database) UpdateBGPSettings(ctx context.Context, settings *BGPSettings) error {
-	ctx, span, timer := startDBQuery(ctx, BGPSettingsTableName, "UPSERT", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) UpdateBGPSettings(ctx context.Context, settings *BGPSettings) (err error) {
+	ctx, finish := startDBQuery(ctx, BGPSettingsTableName, "UPSERT")
+	defer func() { finish(err) }()
 
-	_, err := db.applyUpdateBGPSettings(ctx, settings)
+	_, err = db.applyUpdateBGPSettings(ctx, settings)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 

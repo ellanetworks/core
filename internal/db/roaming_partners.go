@@ -15,9 +15,6 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/pki"
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -324,14 +321,9 @@ func NormalizeAPIRoot(raw string) string {
 	return strings.TrimRight(strings.TrimSpace(raw), "/")
 }
 
-func (db *Database) ListRoamingPartners(ctx context.Context) ([]RoamingPartner, error) {
-	ctx, span := startRoamingPartnersSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RoamingPartnersTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(RoamingPartnersTableName, "select").Inc()
+func (db *Database) ListRoamingPartners(ctx context.Context) (_ []RoamingPartner, err error) {
+	ctx, finish := startDBQuery(ctx, RoamingPartnersTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
 		return nil, nil
@@ -339,21 +331,15 @@ func (db *Database) ListRoamingPartners(ctx context.Context) ([]RoamingPartner, 
 
 	partners, err := db.listRoamingPartners(ctx, db.reader())
 	if err != nil {
-		recordSpanError(span, err)
 		return nil, err
 	}
 
 	return partners, nil
 }
 
-func (db *Database) GetRoamingPartner(ctx context.Context, id string) (*RoamingPartner, error) {
-	ctx, span := startRoamingPartnersSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RoamingPartnersTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(RoamingPartnersTableName, "select").Inc()
+func (db *Database) GetRoamingPartner(ctx context.Context, id string) (_ *RoamingPartner, err error) {
+	ctx, finish := startDBQuery(ctx, RoamingPartnersTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
 		return nil, ErrNotFound
@@ -361,10 +347,6 @@ func (db *Database) GetRoamingPartner(ctx context.Context, id string) (*RoamingP
 
 	partner, err := db.getRoamingPartner(ctx, db.reader(), id)
 	if err != nil {
-		if !errors.Is(err, ErrNotFound) {
-			recordSpanError(span, err)
-		}
-
 		return nil, err
 	}
 
@@ -379,38 +361,26 @@ func (db *Database) UpdateRoamingPartner(ctx context.Context, partner *RoamingPa
 	return db.writeRoamingPartner(ctx, "UPDATE", opUpdateRoamingPartner, partner)
 }
 
-func (db *Database) writeRoamingPartner(ctx context.Context, operation string, op *ChangesetOp[roamingPartnerWrite, struct{}], partner *RoamingPartner) error {
+func (db *Database) writeRoamingPartner(ctx context.Context, operation string, op *ChangesetOp[roamingPartnerWrite, struct{}], partner *RoamingPartner) (err error) {
 	if err := partner.Validate(); err != nil {
 		return err
 	}
 
-	ctx, span := startRoamingPartnersSpan(ctx, operation)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RoamingPartnersTableName, strings.ToLower(operation)))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(RoamingPartnersTableName, strings.ToLower(operation)).Inc()
+	ctx, finish := startDBQuery(ctx, RoamingPartnersTableName, operation)
+	defer func() { finish(err) }()
 
 	if _, err := op.Invoke(ctx, db, &roamingPartnerWrite{Partner: *partner}); err != nil {
-		recordSpanError(span, err)
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) DeleteRoamingPartner(ctx context.Context, id string) error {
-	ctx, span := startRoamingPartnersSpan(ctx, "DELETE")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RoamingPartnersTableName, "delete"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(RoamingPartnersTableName, "delete").Inc()
+func (db *Database) DeleteRoamingPartner(ctx context.Context, id string) (err error) {
+	ctx, finish := startDBQuery(ctx, RoamingPartnersTableName, "DELETE")
+	defer func() { finish(err) }()
 
 	if _, err := opDeleteRoamingPartner.Invoke(ctx, db, &stringPayload{Value: id}); err != nil {
-		recordSpanError(span, err)
 		return err
 	}
 
@@ -746,14 +716,9 @@ func (db *Database) SetVisitorDeregistering(ctx context.Context, imsi string, un
 	return db.setWithdrawing(ctx, opSetVisitorDeregistering, VisitorsTableName, imsi, until)
 }
 
-func (db *Database) setWithdrawing(ctx context.Context, op *ChangesetOp[withdrawingPayload, struct{}], table, key string, until time.Time) error {
-	ctx, span := startRoamingPartnersSpan(ctx, "WITHDRAW")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(table, "update"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(table, "update").Inc()
+func (db *Database) setWithdrawing(ctx context.Context, op *ChangesetOp[withdrawingPayload, struct{}], table, key string, until time.Time) (err error) {
+	ctx, finish := startDBQuery(ctx, table, "UPDATE")
+	defer func() { finish(err) }()
 
 	payload := &withdrawingPayload{Key: key}
 	if !until.IsZero() {
@@ -761,7 +726,6 @@ func (db *Database) setWithdrawing(ctx context.Context, op *ChangesetOp[withdraw
 	}
 
 	if _, err := op.Invoke(ctx, db, payload); err != nil {
-		recordSpanError(span, err)
 		return err
 	}
 
@@ -800,22 +764,6 @@ func (db *Database) updateOne(ctx context.Context, query string, args ...any) er
 	}
 
 	return nil
-}
-
-func startRoamingPartnersSpan(ctx context.Context, operation string) (context.Context, trace.Span) {
-	querySummary := fmt.Sprintf("%s %s", operation, RoamingPartnersTableName)
-
-	return tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName(operation),
-			semconv.DBCollectionName(RoamingPartnersTableName),
-		),
-	)
 }
 
 func scanRoamingPartner(row scanner) (RoamingPartner, error) {

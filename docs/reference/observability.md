@@ -63,13 +63,23 @@ These metrics are used to monitor the health of the system and the performance o
 | app_api_request_duration_seconds      | HTTP request duration histogram in seconds    | Histogram |
 | app_api_authentication_attempts_total | Total number of authentication attempts by type and result         | Counter |
 | app_database_storage_bytes | The total storage used by the database in bytes. This is the size of the database file on disk. | Gauge |
-| app_database_queries_total | Total number of database queries by table and operation | Counter |
-| app_database_query_duration_seconds | Duration of database queries | Histogram |
+| app_database_queries_total | Database queries, labeled by `table`, `operation`, and `error_type`. See [Database query labels](#database-query-labels). | Counter |
+| app_database_query_duration_seconds | Database query duration in seconds, labeled by `table` and `operation`. | Histogram |
 | app_raft_changeset_bytes_total | SQLite changeset bytes applied through the Raft FSM. Emitted only when clustering is enabled. | Counter |
 | app_radio_events_dropped_total | Radio events not written to the database because the write buffer was full. | Counter |
 
 !!! note
     When clustering is enabled, Ella Core also exports the full [hashicorp/raft](https://github.com/hashicorp/raft) metrics suite (prefix `raft_`).
+
+### Database query labels
+
+| Label | Values |
+|---|---|
+| `table` | Database table the query targets. |
+| `operation` | `select`, `insert`, `update`, `delete`, `upsert`, `replace`, `rotate`, or `batch_insert`. |
+| `error_type` | Empty when the query succeeded or returned a result such as not found, already exists, or a conflict. Otherwise the SQLite [extended result code](https://www.sqlite.org/rescode.html) (for example `5` for `SQLITE_BUSY`, `2067` for `SQLITE_CONSTRAINT_UNIQUE`), a named error class (for example `propose_timeout`, `not_leader`, `timeout`), or `_OTHER`. |
+
+The `error.type` and `db.response.status_code` span attributes carry the same values as `error_type`.
 
 ## 2. Logs
 
@@ -97,6 +107,7 @@ Traces are collected for the following components:
  - **Diameter**: Traces for Diameter requests sent and received, continued across peers.
  - **API**: Traces for HTTP requests to the REST API, except `/api/v1/livez` and `/api/v1/readyz`.
  - **Cluster**: Traces for requests forwarded between nodes in a high-availability deployment.
+ - **Database**: Traces for database queries, following the [OpenTelemetry database semantic conventions](https://opentelemetry.io/docs/specs/semconv/db/database-spans/).
 
 For more information on configuring tracing in Ella Core, refer to the [Configuration File](config_file.md) documentation.
 
@@ -216,6 +227,12 @@ Compare heap profiles in Pyroscope to find what is retaining memory. Tune the 1 
 Warning. Goroutine count is forecast to exceed 10,000 within 48 hours, based on the last hour of growth, sustained for 30 minutes.
 
 This indicates a resource leak in Ella Core. Capture a goroutine profile from Pyroscope and report it.
+
+#### High Database Error Rate
+
+Warning. More than 5% of database queries fail over 5 minutes.
+
+Break down `app_database_queries_total` by `table`, `operation`, and `error_type` to identify the failing queries.
 
 #### High Database Query Latency (P99)
 

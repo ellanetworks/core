@@ -8,12 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
-
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const SMSWaitingRetention = 7 * 24 * time.Hour
@@ -80,14 +75,9 @@ type smsWaitingCutoffPayload struct {
 	Cutoff int64 `json:"cutoff"`
 }
 
-func (db *Database) ListAllSMSWaiting(ctx context.Context) ([]SMSWaiting, error) {
-	ctx, span := startSMSWaitingSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SMSWaitingTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SMSWaitingTableName, "select").Inc()
+func (db *Database) ListAllSMSWaiting(ctx context.Context) (_ []SMSWaiting, err error) {
+	ctx, finish := startDBQuery(ctx, SMSWaitingTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, smsSchema) {
 		return nil, nil
@@ -95,8 +85,6 @@ func (db *Database) ListAllSMSWaiting(ctx context.Context) ([]SMSWaiting, error)
 
 	rows, err := queryAll(ctx, db.reader(), listAllSMSWaitingSQL, scanSMSWaitingRow)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -108,7 +96,6 @@ func (db *Database) ListAllSMSWaiting(ctx context.Context) ([]SMSWaiting, error)
 
 	centres, err := queryAll(ctx, db.reader(), listAllSMSWaitingCentresSQL, scanSMSWaitingCentre)
 	if err != nil {
-		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -131,14 +118,9 @@ func (db *Database) ListAllSMSWaiting(ctx context.Context) ([]SMSWaiting, error)
 	return waiting, nil
 }
 
-func (db *Database) GetSMSWaiting(ctx context.Context, imsi string) (*SMSWaiting, error) {
-	ctx, span := startSMSWaitingSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SMSWaitingTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SMSWaitingTableName, "select").Inc()
+func (db *Database) GetSMSWaiting(ctx context.Context, imsi string) (_ *SMSWaiting, err error) {
+	ctx, finish := startDBQuery(ctx, SMSWaitingTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, smsSchema) {
 		return nil, ErrNotFound
@@ -150,15 +132,11 @@ func (db *Database) GetSMSWaiting(ctx context.Context, imsi string) (*SMSWaiting
 			return nil, ErrNotFound
 		}
 
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	centres, err := queryAll(ctx, db.reader(), listSMSWaitingCentresSQL, scanSMSWaitingCentre, imsi)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -175,27 +153,21 @@ func (db *Database) GetSMSWaiting(ctx context.Context, imsi string) (*SMSWaiting
 	return w, nil
 }
 
-func (db *Database) RecordSMSWaiting(ctx context.Context, u SMSWaitingUpdate) error {
+func (db *Database) RecordSMSWaiting(ctx context.Context, u SMSWaitingUpdate) (err error) {
 	if u.IMSI == "" || u.ServiceCentre == "" {
 		return fmt.Errorf("IMSI and service centre are required")
 	}
 
-	ctx, span := startSMSWaitingSpan(ctx, "UPSERT")
-	defer span.End()
+	ctx, finish := startDBQuery(ctx, SMSWaitingTableName, "UPSERT")
+	defer func() { finish(err) }()
 
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SMSWaitingTableName, "upsert"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SMSWaitingTableName, "upsert").Inc()
-
-	_, err := opRecordSMSWaiting.Invoke(ctx, db, &recordSMSWaitingPayload{
+	_, err = opRecordSMSWaiting.Invoke(ctx, db, &recordSMSWaitingPayload{
 		Imsi:          u.IMSI,
 		ServiceCentre: u.ServiceCentre,
 		MemoryFull:    u.MemoryFull,
 		UpdatedAt:     time.Now().Unix(),
 	})
 	if err != nil {
-		recordSpanError(span, err)
 		return err
 	}
 
@@ -214,40 +186,26 @@ func (db *Database) DeleteSMSWaiting(ctx context.Context, imsi string) error {
 	return db.invokeSMSWaiting(ctx, "DELETE", opDeleteSMSWaiting, &smsWaitingCentrePayload{Imsi: imsi})
 }
 
-func (db *Database) DeleteStaleSMSWaiting(ctx context.Context, maxAge time.Duration) error {
-	ctx, span := startSMSWaitingSpan(ctx, "DELETE")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SMSWaitingTableName, "delete"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SMSWaitingTableName, "delete").Inc()
+func (db *Database) DeleteStaleSMSWaiting(ctx context.Context, maxAge time.Duration) (err error) {
+	ctx, finish := startDBQuery(ctx, SMSWaitingTableName, "DELETE")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, smsSchema) {
 		return nil
 	}
 
 	if _, err := opDeleteStaleSMSWaiting.Invoke(ctx, db, &smsWaitingCutoffPayload{Cutoff: time.Now().Add(-maxAge).Unix()}); err != nil {
-		recordSpanError(span, err)
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) invokeSMSWaiting(ctx context.Context, operation string, op *ChangesetOp[smsWaitingCentrePayload, struct{}], p *smsWaitingCentrePayload) error {
-	ctx, span := startSMSWaitingSpan(ctx, operation)
-	defer span.End()
-
-	label := strings.ToLower(operation)
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SMSWaitingTableName, label))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SMSWaitingTableName, label).Inc()
+func (db *Database) invokeSMSWaiting(ctx context.Context, operation string, op *ChangesetOp[smsWaitingCentrePayload, struct{}], p *smsWaitingCentrePayload) (err error) {
+	ctx, finish := startDBQuery(ctx, SMSWaitingTableName, operation)
+	defer func() { finish(err) }()
 
 	if _, err := op.Invoke(ctx, db, p); err != nil {
-		recordSpanError(span, err)
 		return err
 	}
 
@@ -318,22 +276,6 @@ func (db *Database) applyDeleteStaleSMSWaiting(ctx context.Context, p *smsWaitin
 	}
 
 	return nil, nil
-}
-
-func startSMSWaitingSpan(ctx context.Context, operation string) (context.Context, trace.Span) {
-	querySummary := fmt.Sprintf("%s %s", operation, SMSWaitingTableName)
-
-	return tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName(operation),
-			semconv.DBCollectionName(SMSWaitingTableName),
-		),
-	)
 }
 
 func scanSMSWaitingRow(row scanner) (smsWaitingRow, error) {

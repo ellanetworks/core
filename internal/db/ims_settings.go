@@ -14,9 +14,6 @@ import (
 
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/internal/diameternode"
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const IMSSettingsTableName = "ims_settings"
@@ -109,25 +106,19 @@ func NormalizeIMSHomeDomain(domain, mcc, mnc string) (string, error) {
 	return domain, nil
 }
 
-func (db *Database) GetIMSSettings(ctx context.Context) (*IMSSettings, error) {
-	ctx, span := startIMSSettingsSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSSettingsTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSSettingsTableName, "select").Inc()
+func (db *Database) GetIMSSettings(ctx context.Context) (_ *IMSSettings, err error) {
+	ctx, finish := startDBQuery(ctx, IMSSettingsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	settings, err := db.imsSettings(ctx)
 	if err != nil {
-		recordSpanError(span, err)
 		return nil, err
 	}
 
 	return settings, nil
 }
 
-func (db *Database) UpdateIMSConfiguration(ctx context.Context, settings *IMSSettings, pcscfAddresses []string) error {
+func (db *Database) UpdateIMSConfiguration(ctx context.Context, settings *IMSSettings, pcscfAddresses []string) (err error) {
 	if err := ValidatePCSCFAddresses(pcscfAddresses); err != nil {
 		return err
 	}
@@ -147,18 +138,12 @@ func (db *Database) UpdateIMSConfiguration(ctx context.Context, settings *IMSSet
 		return err
 	}
 
-	ctx, span := startIMSSettingsSpan(ctx, "UPSERT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSSettingsTableName, "upsert"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSSettingsTableName, "upsert").Inc()
+	ctx, finish := startDBQuery(ctx, IMSSettingsTableName, "UPSERT")
+	defer func() { finish(err) }()
 
 	payload := &imsSettingsPayload{Settings: IMSSettings{HomeDomain: domain, AdvertiseVoice: settings.AdvertiseVoice, RestrictPeers: settings.RestrictPeers}, PCSCFAddresses: addresses}
 
 	if _, err := opUpdateIMSSettings.Invoke(ctx, db, payload); err != nil {
-		recordSpanError(span, err)
 		return err
 	}
 
@@ -236,20 +221,4 @@ func (db *Database) applyUpdateIMSSettings(ctx context.Context, p *imsSettingsPa
 	}
 
 	return nil, nil
-}
-
-func startIMSSettingsSpan(ctx context.Context, operation string) (context.Context, trace.Span) {
-	querySummary := fmt.Sprintf("%s %s", operation, IMSSettingsTableName)
-
-	return tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName(operation),
-			semconv.DBCollectionName(IMSSettingsTableName),
-		),
-	)
 }

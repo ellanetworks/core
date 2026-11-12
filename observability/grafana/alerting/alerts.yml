@@ -489,6 +489,56 @@ groups:
           summary: Goroutine count is forecast to exceed 10,000.
           description: "Goroutines are forecast to reach {{ $values.A.Value | printf \"%.0f\" }} within 48 hours, based on the last hour of growth. This indicates a resource leak in Ella Core. Capture a goroutine profile from Pyroscope and report it."
 
+      - uid: ella-db-error-rate
+        title: High Database Error Rate
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: mimir
+            model:
+              expr: |
+                (
+                  (sum by (instance) (rate(app_database_queries_total{error_type!=""}[5m])) or sum by (instance) (rate(app_database_queries_total[5m])) * 0)
+                  /
+                  clamp_min(sum by (instance) (rate(app_database_queries_total[5m])), 1e-10)
+                ) * 100
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              conditions:
+                - evaluator:
+                    type: gt
+                    params:
+                      - 5
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+              expression: A
+        noDataState: OK
+        execErrState: OK
+        for: 5m
+        labels:
+          severity: warning
+          component: db
+        annotations:
+          runbook_url: https://docs.ellanetworks.com/core/reference/observability/#high-database-error-rate
+          summary: Database error rate exceeds 5%.
+          description: "Database error rate is {{ $values.A.Value | printf \"%.1f\" }}%. Check `app_database_queries_total` by table, operation, and error_type to identify the failing queries."
+
       - uid: ella-db-query-latency
         title: High Database Query Latency (P99)
         condition: C

@@ -12,9 +12,6 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/pki"
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -165,11 +162,9 @@ func (db *Database) checkSEPPIdentity(ctx context.Context, s *SEPPIdentity) erro
 	return nil
 }
 
-func (db *Database) GetSEPPCA(ctx context.Context) (*SEPPCA, error) {
-	ctx, span := startSEPPIdentitySpan(ctx, "SELECT", SEPPCATableName)
-	defer span.End()
-
-	DBQueriesTotal.WithLabelValues(SEPPCATableName, "select").Inc()
+func (db *Database) GetSEPPCA(ctx context.Context) (_ *SEPPCA, err error) {
+	ctx, finish := startDBQuery(ctx, SEPPCATableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
 		return nil, ErrNotFound
@@ -181,22 +176,15 @@ func (db *Database) GetSEPPCA(ctx context.Context) (*SEPPCA, error) {
 			return nil, ErrNotFound
 		}
 
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return &ca, nil
 }
 
-func (db *Database) GetSEPPIdentity(ctx context.Context, seppID int) (*SEPPIdentity, error) {
-	ctx, span := startSEPPIdentitySpan(ctx, "SELECT", SEPPIdentitiesTableName)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SEPPIdentitiesTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SEPPIdentitiesTableName, "select").Inc()
+func (db *Database) GetSEPPIdentity(ctx context.Context, seppID int) (_ *SEPPIdentity, err error) {
+	ctx, finish := startDBQuery(ctx, SEPPIdentitiesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
 		return nil, ErrNotFound
@@ -208,19 +196,15 @@ func (db *Database) GetSEPPIdentity(ctx context.Context, seppID int) (*SEPPIdent
 			return nil, ErrNotFound
 		}
 
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return &identity, nil
 }
 
-func (db *Database) ListSEPPIdentities(ctx context.Context) ([]SEPPIdentity, error) {
-	ctx, span := startSEPPIdentitySpan(ctx, "SELECT", SEPPIdentitiesTableName)
-	defer span.End()
-
-	DBQueriesTotal.WithLabelValues(SEPPIdentitiesTableName, "select").Inc()
+func (db *Database) ListSEPPIdentities(ctx context.Context) (_ []SEPPIdentity, err error) {
+	ctx, finish := startDBQuery(ctx, SEPPIdentitiesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
 		return nil, nil
@@ -228,26 +212,21 @@ func (db *Database) ListSEPPIdentities(ctx context.Context) ([]SEPPIdentity, err
 
 	identities, err := queryAll(ctx, db.reader(), listSEPPIdentitiesSQL, scanSEPPIdentity)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return identities, nil
 }
 
-func (db *Database) PutSEPPIdentity(ctx context.Context, identity *SEPPIdentity) error {
+func (db *Database) PutSEPPIdentity(ctx context.Context, identity *SEPPIdentity) (err error) {
 	if err := identity.Validate(); err != nil {
 		return err
 	}
 
-	ctx, span := startSEPPIdentitySpan(ctx, "UPSERT", SEPPIdentitiesTableName)
-	defer span.End()
-
-	DBQueriesTotal.WithLabelValues(SEPPIdentitiesTableName, "upsert").Inc()
+	ctx, finish := startDBQuery(ctx, SEPPIdentitiesTableName, "UPSERT")
+	defer func() { finish(err) }()
 
 	if _, err := opPutSEPPIdentity.Invoke(ctx, db, identity); err != nil {
-		recordSpanError(span, err)
 		return err
 	}
 
@@ -459,22 +438,6 @@ func (db *Database) DeleteSEPPIdentity(ctx context.Context, seppID int) error {
 	_, err := opDeleteSEPPIdentity.Invoke(ctx, db, &SEPPIdentity{SEPPID: seppID})
 
 	return err
-}
-
-func startSEPPIdentitySpan(ctx context.Context, operation, table string) (context.Context, trace.Span) {
-	querySummary := fmt.Sprintf("%s %s", operation, table)
-
-	return tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName(operation),
-			semconv.DBCollectionName(table),
-		),
-	)
 }
 
 func scanSEPPIdentity(row scanner) (SEPPIdentity, error) {
