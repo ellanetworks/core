@@ -75,7 +75,6 @@ ExecStart=ip -n n3ns addr add 10.202.0.5/24 dev n3-ran-veth
 ExecStart=ip -n n3ns link set lo up
 ExecStart=ip -n n3ns link set dev n3-ran-veth up
 ExecStart=ip link set dev n3-upf-veth up
-ExecStart=ethtool -K eth0 gro off
 ExecStart=ip netns exec n3ns ethtool -K n3-ran-veth tso off gso off
 ExecStart=/usr/local/bin/ocudu_performance -y
 ExecStop=-ip netns delete n3ns

@@ -8,6 +8,7 @@ Release notes for every Ella Core release since v1.0.0. Each page covers a minor
 
 | Release | Latest patch | Released on |
 |---|---|---|
+| [v1.22](v1.22.md) | v1.22.0 | November 11, 2026 |
 | [v1.21](v1.21.md) | v1.21.0 | November 3, 2026 |
 | [v1.20](v1.20.md) | v1.20.0 | October 19, 2026 |
 | [v1.19](v1.19.md) | v1.19.0 | September 24, 2026 |

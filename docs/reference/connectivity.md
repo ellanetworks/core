@@ -12,6 +12,7 @@ Ella Core uses 4 different interfaces by default:
 | N2 / S1-MME | Control plane between Ella Core and the radio | SCTP, `38412` (5G) and `36412` (4G) by default | Yes | Yes | IPv4, IPv6. |
 | N3 / S1-U | User plane between Ella Core and the radio | UDP `2152` | Yes | Yes | IPv4, IPv6. |
 | N6 / SGi | User plane between Ella Core and the internet. Additional N6 interfaces can be set in `interfaces.network-instances`. | — | Yes | No | Not configurable |
+| Cluster | Raft consensus and cluster HTTP between Ella Core nodes, over mTLS, when clustering is enabled | TCP, the port of `cluster.bind-address` | No | Yes | IPv4, IPv6 |
 | SGd / S6c | SMS between Ella Core and the SMSCs, when SMS is enabled | SCTP, outbound to each SMSC node's port (`3868` by default) | No | No | IPv4, IPv6 |
 | Diameter | Diameter from SMSC nodes, the IMS, including its IP-SM-GW, and roaming Diameter peers | SCTP and TCP, `interfaces.diameter.port` (`3868` by default). SMSC nodes and roaming peers over SCTP; IMS over SCTP or TCP. | Yes | Yes | IPv4, IPv6 |
 | S6a | 4G roaming between Ella Core and the HSS or Diameter Edge Agent of roaming partners | SCTP, outbound to each roaming Diameter peer's port (`3868` by default) | No | No | IPv4, IPv6 |
@@ -71,7 +72,30 @@ The datapath attaches to N3 and every N6 interface at the hook set by `datapath.
 
 - **veth, `xdp-native`**: an XDP program must be attached to the peer interface, see the [explanation](../explanation/user_plane_packet_processing_with_ebpf.md#xdp-redirect-on-veth-pairs) and the [setup guide](../how_to/native_xdp_veth.md).
 - **veth, `xdp-generic`**: TX checksum offload must be disabled on both ends (`ethtool -K <veth> tx off`), or decapsulated packets are silently corrupted.
-- **Any interface, `tcx` or `xdp-generic`**: the interface must not deliver merged packets, see [Disable merged packets](../how_to/disable_merged_packets.md). 
+- **veth, `tcx` or `xdp-generic`**: segmentation offload must be disabled on the peer (`ethtool -K <peer> tso off gso off`), or the peer delivers merged packets that are dropped.
+- **Any interface, `tcx`**: Ella Core turns off GRO, hardware GRO and LRO on the interface before attaching. A feature that the driver or hypervisor fixes on stays on, and Ella Core logs a warning.
+- **Any interface, `xdp-generic`**: the kernel skips GRO and turns off hardware GRO and LRO on the interface while the program is attached.
+- **macvlan or ipvlan, `tcx` or `xdp-generic`**: packets are merged on the lower device, which Ella Core does not change. GRO, hardware GRO and LRO must be off on the lower device. Ella Core logs a warning at startup.
+- **Merged packets**: dropped, and counted in `app_upf_datapath_drop_total` with reason `encap_gso` or `decap_gso`.
+
+## MTU
+
+The MTU of a data network is the largest packet a subscriber sends or receives. On N3, each of these packets is carried in GTP-U ([TS 29.281](https://www.etsi.org/deliver/etsi_ts/129200_129299/129281/)):
+
+| Header | Size (bytes) |
+| ------ | ------------ |
+| Outer IPv4 / IPv6 | 20 / 40 |
+| UDP | 8 |
+| GTP-U | 8, plus 4 when the sequence number, N-PDU number or next extension header field is present, plus any extension headers |
+
+The data network MTU must not exceed the MTU of the path between the radio and Ella Core, minus the GTP-U overhead and the overhead of every tunnel on that path, such as IPsec.
+
+N2 / S1-MME signalling crosses the same tunnels. When a tunnel drops larger packets without reporting its MTU, the route from Ella Core to the radios must have an MTU that fits the tunnel.
+
+| Setting | Default |
+| ------- | ------- |
+| Data network MTU | `1400` |
+| Configuration | The data network's page in the UI, or the [Networking API](api/networking.md) |
 
 ## NAT
 
