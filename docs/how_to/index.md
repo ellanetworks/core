@@ -8,12 +8,12 @@ Initial setup and configuration of Ella Core.
 
 - [Install](install.md)
 - [Deploy a High Availability Cluster](deploy_ha_cluster.md)
+- [Deploy in the Cloud](deploy_in_the_cloud.md)
 - [Co-host with OCUDU](co_host_with_ocudu.md)
 - [Co-host with Ella IMS and Ella SMSC](co_host_with_ims_and_smsc.md)
 - [Use VLANs](vlan.md)
 - [Use VRFs](vrf.md)
 - [Use native XDP with veth interfaces](native_xdp_veth.md)
-- [Disable Merged Packets](disable_merged_packets.md)
 - [Integrate with a Radio](integrate_with_radio.md)
 - [Integrate with an IMS](integrate_with_ims.md)
 - [Enable SMS](enable_sms.md)
@@ -27,7 +27,7 @@ Ongoing management and maintenance of a running Ella Core deployment.
 
 - [Backup and Restore](backup_and_restore.md)
 - [Scale Up a High Availability Cluster](scale_up_ha_cluster.md)
-- [Perform a Rolling Upgrade](rolling_upgrade.md)
+- [Upgrade](upgrade.md)
 - [Tune Network Performance](performance_tuning.md)
 - [Advertise Subscriber Routes with BGP](bgp.md)
 - [Enable UE-to-UE Communication](enable_ue_to_ue.md)

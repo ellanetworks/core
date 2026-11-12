@@ -147,7 +147,7 @@ var Definitions = map[Name]Definition{
 	Datapath5GVRF:    {Profile: ProfileFamilies, Timeout: "15m", NeedsTester: true, Setup: vrfImageBuild, Topology: "vrf"},
 	HA:               {Profile: ProfileClusterFamilies, Timeout: "15m"},
 	HAVRF:            {Profile: ProfileMinimal, Timeout: "15m", Setup: vrfImageBuild, Topology: "vrf"},
-	RollingUpgrade:   {Profile: ProfileMinimal, Timeout: "15m", Setup: "integration/compose/ha-rolling/build-images.sh"},
+	RollingUpgrade:   {Profile: ProfileMinimal, Timeout: "30m", NeedsTester: true, Setup: "integration/compose/ha-rolling/build-images.sh"},
 	LegacyConversion: {Profile: ProfileMinimal, Timeout: "30m", Setup: "LEGACY_CHAIN=1 integration/compose/ha-rolling/build-images.sh"},
 	HA3GPP4G:         {Profile: ProfileMinimal, Timeout: "15m", NeedsTester: true},
 	HA3GPP5G:         {Profile: ProfileMinimal, Timeout: "15m", NeedsTester: true},

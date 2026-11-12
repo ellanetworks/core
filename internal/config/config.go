@@ -181,7 +181,7 @@ type TelemetryYaml struct {
 }
 
 type ClusterYaml struct {
-	Enabled           bool     `yaml:"enabled"`
+	Enabled           *bool    `yaml:"enabled"`
 	NodeID            int      `yaml:"node-id"`
 	BindAddress       string   `yaml:"bind-address"`
 	AdvertiseAddress  string   `yaml:"advertise-address"`
@@ -962,7 +962,7 @@ const maxClusterNodeID = 63
 func warnUnclusteredSettings(c ClusterYaml) {
 	set := make([]string, 0, 5)
 
-	if c.Enabled {
+	if c.Enabled != nil && *c.Enabled {
 		set = append(set, "enabled")
 	}
 
@@ -1001,7 +1001,7 @@ func warnDeprecatedClusterSettings(c ClusterYaml) {
 		logger.EllaLog.Warn("cluster.initial-suffrage is deprecated; set suffrage on the POST /api/v1/cluster/join request instead")
 	}
 
-	if !c.Enabled {
+	if c.Enabled != nil {
 		logger.EllaLog.Warn("cluster.enabled is deprecated and ignored; clustering follows cluster.bind-address, which is set on this node")
 	}
 

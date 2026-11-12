@@ -55,3 +55,10 @@ jobs:
   integration-tests:
     needs: [go-unit-test, go-vet, go-lint, image-build, image-build-tester]
     uses: ./.github/workflows/integration.yaml
+  image-publish:
+    if: github.event_name == 'push'
+    needs: [image-build, ui-e2e, integration-tests]
+    uses: ./.github/workflows/image-publish.yaml
+    with:
+      kind: main
+    secrets: inherit

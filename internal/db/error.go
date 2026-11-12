@@ -27,6 +27,7 @@ var (
 	ErrProposeTimeout           = errors.New("raft commit timeout")
 	ErrOutcomeUnknown           = ellaraft.ErrOutcomeUnknown
 	ErrMigrationPending         = errors.New("schema migration pending")
+	ErrSchemaNewerThanBinary    = errors.New("database schema is newer than this binary")
 	ErrJoinTokenAlreadyConsumed = errors.New("join token already consumed")
 	ErrJoinTokenNodeMismatch    = errors.New("join token is not registered to this node")
 	ErrNodeIdentityBound        = errors.New("node identity is already bound to a different certificate")

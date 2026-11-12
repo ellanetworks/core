@@ -112,10 +112,11 @@ type Manager struct {
 
 	callbacks atomic.Pointer[http.Handler]
 
-	reconcileMu  sync.Mutex
-	rejected     map[string]string
-	expiryLog    time.Time
-	renewAttempt time.Time
+	reconcileMu   sync.Mutex
+	rejected      map[string]string
+	expiryLog     time.Time
+	renewAttempt  time.Time
+	problemWarned bool
 }
 
 type Option func(*Manager)
@@ -218,9 +219,7 @@ func (m *Manager) reconcile(ctx context.Context) {
 
 	prev := m.snap.Swap(next)
 
-	if prev.problem != next.problem && next.problem != "" {
-		m.logger.Warn("SEPP is not operational on this node", zap.String("reason", next.problem))
-	}
+	m.logProblem(prev, next)
 
 	m.checkExpiry(next)
 	m.syncTransports(prev, next)
@@ -233,7 +232,33 @@ func (m *Manager) reconcile(ctx context.Context) {
 	m.mu.Unlock()
 }
 
-const errNoIdentity = "no SEPP certificate for this node"
+func (m *Manager) logProblem(prev, next *snapshot) {
+	if next.problem == "" {
+		m.problemWarned = false
+		return
+	}
+
+	if next.problem == errNoN32 && len(next.partners) == 0 && len(m.rejected) == 0 {
+		if prev.problem != next.problem {
+			m.logger.Debug("SEPP is not operational on this node", zap.String("reason", next.problem))
+		}
+
+		m.problemWarned = false
+
+		return
+	}
+
+	if prev.problem != next.problem || !m.problemWarned {
+		m.logger.Warn("SEPP is not operational on this node", zap.String("reason", next.problem))
+	}
+
+	m.problemWarned = true
+}
+
+const (
+	errNoIdentity = "no SEPP certificate for this node"
+	errNoN32      = "interfaces.n32 is not configured on this node"
+)
 
 func (m *Manager) load(ctx context.Context) (*snapshot, error) {
 	configs, err := m.cfg.Partners(ctx)
@@ -263,7 +288,7 @@ func (m *Manager) load(ctx context.Context) (*snapshot, error) {
 	m.rejected = rejected
 
 	if !m.cfg.N32.Enabled {
-		snap.problem = "interfaces.n32 is not configured on this node"
+		snap.problem = errNoN32
 		return snap, nil
 	}
 

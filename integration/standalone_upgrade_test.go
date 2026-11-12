@@ -38,6 +38,8 @@ func TestIntegrationStandaloneUpgradeFromRelease(t *testing.T) {
 
 	releaseIMSIs := createStandaloneSubscribers(t, ctx, node, "001019756160000", 10)
 
+	seed := seedUpgradeData(t, ctx, node)
+
 	backupPath := filepath.Join(t.TempDir(), "release-backup.tar.gz")
 
 	if err := node.CreateBackup(ctx, &client.CreateBackupParams{Path: backupPath}); err != nil {
@@ -49,6 +51,7 @@ func TestIntegrationStandaloneUpgradeFromRelease(t *testing.T) {
 	target := waitForUpgradedStandalone(t, ctx, node, baseline)
 
 	assertSubscribersPresent(t, ctx, node, releaseIMSIs, "after the upgrade")
+	assertUpgradeSeed(t, ctx, node, APIAddressForCluster(1), seed, "after the upgrade")
 
 	upgradedIMSIs := createStandaloneSubscribers(t, ctx, node, "001019756161000", 1)
 
@@ -57,6 +60,7 @@ func TestIntegrationStandaloneUpgradeFromRelease(t *testing.T) {
 
 		assertSubscribersPresent(t, ctx, node, releaseIMSIs, fmt.Sprintf("after restart %d", restart))
 		assertSubscribersPresent(t, ctx, node, upgradedIMSIs, fmt.Sprintf("after restart %d", restart))
+		assertUpgradeSeed(t, ctx, node, APIAddressForCluster(1), seed, fmt.Sprintf("after restart %d", restart))
 	}
 
 	if err := node.RestoreBackup(ctx, &client.RestoreBackupParams{Path: backupPath}); err != nil {
@@ -69,6 +73,7 @@ func TestIntegrationStandaloneUpgradeFromRelease(t *testing.T) {
 
 	assertSubscribersPresent(t, ctx, node, releaseIMSIs, "after restoring the release backup")
 	assertSubscribersAbsent(t, ctx, node, upgradedIMSIs, "after restoring the release backup")
+	assertUpgradeSeed(t, ctx, node, APIAddressForCluster(1), seed, "after restoring the release backup")
 
 	if baseline.SchemaVersion < target.SchemaVersion {
 		HALogf(t, "restored a schema-%d backup on a schema-%d build; expecting a Raft migration without a restart",
