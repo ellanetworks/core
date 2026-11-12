@@ -5,7 +5,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"net"
@@ -14,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/diameter"
 	"github.com/prometheus/client_golang/prometheus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
@@ -39,15 +37,15 @@ const (
 )
 
 const (
-	listSMSCsStmt                = "SELECT &smscRow.* FROM %s ORDER BY id"
-	listSMSCNodesStmt            = "SELECT &smscNodeRow.* FROM %s WHERE role='smsc' ORDER BY id"
-	listSMSCServiceCentresStmt   = "SELECT &smscServiceCentreRow.* FROM %s ORDER BY serviceCentre"
-	insertSMSCStmt               = "INSERT INTO %s (id, name) VALUES ($smscRow.id, $smscRow.name)"
-	deleteSMSCStmt               = "DELETE FROM %s WHERE id==$smscRow.id"
-	insertSMSCNodeStmt           = "INSERT INTO %s (id, role, diameterIdentity, address, port, smscId) VALUES ($smscNodeRow.id, 'smsc', $smscNodeRow.diameterIdentity, $smscNodeRow.address, $smscNodeRow.port, $smscNodeRow.smscId)"
-	deleteSMSCNodesStmt          = "DELETE FROM %s WHERE smscId==$smscNodeRow.smscId AND role='smsc'"
-	insertSMSCServiceCentreStmt  = "INSERT INTO %s (serviceCentre, smscId) VALUES ($smscServiceCentreRow.serviceCentre, $smscServiceCentreRow.smscId)"
-	deleteSMSCServiceCentresStmt = "DELETE FROM %s WHERE smscId==$smscServiceCentreRow.smscId"
+	listSMSCsSQL                = "SELECT id, name FROM " + SMSCsTableName + " ORDER BY id"
+	listSMSCNodesSQL            = "SELECT id, diameterIdentity, address, port, COALESCE(smscId, '') FROM " + DiameterPeersTableName + " WHERE role='smsc' ORDER BY id"
+	listSMSCServiceCentresSQL   = "SELECT serviceCentre, smscId FROM " + SMSCServiceCentresTableName + " ORDER BY serviceCentre"
+	insertSMSCSQL               = "INSERT INTO " + SMSCsTableName + " (id, name) VALUES (?, ?)"
+	deleteSMSCSQL               = "DELETE FROM " + SMSCsTableName + " WHERE id==?"
+	insertSMSCNodeSQL           = "INSERT INTO " + DiameterPeersTableName + " (id, role, diameterIdentity, address, port, smscId) VALUES (?, 'smsc', ?, ?, ?, ?)"
+	deleteSMSCNodesSQL          = "DELETE FROM " + DiameterPeersTableName + " WHERE smscId==? AND role='smsc'"
+	insertSMSCServiceCentreSQL  = "INSERT INTO " + SMSCServiceCentresTableName + " (serviceCentre, smscId) VALUES (?, ?)"
+	deleteSMSCServiceCentresSQL = "DELETE FROM " + SMSCServiceCentresTableName + " WHERE smscId==?"
 )
 
 var ErrSMSCConflict = errors.New("SMSC conflict")
@@ -67,21 +65,21 @@ type SMSCNode struct {
 }
 
 type smscRow struct {
-	ID   string `db:"id"`
-	Name string `db:"name"`
+	ID   string
+	Name string
 }
 
 type smscNodeRow struct {
-	ID               string `db:"id"`
-	DiameterIdentity string `db:"diameterIdentity"`
-	Address          string `db:"address"`
-	Port             int    `db:"port"`
-	SMSCID           string `db:"smscId"`
+	ID               string
+	DiameterIdentity string
+	Address          string
+	Port             int
+	SMSCID           string
 }
 
 type smscServiceCentreRow struct {
-	ServiceCentre string `db:"serviceCentre"`
-	SMSCID        string `db:"smscId"`
+	ServiceCentre string
+	SMSCID        string
 }
 
 func (s SMSC) Validate() error {
@@ -245,7 +243,7 @@ func (db *Database) ListSMSCs(ctx context.Context) ([]SMSC, error) {
 
 	DBQueriesTotal.WithLabelValues(SMSCsTableName, "select").Inc()
 
-	smscs, err := db.listSMSCs(ctx, db.conn())
+	smscs, err := db.listSMSCs(ctx, db.reader())
 	if err != nil {
 		recordSpanError(span, err)
 		return nil, err
@@ -315,13 +313,13 @@ func (db *Database) DeleteSMSC(ctx context.Context, id string) error {
 	return nil
 }
 
-func (db *Database) listSMSCs(ctx context.Context, runner *sqlair.DB) ([]SMSC, error) {
+func (db *Database) listSMSCs(ctx context.Context, q querier) ([]SMSC, error) {
 	if !db.appliedSchemaAtLeast(ctx, smsSchema) {
 		return nil, nil
 	}
 
 	if !db.appliedSchemaAtLeast(ctx, smscNodesSchema) {
-		peers, err := db.listLegacySMSCPeers(ctx, runner)
+		peers, err := db.listLegacySMSCPeers(ctx, q)
 		if err != nil {
 			return nil, err
 		}
@@ -329,21 +327,18 @@ func (db *Database) listSMSCs(ctx context.Context, runner *sqlair.DB) ([]SMSC, e
 		return legacySMSCs(peers), nil
 	}
 
-	var rows []smscRow
-
-	if err := runner.Query(ctx, db.listSMSCsStmt).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	rows, err := queryAll(ctx, q, listSMSCsSQL, scanSMSCRow)
+	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	var nodes []smscNodeRow
-
-	if err := runner.Query(ctx, db.listSMSCNodesStmt).GetAll(&nodes); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	nodes, err := queryAll(ctx, q, listSMSCNodesSQL, scanSMSCNodeRow)
+	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	var centres []smscServiceCentreRow
-
-	if err := runner.Query(ctx, db.listSMSCServiceCentresStmt).GetAll(&centres); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	centres, err := queryAll(ctx, q, listSMSCServiceCentresSQL, scanSMSCServiceCentreRow)
+	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -388,7 +383,7 @@ func (db *Database) applyCreateSMSC(ctx context.Context, s *SMSC) (any, error) {
 		return nil, fmt.Errorf("%w: %w", ErrSMSCConflict, err)
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.insertSMSCStmt, smscRow{ID: s.ID, Name: s.Name}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, insertSMSCSQL, s.ID, s.Name); err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
 		}
@@ -441,7 +436,7 @@ func (db *Database) applyDeleteSMSC(ctx context.Context, p *stringPayload) (any,
 		return nil, err
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.deleteSMSCStmt, smscRow{ID: p.Value}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteSMSCSQL, p.Value); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -449,11 +444,11 @@ func (db *Database) applyDeleteSMSC(ctx context.Context, p *stringPayload) (any,
 }
 
 func (db *Database) deleteSMSCChildren(ctx context.Context, id string) error {
-	if err := db.runner(ctx).Query(ctx, db.deleteSMSCServiceCentresStmt, smscServiceCentreRow{SMSCID: id}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteSMSCServiceCentresSQL, id); err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.deleteSMSCNodesStmt, smscNodeRow{SMSCID: id}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteSMSCNodesSQL, id); err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
 
@@ -464,7 +459,7 @@ func (db *Database) insertSMSCChildren(ctx context.Context, s *SMSC) error {
 	for _, n := range s.Nodes {
 		row := smscNodeRow{ID: n.ID, DiameterIdentity: n.DiameterIdentity, Address: n.Address, Port: n.Port, SMSCID: s.ID}
 
-		if err := db.runner(ctx).Query(ctx, db.insertSMSCNodeStmt, row).Run(); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, insertSMSCNodeSQL, row.ID, row.DiameterIdentity, row.Address, row.Port, row.SMSCID); err != nil {
 			if isUniqueNameError(err) {
 				return fmt.Errorf("%w: SMSC node %s or its Diameter identity is already in use", ErrSMSCConflict, n.ID)
 			}
@@ -474,7 +469,7 @@ func (db *Database) insertSMSCChildren(ctx context.Context, s *SMSC) error {
 	}
 
 	for _, sc := range s.ServiceCentres {
-		if err := db.runner(ctx).Query(ctx, db.insertSMSCServiceCentreStmt, smscServiceCentreRow{ServiceCentre: sc, SMSCID: s.ID}).Run(); err != nil {
+		if _, err := db.runner(ctx).ExecContext(ctx, insertSMSCServiceCentreSQL, sc, s.ID); err != nil {
 			if isUniqueNameError(err) {
 				return fmt.Errorf("%w: another SMSC serves the service centre number +%s", ErrSMSCConflict, sc)
 			}
@@ -500,4 +495,34 @@ func startSMSCsSpan(ctx context.Context, operation string) (context.Context, tra
 			semconv.DBCollectionName(SMSCsTableName),
 		),
 	)
+}
+
+func scanSMSCRow(row scanner) (smscRow, error) {
+	var v smscRow
+
+	if err := row.Scan(&v.ID, &v.Name); err != nil {
+		return smscRow{}, err
+	}
+
+	return v, nil
+}
+
+func scanSMSCNodeRow(row scanner) (smscNodeRow, error) {
+	var v smscNodeRow
+
+	if err := row.Scan(&v.ID, &v.DiameterIdentity, &v.Address, &v.Port, &v.SMSCID); err != nil {
+		return smscNodeRow{}, err
+	}
+
+	return v, nil
+}
+
+func scanSMSCServiceCentreRow(row scanner) (smscServiceCentreRow, error) {
+	var v smscServiceCentreRow
+
+	if err := row.Scan(&v.ServiceCentre, &v.SMSCID); err != nil {
+		return smscServiceCentreRow{}, err
+	}
+
+	return v, nil
 }

@@ -6,45 +6,43 @@ package db
 import (
 	"context"
 	"crypto/ecdh"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 
-	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
 const OperatorTableName = "operator"
 
 const (
-	getOperatorStmt                           = "SELECT &Operator.* FROM %s WHERE id=1"
-	updateOperatorCodeStmt                    = "UPDATE %s SET operatorCode=$Operator.operatorCode WHERE id=1"
-	updateOperatorIDStmt                      = "UPDATE %s SET mcc=$Operator.mcc, mnc=$Operator.mnc WHERE id=1"
-	updateOperatorTrackingStmt                = "UPDATE %s SET supportedTACs=$Operator.supportedTACs WHERE id=1"
-	updateOperatorSecurityAlgorithmsStmtConst = "UPDATE %s SET ciphering=$Operator.ciphering, integrity=$Operator.integrity WHERE id=1"
-	updateOperatorSPNStmtConst                = "UPDATE %s SET spnFullName=$Operator.spnFullName, spnShortName=$Operator.spnShortName WHERE id=1"
-	updateOperatorAMFIdentityStmtConst        = "UPDATE %s SET amfRegionID=$Operator.amfRegionID, amfSetID=$Operator.amfSetID WHERE id=1"
-	updateOperatorClusterIDStmtConst          = "UPDATE %s SET clusterID=$Operator.clusterID WHERE id=1"
-	initializeOperatorStmt                    = "INSERT INTO %s (mcc, mnc, operatorCode, supportedTACs, ciphering, integrity, clusterID) VALUES ($Operator.mcc, $Operator.mnc, $Operator.operatorCode, $Operator.supportedTACs, $Operator.ciphering, $Operator.integrity, $Operator.clusterID)"
+	getOperatorSQL                      = "SELECT id, mcc, mnc, operatorCode, COALESCE(supportedTACs, '[]'), ciphering, integrity, spnFullName, spnShortName, amfRegionID, amfSetID, clusterID FROM " + OperatorTableName + " WHERE id=1"
+	updateOperatorCodeSQL               = "UPDATE " + OperatorTableName + " SET operatorCode=? WHERE id=1"
+	updateOperatorIDSQL                 = "UPDATE " + OperatorTableName + " SET mcc=?, mnc=? WHERE id=1"
+	updateOperatorTrackingSQL           = "UPDATE " + OperatorTableName + " SET supportedTACs=? WHERE id=1"
+	updateOperatorSecurityAlgorithmsSQL = "UPDATE " + OperatorTableName + " SET ciphering=?, integrity=? WHERE id=1"
+	updateOperatorSPNSQL                = "UPDATE " + OperatorTableName + " SET spnFullName=?, spnShortName=? WHERE id=1"
+	updateOperatorAMFIdentitySQL        = "UPDATE " + OperatorTableName + " SET amfRegionID=?, amfSetID=? WHERE id=1"
+	updateOperatorClusterIDSQL          = "UPDATE " + OperatorTableName + " SET clusterID=? WHERE id=1"
+	initializeOperatorSQL               = "INSERT INTO " + OperatorTableName + " (mcc, mnc, operatorCode, supportedTACs, ciphering, integrity, clusterID) VALUES (?, ?, ?, ?, ?, ?, ?)"
 )
 
 type Operator struct {
-	ID            int    `db:"id"`
-	Mcc           string `db:"mcc"`
-	Mnc           string `db:"mnc"`
-	OperatorCode  string `db:"operatorCode"`
-	SupportedTACs string `db:"supportedTACs"` // JSON-encoded list of TAC strings
-	Ciphering     string `db:"ciphering"`     // JSON list of RAT-neutral algorithm names, e.g. '["AES","SNOW3G"]'
-	Integrity     string `db:"integrity"`     // JSON list of RAT-neutral algorithm names, e.g. '["AES","SNOW3G"]'
-	SpnFullName   string `db:"spnFullName"`
-	SpnShortName  string `db:"spnShortName"`
-	AmfRegionID   int    `db:"amfRegionID"`
-	AmfSetID      int    `db:"amfSetID"`
-	ClusterID     string `db:"clusterID"`
+	ID            int
+	Mcc           string
+	Mnc           string
+	OperatorCode  string
+	SupportedTACs string // JSON-encoded list of TAC strings
+	Ciphering     string // JSON list of RAT-neutral algorithm names, e.g. '["AES","SNOW3G"]'
+	Integrity     string // JSON list of RAT-neutral algorithm names, e.g. '["AES","SNOW3G"]'
+	SpnFullName   string
+	SpnShortName  string
+	AmfRegionID   int
+	AmfSetID      int
+	ClusterID     string
 }
 
 const guamiRegionIDNodeType = 0x80
@@ -151,32 +149,22 @@ func (operator *Operator) SetSupportedTacs(supportedTACs []string) error {
 	return nil
 }
 
-func (db *Database) IsOperatorInitialized(ctx context.Context) bool {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", OperatorTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(OperatorTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(OperatorTableName, "select").Inc()
-
+func getOperator(ctx context.Context, q querier) (Operator, error) {
 	var op Operator
 
-	err := db.conn().Query(ctx, db.getOperatorStmt).Get(&op)
+	err := q.QueryRowContext(ctx, getOperatorSQL).Scan(&op.ID, &op.Mcc, &op.Mnc, &op.OperatorCode, &op.SupportedTACs, &op.Ciphering, &op.Integrity, &op.SpnFullName, &op.SpnShortName, &op.AmfRegionID, &op.AmfSetID, &op.ClusterID)
+
+	return op, err
+}
+
+func (db *Database) IsOperatorInitialized(ctx context.Context) bool {
+	ctx, span, timer := startDBQuery(ctx, OperatorTableName, "SELECT", "select")
+	defer span.End()
+	defer timer.ObserveDuration()
+
+	op, err := getOperator(ctx, db.reader())
 	if err != nil {
-		if err == sqlair.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return false
 		}
 
@@ -190,25 +178,9 @@ func (db *Database) IsOperatorInitialized(ctx context.Context) bool {
 }
 
 func (db *Database) InitializeOperator(ctx context.Context, initialOperator *Operator) error {
-	querySummary := fmt.Sprintf("%s %s", "INSERT", OperatorTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			semconv.DBCollectionName(OperatorTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, OperatorTableName, "INSERT", "insert")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "insert"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(OperatorTableName, "insert").Inc()
 
 	_, err := opInitializeOperator.Invoke(ctx, db, initialOperator)
 	if err != nil {
@@ -222,29 +194,11 @@ func (db *Database) InitializeOperator(ctx context.Context, initialOperator *Ope
 
 // GetOperator retrieves the operator row.
 func (db *Database) GetOperator(ctx context.Context) (*Operator, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", OperatorTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(OperatorTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, OperatorTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(OperatorTableName, "select").Inc()
-
-	var op Operator
-
-	err := db.conn().Query(ctx, db.getOperatorStmt).Get(&op)
+	op, err := getOperator(ctx, db.reader())
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -256,25 +210,9 @@ func (db *Database) GetOperator(ctx context.Context) (*Operator, error) {
 
 // UpdateOperatorTracking updates supported TACs.
 func (db *Database) UpdateOperatorTracking(ctx context.Context, supportedTACs []string) error {
-	querySummary := fmt.Sprintf("%s %s", "UPDATE", OperatorTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(OperatorTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, OperatorTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
 
 	op := &Operator{}
 
@@ -302,25 +240,9 @@ func (db *Database) UpdateOperatorID(ctx context.Context, mcc, mnc string) error
 }
 
 func (db *Database) ChangeOperatorID(ctx context.Context, mcc, mnc string) (bool, error) {
-	querySummary := fmt.Sprintf("%s %s", "UPDATE", OperatorTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(OperatorTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, OperatorTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
 
 	op := &Operator{Mcc: mcc, Mnc: mnc}
 
@@ -336,29 +258,11 @@ func (db *Database) ChangeOperatorID(ctx context.Context, mcc, mnc string) (bool
 
 // GetOperatorCode fetches only the operatorCode field.
 func (db *Database) GetOperatorCode(ctx context.Context) (string, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", OperatorTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(OperatorTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, OperatorTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(OperatorTableName, "select").Inc()
-
-	var op Operator
-
-	err := db.conn().Query(ctx, db.getOperatorStmt).Get(&op)
+	op, err := getOperator(ctx, db.reader())
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -370,25 +274,9 @@ func (db *Database) GetOperatorCode(ctx context.Context) (string, error) {
 
 // UpdateOperatorCode sets a new operatorCode.
 func (db *Database) UpdateOperatorCode(ctx context.Context, operatorCode string) error {
-	querySummary := fmt.Sprintf("%s %s", "UPDATE", OperatorTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(OperatorTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, OperatorTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
 
 	op := &Operator{OperatorCode: operatorCode}
 
@@ -404,25 +292,9 @@ func (db *Database) UpdateOperatorCode(ctx context.Context, operatorCode string)
 
 // UpdateOperatorSecurityAlgorithms updates the NAS security algorithm preference order.
 func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipheringOrder, integrityOrder []string) error {
-	querySummary := fmt.Sprintf("%s %s", "UPDATE", OperatorTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(OperatorTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, OperatorTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
 
 	op := &Operator{}
 
@@ -452,25 +324,9 @@ func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipher
 
 // UpdateOperatorSPN updates the Service Provider Name (full and short).
 func (db *Database) UpdateOperatorSPN(ctx context.Context, spnFullName, spnShortName string) error {
-	querySummary := fmt.Sprintf("%s %s", "UPDATE", OperatorTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(OperatorTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, OperatorTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
 
 	op := &Operator{SpnFullName: spnFullName, SpnShortName: spnShortName}
 
@@ -495,25 +351,9 @@ func (db *Database) UpdateOperatorAMFIdentity(ctx context.Context, regionID, set
 		return fmt.Errorf("amfSetID must be between 0 and %d (constrained by the 10-bit AMF Set ID field), got %d", maxAmfSetID, setID)
 	}
 
-	querySummary := fmt.Sprintf("%s %s (amf identity)", "UPDATE", OperatorTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(OperatorTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "UPDATE "+OperatorTableName+" (amf identity)", OperatorTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
 
 	op := &Operator{AmfRegionID: regionID, AmfSetID: setID}
 
@@ -529,25 +369,9 @@ func (db *Database) UpdateOperatorAMFIdentity(ctx context.Context, regionID, set
 
 // UpdateOperatorClusterID sets the cluster UUID in the operator row.
 func (db *Database) UpdateOperatorClusterID(ctx context.Context, clusterID string) error {
-	querySummary := fmt.Sprintf("%s %s (cluster id)", "UPDATE", OperatorTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(OperatorTableName),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "UPDATE "+OperatorTableName+" (cluster id)", OperatorTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
 
 	op := &Operator{ClusterID: clusterID}
 

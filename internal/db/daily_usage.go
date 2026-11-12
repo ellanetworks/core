@@ -7,8 +7,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -24,168 +22,168 @@ import (
 const DailyUsageTableName = "daily_usage"
 
 const (
-	incrementDailyUsageStmt       = "INSERT INTO %s (epochDay, imsi, mcc, mnc, bytesUplink, bytesDownlink) VALUES ($DailyUsage.epoch_day, $DailyUsage.imsi, $DailyUsage.mcc, $DailyUsage.mnc, $DailyUsage.bytes_uplink, $DailyUsage.bytes_downlink) ON CONFLICT(epochDay, imsi) DO UPDATE SET bytesUplink = bytesUplink + excluded.bytesUplink, bytesDownlink = bytesDownlink + excluded.bytesDownlink"
-	incrementDailyUsagePreV27Stmt = "INSERT INTO %s (epoch_day, imsi, bytes_uplink, bytes_downlink) VALUES ($DailyUsage.epoch_day, $DailyUsage.imsi, $DailyUsage.bytes_uplink, $DailyUsage.bytes_downlink) ON CONFLICT(epoch_day, imsi) DO UPDATE SET bytes_uplink = bytes_uplink + $DailyUsage.bytes_uplink, bytes_downlink = bytes_downlink + $DailyUsage.bytes_downlink"
-	deleteOldDailyUsageStmt       = "DELETE FROM %s WHERE epochDay < $cutoffDaysArgs.cutoff_days"
-	deleteOldDailyUsagePreV27Stmt = "DELETE FROM %s WHERE epoch_day < $cutoffDaysArgs.cutoff_days"
-	deleteAllDailyUsageStmt       = "DELETE FROM %s"
+	incrementDailyUsageSQL       = "INSERT INTO " + DailyUsageTableName + " (epochDay, imsi, mcc, mnc, bytesUplink, bytesDownlink) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(epochDay, imsi) DO UPDATE SET bytesUplink = bytesUplink + excluded.bytesUplink, bytesDownlink = bytesDownlink + excluded.bytesDownlink"
+	incrementDailyUsagePreV27SQL = "INSERT INTO " + DailyUsageTableName + " (epoch_day, imsi, bytes_uplink, bytes_downlink) VALUES (?, ?, ?, ?) ON CONFLICT(epoch_day, imsi) DO UPDATE SET bytes_uplink = bytes_uplink + ?, bytes_downlink = bytes_downlink + ?"
+	deleteOldDailyUsageSQL       = "DELETE FROM " + DailyUsageTableName + " WHERE epochDay < ?"
+	deleteOldDailyUsagePreV27SQL = "DELETE FROM " + DailyUsageTableName + " WHERE epoch_day < ?"
+	deleteAllDailyUsageSQL       = "DELETE FROM " + DailyUsageTableName
 )
 
 const (
-	getUsagePerDayStmt = `
+	getUsagePerDaySQL = `
 SELECT
-    epochDay           AS &UsagePerDay.epoch_day,
-    SUM(bytesUplink)   AS &UsagePerDay.bytes_uplink,
-    SUM(bytesDownlink) AS &UsagePerDay.bytes_downlink
-FROM %s
+    epochDay,
+    SUM(bytesUplink),
+    SUM(bytesDownlink)
+FROM ` + DailyUsageTableName + `
 WHERE
-    ($UsageFilters.imsi IS NULL OR imsi == $UsageFilters.imsi)
-    AND ($UsageFilters.roaming IS NULL OR (mcc IS NOT NULL) == $UsageFilters.roaming)
-    AND epochDay >= $UsageFilters.start_date
-    AND epochDay <= $UsageFilters.end_date
+    (?1 IS NULL OR imsi == ?1)
+    AND (?2 IS NULL OR (mcc IS NOT NULL) == ?2)
+    AND epochDay >= ?3
+    AND epochDay <= ?4
 GROUP BY epochDay
 ORDER BY epochDay ASC`
 
-	getUsagePerDayPreV27Stmt = `
+	getUsagePerDayPreV27SQL = `
 SELECT
-    epoch_day AS &UsagePerDay.epoch_day,
-    SUM(bytes_uplink)   AS &UsagePerDay.bytes_uplink,
-    SUM(bytes_downlink) AS &UsagePerDay.bytes_downlink
-FROM %s
+    epoch_day,
+    SUM(bytes_uplink),
+    SUM(bytes_downlink)
+FROM ` + DailyUsageTableName + `
 WHERE
-    ($UsageFilters.imsi IS NULL OR imsi == $UsageFilters.imsi)
-    AND epoch_day >= $UsageFilters.start_date
-    AND epoch_day <= $UsageFilters.end_date
+    (?1 IS NULL OR imsi == ?1)
+    AND epoch_day >= ?3
+    AND epoch_day <= ?4
 GROUP BY epoch_day
 ORDER BY epoch_day ASC`
 
 	usageDaysInRange = `(
     WITH RECURSIVE days(d) AS (
-        SELECT $UsageFilters.start_date WHERE $UsageFilters.start_date <= $UsageFilters.end_date
+        SELECT ?3 WHERE ?3 <= ?4
         UNION ALL
-        SELECT d + 1 FROM days WHERE d < $UsageFilters.end_date
+        SELECT d + 1 FROM days WHERE d < ?4
     )
     SELECT d FROM days)`
 
-	getUsagePerDayByIMSIStmt = `
+	getUsagePerDayByIMSISQL = `
 SELECT
-    epochDay           AS &UsagePerDay.epoch_day,
-    SUM(bytesUplink)   AS &UsagePerDay.bytes_uplink,
-    SUM(bytesDownlink) AS &UsagePerDay.bytes_downlink
-FROM %s
+    epochDay,
+    SUM(bytesUplink),
+    SUM(bytesDownlink)
+FROM ` + DailyUsageTableName + `
 WHERE
-    imsi == $UsageFilters.imsi
-    AND ($UsageFilters.roaming IS NULL OR (mcc IS NOT NULL) == $UsageFilters.roaming)
+    imsi == ?1
+    AND (?2 IS NULL OR (mcc IS NOT NULL) == ?2)
     AND epochDay IN ` + usageDaysInRange + `
 GROUP BY epochDay
 ORDER BY epochDay ASC`
 
-	getUsagePerDayByIMSIPreV27Stmt = `
+	getUsagePerDayByIMSIPreV27SQL = `
 SELECT
-    epoch_day AS &UsagePerDay.epoch_day,
-    SUM(bytes_uplink)   AS &UsagePerDay.bytes_uplink,
-    SUM(bytes_downlink) AS &UsagePerDay.bytes_downlink
-FROM %s
+    epoch_day,
+    SUM(bytes_uplink),
+    SUM(bytes_downlink)
+FROM ` + DailyUsageTableName + `
 WHERE
-    imsi == $UsageFilters.imsi
+    imsi == ?1
     AND epoch_day IN ` + usageDaysInRange + `
 GROUP BY epoch_day
 ORDER BY epoch_day ASC`
 )
 
 const (
-	getUsagePerSubscriberStmt = `
+	getUsagePerSubscriberSQL = `
 SELECT
-    u.imsi                  AS &UsagePerSub.imsi,
-    MAX(u.mcc)              AS &UsagePerSub.mcc,
-    MAX(u.mnc)              AS &UsagePerSub.mnc,
-    SUM(u.bytesUplink)      AS &UsagePerSub.bytes_uplink,
-    SUM(u.bytesDownlink)    AS &UsagePerSub.bytes_downlink
+    u.imsi,
+    MAX(u.mcc),
+    MAX(u.mnc),
+    SUM(u.bytesUplink),
+    SUM(u.bytesDownlink)
 FROM (
     SELECT imsi, mcc, mnc, bytesUplink, bytesDownlink
-    FROM %s
-    WHERE epochDay >= $UsageFilters.start_date AND epochDay <= $UsageFilters.end_date
+    FROM ` + DailyUsageTableName + `
+    WHERE epochDay >= ?3 AND epochDay <= ?4
     UNION ALL
     SELECT imsi, NULL, NULL, 0, 0
-    FROM %s
+    FROM ` + SubscribersTableName + `
 ) AS u
 WHERE
-    ($UsageFilters.imsi IS NULL OR u.imsi = $UsageFilters.imsi)
-    AND ($UsageFilters.roaming IS NULL OR (u.mcc IS NOT NULL) == $UsageFilters.roaming)
+    (?1 IS NULL OR u.imsi = ?1)
+    AND (?2 IS NULL OR (u.mcc IS NOT NULL) == ?2)
 GROUP BY u.imsi
 ORDER BY SUM(u.bytesUplink) + SUM(u.bytesDownlink) DESC, u.imsi ASC
-LIMIT $UsageFilters.limit`
+LIMIT ?5`
 
-	getUsagePerSubscriberPreV27Stmt = `
+	getUsagePerSubscriberPreV27SQL = `
 SELECT
-    s.imsi AS &UsagePerSub.imsi,
-    COALESCE(u.bytes_uplink, 0)   AS &UsagePerSub.bytes_uplink,
-    COALESCE(u.bytes_downlink, 0) AS &UsagePerSub.bytes_downlink
-FROM %s AS s
+    s.imsi,
+    COALESCE(u.bytes_uplink, 0),
+    COALESCE(u.bytes_downlink, 0)
+FROM ` + SubscribersTableName + ` AS s
 LEFT JOIN (
     SELECT imsi, SUM(bytes_uplink) AS bytes_uplink, SUM(bytes_downlink) AS bytes_downlink
-    FROM %s
-    WHERE epoch_day >= $UsageFilters.start_date AND epoch_day <= $UsageFilters.end_date
+    FROM ` + DailyUsageTableName + `
+    WHERE epoch_day >= ?3 AND epoch_day <= ?4
     GROUP BY imsi
 ) AS u ON u.imsi = s.imsi
 ORDER BY COALESCE(u.bytes_uplink, 0) + COALESCE(u.bytes_downlink, 0) DESC, s.imsi ASC
-LIMIT $UsageFilters.limit`
+LIMIT ?5`
 
-	getUsagePerSubscriberByIMSIStmt = `
+	getUsagePerSubscriberByIMSISQL = `
 SELECT
-    u.imsi                  AS &UsagePerSub.imsi,
-    MAX(u.mcc)              AS &UsagePerSub.mcc,
-    MAX(u.mnc)              AS &UsagePerSub.mnc,
-    SUM(u.bytesUplink)      AS &UsagePerSub.bytes_uplink,
-    SUM(u.bytesDownlink)    AS &UsagePerSub.bytes_downlink
+    u.imsi,
+    MAX(u.mcc),
+    MAX(u.mnc),
+    SUM(u.bytesUplink),
+    SUM(u.bytesDownlink)
 FROM (
     SELECT imsi, mcc, mnc, bytesUplink, bytesDownlink
-    FROM %s
-    WHERE imsi = $UsageFilters.imsi AND epochDay IN ` + usageDaysInRange + `
+    FROM ` + DailyUsageTableName + `
+    WHERE imsi = ?1 AND epochDay IN ` + usageDaysInRange + `
     UNION ALL
     SELECT imsi, NULL, NULL, 0, 0
-    FROM %s
-    WHERE imsi = $UsageFilters.imsi
+    FROM ` + SubscribersTableName + `
+    WHERE imsi = ?1
 ) AS u
-WHERE $UsageFilters.roaming IS NULL OR (u.mcc IS NOT NULL) == $UsageFilters.roaming
+WHERE ?2 IS NULL OR (u.mcc IS NOT NULL) == ?2
 GROUP BY u.imsi
-LIMIT $UsageFilters.limit`
+LIMIT ?5`
 
-	getUsagePerSubscriberByIMSIPreV27Stmt = `
+	getUsagePerSubscriberByIMSIPreV27SQL = `
 SELECT
-    s.imsi AS &UsagePerSub.imsi,
-    COALESCE(SUM(u.bytes_uplink), 0)   AS &UsagePerSub.bytes_uplink,
-    COALESCE(SUM(u.bytes_downlink), 0) AS &UsagePerSub.bytes_downlink
-FROM %s AS s
-LEFT JOIN %s AS u
+    s.imsi,
+    COALESCE(SUM(u.bytes_uplink), 0),
+    COALESCE(SUM(u.bytes_downlink), 0)
+FROM ` + SubscribersTableName + ` AS s
+LEFT JOIN ` + DailyUsageTableName + ` AS u
     ON u.imsi = s.imsi
     AND u.epoch_day IN ` + usageDaysInRange + `
-WHERE s.imsi = $UsageFilters.imsi
+WHERE s.imsi = ?1
 GROUP BY s.imsi
-LIMIT $UsageFilters.limit`
+LIMIT ?5`
 )
 
 type UsagePerDay struct {
-	EpochDay      int64 `db:"epoch_day"`
-	BytesUplink   int64 `db:"bytes_uplink"`
-	BytesDownlink int64 `db:"bytes_downlink"`
+	EpochDay      int64
+	BytesUplink   int64
+	BytesDownlink int64
 }
 
 type UsagePerSub struct {
-	IMSI          string  `db:"imsi"`
-	Mcc           *string `db:"mcc"`
-	Mnc           *string `db:"mnc"`
-	BytesUplink   int64   `db:"bytes_uplink"`
-	BytesDownlink int64   `db:"bytes_downlink"`
+	IMSI          string
+	Mcc           *string
+	Mnc           *string
+	BytesUplink   int64
+	BytesDownlink int64
 }
 
 type DailyUsage struct {
-	EpochDay      int64   `db:"epoch_day"`
-	IMSI          string  `db:"imsi"`
-	Mcc           *string `db:"mcc"`
-	Mnc           *string `db:"mnc"`
-	BytesUplink   int64   `db:"bytes_uplink"`
-	BytesDownlink int64   `db:"bytes_downlink"`
+	EpochDay      int64
+	IMSI          string
+	Mcc           *string
+	Mnc           *string
+	BytesUplink   int64
+	BytesDownlink int64
 }
 
 func (u DailyUsage) Validate() error {
@@ -205,11 +203,11 @@ func (u DailyUsage) Validate() error {
 }
 
 type UsageFilters struct {
-	IMSI      *string `db:"imsi"` // exact match
-	Roaming   *bool   `db:"roaming"`
-	StartDate int64   `db:"start_date"`
-	EndDate   int64   `db:"end_date"`
-	Limit     int64   `db:"limit"` // SQLite treats a negative limit as unbounded
+	IMSI      *string // exact match
+	Roaming   *bool
+	StartDate int64
+	EndDate   int64
+	Limit     int64 // SQLite treats a negative limit as unbounded
 }
 
 // NoUsageLimit returns every matching row.
@@ -258,25 +256,9 @@ func (d *UsagePerDay) GetDay() time.Time {
 }
 
 func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) error {
-	querySummary := fmt.Sprintf("%s %s", "INSERT", DailyUsageTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			semconv.DBCollectionName(DailyUsageTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, DailyUsageTableName, "INSERT", "insert")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DailyUsageTableName, "insert"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "insert").Inc()
 
 	_, err := opIncrementDailyUsage.Invoke(ctx, db, &usage)
 	if err != nil {
@@ -357,25 +339,9 @@ func (db *Database) IncrementDailyUsageBatch(ctx context.Context, usages []Daily
 }
 
 func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, days DayRange, roaming *bool) ([]UsagePerDay, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", DailyUsageTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(DailyUsageTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, DailyUsageTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DailyUsageTableName, "select"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "select").Inc()
 
 	dailyUsageFilters := UsageFilters{
 		Roaming:   roaming,
@@ -388,11 +354,9 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, days DayRan
 		dailyUsageFilters.IMSI = &imsi
 	}
 
-	var dailyUsage []UsagePerDay
-
-	stmt := db.getUsagePerDayStmt
+	query := getUsagePerDaySQL
 	if imsi != "" {
-		stmt = db.getUsagePerDayByIMSIStmt
+		query = getUsagePerDayByIMSISQL
 	}
 
 	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
@@ -400,18 +364,14 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, days DayRan
 			return nil, nil
 		}
 
-		stmt = db.getUsagePerDayPreV27Stmt
+		query = getUsagePerDayPreV27SQL
 		if imsi != "" {
-			stmt = db.getUsagePerDayByIMSIPreV27Stmt
+			query = getUsagePerDayByIMSIPreV27SQL
 		}
 	}
 
-	err := db.conn().Query(ctx, stmt, dailyUsageFilters).GetAll(&dailyUsage)
+	dailyUsage, err := queryAll(ctx, db.reader(), query, scanUsagePerDay, dailyUsageFilters.IMSI, dailyUsageFilters.Roaming, dailyUsageFilters.StartDate, dailyUsageFilters.EndDate)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -421,25 +381,9 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, days DayRan
 }
 
 func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, days DayRange, roaming *bool, limit int64) ([]UsagePerSub, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", DailyUsageTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(DailyUsageTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, DailyUsageTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DailyUsageTableName, "select"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "select").Inc()
 
 	dailyUsageFilters := UsageFilters{
 		Roaming:   roaming,
@@ -452,11 +396,9 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, days
 		dailyUsageFilters.IMSI = &imsi
 	}
 
-	var dailyUsage []UsagePerSub
-
-	stmt := db.getUsagePerSubscriberStmt
+	query, scan := getUsagePerSubscriberSQL, scanUsagePerSub
 	if imsi != "" {
-		stmt = db.getUsagePerSubscriberByIMSIStmt
+		query = getUsagePerSubscriberByIMSISQL
 	}
 
 	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
@@ -464,18 +406,14 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, days
 			return nil, nil
 		}
 
-		stmt = db.getUsagePerSubscriberPreV27Stmt
+		query, scan = getUsagePerSubscriberPreV27SQL, scanUsagePerSubPreV27
 		if imsi != "" {
-			stmt = db.getUsagePerSubscriberByIMSIPreV27Stmt
+			query = getUsagePerSubscriberByIMSIPreV27SQL
 		}
 	}
 
-	err := db.conn().Query(ctx, stmt, dailyUsageFilters).GetAll(&dailyUsage)
+	dailyUsage, err := queryAll(ctx, db.reader(), query, scan, dailyUsageFilters.IMSI, dailyUsageFilters.Roaming, dailyUsageFilters.StartDate, dailyUsageFilters.EndDate, dailyUsageFilters.Limit)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -485,25 +423,9 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, days
 }
 
 func (db *Database) ClearDailyUsage(ctx context.Context) error {
-	querySummary := fmt.Sprintf("%s %s", "DELETE", DailyUsageTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(DailyUsageTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, DailyUsageTableName, "DELETE", "delete")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DailyUsageTableName, "delete"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "delete").Inc()
 
 	_, err := opClearDailyUsage.Invoke(ctx, db, &emptyPayload{})
 	if err != nil {
@@ -516,26 +438,9 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 }
 
 func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
-	querySummary := fmt.Sprintf("%s %s (retention)", "DELETE", DailyUsageTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(DailyUsageTableName),
-			attribute.Int("retention.days", days),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "DELETE "+DailyUsageTableName+" (retention)", DailyUsageTableName, "DELETE", "delete", attribute.Int("retention.days", days))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DailyUsageTableName, "delete"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "delete").Inc()
 
 	// Compute the cutoff on the leader so every follower applies the same
 	// day boundary during Raft replay; time.Now inside the apply path would
@@ -550,4 +455,34 @@ func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
 	}
 
 	return nil
+}
+
+func scanUsagePerDay(row scanner) (UsagePerDay, error) {
+	var v UsagePerDay
+
+	if err := row.Scan(&v.EpochDay, &v.BytesUplink, &v.BytesDownlink); err != nil {
+		return UsagePerDay{}, err
+	}
+
+	return v, nil
+}
+
+func scanUsagePerSub(row scanner) (UsagePerSub, error) {
+	var v UsagePerSub
+
+	if err := row.Scan(&v.IMSI, &v.Mcc, &v.Mnc, &v.BytesUplink, &v.BytesDownlink); err != nil {
+		return UsagePerSub{}, err
+	}
+
+	return v, nil
+}
+
+func scanUsagePerSubPreV27(row scanner) (UsagePerSub, error) {
+	var v UsagePerSub
+
+	if err := row.Scan(&v.IMSI, &v.BytesUplink, &v.BytesDownlink); err != nil {
+		return UsagePerSub{}, err
+	}
+
+	return v, nil
 }

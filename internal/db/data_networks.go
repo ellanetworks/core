@@ -11,13 +11,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const DataNetworksTableName = "data_networks"
@@ -25,144 +21,108 @@ const DataNetworksTableName = "data_networks"
 const dataNetworkIMSSchema = 25
 
 const (
-	listDataNetworksPagedStmt = "SELECT &DataNetwork.*, COUNT(*) OVER() AS &NumItems.count from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
-	listAllDataNetworksStmt   = "SELECT &DataNetwork.* FROM %s ORDER BY id ASC"
-	getDataNetworkStmt        = "SELECT &DataNetwork.* from %s WHERE name==$DataNetwork.name"
-	getDataNetworkByIDStmt    = "SELECT &DataNetwork.* FROM %s WHERE id==$DataNetwork.id"
-	createDataNetworkStmt     = "INSERT INTO %s (id, name, ipPool, ipv6Pool, dns, mtu, ims) VALUES ($DataNetwork.id, $DataNetwork.name, $DataNetwork.ipPool, $DataNetwork.ipv6Pool, $DataNetwork.dns, $DataNetwork.mtu, $DataNetwork.ims)"
-	editDataNetworkStmt       = "UPDATE %s SET ipPool=$DataNetwork.ipPool, ipv6Pool=$DataNetwork.ipv6Pool, dns=$DataNetwork.dns, mtu=$DataNetwork.mtu, ims=$DataNetwork.ims WHERE name==$DataNetwork.name"
-	deleteDataNetworkStmt     = "DELETE FROM %s WHERE name==$DataNetwork.name"
-	countDataNetworksStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
+	listDataNetworksPagedSQL = "SELECT id, name, ipPool, ipv6Pool, dns, mtu, ims, COUNT(*) OVER() from " + DataNetworksTableName + " LIMIT ? OFFSET ?"
+	listAllDataNetworksSQL   = "SELECT id, name, ipPool, ipv6Pool, dns, mtu, ims FROM " + DataNetworksTableName + " ORDER BY id ASC"
+	getDataNetworkSQL        = "SELECT id, name, ipPool, ipv6Pool, dns, mtu, ims from " + DataNetworksTableName + " WHERE name==?"
+	getDataNetworkByIDSQL    = "SELECT id, name, ipPool, ipv6Pool, dns, mtu, ims FROM " + DataNetworksTableName + " WHERE id==?"
+	createDataNetworkSQL     = "INSERT INTO " + DataNetworksTableName + " (id, name, ipPool, ipv6Pool, dns, mtu, ims) VALUES (?, ?, ?, ?, ?, ?, ?)"
+	editDataNetworkSQL       = "UPDATE " + DataNetworksTableName + " SET ipPool=?, ipv6Pool=?, dns=?, mtu=?, ims=? WHERE name==?"
+	deleteDataNetworkSQL     = "DELETE FROM " + DataNetworksTableName + " WHERE name==?"
+	countDataNetworksSQL     = "SELECT COUNT(*) FROM " + DataNetworksTableName
 )
 
-const dataNetworkColumnsPreV25 = "&DataNetwork.id, &DataNetwork.name, &DataNetwork.ipPool, &DataNetwork.ipv6Pool, &DataNetwork.dns, &DataNetwork.mtu, iif(name = '" + models.IMSDataNetworkName + "', TRUE, FALSE) AS &DataNetwork.ims"
+const dataNetworkColumnsPreV25 = "id, name, ipPool, ipv6Pool, dns, mtu, iif(name = '" + models.IMSDataNetworkName + "', TRUE, FALSE)"
 
 const (
-	listDataNetworksPagedPreV25Stmt = "SELECT " + dataNetworkColumnsPreV25 + ", COUNT(*) OVER() AS &NumItems.count from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
-	listAllDataNetworksPreV25Stmt   = "SELECT " + dataNetworkColumnsPreV25 + " FROM %s ORDER BY id ASC"
-	getDataNetworkPreV25Stmt        = "SELECT " + dataNetworkColumnsPreV25 + " from %s WHERE name==$DataNetwork.name"
-	getDataNetworkByIDPreV25Stmt    = "SELECT " + dataNetworkColumnsPreV25 + " FROM %s WHERE id==$DataNetwork.id"
-	createDataNetworkPreV25Stmt     = "INSERT INTO %s (id, name, ipPool, ipv6Pool, dns, mtu) VALUES ($DataNetwork.id, $DataNetwork.name, $DataNetwork.ipPool, $DataNetwork.ipv6Pool, $DataNetwork.dns, $DataNetwork.mtu)"
-	editDataNetworkPreV25Stmt       = "UPDATE %s SET ipPool=$DataNetwork.ipPool, ipv6Pool=$DataNetwork.ipv6Pool, dns=$DataNetwork.dns, mtu=$DataNetwork.mtu WHERE name==$DataNetwork.name"
+	listDataNetworksPagedPreV25SQL = "SELECT " + dataNetworkColumnsPreV25 + ", COUNT(*) OVER() from " + DataNetworksTableName + " LIMIT ? OFFSET ?"
+	listAllDataNetworksPreV25SQL   = "SELECT " + dataNetworkColumnsPreV25 + " FROM " + DataNetworksTableName + " ORDER BY id ASC"
+	getDataNetworkPreV25SQL        = "SELECT " + dataNetworkColumnsPreV25 + " from " + DataNetworksTableName + " WHERE name==?"
+	getDataNetworkByIDPreV25SQL    = "SELECT " + dataNetworkColumnsPreV25 + " FROM " + DataNetworksTableName + " WHERE id==?"
+	createDataNetworkPreV25SQL     = "INSERT INTO " + DataNetworksTableName + " (id, name, ipPool, ipv6Pool, dns, mtu) VALUES (?, ?, ?, ?, ?, ?)"
+	editDataNetworkPreV25SQL       = "UPDATE " + DataNetworksTableName + " SET ipPool=?, ipv6Pool=?, dns=?, mtu=? WHERE name==?"
 )
 
 type DataNetwork struct {
-	ID       string `db:"id"` // UUIDv7
-	Name     string `db:"name"`
-	IPv4Pool string `db:"ipPool"`
-	IPv6Pool string `db:"ipv6Pool"`
-	DNS      string `db:"dns"`
-	MTU      int32  `db:"mtu"`
-	IMS      bool   `db:"ims"`
+	ID       string // UUIDv7
+	Name     string
+	IPv4Pool string
+	IPv6Pool string
+	DNS      string
+	MTU      int32
+	IMS      bool
 }
 
-func (db *Database) dataNetworkWriteStmt(ctx context.Context, dn *DataNetwork, current, preV25 *sqlair.Statement) (*sqlair.Statement, error) {
+func (db *Database) dataNetworkSchemaCurrent(ctx context.Context, dn *DataNetwork) (bool, error) {
 	if db.appliedSchemaAtLeast(ctx, dataNetworkIMSSchema) {
-		return current, nil
+		return true, nil
 	}
 
 	if dn.IMS != (dn.Name == models.IMSDataNetworkName) {
-		return nil, ErrMigrationPending
+		return false, ErrMigrationPending
 	}
 
-	return preV25, nil
+	return false, nil
+}
+
+func createDataNetworkQuery(dn *DataNetwork, current bool) (string, []any) {
+	if current {
+		return createDataNetworkSQL, []any{dn.ID, dn.Name, dn.IPv4Pool, dn.IPv6Pool, dn.DNS, dn.MTU, dn.IMS}
+	}
+
+	return createDataNetworkPreV25SQL, []any{dn.ID, dn.Name, dn.IPv4Pool, dn.IPv6Pool, dn.DNS, dn.MTU}
+}
+
+func editDataNetworkQuery(dn *DataNetwork, current bool) (string, []any) {
+	if current {
+		return editDataNetworkSQL, []any{dn.IPv4Pool, dn.IPv6Pool, dn.DNS, dn.MTU, dn.IMS, dn.Name}
+	}
+
+	return editDataNetworkPreV25SQL, []any{dn.IPv4Pool, dn.IPv6Pool, dn.DNS, dn.MTU, dn.Name}
 }
 
 func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int) ([]DataNetwork, int, error) {
-	querySummary := fmt.Sprintf("%s %s (paged)", "SELECT", DataNetworksTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(DataNetworksTableName),
-			attribute.Int("ella.db.page", page),
-			attribute.Int("ella.db.page_size", perPage),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+DataNetworksTableName+" (paged)", DataNetworksTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DataNetworksTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "select").Inc()
-
-	var dataNetworks []DataNetwork
-
-	var counts []NumItems
-
-	args := ListArgs{
-		Limit:  perPage,
-		Offset: (page - 1) * perPage,
-	}
-
-	stmt := db.listDataNetworksStmt
+	query := listDataNetworksPagedSQL
 	if !db.appliedSchemaAtLeast(ctx, dataNetworkIMSSchema) {
-		stmt = db.listDataNetworksPreV25Stmt
+		query = listDataNetworksPagedPreV25SQL
 	}
 
-	err := db.conn().Query(ctx, stmt, args).GetAll(&dataNetworks, &counts)
+	dataNetworks, count, err := queryPageWithTotal(ctx, db.reader(), query, scanDataNetwork, perPage, (page-1)*perPage)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			fallbackCount, countErr := db.CountDataNetworks(ctx)
-			if countErr != nil {
-				return nil, 0, nil
-			}
-
-			return nil, fallbackCount, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	count := 0
-	if len(counts) > 0 {
-		count = counts[0].Count
+	if len(dataNetworks) == 0 {
+		fallbackCount, err := db.CountDataNetworks(ctx)
+		if err != nil {
+			recordSpanError(span, err)
+
+			return nil, 0, fmt.Errorf("count failed: %w", err)
+		}
+
+		return nil, fallbackCount, nil
 	}
 
 	return dataNetworks, count, nil
 }
 
 func (db *Database) ListAllDataNetworks(ctx context.Context) ([]DataNetwork, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", DataNetworksTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(DataNetworksTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, DataNetworksTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DataNetworksTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "select").Inc()
-
-	var dataNetworks []DataNetwork
-
-	stmt := db.listAllDataNetworksStmt
+	query := listAllDataNetworksSQL
 	if !db.appliedSchemaAtLeast(ctx, dataNetworkIMSSchema) {
-		stmt = db.listAllDataNetworksPreV25Stmt
+		query = listAllDataNetworksPreV25SQL
 	}
 
-	err := db.conn().Query(ctx, stmt).GetAll(&dataNetworks)
+	dataNetworks, err := queryAll(ctx, db.reader(), query, scanDataNetwork)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -172,34 +132,16 @@ func (db *Database) ListAllDataNetworks(ctx context.Context) ([]DataNetwork, err
 }
 
 func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwork, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", DataNetworksTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(DataNetworksTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, DataNetworksTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DataNetworksTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "select").Inc()
-
-	row := DataNetwork{Name: name}
-
-	stmt := db.getDataNetworkStmt
+	query := getDataNetworkSQL
 	if !db.appliedSchemaAtLeast(ctx, dataNetworkIMSSchema) {
-		stmt = db.getDataNetworkPreV25Stmt
+		query = getDataNetworkPreV25SQL
 	}
 
-	err := db.conn().Query(ctx, stmt, row).Get(&row)
+	row, err := scanDataNetwork(db.reader().QueryRowContext(ctx, query, name))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			recordSpanError(span, err)
@@ -216,34 +158,16 @@ func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwo
 }
 
 func (db *Database) GetDataNetworkByID(ctx context.Context, id string) (*DataNetwork, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", DataNetworksTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(DataNetworksTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, DataNetworksTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DataNetworksTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "select").Inc()
-
-	row := DataNetwork{ID: id}
-
-	stmt := db.getDataNetworkByIDStmt
+	query := getDataNetworkByIDSQL
 	if !db.appliedSchemaAtLeast(ctx, dataNetworkIMSSchema) {
-		stmt = db.getDataNetworkByIDPreV25Stmt
+		query = getDataNetworkByIDPreV25SQL
 	}
 
-	err := db.conn().Query(ctx, stmt, row).Get(&row)
+	row, err := scanDataNetwork(db.reader().QueryRowContext(ctx, query, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			recordSpanError(span, err)
@@ -260,25 +184,9 @@ func (db *Database) GetDataNetworkByID(ctx context.Context, id string) (*DataNet
 }
 
 func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetwork) error {
-	querySummary := fmt.Sprintf("%s %s", "INSERT", DataNetworksTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			semconv.DBCollectionName(DataNetworksTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, DataNetworksTableName, "INSERT", "insert")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DataNetworksTableName, "insert"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "insert").Inc()
 
 	if dataNetwork.ID == "" {
 		id, err := uuid.NewV7()
@@ -302,25 +210,9 @@ func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 }
 
 func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetwork) error {
-	querySummary := fmt.Sprintf("%s %s", "UPDATE", DataNetworksTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(DataNetworksTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, DataNetworksTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DataNetworksTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "update").Inc()
 
 	_, err := opUpdateDataNetwork.Invoke(ctx, db, dataNetwork)
 	if err != nil {
@@ -333,25 +225,9 @@ func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 }
 
 func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
-	querySummary := fmt.Sprintf("%s %s", "DELETE", DataNetworksTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(DataNetworksTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, DataNetworksTableName, "DELETE", "delete")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DataNetworksTableName, "delete"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "delete").Inc()
 
 	_, err := opDeleteDataNetwork.Invoke(ctx, db, &stringPayload{Value: name})
 	if err != nil {
@@ -364,34 +240,26 @@ func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
 }
 
 func (db *Database) CountDataNetworks(ctx context.Context) (int, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", DataNetworksTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(DataNetworksTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, DataNetworksTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DataNetworksTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "select").Inc()
-
-	var result NumItems
-
-	err := db.conn().Query(ctx, db.countDataNetworksStmt).Get(&result)
+	count, err := queryCount(ctx, db.reader(), countDataNetworksSQL)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	return result.Count, nil
+	return count, nil
+}
+
+func scanDataNetwork(row scanner) (DataNetwork, error) {
+	var v DataNetwork
+
+	if err := row.Scan(&v.ID, &v.Name, &v.IPv4Pool, &v.IPv6Pool, &v.DNS, &v.MTU, &v.IMS); err != nil {
+		return DataNetwork{}, err
+	}
+
+	return v, nil
 }

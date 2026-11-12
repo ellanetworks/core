@@ -5,7 +5,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,13 +21,13 @@ import (
 const IMSInitialFilterCriteriaTableName = "ims_initial_filter_criteria"
 
 const (
-	listServiceProfileIMSIFCsStmt   = "SELECT &imsIFCRow.* FROM %s WHERE serviceProfileID==$imsIFCRow.serviceProfileID ORDER BY position"
-	listAllIMSIFCsStmt              = "SELECT &imsIFCRow.* FROM %s ORDER BY serviceProfileID, position"
-	insertIMSIFCStmt                = "INSERT INTO %s (serviceProfileID, position, applicationServerID, triggerPoint, profilePart, defaultHandling, serviceInfo, includeRegisterRequest, includeRegisterResponse) VALUES ($imsIFCRow.serviceProfileID, $imsIFCRow.position, $imsIFCRow.applicationServerID, $imsIFCRow.triggerPoint, $imsIFCRow.profilePart, $imsIFCRow.defaultHandling, $imsIFCRow.serviceInfo, $imsIFCRow.includeRegisterRequest, $imsIFCRow.includeRegisterResponse)"
-	deleteServiceProfileIMSIFCsStmt = "DELETE FROM %s WHERE serviceProfileID==$imsIFCRow.serviceProfileID"
-	listProfilesOfIMSASStmt         = "SELECT DISTINCT x.profileID AS &imsServiceProfileAssignmentRow.profileID FROM %s AS x JOIN %s AS f ON f.serviceProfileID = x.serviceProfileID WHERE f.applicationServerID==$imsIFCRow.applicationServerID"
-	listIMSRegisteredOfProfilesStmt = "SELECT DISTINCT s.imsi AS &subscriberIMSI.imsi FROM %s AS s JOIN %s AS r ON r.imsi = s.imsi WHERE r.state != $imsRegistrationSetRow.state AND s.profileID IN ($SliceIDs[:]) ORDER BY s.imsi"
-	listSubscriberIMSIFCsStmt       = "SELECT f.* AS &imsIFCRow.*, a.serverName AS &imsApplicationServerRow.serverName FROM %s AS f JOIN %s AS x ON x.serviceProfileID = f.serviceProfileID JOIN %s AS s ON s.profileID = x.profileID JOIN %s AS a ON a.id = f.applicationServerID WHERE s.imsi = $subscriberIMSI.imsi AND x.registrationSet = $imsServiceProfileAssignmentRow.registrationSet ORDER BY f.position"
+	listServiceProfileIMSIFCsSQL   = "SELECT serviceProfileID, position, applicationServerID, triggerPoint, profilePart, defaultHandling, serviceInfo, includeRegisterRequest, includeRegisterResponse FROM " + IMSInitialFilterCriteriaTableName + " WHERE serviceProfileID==? ORDER BY position"
+	listAllIMSIFCsSQL              = "SELECT serviceProfileID, position, applicationServerID, triggerPoint, profilePart, defaultHandling, serviceInfo, includeRegisterRequest, includeRegisterResponse FROM " + IMSInitialFilterCriteriaTableName + " ORDER BY serviceProfileID, position"
+	insertIMSIFCSQL                = "INSERT INTO " + IMSInitialFilterCriteriaTableName + " (serviceProfileID, position, applicationServerID, triggerPoint, profilePart, defaultHandling, serviceInfo, includeRegisterRequest, includeRegisterResponse) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	deleteServiceProfileIMSIFCsSQL = "DELETE FROM " + IMSInitialFilterCriteriaTableName + " WHERE serviceProfileID==?"
+	listProfilesOfIMSASSQL         = "SELECT DISTINCT x.profileID FROM " + IMSServiceProfileAssignmentsTableName + " AS x JOIN " + IMSInitialFilterCriteriaTableName + " AS f ON f.serviceProfileID = x.serviceProfileID WHERE f.applicationServerID==?"
+	listIMSRegisteredOfProfilesSQL = "SELECT DISTINCT s.imsi FROM " + SubscribersTableName + " AS s JOIN " + IMSRegistrationSetsTableName + " AS r ON r.imsi = s.imsi WHERE r.state != ? AND s.profileID IN (SELECT value FROM json_each(?)) ORDER BY s.imsi"
+	listSubscriberIMSIFCsSQL       = "SELECT f.serviceProfileID, f.position, f.applicationServerID, f.triggerPoint, f.profilePart, f.defaultHandling, f.serviceInfo, f.includeRegisterRequest, f.includeRegisterResponse, a.serverName FROM " + IMSInitialFilterCriteriaTableName + " AS f JOIN " + IMSServiceProfileAssignmentsTableName + " AS x ON x.serviceProfileID = f.serviceProfileID JOIN " + SubscribersTableName + " AS s ON s.profileID = x.profileID JOIN " + IMSApplicationServersTableName + " AS a ON a.id = f.applicationServerID WHERE s.imsi = ? AND x.registrationSet = ? ORDER BY f.position"
 )
 
 type IMSProfilePart string
@@ -110,15 +109,15 @@ type IMSSessionDescription struct {
 }
 
 type imsIFCRow struct {
-	ServiceProfileID        string  `db:"serviceProfileID"`
-	Position                int     `db:"position"`
-	ApplicationServerID     string  `db:"applicationServerID"`
-	TriggerPoint            *string `db:"triggerPoint"`
-	ProfilePart             *string `db:"profilePart"`
-	DefaultHandling         *string `db:"defaultHandling"`
-	ServiceInfo             *string `db:"serviceInfo"`
-	IncludeRegisterRequest  bool    `db:"includeRegisterRequest"`
-	IncludeRegisterResponse bool    `db:"includeRegisterResponse"`
+	ServiceProfileID        string
+	Position                int
+	ApplicationServerID     string
+	TriggerPoint            *string
+	ProfilePart             *string
+	DefaultHandling         *string
+	ServiceInfo             *string
+	IncludeRegisterRequest  bool
+	IncludeRegisterResponse bool
 }
 
 func (c IMSInitialFilterCriterion) Validate() error {
@@ -376,12 +375,8 @@ func (db *Database) ListSubscriberIMSFilterCriteria(ctx context.Context, imsi st
 		return nil, nil
 	}
 
-	var (
-		rows    []imsIFCRow
-		servers []imsApplicationServerRow
-	)
-
-	if err := db.conn().Query(ctx, db.listSubscriberIMSIFCsStmt, subscriberIMSI{Imsi: imsi}, imsServiceProfileAssignmentRow{RegistrationSet: string(set)}).GetAll(&rows, &servers); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	rows, err := queryAll(ctx, db.reader(), listSubscriberIMSIFCsSQL, scanSubscriberIMSIFC, imsi, string(set))
+	if err != nil {
 		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -393,13 +388,13 @@ func (db *Database) ListSubscriberIMSFilterCriteria(ctx context.Context, imsi st
 	ifcs := make([]cx.InitialFilterCriteria, 0, len(rows))
 
 	for i, r := range rows {
-		ifc, err := imsIFCOf(r)
+		ifc, err := imsIFCOf(r.imsIFCRow)
 		if err != nil {
 			recordSpanError(span, err)
 			return nil, err
 		}
 
-		ifcs = append(ifcs, ifc.CX(int32(i), servers[i].ServerName))
+		ifcs = append(ifcs, ifc.CX(int32(i), r.serverName))
 	}
 
 	return ifcs, nil
@@ -475,16 +470,14 @@ func (db *Database) ProfilesUsingIMSApplicationServer(ctx context.Context, appli
 		return nil, nil
 	}
 
-	var rows []imsServiceProfileAssignmentRow
-
-	if err := db.conn().Query(ctx, db.listProfilesOfIMSASStmt, imsIFCRow{ApplicationServerID: applicationServerID}).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	profileIDs, err := queryAll(ctx, db.reader(), listProfilesOfIMSASSQL, scanValue[string], applicationServerID)
+	if err != nil {
 		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	profileIDs := make([]string, 0, len(rows))
-	for _, r := range rows {
-		profileIDs = append(profileIDs, r.ProfileID)
+	if profileIDs == nil {
+		return []string{}, nil
 	}
 
 	return profileIDs, nil
@@ -503,16 +496,14 @@ func (db *Database) IMSRegisteredSubscribersOfProfiles(ctx context.Context, prof
 		return nil, nil
 	}
 
-	var rows []subscriberIMSI
-
-	if err := db.conn().Query(ctx, db.listIMSRegisteredOfProfilesStmt, imsRegistrationSetRow{State: int(IMSNotRegistered)}, SliceIDs(profileIDs)).GetAll(&rows); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	imsis, err := queryAll(ctx, db.reader(), listIMSRegisteredOfProfilesSQL, scanValue[string], int(IMSNotRegistered), jsonArray(profileIDs))
+	if err != nil {
 		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	imsis := make([]string, 0, len(rows))
-	for _, r := range rows {
-		imsis = append(imsis, r.Imsi)
+	if imsis == nil {
+		return []string{}, nil
 	}
 
 	return imsis, nil
@@ -532,4 +523,29 @@ func startIMSFilterCriteriaSpan(ctx context.Context, operation string) (context.
 			semconv.DBCollectionName(IMSInitialFilterCriteriaTableName),
 		),
 	)
+}
+
+func scanIMSIFCRow(row scanner) (imsIFCRow, error) {
+	var v imsIFCRow
+
+	if err := row.Scan(&v.ServiceProfileID, &v.Position, &v.ApplicationServerID, &v.TriggerPoint, &v.ProfilePart, &v.DefaultHandling, &v.ServiceInfo, &v.IncludeRegisterRequest, &v.IncludeRegisterResponse); err != nil {
+		return imsIFCRow{}, err
+	}
+
+	return v, nil
+}
+
+type subscriberIMSIFCRow struct {
+	imsIFCRow
+	serverName string
+}
+
+func scanSubscriberIMSIFC(row scanner) (subscriberIMSIFCRow, error) {
+	var r subscriberIMSIFCRow
+
+	if err := row.Scan(&r.ServiceProfileID, &r.Position, &r.ApplicationServerID, &r.TriggerPoint, &r.ProfilePart, &r.DefaultHandling, &r.ServiceInfo, &r.IncludeRegisterRequest, &r.IncludeRegisterResponse, &r.serverName); err != nil {
+		return subscriberIMSIFCRow{}, err
+	}
+
+	return r, nil
 }

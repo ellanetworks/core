@@ -14,60 +14,41 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const NetworkRulesTableName = "network_rules"
 
 const (
-	getNetworkRuleStmt             = "SELECT &NetworkRule.* FROM %s WHERE id==$NetworkRule.id"
-	createNetworkRuleStmt          = "INSERT INTO %s (id, policy_id, description, direction, remote_prefix, protocol, port_low, port_high, action, precedence, created_at, updated_at) VALUES ($NetworkRule.id, $NetworkRule.policy_id, $NetworkRule.description, $NetworkRule.direction, $NetworkRule.remote_prefix, $NetworkRule.protocol, $NetworkRule.port_low, $NetworkRule.port_high, $NetworkRule.action, $NetworkRule.precedence, $NetworkRule.created_at, $NetworkRule.updated_at)"
-	updateNetworkRuleStmt          = "UPDATE %s SET description=$NetworkRule.description, direction=$NetworkRule.direction, remote_prefix=$NetworkRule.remote_prefix, protocol=$NetworkRule.protocol, port_low=$NetworkRule.port_low, port_high=$NetworkRule.port_high, action=$NetworkRule.action, precedence=$NetworkRule.precedence, updated_at=$NetworkRule.updated_at WHERE id==$NetworkRule.id"
-	deleteNetworkRuleStmt          = "DELETE FROM %s WHERE id==$NetworkRule.id"
-	deleteNetworkRulesByPolicyStmt = "DELETE FROM %s WHERE policy_id==$NetworkRule.policy_id"
-	listRulesForPolicyStmt         = "SELECT &NetworkRule.* FROM %s WHERE policy_id==$NetworkRule.policy_id ORDER BY precedence ASC"
+	getNetworkRuleSQL             = "SELECT id, policy_id, description, direction, remote_prefix, COALESCE(protocol, 255), COALESCE(port_low, 0), COALESCE(port_high, 0), action, precedence, created_at, updated_at FROM " + NetworkRulesTableName + " WHERE id==?"
+	createNetworkRuleSQL          = "INSERT INTO " + NetworkRulesTableName + " (id, policy_id, description, direction, remote_prefix, protocol, port_low, port_high, action, precedence, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	updateNetworkRuleSQL          = "UPDATE " + NetworkRulesTableName + " SET description=?, direction=?, remote_prefix=?, protocol=?, port_low=?, port_high=?, action=?, precedence=?, updated_at=? WHERE id==?"
+	deleteNetworkRuleSQL          = "DELETE FROM " + NetworkRulesTableName + " WHERE id==?"
+	deleteNetworkRulesByPolicySQL = "DELETE FROM " + NetworkRulesTableName + " WHERE policy_id==?"
+	listRulesForPolicySQL         = "SELECT id, policy_id, description, direction, remote_prefix, COALESCE(protocol, 255), COALESCE(port_low, 0), COALESCE(port_high, 0), action, precedence, created_at, updated_at FROM " + NetworkRulesTableName + " WHERE policy_id==? ORDER BY precedence ASC"
 )
 
 const gap = 100
 
 type NetworkRule struct {
-	ID           string    `db:"id"`        // UUIDv7
-	PolicyID     string    `db:"policy_id"` // FK to policies.id (UUID)
-	Description  string    `db:"description"`
-	Direction    string    `db:"direction"`
-	RemotePrefix *string   `db:"remote_prefix"`
-	Protocol     int32     `db:"protocol"`
-	PortLow      int32     `db:"port_low"`
-	PortHigh     int32     `db:"port_high"`
-	Action       string    `db:"action"`
-	Precedence   int32     `db:"precedence"`
-	CreatedAt    time.Time `db:"created_at"`
-	UpdatedAt    time.Time `db:"updated_at"`
+	ID           string // UUIDv7
+	PolicyID     string // FK to policies.id (UUID)
+	Description  string
+	Direction    string
+	RemotePrefix *string
+	Protocol     int32
+	PortLow      int32
+	PortHigh     int32
+	Action       string
+	Precedence   int32
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 // CreateNetworkRule creates a new network rule and returns its ID.
 func (db *Database) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (string, error) {
-	querySummary := fmt.Sprintf("%s %s", "INSERT", NetworkRulesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			semconv.DBCollectionName(NetworkRulesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, NetworkRulesTableName, "INSERT", "insert")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(NetworkRulesTableName, "insert"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "insert").Inc()
 
 	now := time.Now().UTC()
 	nr.CreatedAt = now
@@ -96,29 +77,11 @@ func (db *Database) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (str
 
 // GetNetworkRule retrieves a network rule by ID.
 func (db *Database) GetNetworkRule(ctx context.Context, id string) (*NetworkRule, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", NetworkRulesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(NetworkRulesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, NetworkRulesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(NetworkRulesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "select").Inc()
-
-	row := NetworkRule{ID: id}
-
-	err := db.conn().Query(ctx, db.getNetworkRuleStmt, row).Get(&row)
+	row, err := scanNetworkRule(db.reader().QueryRowContext(ctx, getNetworkRuleSQL, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -129,30 +92,14 @@ func (db *Database) GetNetworkRule(ctx context.Context, id string) (*NetworkRule
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	return &row, nil
+	return row, nil
 }
 
 // UpdateNetworkRule updates an existing network rule.
 func (db *Database) UpdateNetworkRule(ctx context.Context, nr *NetworkRule) error {
-	querySummary := fmt.Sprintf("%s %s", "UPDATE", NetworkRulesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(NetworkRulesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, NetworkRulesTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(NetworkRulesTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "update").Inc()
 
 	nr.UpdatedAt = time.Now().UTC()
 
@@ -168,25 +115,9 @@ func (db *Database) UpdateNetworkRule(ctx context.Context, nr *NetworkRule) erro
 
 // ReorderRulesForPolicy moves a rule to a new position within its policy and normalizes all precedence values.
 func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID string, movedRuleID string, newIndex int, direction string) error {
-	querySummary := fmt.Sprintf("%s %s", "UPDATE", NetworkRulesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(NetworkRulesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, NetworkRulesTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(NetworkRulesTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "update").Inc()
 
 	rules, err := db.ListRulesForPolicy(ctx, policyID)
 	if err != nil {
@@ -265,25 +196,9 @@ func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID string, 
 
 // DeleteNetworkRule deletes a network rule by ID.
 func (db *Database) DeleteNetworkRule(ctx context.Context, id string) error {
-	querySummary := fmt.Sprintf("%s %s", "DELETE", NetworkRulesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(NetworkRulesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, NetworkRulesTableName, "DELETE", "delete")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(NetworkRulesTableName, "delete"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "delete").Inc()
 
 	_, err := opDeleteNetworkRule.Invoke(ctx, db, &stringPayload{Value: id})
 	if err != nil {
@@ -297,39 +212,19 @@ func (db *Database) DeleteNetworkRule(ctx context.Context, id string) error {
 
 // ListRulesForPolicy retrieves all network rules associated with a policy.
 func (db *Database) ListRulesForPolicy(ctx context.Context, policyID string) ([]*NetworkRule, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", NetworkRulesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(NetworkRulesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, NetworkRulesTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(NetworkRulesTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "select").Inc()
-
-	var rules []*NetworkRule
-
-	params := NetworkRule{PolicyID: policyID}
-
-	err := db.conn().Query(ctx, db.listRulesForPolicyStmt, params).GetAll(&rules)
+	rules, err := queryAll(ctx, db.reader(), listRulesForPolicySQL, scanNetworkRule, policyID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return []*NetworkRule{}, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	if rules == nil {
+		return []*NetworkRule{}, nil
 	}
 
 	return rules, nil
@@ -337,25 +232,9 @@ func (db *Database) ListRulesForPolicy(ctx context.Context, policyID string) ([]
 
 // DeleteNetworkRulesByPolicyID deletes all network rules for a given policy ID.
 func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID string) error {
-	querySummary := fmt.Sprintf("%s %s", "DELETE", NetworkRulesTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(NetworkRulesTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, NetworkRulesTableName, "DELETE", "delete")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(NetworkRulesTableName, "delete"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "delete").Inc()
 
 	_, err := opDeleteNetworkRulesByPolicy.Invoke(ctx, db, &stringPayload{Value: policyID})
 	if err != nil {
@@ -365,4 +244,14 @@ func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID s
 	}
 
 	return nil
+}
+
+func scanNetworkRule(row scanner) (*NetworkRule, error) {
+	var v NetworkRule
+
+	if err := row.Scan(&v.ID, &v.PolicyID, &v.Description, &v.Direction, &v.RemotePrefix, &v.Protocol, &v.PortLow, &v.PortHigh, &v.Action, &v.Precedence, &v.CreatedAt, &v.UpdatedAt); err != nil {
+		return nil, err
+	}
+
+	return &v, nil
 }

@@ -11,6 +11,7 @@ import (
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	hraft "github.com/hashicorp/raft"
 	"github.com/mattn/go-sqlite3"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
@@ -77,4 +78,26 @@ func spanErrorAttributes(err error) []attribute.KeyValue {
 	}
 
 	return []attribute.KeyValue{semconv.ErrorType(err)}
+}
+
+func startDBQuery(ctx context.Context, table, operation, metric string, attrs ...attribute.KeyValue) (context.Context, trace.Span, *prometheus.Timer) {
+	return startDBQueryNamed(ctx, operation+" "+table, table, operation, metric, attrs...)
+}
+
+func startDBQueryNamed(ctx context.Context, summary, table, operation, metric string, attrs ...attribute.KeyValue) (context.Context, trace.Span, *prometheus.Timer) {
+	ctx, span := tracer.Start(
+		ctx,
+		summary,
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(append([]attribute.KeyValue{
+			semconv.DBQuerySummary(summary),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName(operation),
+			semconv.DBCollectionName(table),
+		}, attrs...)...),
+	)
+
+	DBQueriesTotal.WithLabelValues(table, metric).Inc()
+
+	return ctx, span, prometheus.NewTimer(DBQueryDuration.WithLabelValues(table, metric))
 }

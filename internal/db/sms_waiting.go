@@ -24,19 +24,19 @@ const (
 )
 
 const (
-	getSMSWaitingStmt             = "SELECT &smsWaitingRow.* FROM %s WHERE imsi==$smsWaitingRow.imsi"
-	listAllSMSWaitingStmt         = "SELECT &smsWaitingRow.* FROM %s ORDER BY imsi ASC"
-	listAllSMSWaitingCentresStmt  = "SELECT &smsWaitingCentre.* FROM %s ORDER BY imsi, serviceCentre"
-	listSMSWaitingCentresStmt     = "SELECT &smsWaitingCentre.* FROM %s WHERE imsi==$smsWaitingCentre.imsi ORDER BY serviceCentre"
-	upsertSMSWaitingStmt          = "INSERT INTO %s (imsi, mcef, updatedAt) VALUES ($smsWaitingRow.imsi, $smsWaitingRow.mcef, $smsWaitingRow.updatedAt) ON CONFLICT(imsi) DO UPDATE SET mcef=MAX(mcef, excluded.mcef), updatedAt=excluded.updatedAt"
-	insertSMSWaitingCentreStmt    = "INSERT INTO %s (imsi, serviceCentre) VALUES ($smsWaitingCentre.imsi, $smsWaitingCentre.serviceCentre) ON CONFLICT(imsi, serviceCentre) DO NOTHING"
-	clearSMSMemoryFullStmt        = "UPDATE %s SET mcef=0, updatedAt=$smsWaitingRow.updatedAt WHERE imsi==$smsWaitingRow.imsi"
-	deleteSMSWaitingCentreStmt    = "DELETE FROM %s WHERE imsi==$smsWaitingCentre.imsi AND serviceCentre==$smsWaitingCentre.serviceCentre"
-	deleteSMSWaitingCentresStmt   = "DELETE FROM %s WHERE imsi==$smsWaitingCentre.imsi"
-	deleteSMSWaitingStmt          = "DELETE FROM %s WHERE imsi==$smsWaitingRow.imsi"
-	deleteSMSWaitingIfEmptyStmt   = "DELETE FROM %s WHERE imsi==$smsWaitingRow.imsi AND NOT EXISTS (SELECT 1 FROM %s WHERE imsi==$smsWaitingRow.imsi)"
-	deleteStaleSMSWaitingCentStmt = "DELETE FROM %s WHERE imsi IN (SELECT imsi FROM %s WHERE updatedAt < $smsWaitingRow.updatedAt)"
-	deleteStaleSMSWaitingStmt     = "DELETE FROM %s WHERE updatedAt < $smsWaitingRow.updatedAt"
+	getSMSWaitingSQL             = "SELECT imsi, mcef, updatedAt FROM " + SMSWaitingTableName + " WHERE imsi==?"
+	listAllSMSWaitingSQL         = "SELECT imsi, mcef, updatedAt FROM " + SMSWaitingTableName + " ORDER BY imsi ASC"
+	listAllSMSWaitingCentresSQL  = "SELECT imsi, serviceCentre FROM " + SMSWaitingCentresTableName + " ORDER BY imsi, serviceCentre"
+	listSMSWaitingCentresSQL     = "SELECT imsi, serviceCentre FROM " + SMSWaitingCentresTableName + " WHERE imsi==? ORDER BY serviceCentre"
+	upsertSMSWaitingSQL          = "INSERT INTO " + SMSWaitingTableName + " (imsi, mcef, updatedAt) VALUES (?, ?, ?) ON CONFLICT(imsi) DO UPDATE SET mcef=MAX(mcef, excluded.mcef), updatedAt=excluded.updatedAt"
+	insertSMSWaitingCentreSQL    = "INSERT INTO " + SMSWaitingCentresTableName + " (imsi, serviceCentre) VALUES (?, ?) ON CONFLICT(imsi, serviceCentre) DO NOTHING"
+	clearSMSMemoryFullSQL        = "UPDATE " + SMSWaitingTableName + " SET mcef=0, updatedAt=? WHERE imsi==?"
+	deleteSMSWaitingCentreSQL    = "DELETE FROM " + SMSWaitingCentresTableName + " WHERE imsi==? AND serviceCentre==?"
+	deleteSMSWaitingCentresSQL   = "DELETE FROM " + SMSWaitingCentresTableName + " WHERE imsi==?"
+	deleteSMSWaitingSQL          = "DELETE FROM " + SMSWaitingTableName + " WHERE imsi==?"
+	deleteSMSWaitingIfEmptySQL   = "DELETE FROM " + SMSWaitingTableName + " WHERE imsi==? AND NOT EXISTS (SELECT 1 FROM " + SMSWaitingCentresTableName + " WHERE imsi==?)"
+	deleteStaleSMSWaitingCentSQL = "DELETE FROM " + SMSWaitingCentresTableName + " WHERE imsi IN (SELECT imsi FROM " + SMSWaitingTableName + " WHERE updatedAt < ?)"
+	deleteStaleSMSWaitingSQL     = "DELETE FROM " + SMSWaitingTableName + " WHERE updatedAt < ?"
 )
 
 type SMSWaiting struct {
@@ -53,14 +53,14 @@ type SMSWaitingUpdate struct {
 }
 
 type smsWaitingRow struct {
-	Imsi      string `db:"imsi"`
-	MCEF      bool   `db:"mcef"`
-	UpdatedAt int64  `db:"updatedAt"`
+	Imsi      string
+	MCEF      bool
+	UpdatedAt int64
 }
 
 type smsWaitingCentre struct {
-	Imsi          string `db:"imsi"`
-	ServiceCentre string `db:"serviceCentre"`
+	Imsi          string
+	ServiceCentre string
 }
 
 type recordSMSWaitingPayload struct {
@@ -93,22 +93,21 @@ func (db *Database) ListAllSMSWaiting(ctx context.Context) ([]SMSWaiting, error)
 		return nil, nil
 	}
 
-	var rows []smsWaitingRow
-
-	if err := db.conn().Query(ctx, db.listAllSMSWaitingStmt).GetAll(&rows); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
+	rows, err := queryAll(ctx, db.reader(), listAllSMSWaitingSQL, scanSMSWaitingRow)
+	if err != nil {
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
+	if len(rows) == 0 {
+		return nil, nil
+	}
+
 	waiting := make([]SMSWaiting, 0, len(rows))
 
-	var centres []smsWaitingCentre
-	if err := db.conn().Query(ctx, db.listAllSMSWaitingCentresStmt).GetAll(&centres); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	centres, err := queryAll(ctx, db.reader(), listAllSMSWaitingCentresSQL, scanSMSWaitingCentre)
+	if err != nil {
 		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -145,9 +144,8 @@ func (db *Database) GetSMSWaiting(ctx context.Context, imsi string) (*SMSWaiting
 		return nil, ErrNotFound
 	}
 
-	row := smsWaitingRow{Imsi: imsi}
-
-	if err := db.conn().Query(ctx, db.getSMSWaitingStmt, row).Get(&row); err != nil {
+	row, err := scanSMSWaitingRow(db.reader().QueryRowContext(ctx, getSMSWaitingSQL, imsi))
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -157,9 +155,8 @@ func (db *Database) GetSMSWaiting(ctx context.Context, imsi string) (*SMSWaiting
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	var centres []smsWaitingCentre
-
-	if err := db.conn().Query(ctx, db.listSMSWaitingCentresStmt, smsWaitingCentre{Imsi: imsi}).GetAll(&centres); err != nil && !errors.Is(err, sql.ErrNoRows) {
+	centres, err := queryAll(ctx, db.reader(), listSMSWaitingCentresSQL, scanSMSWaitingCentre, imsi)
+	if err != nil {
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -260,7 +257,7 @@ func (db *Database) invokeSMSWaiting(ctx context.Context, operation string, op *
 func (db *Database) applyRecordSMSWaiting(ctx context.Context, p *recordSMSWaitingPayload) (any, error) {
 	row := smsWaitingRow{Imsi: p.Imsi, MCEF: p.MemoryFull, UpdatedAt: p.UpdatedAt}
 
-	if err := db.runner(ctx).Query(ctx, db.upsertSMSWaitingStmt, row).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, upsertSMSWaitingSQL, row.Imsi, row.MCEF, row.UpdatedAt); err != nil {
 		if isForeignKeyError(err) {
 			return nil, ErrNotFound
 		}
@@ -268,7 +265,7 @@ func (db *Database) applyRecordSMSWaiting(ctx context.Context, p *recordSMSWaiti
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.insertSMSWaitingCentreStmt, smsWaitingCentre{Imsi: p.Imsi, ServiceCentre: p.ServiceCentre}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, insertSMSWaitingCentreSQL, p.Imsi, p.ServiceCentre); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -276,7 +273,7 @@ func (db *Database) applyRecordSMSWaiting(ctx context.Context, p *recordSMSWaiti
 }
 
 func (db *Database) applyClearSMSMemoryFull(ctx context.Context, p *smsWaitingCentrePayload) (any, error) {
-	if err := db.runner(ctx).Query(ctx, db.clearSMSMemoryFullStmt, smsWaitingRow{Imsi: p.Imsi, UpdatedAt: p.UpdatedAt}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, clearSMSMemoryFullSQL, p.UpdatedAt, p.Imsi); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -284,15 +281,15 @@ func (db *Database) applyClearSMSMemoryFull(ctx context.Context, p *smsWaitingCe
 }
 
 func (db *Database) applyRemoveSMSWaitingCentre(ctx context.Context, p *smsWaitingCentrePayload) (any, error) {
-	if err := db.runner(ctx).Query(ctx, db.deleteSMSWaitingCentreStmt, smsWaitingCentre{Imsi: p.Imsi, ServiceCentre: p.ServiceCentre}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteSMSWaitingCentreSQL, p.Imsi, p.ServiceCentre); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.clearSMSMemoryFullStmt, smsWaitingRow{Imsi: p.Imsi, UpdatedAt: p.UpdatedAt}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, clearSMSMemoryFullSQL, p.UpdatedAt, p.Imsi); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.deleteSMSWaitingIfEmptyStmt, smsWaitingRow{Imsi: p.Imsi}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteSMSWaitingIfEmptySQL, p.Imsi, p.Imsi); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -300,11 +297,11 @@ func (db *Database) applyRemoveSMSWaitingCentre(ctx context.Context, p *smsWaiti
 }
 
 func (db *Database) applyDeleteSMSWaiting(ctx context.Context, p *smsWaitingCentrePayload) (any, error) {
-	if err := db.runner(ctx).Query(ctx, db.deleteSMSWaitingCentresStmt, smsWaitingCentre{Imsi: p.Imsi}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteSMSWaitingCentresSQL, p.Imsi); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.deleteSMSWaitingStmt, smsWaitingRow{Imsi: p.Imsi}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteSMSWaitingSQL, p.Imsi); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -312,13 +309,11 @@ func (db *Database) applyDeleteSMSWaiting(ctx context.Context, p *smsWaitingCent
 }
 
 func (db *Database) applyDeleteStaleSMSWaiting(ctx context.Context, p *smsWaitingCutoffPayload) (any, error) {
-	cutoff := smsWaitingRow{UpdatedAt: p.Cutoff}
-
-	if err := db.runner(ctx).Query(ctx, db.deleteStaleSMSWaitingCentStmt, cutoff).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteStaleSMSWaitingCentSQL, p.Cutoff); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	if err := db.runner(ctx).Query(ctx, db.deleteStaleSMSWaitingStmt, cutoff).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteStaleSMSWaitingSQL, p.Cutoff); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -339,4 +334,24 @@ func startSMSWaitingSpan(ctx context.Context, operation string) (context.Context
 			semconv.DBCollectionName(SMSWaitingTableName),
 		),
 	)
+}
+
+func scanSMSWaitingRow(row scanner) (smsWaitingRow, error) {
+	var v smsWaitingRow
+
+	if err := row.Scan(&v.Imsi, &v.MCEF, &v.UpdatedAt); err != nil {
+		return smsWaitingRow{}, err
+	}
+
+	return v, nil
+}
+
+func scanSMSWaitingCentre(row scanner) (smsWaitingCentre, error) {
+	var v smsWaitingCentre
+
+	if err := row.Scan(&v.Imsi, &v.ServiceCentre); err != nil {
+		return smsWaitingCentre{}, err
+	}
+
+	return v, nil
 }

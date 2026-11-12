@@ -53,7 +53,7 @@ func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
 
 	dbTmp := filepath.Join(tmpDir, DBFilename)
 
-	if _, err := db.conn().PlainDB().ExecContext(ctx, "VACUUM INTO ?", dbTmp); err != nil {
+	if _, err := db.writer().ExecContext(ctx, "VACUUM INTO ?", dbTmp); err != nil {
 		recordSpanError(span, err)
 
 		return fmt.Errorf("failed to VACUUM INTO backup file: %w", err)

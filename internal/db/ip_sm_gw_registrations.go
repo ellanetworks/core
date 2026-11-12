@@ -20,10 +20,10 @@ const IPSMGWRegistrationsTableName = "ip_sm_gw_registrations"
 const ipSMGWRegistrationsSchema = 25
 
 const (
-	getIPSMGWRegistrationStmt      = "SELECT &ipSMGWRegistrationRow.* FROM %s WHERE imsi==$ipSMGWRegistrationRow.imsi"
-	listAllIPSMGWRegistrationsStmt = "SELECT &ipSMGWRegistrationRow.* FROM %s ORDER BY imsi ASC"
-	upsertIPSMGWRegistrationStmt   = "INSERT INTO %s (imsi, number, diameterHost, diameterRealm) VALUES ($ipSMGWRegistrationRow.imsi, $ipSMGWRegistrationRow.number, $ipSMGWRegistrationRow.diameterHost, $ipSMGWRegistrationRow.diameterRealm) ON CONFLICT(imsi) DO UPDATE SET number=excluded.number, diameterHost=excluded.diameterHost, diameterRealm=excluded.diameterRealm"
-	deleteIPSMGWRegistrationStmt   = "DELETE FROM %s WHERE imsi==$ipSMGWRegistrationRow.imsi"
+	getIPSMGWRegistrationSQL      = "SELECT imsi, number, diameterHost, diameterRealm FROM " + IPSMGWRegistrationsTableName + " WHERE imsi==?"
+	listAllIPSMGWRegistrationsSQL = "SELECT imsi, number, diameterHost, diameterRealm FROM " + IPSMGWRegistrationsTableName + " ORDER BY imsi ASC"
+	upsertIPSMGWRegistrationSQL   = "INSERT INTO " + IPSMGWRegistrationsTableName + " (imsi, number, diameterHost, diameterRealm) VALUES (?, ?, ?, ?) ON CONFLICT(imsi) DO UPDATE SET number=excluded.number, diameterHost=excluded.diameterHost, diameterRealm=excluded.diameterRealm"
+	deleteIPSMGWRegistrationSQL   = "DELETE FROM " + IPSMGWRegistrationsTableName + " WHERE imsi==?"
 )
 
 type IPSMGWRegistration struct {
@@ -34,10 +34,10 @@ type IPSMGWRegistration struct {
 }
 
 type ipSMGWRegistrationRow struct {
-	Imsi          string `db:"imsi"`
-	Number        string `db:"number"`
-	DiameterHost  string `db:"diameterHost"`
-	DiameterRealm string `db:"diameterRealm"`
+	Imsi          string
+	Number        string
+	DiameterHost  string
+	DiameterRealm string
 }
 
 type ipSMGWRegistrationPayload struct {
@@ -64,9 +64,8 @@ func (db *Database) GetIPSMGWRegistration(ctx context.Context, imsi string) (*IP
 		return nil, ErrNotFound
 	}
 
-	row := ipSMGWRegistrationRow{Imsi: imsi}
-
-	if err := db.conn().Query(ctx, db.getIPSMGWRegistrationStmt, row).Get(&row); err != nil {
+	row, err := scanIPSMGWRegistrationRow(db.reader().QueryRowContext(ctx, getIPSMGWRegistrationSQL, imsi))
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -92,13 +91,8 @@ func (db *Database) ListAllIPSMGWRegistrations(ctx context.Context) ([]IPSMGWReg
 		return nil, nil
 	}
 
-	var rows []ipSMGWRegistrationRow
-
-	if err := db.conn().Query(ctx, db.listAllIPSMGWRegistrationsStmt).GetAll(&rows); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
+	rows, err := queryAll(ctx, db.reader(), listAllIPSMGWRegistrationsSQL, scanIPSMGWRegistrationRow)
+	if err != nil {
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -148,7 +142,7 @@ func (db *Database) invokeIPSMGWRegistration(ctx context.Context, operation stri
 func (db *Database) applyPutIPSMGWRegistration(ctx context.Context, p *ipSMGWRegistrationPayload) (any, error) {
 	row := ipSMGWRegistrationRow{Imsi: p.Imsi, Number: p.Number, DiameterHost: p.DiameterHost, DiameterRealm: p.DiameterRealm}
 
-	if err := db.runner(ctx).Query(ctx, db.upsertIPSMGWRegistrationStmt, row).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, upsertIPSMGWRegistrationSQL, row.Imsi, row.Number, row.DiameterHost, row.DiameterRealm); err != nil {
 		if isForeignKeyError(err) {
 			return nil, ErrNotFound
 		}
@@ -160,7 +154,7 @@ func (db *Database) applyPutIPSMGWRegistration(ctx context.Context, p *ipSMGWReg
 }
 
 func (db *Database) applyDeleteIPSMGWRegistration(ctx context.Context, p *ipSMGWRegistrationPayload) (any, error) {
-	if err := db.runner(ctx).Query(ctx, db.deleteIPSMGWRegistrationStmt, ipSMGWRegistrationRow{Imsi: p.Imsi}).Run(); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, deleteIPSMGWRegistrationSQL, p.Imsi); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -181,4 +175,14 @@ func startIPSMGWRegistrationSpan(ctx context.Context, operation string) (context
 			semconv.DBCollectionName(IPSMGWRegistrationsTableName),
 		),
 	)
+}
+
+func scanIPSMGWRegistrationRow(row scanner) (ipSMGWRegistrationRow, error) {
+	var v ipSMGWRegistrationRow
+
+	if err := row.Scan(&v.Imsi, &v.Number, &v.DiameterHost, &v.DiameterRealm); err != nil {
+		return ipSMGWRegistrationRow{}, err
+	}
+
+	return v, nil
 }

@@ -450,7 +450,7 @@ func TestGroupCommitRecoversWhenAWriteEndsTheTransaction(t *testing.T) {
 	batch := []*pendingWrite{
 		pendingFor(t, database, opCreateProfile, newTestProfile(t, "abort-a")),
 		pendingFunc(t, "EndsTransaction", func(ctx context.Context) (any, error) {
-			_, err := database.runner(ctx).PlainDB().ExecContext(ctx, "ROLLBACK")
+			_, err := database.runner(ctx).ExecContext(ctx, "ROLLBACK")
 			return nil, err
 		}),
 		pendingFor(t, database, opCreateProfile, newTestProfile(t, "abort-b")),

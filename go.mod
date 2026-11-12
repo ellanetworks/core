@@ -3,7 +3,6 @@ module github.com/ellanetworks/core
 go 1.27.3
 
 require (
-	github.com/canonical/sqlair v0.0.0-20250120155751-a83645b9a121
 	github.com/cilium/ebpf v0.22.0
 	github.com/ellanetworks/core/diameter v0.0.0-20261022122753-8d5c8bdaaf89
 	github.com/ellanetworks/core/lppa v0.0.0-00010101000000-000000000000

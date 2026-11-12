@@ -9,118 +9,63 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const BGPPeersTableName = "bgp_peers"
 
 const (
-	listBGPPeersPagedStmt = "SELECT &BGPPeer.*, COUNT(*) OVER() AS &NumItems.count FROM %s ORDER BY id ASC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
-	listAllBGPPeersStmt   = "SELECT &BGPPeer.* FROM %s ORDER BY id ASC"
-	getBGPPeerStmt        = "SELECT &BGPPeer.* FROM %s WHERE id==$BGPPeer.id"
-	createBGPPeerStmt     = "INSERT INTO %s (address, remoteAS, holdTime, password, description) VALUES ($BGPPeer.address, $BGPPeer.remoteAS, $BGPPeer.holdTime, $BGPPeer.password, $BGPPeer.description)"
-	updateBGPPeerStmt     = "UPDATE %s SET address=$BGPPeer.address, remoteAS=$BGPPeer.remoteAS, holdTime=$BGPPeer.holdTime, password=$BGPPeer.password, description=$BGPPeer.description WHERE id==$BGPPeer.id"
-	deleteBGPPeerStmt     = "DELETE FROM %s WHERE id==$BGPPeer.id"
-	countBGPPeersStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
+	listBGPPeersPagedSQL = "SELECT id, address, remoteAS, holdTime, password, description, COUNT(*) OVER() FROM " + BGPPeersTableName + " ORDER BY id ASC LIMIT ? OFFSET ?"
+	listAllBGPPeersSQL   = "SELECT id, address, remoteAS, holdTime, password, description FROM " + BGPPeersTableName + " ORDER BY id ASC"
+	getBGPPeerSQL        = "SELECT id, address, remoteAS, holdTime, password, description FROM " + BGPPeersTableName + " WHERE id==?"
+	createBGPPeerSQL     = "INSERT INTO " + BGPPeersTableName + " (address, remoteAS, holdTime, password, description) VALUES (?, ?, ?, ?, ?)"
+	updateBGPPeerSQL     = "UPDATE " + BGPPeersTableName + " SET address=?, remoteAS=?, holdTime=?, password=?, description=? WHERE id==?"
+	deleteBGPPeerSQL     = "DELETE FROM " + BGPPeersTableName + " WHERE id==?"
+	countBGPPeersSQL     = "SELECT COUNT(*) FROM " + BGPPeersTableName
 )
 
 type BGPPeer struct {
-	ID          int    `db:"id"`
-	Address     string `db:"address"`
-	RemoteAS    int    `db:"remoteAS"`
-	HoldTime    int    `db:"holdTime"`
-	Password    string `db:"password"` // stored in plaintext — required by GoBGP TCP MD5 API
-	Description string `db:"description"`
+	ID          int
+	Address     string
+	RemoteAS    int
+	HoldTime    int
+	Password    string // stored in plaintext — required by GoBGP TCP MD5 API
+	Description string
 }
 
 func (db *Database) ListBGPPeersPage(ctx context.Context, page, perPage int) ([]BGPPeer, int, error) {
-	querySummary := fmt.Sprintf("%s %s (paged)", "SELECT", BGPPeersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(BGPPeersTableName),
-			attribute.Int("ella.db.page", page),
-			attribute.Int("ella.db.page_size", perPage),
-		),
-	)
+	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+BGPPeersTableName+" (paged)", BGPPeersTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(BGPPeersTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "select").Inc()
-
-	var peers []BGPPeer
-
-	var counts []NumItems
-
-	args := ListArgs{
-		Limit:  perPage,
-		Offset: (page - 1) * perPage,
-	}
-
-	err := db.conn().Query(ctx, db.listBGPPeersStmt, args).GetAll(&peers, &counts)
+	peers, count, err := queryPageWithTotal(ctx, db.reader(), listBGPPeersPagedSQL, scanBGPPeer, perPage, (page-1)*perPage)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			fallbackCount, countErr := db.CountBGPPeers(ctx)
-			if countErr != nil {
-				return nil, 0, nil
-			}
-
-			return nil, fallbackCount, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	count := 0
-	if len(counts) > 0 {
-		count = counts[0].Count
+	if len(peers) == 0 {
+		fallbackCount, err := db.CountBGPPeers(ctx)
+		if err != nil {
+			recordSpanError(span, err)
+
+			return nil, 0, fmt.Errorf("count failed: %w", err)
+		}
+
+		return nil, fallbackCount, nil
 	}
 
 	return peers, count, nil
 }
 
 func (db *Database) ListAllBGPPeers(ctx context.Context) ([]BGPPeer, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", BGPPeersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(BGPPeersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, BGPPeersTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(BGPPeersTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "select").Inc()
-
-	var peers []BGPPeer
-
-	err := db.conn().Query(ctx, db.listAllBGPPeersStmt).GetAll(&peers)
+	peers, err := queryAll(ctx, db.reader(), listAllBGPPeersSQL, scanBGPPeer)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -130,29 +75,11 @@ func (db *Database) ListAllBGPPeers(ctx context.Context) ([]BGPPeer, error) {
 }
 
 func (db *Database) GetBGPPeer(ctx context.Context, id int) (*BGPPeer, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", BGPPeersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(BGPPeersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, BGPPeersTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(BGPPeersTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "select").Inc()
-
-	row := BGPPeer{ID: id}
-
-	err := db.conn().Query(ctx, db.getBGPPeerStmt, row).Get(&row)
+	row, err := scanBGPPeer(db.reader().QueryRowContext(ctx, getBGPPeerSQL, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			recordSpanError(span, err)
@@ -169,25 +96,9 @@ func (db *Database) GetBGPPeer(ctx context.Context, id int) (*BGPPeer, error) {
 }
 
 func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
-	querySummary := fmt.Sprintf("%s %s", "INSERT", BGPPeersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			semconv.DBCollectionName(BGPPeersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, BGPPeersTableName, "INSERT", "insert")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(BGPPeersTableName, "insert"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "insert").Inc()
 
 	result, err := db.applyCreateBGPPeer(ctx, peer)
 	if err != nil {
@@ -204,25 +115,9 @@ func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 }
 
 func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
-	querySummary := fmt.Sprintf("%s %s", "UPDATE", BGPPeersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(BGPPeersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, BGPPeersTableName, "UPDATE", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(BGPPeersTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "update").Inc()
 
 	_, err := db.applyUpdateBGPPeer(ctx, peer)
 	if err != nil {
@@ -237,25 +132,9 @@ func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 }
 
 func (db *Database) DeleteBGPPeer(ctx context.Context, id int) error {
-	querySummary := fmt.Sprintf("%s %s", "DELETE", BGPPeersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			semconv.DBCollectionName(BGPPeersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, BGPPeersTableName, "DELETE", "delete")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(BGPPeersTableName, "delete"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "delete").Inc()
 
 	_, err := db.applyDeleteBGPPeer(ctx, &intPayload{Value: id})
 	if err != nil {
@@ -270,34 +149,26 @@ func (db *Database) DeleteBGPPeer(ctx context.Context, id int) error {
 }
 
 func (db *Database) CountBGPPeers(ctx context.Context) (int, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", BGPPeersTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(BGPPeersTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, BGPPeersTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(BGPPeersTableName, "select"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "select").Inc()
-
-	var result NumItems
-
-	err := db.conn().Query(ctx, db.countBGPPeersStmt).Get(&result)
+	count, err := queryCount(ctx, db.reader(), countBGPPeersSQL)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	return result.Count, nil
+	return count, nil
+}
+
+func scanBGPPeer(row scanner) (BGPPeer, error) {
+	var v BGPPeer
+
+	if err := row.Scan(&v.ID, &v.Address, &v.RemoteAS, &v.HoldTime, &v.Password, &v.Description); err != nil {
+		return BGPPeer{}, err
+	}
+
+	return v, nil
 }

@@ -5,32 +5,24 @@ package db
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 )
 
 const (
-	insertLocationReportStmt = `INSERT INTO %s (request_id, seq, reported_at, location_data) VALUES ($LocationReport.request_id, $LocationReport.seq, $LocationReport.reported_at, $LocationReport.location_data)`
-	pruneLocationReportsStmt = `DELETE FROM %s WHERE request_id = $locationReportCursor.request_id AND seq <= $locationReportCursor.seq`
-	listLocationReportsStmt  = `SELECT &LocationReport.* FROM %s WHERE request_id = $locationReportCursor.request_id AND seq > $locationReportCursor.seq ORDER BY seq LIMIT $locationReportCursor.limit`
+	insertLocationReportSQL = `INSERT INTO ` + LocationReportsTableName + ` (request_id, seq, reported_at, location_data) VALUES (?, ?, ?, ?)`
+	pruneLocationReportsSQL = `DELETE FROM ` + LocationReportsTableName + ` WHERE request_id = ? AND seq <= ?`
+	listLocationReportsSQL  = `SELECT request_id, seq, reported_at, location_data FROM ` + LocationReportsTableName + ` WHERE request_id = ? AND seq > ? ORDER BY seq LIMIT ?`
 )
 
 type LocationReport struct {
-	RequestID    string `db:"request_id"`
-	Seq          int64  `db:"seq"`
-	ReportedAt   int64  `db:"reported_at"`
-	LocationData string `db:"location_data"`
-}
-
-type locationReportCursor struct {
-	RequestID string `db:"request_id"`
-	Seq       int64  `db:"seq"`
-	Limit     int    `db:"limit"`
+	RequestID    string
+	Seq          int64
+	ReportedAt   int64
+	LocationData string
 }
 
 func (db *Database) AddLocationReport(ctx context.Context, r *LocationReport, keep int64) error {
-	ctx, span, timer := startLocationQuery(ctx, LocationReportsTableName, "INSERT", "insert")
+	ctx, span, timer := startDBQuery(ctx, LocationReportsTableName, "INSERT", "insert")
 	defer span.End()
 	defer timer.ObserveDuration()
 
@@ -40,14 +32,14 @@ func (db *Database) AddLocationReport(ctx context.Context, r *LocationReport, ke
 		return err
 	}
 
-	tx, err := db.conn().Begin(ctx, nil)
+	tx, err := db.writer().BeginTx(ctx, nil)
 	if err != nil {
 		recordSpanError(span, err)
 
 		return fmt.Errorf("begin transaction failed: %w", err)
 	}
 
-	if err := tx.Query(ctx, db.insertLocationReportStmt, r).Run(); err != nil {
+	if _, err := tx.ExecContext(ctx, insertLocationReportSQL, r.RequestID, r.Seq, r.ReportedAt, r.LocationData); err != nil {
 		_ = tx.Rollback()
 
 		recordSpanError(span, err)
@@ -56,7 +48,7 @@ func (db *Database) AddLocationReport(ctx context.Context, r *LocationReport, ke
 	}
 
 	if r.Seq > keep {
-		if err := tx.Query(ctx, db.pruneLocationReportsStmt, locationReportCursor{RequestID: r.RequestID, Seq: r.Seq - keep}).Run(); err != nil {
+		if _, err := tx.ExecContext(ctx, pruneLocationReportsSQL, r.RequestID, r.Seq-keep); err != nil {
 			_ = tx.Rollback()
 
 			recordSpanError(span, err)
@@ -75,7 +67,7 @@ func (db *Database) AddLocationReport(ctx context.Context, r *LocationReport, ke
 }
 
 func (db *Database) ListLocationReports(ctx context.Context, requestID string, afterSeq int64, limit int) ([]LocationReport, error) {
-	ctx, span, timer := startLocationQuery(ctx, LocationReportsTableName, "SELECT", "select")
+	ctx, span, timer := startDBQuery(ctx, LocationReportsTableName, "SELECT", "select")
 	defer span.End()
 	defer timer.ObserveDuration()
 
@@ -83,19 +75,22 @@ func (db *Database) ListLocationReports(ctx context.Context, requestID string, a
 		return nil, nil
 	}
 
-	var reports []LocationReport
-
-	cursor := locationReportCursor{RequestID: requestID, Seq: afterSeq, Limit: limit}
-
-	if err := db.conn().Query(ctx, db.listLocationReportsStmt, cursor).GetAll(&reports); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-
+	reports, err := queryAll(ctx, db.reader(), listLocationReportsSQL, scanLocationReport, requestID, afterSeq, limit)
+	if err != nil {
 		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return reports, nil
+}
+
+func scanLocationReport(row scanner) (LocationReport, error) {
+	var v LocationReport
+
+	if err := row.Scan(&v.RequestID, &v.Seq, &v.ReportedAt, &v.LocationData); err != nil {
+		return LocationReport{}, err
+	}
+
+	return v, nil
 }

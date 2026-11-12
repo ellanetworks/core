@@ -8,10 +8,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -35,18 +31,18 @@ func defaultBGPSettings() *BGPSettings {
 
 const BGPSettingsTableName = "bgp_settings"
 
-const upsertBGPSettingsStmt = `
-INSERT INTO %s (singleton, enabled, localAS, routerID, listenAddress) VALUES (TRUE, $BGPSettings.enabled, $BGPSettings.localAS, $BGPSettings.routerID, $BGPSettings.listenAddress)
-ON CONFLICT(singleton) DO UPDATE SET enabled=$BGPSettings.enabled, localAS=$BGPSettings.localAS, routerID=$BGPSettings.routerID, listenAddress=$BGPSettings.listenAddress;
+const upsertBGPSettingsSQL = `
+INSERT INTO ` + BGPSettingsTableName + ` (singleton, enabled, localAS, routerID, listenAddress) VALUES (TRUE, ?, ?, ?, ?)
+ON CONFLICT(singleton) DO UPDATE SET enabled=excluded.enabled, localAS=excluded.localAS, routerID=excluded.routerID, listenAddress=excluded.listenAddress;
 `
 
-const getBGPSettingsStmt = `SELECT &BGPSettings.* FROM %s WHERE singleton=TRUE;`
+const getBGPSettingsSQL = `SELECT enabled, localAS, routerID, listenAddress FROM ` + BGPSettingsTableName + ` WHERE singleton=TRUE;`
 
 type BGPSettings struct {
-	Enabled       bool   `db:"enabled"`
-	LocalAS       int    `db:"localAS"`
-	RouterID      string `db:"routerID"`
-	ListenAddress string `db:"listenAddress"`
+	Enabled       bool
+	LocalAS       int
+	RouterID      string
+	ListenAddress string
 }
 
 // InitializeBGPSettings inserts the default BGP settings row if the
@@ -66,29 +62,13 @@ func (db *Database) InitializeBGPSettings(ctx context.Context) error {
 }
 
 func (db *Database) GetBGPSettings(ctx context.Context) (*BGPSettings, error) {
-	querySummary := fmt.Sprintf("%s %s", "SELECT", BGPSettingsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(BGPSettingsTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, BGPSettingsTableName, "SELECT", "select")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(BGPSettingsTableName, "select"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(BGPSettingsTableName, "select").Inc()
 
 	var bgpSettings BGPSettings
 
-	err := db.conn().Query(ctx, db.getBGPSettingsStmt).Get(&bgpSettings)
+	err := db.reader().QueryRowContext(ctx, getBGPSettingsSQL).Scan(&bgpSettings.Enabled, &bgpSettings.LocalAS, &bgpSettings.RouterID, &bgpSettings.ListenAddress)
 	if err != nil {
 		recordSpanError(span, err)
 
@@ -108,25 +88,9 @@ func (db *Database) IsBGPEnabled(ctx context.Context) (bool, error) {
 }
 
 func (db *Database) UpdateBGPSettings(ctx context.Context, settings *BGPSettings) error {
-	querySummary := fmt.Sprintf("%s %s", "UPSERT", BGPSettingsTableName)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPSERT"),
-			semconv.DBCollectionName(BGPSettingsTableName),
-		),
-	)
+	ctx, span, timer := startDBQuery(ctx, BGPSettingsTableName, "UPSERT", "update")
 	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(BGPSettingsTableName, "update"))
 	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(BGPSettingsTableName, "update").Inc()
 
 	_, err := db.applyUpdateBGPSettings(ctx, settings)
 	if err != nil {
