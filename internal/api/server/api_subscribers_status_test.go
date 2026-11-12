@@ -4,9 +4,12 @@
 package server
 
 import (
+	"maps"
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/ellanetworks/core/internal/db"
 )
 
 func TestMergeSystems(t *testing.T) {
@@ -192,5 +195,45 @@ func TestLastSeenAtPrefersTheLiveContext(t *testing.T) {
 
 	if got := lastSeenAt(true, time.Time{}, retained); !got.Equal(retained) {
 		t.Errorf("registered system with no live timestamp = %v, want %v", got, retained)
+	}
+}
+
+func TestRegisteredElsewhere(t *testing.T) {
+	regs := []db.UERegistration{
+		{Imsi: "001010000000001", Type: db.UERegistrationTypeMME, NodeID: "3"},
+		{Imsi: "001010000000001", Type: db.UERegistrationTypeAMF3GPPAccess, NodeID: "2"},
+		{Imsi: "001010000000002", Type: db.UERegistrationTypeMME, NodeID: "1"},
+		{Imsi: "001010000000003", Type: db.UERegistrationTypeMME, NodeID: "3", Purged: true},
+		{Imsi: "001010000000004", Type: "unknown", NodeID: "3"},
+	}
+
+	got := registeredElsewhere(regs, "1")
+
+	want := map[string]map[string]bool{
+		"001010000000001": {System4G: true, System5G: true},
+	}
+
+	if !maps.EqualFunc(got, want, maps.Equal) {
+		t.Fatalf("registeredElsewhere = %v, want %v", got, want)
+	}
+}
+
+func TestWithElsewhere(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		local     []string
+		elsewhere map[string]bool
+		want      []string
+	}{
+		{name: "nothing elsewhere keeps the local systems", local: []string{System4G}, want: []string{System4G}},
+		{name: "a system held only elsewhere", elsewhere: map[string]bool{System4G: true}, want: []string{System4G}},
+		{name: "local and elsewhere keep 5G first", local: []string{System4G}, elsewhere: map[string]bool{System5G: true}, want: []string{System5G, System4G}},
+		{name: "the same system locally and elsewhere is listed once", local: []string{System5G}, elsewhere: map[string]bool{System5G: true}, want: []string{System5G}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := withElsewhere(tc.local, tc.elsewhere); !slices.Equal(got, tc.want) {
+				t.Errorf("withElsewhere = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }

@@ -383,3 +383,54 @@ func TestRegisterUE_VersionsIncreaseUnderRaft(t *testing.T) {
 		t.Fatalf("purged registration = %+v, want purged with version > %d", reg, last)
 	}
 }
+
+func TestListActiveUERegistrations(t *testing.T) {
+	database := setupUERegistrationsTestDB(t)
+	ctx := context.Background()
+
+	const (
+		purgedIMSI   = "001010000000002"
+		unlistedIMSI = "001010000000003"
+	)
+
+	createSubscriber(t, database, purgedIMSI)
+	createSubscriber(t, database, unlistedIMSI)
+
+	for _, reg := range []struct{ imsi, regType, nodeID string }{
+		{ueRegIMSI, db.UERegistrationTypeMME, "node-a"},
+		{ueRegIMSI, db.UERegistrationTypeAMF3GPPAccess, "node-b"},
+		{purgedIMSI, db.UERegistrationTypeMME, "node-a"},
+		{unlistedIMSI, db.UERegistrationTypeMME, "node-a"},
+	} {
+		if _, err := database.RegisterUE(ctx, reg.imsi, reg.regType, reg.nodeID, ""); err != nil {
+			t.Fatalf("RegisterUE: %s", err)
+		}
+	}
+
+	if err := database.PurgeUERegistration(ctx, purgedIMSI, db.UERegistrationTypeMME, "node-a"); err != nil {
+		t.Fatalf("PurgeUERegistration: %s", err)
+	}
+
+	regs, err := database.ListActiveUERegistrations(ctx, []string{ueRegIMSI, purgedIMSI})
+	if err != nil {
+		t.Fatalf("ListActiveUERegistrations: %s", err)
+	}
+
+	got := make(map[string]string, len(regs))
+	for _, reg := range regs {
+		if reg.Imsi != ueRegIMSI || reg.Purged {
+			t.Fatalf("unexpected registration %+v", reg)
+		}
+
+		got[reg.Type] = reg.NodeID
+	}
+
+	if len(got) != 2 || got[db.UERegistrationTypeMME] != "node-a" || got[db.UERegistrationTypeAMF3GPPAccess] != "node-b" {
+		t.Fatalf("registrations = %v, want mme on node-a and amf on node-b", got)
+	}
+
+	empty, err := database.ListActiveUERegistrations(ctx, nil)
+	if err != nil || len(empty) != 0 {
+		t.Fatalf("ListActiveUERegistrations(nil) = %v, %v; want none", empty, err)
+	}
+}
