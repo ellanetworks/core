@@ -135,6 +135,7 @@ func TestFinishRecordsOutcomeOnSpanAndMetrics(t *testing.T) {
 		{name: "already exists", err: ErrAlreadyExists},
 		{name: "busy", err: fmt.Errorf("query failed: %w", sqlite3.Error{Code: sqlite3.ErrBusy, ExtendedCode: sqlite3.ErrNoExtended(sqlite3.ErrBusy)}), errorType: "5"},
 		{name: "unique constraint", err: sqlite3.Error{Code: sqlite3.ErrConstraint, ExtendedCode: sqlite3.ErrConstraintUnique}, errorType: "2067"},
+		{name: "canceled", err: fmt.Errorf("query failed: %w", context.Canceled)},
 		{name: "propose timeout", err: fmt.Errorf("write: %w", ErrProposeTimeout), errorType: "propose_timeout"},
 		{name: "unclassified", err: errors.New("boom"), errorType: "_OTHER"},
 	}

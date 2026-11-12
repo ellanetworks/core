@@ -468,7 +468,7 @@ func (db *Database) ProfilesUsingIMSApplicationServer(ctx context.Context, appli
 }
 
 func (db *Database) IMSRegisteredSubscribersOfProfiles(ctx context.Context, profileIDs []string) (_ []string, err error) {
-	ctx, finish := startDBQuery(ctx, IMSInitialFilterCriteriaTableName, "SELECT")
+	ctx, finish := startDBQuery(ctx, IMSRegistrationSetsTableName, "SELECT")
 	defer func() { finish(err) }()
 
 	if len(profileIDs) == 0 || !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {

@@ -190,7 +190,7 @@ func (db *Database) RegisterVisitorUE(ctx context.Context, imsi, partnerID, regT
 		return 0, fmt.Errorf("roaming partner ID is required")
 	}
 
-	ctx, finish := startDBQueryNamed(ctx, "UPSERT "+VisitorsTableName+" (register visitor)", VisitorsTableName, "UPSERT")
+	ctx, finish := startDBQueryNamed(ctx, "UPSERT "+UERegistrationsTableName+" (register visitor)", UERegistrationsTableName, "UPSERT")
 	defer func() { finish(err) }()
 
 	version, err := opRegisterVisitorUE.Invoke(ctx, db, &registerVisitorUEPayload{

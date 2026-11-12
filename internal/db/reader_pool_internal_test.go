@@ -292,3 +292,37 @@ func TestApplyFunctionsNeverReadThroughTheReaderPool(t *testing.T) {
 		}
 	}
 }
+
+func TestBlockNewConnectionsHoldsBackConnectsUntilUnblocked(t *testing.T) {
+	connector := newSQLiteConnector(filepath.Join(t.TempDir(), DBFilename))
+
+	unblock := connector.blockConnects()
+
+	connected := make(chan error, 1)
+
+	go func() {
+		conn, err := connector.Connect(context.Background())
+		if err == nil {
+			_ = conn.Close()
+		}
+
+		connected <- err
+	}()
+
+	select {
+	case err := <-connected:
+		t.Fatalf("Connect returned while connects were blocked: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	unblock()
+
+	select {
+	case err := <-connected:
+		if err != nil {
+			t.Fatalf("Connect after unblock: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Connect did not return after unblock")
+	}
+}

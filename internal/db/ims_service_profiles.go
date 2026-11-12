@@ -269,7 +269,7 @@ func (db *Database) applyDeleteIMSServiceProfile(ctx context.Context, p *stringP
 }
 
 func (db *Database) GetProfileIMSServiceProfiles(ctx context.Context, profileID string) (_ map[IMSRegistrationSet]string, err error) {
-	ctx, finish := startDBQuery(ctx, IMSServiceProfilesTableName, "SELECT")
+	ctx, finish := startDBQuery(ctx, IMSServiceProfileAssignmentsTableName, "SELECT")
 	defer func() { finish(err) }()
 
 	out := make(map[IMSRegistrationSet]string)
@@ -291,7 +291,7 @@ func (db *Database) GetProfileIMSServiceProfiles(ctx context.Context, profileID 
 }
 
 func (db *Database) ListIMSServiceProfileAssignments(ctx context.Context) (_ []ProfileIMSServiceProfiles, err error) {
-	ctx, finish := startDBQuery(ctx, IMSServiceProfilesTableName, "SELECT")
+	ctx, finish := startDBQuery(ctx, IMSServiceProfileAssignmentsTableName, "SELECT")
 	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
@@ -327,7 +327,7 @@ func (db *Database) SetProfileIMSServiceProfiles(ctx context.Context, profileID 
 		}
 	}
 
-	ctx, finish := startDBQuery(ctx, IMSServiceProfilesTableName, "UPDATE")
+	ctx, finish := startDBQuery(ctx, IMSServiceProfileAssignmentsTableName, "UPDATE")
 	defer func() { finish(err) }()
 
 	if _, err := opSetProfileIMSServiceProfiles.Invoke(ctx, db, &ProfileIMSServiceProfiles{ProfileID: profileID, ServiceProfiles: serviceProfiles}); err != nil {
@@ -358,7 +358,7 @@ func (db *Database) applySetProfileIMSServiceProfiles(ctx context.Context, p *Pr
 }
 
 func (db *Database) ProfilesUsingIMSServiceProfile(ctx context.Context, serviceProfileID string) (_ []string, err error) {
-	ctx, finish := startDBQuery(ctx, IMSServiceProfilesTableName, "SELECT")
+	ctx, finish := startDBQuery(ctx, IMSServiceProfileAssignmentsTableName, "SELECT")
 	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {

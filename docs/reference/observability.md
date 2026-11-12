@@ -63,7 +63,7 @@ These metrics are used to monitor the health of the system and the performance o
 | app_api_request_duration_seconds      | HTTP request duration histogram in seconds    | Histogram |
 | app_api_authentication_attempts_total | Total number of authentication attempts by type and result         | Counter |
 | app_database_storage_bytes | The total storage used by the database in bytes. This is the size of the database file on disk. | Gauge |
-| app_database_queries_total | Database queries, labeled by `table`, `operation`, and `error_type` (empty on success, otherwise the SQLite extended result code, an error class, or `_OTHER`). | Counter |
+| app_database_queries_total | Database queries, labeled by `table`, `operation`, and `error_type` (empty on success and for results such as not found, already exists, or a conflict; otherwise the SQLite extended result code, an error class, or `_OTHER`). | Counter |
 | app_database_query_duration_seconds | Database query duration in seconds, labeled by `table` and `operation`. | Histogram |
 | app_raft_changeset_bytes_total | SQLite changeset bytes applied through the Raft FSM. Emitted only when clustering is enabled. | Counter |
 | app_radio_events_dropped_total | Radio events not written to the database because the write buffer was full. | Counter |
@@ -220,7 +220,7 @@ This indicates a resource leak in Ella Core. Capture a goroutine profile from Py
 
 #### High Database Error Rate
 
-Warning. More than 5% of database queries fail over 5 minutes.
+Warning. More than 5% of database queries fail over 5 minutes, while the node runs more than one query per second. Raft leadership errors during an election do not count.
 
 Break down `app_database_queries_total` by `table`, `operation`, and `error_type` to identify the failing queries.
 

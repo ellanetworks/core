@@ -230,6 +230,16 @@ func (db *Database) PlainDB() *sql.DB {
 	return db.conn()
 }
 
+func (db *Database) BlockNewConnections() func() {
+	unblockWriter := db.connector.blockConnects()
+	unblockReader := db.readConnector.blockConnects()
+
+	return func() {
+		unblockReader()
+		unblockWriter()
+	}
+}
+
 // Reopen migrates the database file FSM.Restore swapped in and retires the
 // pools' connections so later checkouts open that file. Reopen is only
 // invoked from FSM.Restore which holds the FSM write lock, so concurrent

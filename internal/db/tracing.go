@@ -67,7 +67,7 @@ var outcomes = []error{
 	ErrNoMatchingPolicy, ErrDNNNotInSlice, ErrSubscriberLimit, ErrPSIConflict, ErrIMSPeerConflict,
 	ErrSMSCConflict, ErrRoamingConflict, ErrRoamingRefused, ErrRoamerDeregistering, ErrInvalidBackupFile,
 	ErrRestoreBackupAhead, ErrJoinTokenAlreadyConsumed, ErrJoinTokenNodeMismatch, ErrNodeIdentityBound,
-	ErrJoinTokenExpired,
+	ErrJoinTokenExpired, context.Canceled,
 }
 
 func failed(err error) bool {

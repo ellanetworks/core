@@ -501,10 +501,12 @@ groups:
             model:
               expr: |
                 (
-                  (sum by (instance) (rate(app_database_queries_total{error_type!=""}[5m])) or sum by (instance) (rate(app_database_queries_total[5m])) * 0)
+                  (sum by (instance) (rate(app_database_queries_total{error_type!="",error_type!~"not_leader|leadership_lost|leader_unreachable|leader_request_not_sent|barrier_timeout"}[5m])) or sum by (instance) (rate(app_database_queries_total[5m])) * 0)
                   /
                   clamp_min(sum by (instance) (rate(app_database_queries_total[5m])), 1e-10)
                 ) * 100
+                and
+                sum by (instance) (rate(app_database_queries_total[5m])) > 1
               instant: true
               refId: A
           - refId: C
