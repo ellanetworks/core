@@ -142,7 +142,7 @@ func TestReleaseFixturesMigrateToCurrentSchema(t *testing.T) {
 
 			waitForSchema(t, database, SchemaVersion())
 
-			conn := database.conn().PlainDB()
+			conn := database.conn()
 
 			assertIntegrity(t, conn)
 
@@ -175,7 +175,7 @@ func TestReleaseFixturesMigrateToCurrentSchema(t *testing.T) {
 func TestSchemaGolden(t *testing.T) {
 	database := newStandaloneDB(t)
 
-	got := dumpSchema(t, database.conn().PlainDB())
+	got := dumpSchema(t, database.conn())
 
 	if *updateSchemaGolden {
 		if err := os.WriteFile(schemaGoldenPath, []byte(got), 0o600); err != nil {
