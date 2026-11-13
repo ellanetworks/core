@@ -64,6 +64,7 @@ export const radioEvent = (
   message_type: "InitialUEMessage",
   direction: "incoming",
   radio: "radio-1",
+  radio_ref: "gNB:001-01:000001@24",
   address: "10.0.0.1:38412",
   ...overrides,
 });

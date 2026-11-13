@@ -160,16 +160,17 @@ func (a *AMF) radioFor(conn NGAPWriter) *Radio {
 	return radio
 }
 
-// radioNameByConn returns the node name for a connection, or "" when untracked.
-func (a *AMF) radioNameByConn(conn NGAPWriter) string {
+// radioIdentityByConn returns the node name and ref for a connection, or "" for
+// each one the radio has not given yet.
+func (a *AMF) radioIdentityByConn(conn NGAPWriter) (string, string) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
 	if r, ok := a.reg.Radio(conn); ok {
-		return r.name
+		return r.name, radioIDOf(r)
 	}
 
-	return ""
+	return "", ""
 }
 
 // RadioInfo is a read-only snapshot of a connected radio, exposed for status/API so

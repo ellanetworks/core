@@ -155,18 +155,10 @@ func TestCountRegisteredSubscribers(t *testing.T) {
 	}
 }
 
-func TestHasENBAndCount(t *testing.T) {
+func TestCountENBs(t *testing.T) {
 	m := newTestMME(t)
 	m.trackRadio(context.Background(), new(sctp.SCTPConn), RadioInfo{Name: "enb-a", ID: "00f110-1"})
 	m.trackRadio(context.Background(), new(sctp.SCTPConn), RadioInfo{Name: "enb-b", ID: "00f110-2"})
-
-	if !m.HasRadio("enb-a") {
-		t.Fatal("HasRadio(enb-a) = false, want true")
-	}
-
-	if m.HasRadio("enb-z") {
-		t.Fatal("HasRadio(enb-z) = true, want false")
-	}
 
 	if got := m.CountRadios(); got != 2 {
 		t.Fatalf("CountRadios = %d, want 2", got)

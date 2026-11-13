@@ -76,6 +76,9 @@ CREATE INDEX idx_network_logs_protocol ON network_logs(protocol);
 -- index idx_network_logs_radio_name
 CREATE INDEX idx_network_logs_radio_name ON network_logs(radio_name);
 
+-- index idx_network_logs_radio_ref
+CREATE INDEX idx_network_logs_radio_ref ON network_logs(radio_ref);
+
 -- index idx_network_logs_remote_address
 CREATE INDEX idx_network_logs_remote_address ON network_logs(remote_address);
 
@@ -215,7 +218,7 @@ CREATE TABLE n3_settings(singleton BOOLEAN PRIMARY KEY DEFAULT TRUE,external_add
 CREATE TABLE nat_settings(singleton BOOLEAN PRIMARY KEY DEFAULT TRUE,enabled BOOLEAN NOT NULL DEFAULT TRUE,CHECK(singleton));
 
 -- table network_logs
-CREATE TABLE "network_logs"(id INTEGER PRIMARY KEY AUTOINCREMENT,timestamp INTEGER NOT NULL,protocol TEXT NOT NULL,message_type TEXT NOT NULL,direction TEXT NOT NULL DEFAULT '',local_address TEXT NOT NULL DEFAULT '',remote_address TEXT NOT NULL DEFAULT '',raw BLOB NOT NULL,details TEXT NOT NULL DEFAULT '',radio_name TEXT NOT NULL DEFAULT '');
+CREATE TABLE "network_logs"(id INTEGER PRIMARY KEY AUTOINCREMENT,timestamp INTEGER NOT NULL,protocol TEXT NOT NULL,message_type TEXT NOT NULL,direction TEXT NOT NULL DEFAULT '',local_address TEXT NOT NULL DEFAULT '',remote_address TEXT NOT NULL DEFAULT '',raw BLOB NOT NULL,details TEXT NOT NULL DEFAULT '',radio_name TEXT NOT NULL DEFAULT '',radio_ref TEXT NOT NULL DEFAULT '');
 
 -- table network_rules
 CREATE TABLE "network_rules"(id TEXT PRIMARY KEY,policy_id TEXT NOT NULL,description TEXT NOT NULL,direction TEXT NOT NULL,remote_prefix TEXT,protocol INTEGER DEFAULT 255,port_low INTEGER DEFAULT 0,port_high INTEGER DEFAULT 0,action TEXT NOT NULL,precedence INTEGER NOT NULL,created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY(policy_id)REFERENCES policies(id)ON DELETE CASCADE,UNIQUE(policy_id,precedence,direction));

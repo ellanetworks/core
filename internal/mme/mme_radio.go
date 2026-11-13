@@ -241,15 +241,25 @@ func (m *MME) addRadio(ctx context.Context, conn *sctp.SCTPConn, req *s1ap.S1Set
 	})
 }
 
-// TrackRadioFromSetup records the eNB from an S1 Setup Request's raw value. A parse
+// TrackRadioFromSetup records the eNB from an S1 Setup Request's raw value and
+// returns the ref of the Global eNB ID it carries, or "" when it has none. A parse
 // failure is reported by the S1 Setup handler, so it is dropped here.
-func (m *MME) TrackRadioFromSetup(ctx context.Context, conn *sctp.SCTPConn, value []byte) {
+func (m *MME) TrackRadioFromSetup(ctx context.Context, conn *sctp.SCTPConn, value []byte) string {
 	req, err := s1ap.ParseS1SetupRequest(value)
 	if err != nil {
-		return
+		return ""
 	}
 
 	m.addRadio(ctx, conn, req)
+
+	ranID, err := RanNodeID(req.GlobalENBID)
+	if err != nil {
+		return ""
+	}
+
+	ref, _ := ranID.Ref()
+
+	return ref
 }
 
 // RadioLog returns a node-scoped logger carrying the eNB's RAN address. Before S1
@@ -627,17 +637,6 @@ func (m *MME) CountRadios() int {
 	defer m.mu.RUnlock()
 
 	return m.reg.CountConnected()
-}
-
-func (m *MME) HasRadio(name string) bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	return m.reg.Has(named(name))
-}
-
-func named(name string) func(*Radio) bool {
-	return func(r *Radio) bool { return r.name == name }
 }
 
 func identifiedBy(key string) func(*Radio) bool {

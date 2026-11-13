@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/decoder/ngap"
 	"github.com/ellanetworks/core/internal/decoder/s1ap"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 const (
@@ -38,6 +39,7 @@ type RadioEvent struct {
 	MessageType string `json:"message_type"`
 	Direction   string `json:"direction"`
 	Radio       string `json:"radio"`
+	RadioRef    string `json:"radio_ref"`
 	Address     string `json:"address"`
 	Raw         []byte `json:"raw"`
 	Details     string `json:"details"`
@@ -77,11 +79,17 @@ func parseRadioEventFilters(r *http.Request) (*db.RadioEventFilters, error) {
 	}
 
 	if v := strings.TrimSpace(q.Get("radio")); v != "" {
-		if len(v) > 256 {
-			return f, fmt.Errorf("radio filter too long (max 256 characters)")
+		ranID, err := models.ParseRanNodeRef(v)
+		if err != nil {
+			return f, fmt.Errorf("invalid radio: %w", err)
 		}
 
-		f.RadioName = &v
+		ref, ok := ranID.Ref()
+		if !ok {
+			return f, fmt.Errorf("invalid radio: %q carries no node identity", v)
+		}
+
+		f.RadioRef = &ref
 	}
 
 	if v := strings.TrimSpace(q.Get("message_type")); v != "" {
@@ -199,6 +207,7 @@ func ListRadioEvents(dbInstance *db.Database) http.Handler {
 				MessageType: log.MessageType,
 				Direction:   log.Direction,
 				Radio:       log.RadioName,
+				RadioRef:    log.RadioRef,
 				Address:     log.RemoteAddress,
 				Raw:         log.Raw,
 				Details:     log.Details,

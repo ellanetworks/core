@@ -66,6 +66,17 @@ func connectAPIRadioID(amfInstance *amf.AMF, name string, ranID models.GlobalRan
 	return radio
 }
 
+func apiRadioRef(t *testing.T, radio *amf.Radio) string {
+	t.Helper()
+
+	ref, ok := models.RanNodeIDKey(radio.RanID)
+	if !ok {
+		t.Fatalf("radio %+v has no ref", radio.RanID)
+	}
+
+	return ref
+}
+
 func gnbRanNodeID(mcc, mnc, value string, bitLength int32) models.GlobalRanNodeID {
 	return models.GlobalRanNodeID{
 		PlmnID: &models.PlmnID{Mcc: mcc, Mnc: mnc},
@@ -224,10 +235,11 @@ func TestGetRadioReportsPresence(t *testing.T) {
 func TestSubscribersByOfflineRadio(t *testing.T) {
 	env, client, token := setupRadioPresenceTest(t)
 
-	env.AMF.DisconnectRadio(context.Background(), connectAPIRadio(env.AMF, "gnb-offline"))
+	radio := connectAPIRadio(env.AMF, "gnb-offline")
+	env.AMF.DisconnectRadio(context.Background(), radio)
 
 	req, err := http.NewRequestWithContext(context.Background(), "GET",
-		env.Server.URL+"/api/v1/subscribers?radio=gnb-offline", nil)
+		env.Server.URL+"/api/v1/subscribers?radio="+apiRadioRef(t, radio), nil)
 	if err != nil {
 		t.Fatalf("couldn't build request: %s", err)
 	}

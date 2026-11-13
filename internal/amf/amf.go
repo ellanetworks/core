@@ -585,17 +585,6 @@ func (amf *AMF) ListRadios() []RadioInfo {
 	return out
 }
 
-func (amf *AMF) HasRadio(name string) bool {
-	amf.mu.Lock()
-	defer amf.mu.Unlock()
-
-	return amf.reg.Has(named(name))
-}
-
-func named(name string) func(*Radio) bool {
-	return func(r *Radio) bool { return r.name == name }
-}
-
 func identifiedBy(key string) func(*Radio) bool {
 	return func(r *Radio) bool {
 		k, ok := models.RanNodeIDKey(r.RanID)

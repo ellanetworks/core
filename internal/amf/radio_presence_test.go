@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/sctp"
 )
 
@@ -67,8 +68,13 @@ func TestDisconnectRadioRetainsItAsOffline(t *testing.T) {
 		t.Errorf("CountRadios() = %d, want 0: an offline radio is not connected", amfInstance.CountRadios())
 	}
 
-	if !amfInstance.HasRadio("gNB-A") {
-		t.Error("HasRadio did not report a retained offline radio as known")
+	ranID, err := models.ParseRanNodeRef(listed.Ref)
+	if err != nil {
+		t.Fatalf("parse ref %q: %v", listed.Ref, err)
+	}
+
+	if _, ok := amfInstance.FindRadioInfoByRanID(ranID); !ok {
+		t.Error("FindRadioInfoByRanID did not report a retained offline radio as known")
 	}
 }
 

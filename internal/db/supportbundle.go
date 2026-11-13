@@ -620,6 +620,7 @@ func (db *Database) collectSupportEvents(ctx context.Context, out supportbundle.
 				"local_address":  l.LocalAddress,
 				"remote_address": l.RemoteAddress,
 				"radio_name":     l.RadioName,
+				"radio_ref":      l.RadioRef,
 				"details":        l.Details,
 			})
 		}

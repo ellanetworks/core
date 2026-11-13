@@ -83,7 +83,7 @@ This path returns the list of radios in the inventory.
 
 ## Get a Radio
 
-This path returns the details of a specific radio, connected or offline, including connection timestamps, RAN node type, and supported tracking areas. To list subscribers connected to this radio, use `GET /api/v1/subscribers?radio={name}`.
+This path returns the details of a specific radio, connected or offline, including connection timestamps, RAN node type, and supported tracking areas. To list subscribers connected to this radio, use `GET /api/v1/subscribers?radio={ref}`.
 
 | Method | Path                            |
 | ------ | ------------------------------- |
@@ -197,6 +197,7 @@ This path returns the list of radio events.
 | `per_page`       | query | int  | `25`    | `1…100`           | Number of items per page.                                                                       |
 | `protocol`       | query | str  |         | NGAP, S1AP        | Filter by protocol (`NGAP` for 5G radios, `S1AP` for 4G radios).                                 |
 | `direction`      | query | str  |         | inbound, outbound | Filter by log direction.                                                                        |
+| `radio`          | query | str  |         |                   | Filter by radio `ref`, e.g. `eNB:001-01:MacroeNB-00008`.                                         |
 | `message_type`   | query | str  |         |                   | Filter by message type.                                                                          |
 | `start`          | query | str  |         |                   | Inclusive lower bound, RFC3339 (e.g., 2006-01-02T15:04:05Z07:00). Unbounded when omitted.        |
 | `end`            | query | str  |         |                   | Exclusive upper bound, RFC3339. Unbounded when omitted.                                          |
@@ -211,6 +212,7 @@ This path returns the list of radio events.
                 "id": 1,
                 "timestamp": "2025-08-12T16:58:00.810-0400",
                 "radio": "gnb1",
+                "radio_ref": "gNB:001-01:00002a@24",
                 "address": "10.1.107.203:9487",
                 "protocol": "NGAP",
                 "message_type": "PDU Session Establishment Accept",
@@ -225,6 +227,8 @@ This path returns the list of radio events.
     }
 }
 ```
+
+`radio` is the radio's name when the event was logged, empty when the radio sent none. `radio_ref` is empty on an event logged before the radio gave its identity, and on events logged before Ella Core recorded it.
 
 ## Get Radio Event
 

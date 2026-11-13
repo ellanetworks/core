@@ -28,20 +28,29 @@ const seedApi = ({
     items: [
       {
         name: "radio-1",
+        ref: "gNB:001-01:000001@24",
         id: "1",
         address: "10.0.0.1",
         type: "gNB",
       },
       {
         name: "radio-2",
+        ref: "gNB:001-01:000002@24",
         id: "2",
         address: "10.0.0.2",
         type: "gNB",
       },
+      {
+        name: "",
+        ref: "eNB:001-01:MacroeNB-00001",
+        id: "MacroeNB-00001",
+        address: "10.0.0.9",
+        type: "eNB",
+      },
     ],
     page: 1,
     per_page: 100,
-    total_count: 2,
+    total_count: 3,
   }));
 };
 
@@ -143,7 +152,21 @@ describe("RadioEvents filters", () => {
 
     await selectOption(user, "Radio", /radio-2/);
 
-    await waitFor(() => expect(lastEventParams().radio).toBe("radio-2"));
+    await waitFor(() =>
+      expect(lastEventParams().radio).toBe("gNB:001-01:000002@24"),
+    );
+  });
+
+  it("sends the ref of a selected radio without a name", async () => {
+    const user = userEvent.setup();
+    await renderEvents();
+    await waitForEventRequests(1);
+
+    await selectOption(user, "Radio", /eNB MacroeNB-00001/);
+
+    await waitFor(() =>
+      expect(lastEventParams().radio).toBe("eNB:001-01:MacroeNB-00001"),
+    );
   });
 
   it("sends the selected protocol", async () => {
@@ -167,10 +190,10 @@ describe("RadioEvents filters", () => {
   });
 
   it("seeds the radio filter from the URL", async () => {
-    await renderEvents("/radios/events?radio=radio-2");
+    await renderEvents("/radios/events?radio=gNB:001-01:000002@24");
     await waitForEventRequests(1);
 
-    expect(lastEventParams().radio).toBe("radio-2");
+    expect(lastEventParams().radio).toBe("gNB:001-01:000002@24");
   });
 });
 

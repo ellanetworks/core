@@ -111,3 +111,37 @@ func TestRestoreLocalTablesFromOlderSchemaReplacesSnapshotRows(t *testing.T) {
 		t.Fatalf("deferred location requests after merge = %d, want 0: the leader's local rows must not survive", deferred)
 	}
 }
+
+func TestRestoreLocalTablesFromNewerSchemaKeepsTheSharedColumns(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	livePath := filepath.Join(dir, "live.db")
+	stagedPath := filepath.Join(dir, "staged.db")
+
+	live := openMigratedFileDB(t, livePath, radioEventRefSchema)
+	staged := openMigratedFileDB(t, stagedPath, radioEventRefSchema-1)
+
+	if _, err := live.ExecContext(ctx,
+		"INSERT INTO network_logs (timestamp, protocol, message_type, raw, radio_name, radio_ref) VALUES (1000, 'S1AP', 'S1SetupRequest', x'00', 'enb-a', 'eNB:001-01:MacroeNB-00001')"); err != nil {
+		t.Fatalf("insert live radio event: %v", err)
+	}
+
+	if err := staged.Close(); err != nil {
+		t.Fatalf("close staged: %v", err)
+	}
+
+	if err := restoreLocalOnlyTables(ctx, livePath, stagedPath); err != nil {
+		t.Fatalf("restoreLocalOnlyTables: %v", err)
+	}
+
+	merged := openMigratedFileDB(t, stagedPath, radioEventRefSchema)
+
+	var name, ref string
+	if err := merged.QueryRowContext(ctx, "SELECT radio_name, radio_ref FROM network_logs").Scan(&name, &ref); err != nil {
+		t.Fatalf("read restored radio event: %v", err)
+	}
+
+	if name != "enb-a" || ref != "" {
+		t.Fatalf("restored radio event = (%q, %q), want (enb-a, \"\"): the snapshot's schema predates radio_ref", name, ref)
+	}
+}

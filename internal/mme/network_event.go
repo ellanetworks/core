@@ -19,25 +19,40 @@ func AddrString(a net.Addr) string {
 	return a.String()
 }
 
-func (m *MME) enbNameByConn(conn *sctp.SCTPConn) string {
+func (m *MME) enbIdentityByConn(conn *sctp.SCTPConn) (string, string) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	if s, ok := m.reg.Radio(conn); ok {
-		return s.name
+		ref, _ := s.IDKey()
+
+		return s.name, ref
 	}
 
-	return ""
+	return "", ""
 }
 
 // LogNetworkEvent records an S1AP message exchanged with an eNB so it appears in
 // the network events log alongside 5G NGAP traffic.
 func (m *MME) LogNetworkEvent(ctx context.Context, conn S1APWriter, messageType S1APProcedure, dir logger.LogDirection, raw []byte) {
+	m.logNetworkEvent(ctx, conn, messageType, dir, raw, "")
+}
+
+func (m *MME) LogSetupRequest(ctx context.Context, conn S1APWriter, messageType S1APProcedure, raw []byte, ref string) {
+	m.logNetworkEvent(ctx, conn, messageType, logger.DirectionInbound, raw, ref)
+}
+
+func (m *MME) logNetworkEvent(ctx context.Context, conn S1APWriter, messageType S1APProcedure, dir logger.LogDirection, raw []byte, ref string) {
 	// Network events carry the SCTP local/remote addresses, so a non-SCTP writer
 	// (a test double) has nothing to log.
 	sc, ok := conn.(*sctp.SCTPConn)
 	if !ok || sc == nil {
 		return
+	}
+
+	name, connRef := m.enbIdentityByConn(sc)
+	if ref == "" {
+		ref = connRef
 	}
 
 	logger.LogNetworkEvent(
@@ -47,7 +62,8 @@ func (m *MME) LogNetworkEvent(ctx context.Context, conn S1APWriter, messageType 
 		dir,
 		AddrString(sc.LocalAddr()),
 		AddrString(sc.RemoteAddr()),
-		m.enbNameByConn(sc),
+		name,
+		ref,
 		raw,
 	)
 }
