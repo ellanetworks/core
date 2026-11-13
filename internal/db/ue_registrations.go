@@ -26,6 +26,7 @@ const (
 	purgeUERegistrationsByNodeSQL    = "UPDATE " + UERegistrationsTableName + " SET purged=1, version=? WHERE nodeID==? AND purged==0"
 	getUERegistrationSQL             = "SELECT imsi, type, nodeID, purged, version FROM " + UERegistrationsTableName + " WHERE imsi==? AND type==?"
 	listAllUERegistrationsSQL        = "SELECT imsi, type, nodeID, purged, version FROM " + UERegistrationsTableName + " ORDER BY imsi ASC"
+	listActiveUERegistrationsSQL     = "SELECT imsi, type, nodeID, purged, version FROM " + UERegistrationsTableName + " WHERE purged==0 AND imsi IN (SELECT value FROM json_each(?)) ORDER BY imsi ASC"
 	maxUERegistrationVersionSQL      = "SELECT COALESCE(MAX(version), 0) FROM " + UERegistrationsTableName
 	resetUERegistrationsSQL          = "UPDATE %s SET purged=0, version=0"
 	ueRegistrationsTableExistsSQLFmt = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='%s'"
@@ -143,6 +144,22 @@ func (db *Database) ListAllUERegistrations(ctx context.Context) (_ []UERegistrat
 	}
 
 	regs, err := queryAll(ctx, db.reader(), listAllUERegistrationsSQL, scanUERegistration)
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	return regs, nil
+}
+
+func (db *Database) ListActiveUERegistrations(ctx context.Context, imsis []string) (_ []UERegistration, err error) {
+	ctx, finish := startDBQuery(ctx, UERegistrationsTableName, "SELECT")
+	defer func() { finish(err) }()
+
+	if len(imsis) == 0 || !db.appliedSchemaAtLeast(ctx, ueRegistrationsSchema) {
+		return nil, nil
+	}
+
+	regs, err := queryAll(ctx, db.reader(), listActiveUERegistrationsSQL, scanUERegistration, jsonArray(imsis))
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
