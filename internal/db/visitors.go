@@ -9,10 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const VisitorsTableName = "visitors"
@@ -120,14 +116,9 @@ type visitorMSISDNPayload struct {
 
 var opSetVisitorMSISDN = registerChangesetOp("SetVisitorMSISDN", (*Database).applySetVisitorMSISDN, RequireSchema(roamingSchema))
 
-func (db *Database) GetSubscriberOrVisitor(ctx context.Context, imsi string) (*Subscriber, error) {
-	ctx, span := startVisitorsSpan(ctx, "SELECT", "subscriber or visitor")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(VisitorsTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(VisitorsTableName, "select").Inc()
+func (db *Database) GetSubscriberOrVisitor(ctx context.Context, imsi string) (_ *Subscriber, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+VisitorsTableName+" (subscriber or visitor)", VisitorsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	row, err := db.getOwnSubscriber(ctx, db.reader(), imsi)
 	if err == nil {
@@ -135,7 +126,6 @@ func (db *Database) GetSubscriberOrVisitor(ctx context.Context, imsi string) (*S
 	}
 
 	if !errors.Is(err, sql.ErrNoRows) {
-		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -145,10 +135,6 @@ func (db *Database) GetSubscriberOrVisitor(ctx context.Context, imsi string) (*S
 
 	visitor, err := db.getVisitor(ctx, db.reader(), imsi)
 	if err != nil {
-		if !errors.Is(err, ErrNotFound) {
-			recordSpanError(span, err)
-		}
-
 		return nil, err
 	}
 
@@ -157,35 +143,20 @@ func (db *Database) GetSubscriberOrVisitor(ctx context.Context, imsi string) (*S
 	return &sub, nil
 }
 
-func (db *Database) GetVisitor(ctx context.Context, imsi string) (*Visitor, error) {
-	ctx, span := startVisitorsSpan(ctx, "SELECT", "visitor")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(VisitorsTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(VisitorsTableName, "select").Inc()
+func (db *Database) GetVisitor(ctx context.Context, imsi string) (_ *Visitor, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+VisitorsTableName+" (visitor)", VisitorsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
 		return nil, ErrNotFound
 	}
 
-	visitor, err := db.getVisitor(ctx, db.reader(), imsi)
-	if err != nil && !errors.Is(err, ErrNotFound) {
-		recordSpanError(span, err)
-	}
-
-	return visitor, err
+	return db.getVisitor(ctx, db.reader(), imsi)
 }
 
-func (db *Database) ListVisitorsPage(ctx context.Context, filters *VisitorFilters, page int, perPage int) ([]Visitor, int, error) {
-	ctx, span := startVisitorsSpan(ctx, "SELECT", "paged")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(VisitorsTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(VisitorsTableName, "select").Inc()
+func (db *Database) ListVisitorsPage(ctx context.Context, filters *VisitorFilters, page int, perPage int) (_ []Visitor, _ int, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+VisitorsTableName+" (paged)", VisitorsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
 		return nil, 0, nil
@@ -195,14 +166,12 @@ func (db *Database) ListVisitorsPage(ctx context.Context, filters *VisitorFilter
 
 	rows, count, err := queryPageWithTotal(ctx, db.reader(), listVisitorsPageSQL, scanVisitor, filterArgs.PartnerID, filterArgs.Search, filterArgs.DataNetworkID, perPage, (page-1)*perPage)
 	if err != nil {
-		recordSpanError(span, err)
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	if len(rows) == 0 {
 		total, err := queryCount(ctx, db.reader(), countVisitorsPageSQL, filterArgs.PartnerID, filterArgs.Search, filterArgs.DataNetworkID)
 		if err != nil {
-			recordSpanError(span, err)
 			return nil, 0, fmt.Errorf("query failed: %w", err)
 		}
 
@@ -212,7 +181,7 @@ func (db *Database) ListVisitorsPage(ctx context.Context, filters *VisitorFilter
 	return rows, count, nil
 }
 
-func (db *Database) RegisterVisitorUE(ctx context.Context, imsi, partnerID, regType, nodeID, cancel string) (int64, error) {
+func (db *Database) RegisterVisitorUE(ctx context.Context, imsi, partnerID, regType, nodeID, cancel string) (_ int64, err error) {
 	if err := validateRegisterUE(regType, nodeID, cancel); err != nil {
 		return 0, err
 	}
@@ -221,13 +190,8 @@ func (db *Database) RegisterVisitorUE(ctx context.Context, imsi, partnerID, regT
 		return 0, fmt.Errorf("roaming partner ID is required")
 	}
 
-	ctx, span := startVisitorsSpan(ctx, "UPSERT", "register visitor")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(UERegistrationsTableName, "upsert"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(UERegistrationsTableName, "upsert").Inc()
+	ctx, finish := startDBQueryNamed(ctx, "UPSERT "+UERegistrationsTableName+" (register visitor)", UERegistrationsTableName, "UPSERT")
+	defer func() { finish(err) }()
 
 	version, err := opRegisterVisitorUE.Invoke(ctx, db, &registerVisitorUEPayload{
 		Imsi:      imsi,
@@ -237,29 +201,21 @@ func (db *Database) RegisterVisitorUE(ctx context.Context, imsi, partnerID, regT
 		Cancel:    cancel,
 	})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, err
 	}
 
 	return version, nil
 }
 
-func (db *Database) SetVisitorMSISDN(ctx context.Context, imsi, msisdn string) error {
+func (db *Database) SetVisitorMSISDN(ctx context.Context, imsi, msisdn string) (err error) {
 	if msisdn != "" && !isDigits(msisdn, 1, 15) {
 		return fmt.Errorf("visitor MSISDN must be 1 to 15 digits, got %q", msisdn)
 	}
 
-	ctx, span := startVisitorsSpan(ctx, "UPDATE", "visitor msisdn")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(VisitorsTableName, "update"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(VisitorsTableName, "update").Inc()
+	ctx, finish := startDBQueryNamed(ctx, "UPDATE "+VisitorsTableName+" (visitor msisdn)", VisitorsTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	if _, err := opSetVisitorMSISDN.Invoke(ctx, db, &visitorMSISDNPayload{Imsi: imsi, Msisdn: msisdn}); err != nil {
-		recordSpanError(span, err)
 		return err
 	}
 
@@ -441,22 +397,6 @@ func (db *Database) deleteIMSIState(ctx context.Context, imsi string) error {
 	}
 
 	return nil
-}
-
-func startVisitorsSpan(ctx context.Context, operation, detail string) (context.Context, trace.Span) {
-	querySummary := fmt.Sprintf("%s %s (%s)", operation, VisitorsTableName, detail)
-
-	return tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName(operation),
-			semconv.DBCollectionName(VisitorsTableName),
-		),
-	)
 }
 
 func scanVisitor(row scanner) (Visitor, error) {

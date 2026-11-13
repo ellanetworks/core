@@ -32,6 +32,7 @@ func newDatabaseAtVersion(t *testing.T, version int) *Database {
 
 	d := new(Database)
 	d.connection = conn
+	d.readConnection = conn
 	d.dbPath = dbPath
 	d.dataDir = filepath.Dir(dbPath)
 	d.changefeed = NewChangefeed()

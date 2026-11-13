@@ -12,10 +12,8 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -255,15 +253,12 @@ func (d *UsagePerDay) GetDay() time.Time {
 	return time.Unix(d.EpochDay*86400, 0).UTC()
 }
 
-func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) error {
-	ctx, span, timer := startDBQuery(ctx, DailyUsageTableName, "INSERT", "insert")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) (err error) {
+	ctx, finish := startDBQuery(ctx, DailyUsageTableName, "INSERT")
+	defer func() { finish(err) }()
 
-	_, err := opIncrementDailyUsage.Invoke(ctx, db, &usage)
+	_, err = opIncrementDailyUsage.Invoke(ctx, db, &usage)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -280,7 +275,7 @@ type droppedDailyUsage struct {
 	BytesDownlink int64
 }
 
-func (db *Database) IncrementDailyUsageBatch(ctx context.Context, usages []DailyUsage) error {
+func (db *Database) IncrementDailyUsageBatch(ctx context.Context, usages []DailyUsage) (err error) {
 	if len(usages) == 0 {
 		return nil
 	}
@@ -302,29 +297,11 @@ func (db *Database) IncrementDailyUsageBatch(ctx context.Context, usages []Daily
 
 	querySummary := fmt.Sprintf("%s %s", operation, DailyUsageTableName)
 
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName(operation),
-			semconv.DBCollectionName(DailyUsageTableName),
-		),
-		trace.WithAttributes(batchAttrs...),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DailyUsageTableName, "batch_insert"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "batch_insert").Inc()
+	ctx, finish := startDBQueryNamed(ctx, querySummary, DailyUsageTableName, operation, batchAttrs...)
+	defer func() { finish(err) }()
 
 	dropped, err := opIncrementDailyUsageBatch.Invoke(ctx, db, &DailyUsageBatch{Rows: usages})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -338,10 +315,9 @@ func (db *Database) IncrementDailyUsageBatch(ctx context.Context, usages []Daily
 	return nil
 }
 
-func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, days DayRange, roaming *bool) ([]UsagePerDay, error) {
-	ctx, span, timer := startDBQuery(ctx, DailyUsageTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, days DayRange, roaming *bool) (_ []UsagePerDay, err error) {
+	ctx, finish := startDBQuery(ctx, DailyUsageTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	dailyUsageFilters := UsageFilters{
 		Roaming:   roaming,
@@ -372,18 +348,15 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, days DayRan
 
 	dailyUsage, err := queryAll(ctx, db.reader(), query, scanUsagePerDay, dailyUsageFilters.IMSI, dailyUsageFilters.Roaming, dailyUsageFilters.StartDate, dailyUsageFilters.EndDate)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return dailyUsage, nil
 }
 
-func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, days DayRange, roaming *bool, limit int64) ([]UsagePerSub, error) {
-	ctx, span, timer := startDBQuery(ctx, DailyUsageTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, days DayRange, roaming *bool, limit int64) (_ []UsagePerSub, err error) {
+	ctx, finish := startDBQuery(ctx, DailyUsageTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	dailyUsageFilters := UsageFilters{
 		Roaming:   roaming,
@@ -414,43 +387,35 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, days
 
 	dailyUsage, err := queryAll(ctx, db.reader(), query, scan, dailyUsageFilters.IMSI, dailyUsageFilters.Roaming, dailyUsageFilters.StartDate, dailyUsageFilters.EndDate, dailyUsageFilters.Limit)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return dailyUsage, nil
 }
 
-func (db *Database) ClearDailyUsage(ctx context.Context) error {
-	ctx, span, timer := startDBQuery(ctx, DailyUsageTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ClearDailyUsage(ctx context.Context) (err error) {
+	ctx, finish := startDBQuery(ctx, DailyUsageTableName, "DELETE")
+	defer func() { finish(err) }()
 
-	_, err := opClearDailyUsage.Invoke(ctx, db, &emptyPayload{})
+	_, err = opClearDailyUsage.Invoke(ctx, db, &emptyPayload{})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
-	ctx, span, timer := startDBQueryNamed(ctx, "DELETE "+DailyUsageTableName+" (retention)", DailyUsageTableName, "DELETE", "delete", attribute.Int("retention.days", days))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) (err error) {
+	ctx, finish := startDBQueryNamed(ctx, "DELETE "+DailyUsageTableName+" (retention)", DailyUsageTableName, "DELETE", attribute.Int("retention.days", days))
+	defer func() { finish(err) }()
 
 	// Compute the cutoff on the leader so every follower applies the same
 	// day boundary during Raft replay; time.Now inside the apply path would
 	// desync replicas.
 	cutoffDay := time.Now().UTC().AddDate(0, 0, -days).Unix() / 86400
 
-	_, err := opDeleteOldDailyUsage.Invoke(ctx, db, &int64Payload{Value: cutoffDay})
+	_, err = opDeleteOldDailyUsage.Invoke(ctx, db, &int64Payload{Value: cutoffDay})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 

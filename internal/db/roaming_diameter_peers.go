@@ -13,10 +13,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -131,14 +127,9 @@ func (db *Database) checkSMSCNodeEndpoints(ctx context.Context, s *SMSC) error {
 	return validateDiameterPeerEndpoints(peers)
 }
 
-func (db *Database) ListRoamingDiameterPeers(ctx context.Context) ([]RoamingDiameterPeer, error) {
-	ctx, span := startDiameterPeersSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DiameterPeersTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(DiameterPeersTableName, "select").Inc()
+func (db *Database) ListRoamingDiameterPeers(ctx context.Context) (_ []RoamingDiameterPeer, err error) {
+	ctx, finish := startDBQuery(ctx, DiameterPeersTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
 		return nil, nil
@@ -146,7 +137,6 @@ func (db *Database) ListRoamingDiameterPeers(ctx context.Context) ([]RoamingDiam
 
 	rows, err := db.listDiameterPeers(ctx, db.reader())
 	if err != nil {
-		recordSpanError(span, err)
 		return nil, err
 	}
 
@@ -184,38 +174,26 @@ func (db *Database) UpdateRoamingDiameterPeer(ctx context.Context, peer *Roaming
 	return db.writeRoamingDiameterPeer(ctx, "UPDATE", opUpdateRoamingDiameterPeer, peer)
 }
 
-func (db *Database) writeRoamingDiameterPeer(ctx context.Context, operation string, op *ChangesetOp[RoamingDiameterPeer, struct{}], peer *RoamingDiameterPeer) error {
+func (db *Database) writeRoamingDiameterPeer(ctx context.Context, operation string, op *ChangesetOp[RoamingDiameterPeer, struct{}], peer *RoamingDiameterPeer) (err error) {
 	if err := peer.Validate(); err != nil {
 		return err
 	}
 
-	ctx, span := startDiameterPeersSpan(ctx, operation)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DiameterPeersTableName, strings.ToLower(operation)))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(DiameterPeersTableName, strings.ToLower(operation)).Inc()
+	ctx, finish := startDBQuery(ctx, DiameterPeersTableName, operation)
+	defer func() { finish(err) }()
 
 	if _, err := op.Invoke(ctx, db, peer); err != nil {
-		recordSpanError(span, err)
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) DeleteRoamingDiameterPeer(ctx context.Context, id string) error {
-	ctx, span := startDiameterPeersSpan(ctx, "DELETE")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DiameterPeersTableName, "delete"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(DiameterPeersTableName, "delete").Inc()
+func (db *Database) DeleteRoamingDiameterPeer(ctx context.Context, id string) (err error) {
+	ctx, finish := startDBQuery(ctx, DiameterPeersTableName, "DELETE")
+	defer func() { finish(err) }()
 
 	if _, err := opDeleteRoamingDiameterPeer.Invoke(ctx, db, &stringPayload{Value: id}); err != nil {
-		recordSpanError(span, err)
 		return err
 	}
 
@@ -295,22 +273,6 @@ func (db *Database) applyDeleteRoamingDiameterPeer(ctx context.Context, p *strin
 	}
 
 	return nil, nil
-}
-
-func startDiameterPeersSpan(ctx context.Context, operation string) (context.Context, trace.Span) {
-	querySummary := fmt.Sprintf("%s %s", operation, DiameterPeersTableName)
-
-	return tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName(operation),
-			semconv.DBCollectionName(DiameterPeersTableName),
-		),
-	)
 }
 
 func scanDiameterPeerRow(row scanner) (diameterPeerRow, error) {

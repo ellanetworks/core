@@ -462,7 +462,7 @@ func (db *Database) writer() *sql.DB {
 }
 
 func (db *Database) reader() *sql.DB {
-	return db.conn()
+	return db.readConnection
 }
 
 // runner returns the querier to use for the current operation. Inside a
@@ -474,6 +474,14 @@ func (db *Database) runner(ctx context.Context) querier {
 	}
 
 	return db.writer()
+}
+
+func (db *Database) readQuerier(ctx context.Context) querier {
+	if r, ok := ctx.Value(pinnedRunnerCtxKey{}).(pinnedQuerier); ok {
+		return r
+	}
+
+	return db.reader()
 }
 
 func (db *Database) applyWithPinnedConn(ctx context.Context, conn driver.Conn, applyFn func(context.Context) (any, error)) (any, error) {

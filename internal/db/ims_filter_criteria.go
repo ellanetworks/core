@@ -13,9 +13,6 @@ import (
 	"slices"
 
 	"github.com/ellanetworks/core/diameter/cx"
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const IMSInitialFilterCriteriaTableName = "ims_initial_filter_criteria"
@@ -362,14 +359,9 @@ func ValidateIMSFilterCriteria(ifcs []IMSInitialFilterCriterion) error {
 	return nil
 }
 
-func (db *Database) ListSubscriberIMSFilterCriteria(ctx context.Context, imsi string, set IMSRegistrationSet) ([]cx.InitialFilterCriteria, error) {
-	ctx, span := startIMSFilterCriteriaSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSInitialFilterCriteriaTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSInitialFilterCriteriaTableName, "select").Inc()
+func (db *Database) ListSubscriberIMSFilterCriteria(ctx context.Context, imsi string, set IMSRegistrationSet) (_ []cx.InitialFilterCriteria, err error) {
+	ctx, finish := startDBQuery(ctx, IMSInitialFilterCriteriaTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
 		return nil, nil
@@ -377,7 +369,6 @@ func (db *Database) ListSubscriberIMSFilterCriteria(ctx context.Context, imsi st
 
 	rows, err := queryAll(ctx, db.reader(), listSubscriberIMSIFCsSQL, scanSubscriberIMSIFC, imsi, string(set))
 	if err != nil {
-		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -390,7 +381,6 @@ func (db *Database) ListSubscriberIMSFilterCriteria(ctx context.Context, imsi st
 	for i, r := range rows {
 		ifc, err := imsIFCOf(r.imsIFCRow)
 		if err != nil {
-			recordSpanError(span, err)
 			return nil, err
 		}
 
@@ -457,14 +447,9 @@ func imsIFCRowOf(serviceProfileID string, position int, ifc IMSInitialFilterCrit
 	return row, nil
 }
 
-func (db *Database) ProfilesUsingIMSApplicationServer(ctx context.Context, applicationServerID string) ([]string, error) {
-	ctx, span := startIMSFilterCriteriaSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSInitialFilterCriteriaTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSInitialFilterCriteriaTableName, "select").Inc()
+func (db *Database) ProfilesUsingIMSApplicationServer(ctx context.Context, applicationServerID string) (_ []string, err error) {
+	ctx, finish := startDBQuery(ctx, IMSInitialFilterCriteriaTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
 		return nil, nil
@@ -472,7 +457,6 @@ func (db *Database) ProfilesUsingIMSApplicationServer(ctx context.Context, appli
 
 	profileIDs, err := queryAll(ctx, db.reader(), listProfilesOfIMSASSQL, scanValue[string], applicationServerID)
 	if err != nil {
-		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -483,14 +467,9 @@ func (db *Database) ProfilesUsingIMSApplicationServer(ctx context.Context, appli
 	return profileIDs, nil
 }
 
-func (db *Database) IMSRegisteredSubscribersOfProfiles(ctx context.Context, profileIDs []string) ([]string, error) {
-	ctx, span := startIMSFilterCriteriaSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSRegistrationSetsTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSRegistrationSetsTableName, "select").Inc()
+func (db *Database) IMSRegisteredSubscribersOfProfiles(ctx context.Context, profileIDs []string) (_ []string, err error) {
+	ctx, finish := startDBQuery(ctx, IMSRegistrationSetsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if len(profileIDs) == 0 || !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
 		return nil, nil
@@ -498,7 +477,6 @@ func (db *Database) IMSRegisteredSubscribersOfProfiles(ctx context.Context, prof
 
 	imsis, err := queryAll(ctx, db.reader(), listIMSRegisteredOfProfilesSQL, scanValue[string], int(IMSNotRegistered), jsonArray(profileIDs))
 	if err != nil {
-		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -507,22 +485,6 @@ func (db *Database) IMSRegisteredSubscribersOfProfiles(ctx context.Context, prof
 	}
 
 	return imsis, nil
-}
-
-func startIMSFilterCriteriaSpan(ctx context.Context, operation string) (context.Context, trace.Span) {
-	querySummary := fmt.Sprintf("%s %s", operation, IMSInitialFilterCriteriaTableName)
-
-	return tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName(operation),
-			semconv.DBCollectionName(IMSInitialFilterCriteriaTableName),
-		),
-	)
 }
 
 func scanIMSIFCRow(row scanner) (imsIFCRow, error) {

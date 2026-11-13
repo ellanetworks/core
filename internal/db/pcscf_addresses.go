@@ -13,9 +13,6 @@ import (
 
 	"github.com/ellanetworks/core/diameter"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const PCSCFAddressesTableName = "pcscf_addresses"
@@ -93,14 +90,9 @@ func IsPCSCFUnicast(addr netip.Addr) bool {
 		!addr.IsLinkLocalUnicast() && addr != limitedBroadcast
 }
 
-func (db *Database) ListPCSCFAddresses(ctx context.Context) ([]string, error) {
-	ctx, span := startPCSCFAddressesSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PCSCFAddressesTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(PCSCFAddressesTableName, "select").Inc()
+func (db *Database) ListPCSCFAddresses(ctx context.Context) (_ []string, err error) {
+	ctx, finish := startDBQuery(ctx, PCSCFAddressesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, pcscfAddressesSchema) {
 		return []string{}, nil
@@ -108,8 +100,6 @@ func (db *Database) ListPCSCFAddresses(ctx context.Context) ([]string, error) {
 
 	rows, err := queryAll(ctx, db.reader(), listPCSCFAddressesSQL, scanPCSCFAddressRow)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -133,22 +123,6 @@ func (db *Database) applyReplacePCSCFAddresses(ctx context.Context, payload *pcs
 	}
 
 	return nil, nil
-}
-
-func startPCSCFAddressesSpan(ctx context.Context, operation string) (context.Context, trace.Span) {
-	querySummary := fmt.Sprintf("%s %s", operation, PCSCFAddressesTableName)
-
-	return tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName(operation),
-			semconv.DBCollectionName(PCSCFAddressesTableName),
-		),
-	)
 }
 
 type IMSVoiceStatus string

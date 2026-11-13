@@ -13,9 +13,6 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -66,14 +63,9 @@ func (sp IMSServiceProfile) Validate() error {
 	return ValidateIMSFilterCriteria(sp.InitialFilterCriteria)
 }
 
-func (db *Database) ListIMSServiceProfiles(ctx context.Context) ([]IMSServiceProfile, error) {
-	ctx, span := startIMSServiceProfilesSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSServiceProfilesTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSServiceProfilesTableName, "select").Inc()
+func (db *Database) ListIMSServiceProfiles(ctx context.Context) (_ []IMSServiceProfile, err error) {
+	ctx, finish := startDBQuery(ctx, IMSServiceProfilesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
 		return nil, nil
@@ -81,13 +73,11 @@ func (db *Database) ListIMSServiceProfiles(ctx context.Context) ([]IMSServicePro
 
 	rows, err := queryAll(ctx, db.reader(), listIMSServiceProfilesSQL, scanIMSServiceProfileRow)
 	if err != nil {
-		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	ifcRows, err := queryAll(ctx, db.reader(), listAllIMSIFCsSQL, scanIMSIFCRow)
 	if err != nil {
-		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -96,7 +86,6 @@ func (db *Database) ListIMSServiceProfiles(ctx context.Context) ([]IMSServicePro
 	for _, r := range ifcRows {
 		ifc, err := imsIFCOf(r)
 		if err != nil {
-			recordSpanError(span, err)
 			return nil, err
 		}
 
@@ -117,14 +106,9 @@ func (db *Database) ListIMSServiceProfiles(ctx context.Context) ([]IMSServicePro
 	return profiles, nil
 }
 
-func (db *Database) GetIMSServiceProfile(ctx context.Context, name string) (*IMSServiceProfile, error) {
-	ctx, span := startIMSServiceProfilesSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSServiceProfilesTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSServiceProfilesTableName, "select").Inc()
+func (db *Database) GetIMSServiceProfile(ctx context.Context, name string) (_ *IMSServiceProfile, err error) {
+	ctx, finish := startDBQuery(ctx, IMSServiceProfilesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
 		return nil, ErrNotFound
@@ -132,7 +116,6 @@ func (db *Database) GetIMSServiceProfile(ctx context.Context, name string) (*IMS
 
 	sp, err := db.getIMSServiceProfile(ctx, db.reader(), name)
 	if err != nil {
-		recordSpanError(span, err)
 		return nil, err
 	}
 
@@ -185,21 +168,15 @@ func (db *Database) UpdateIMSServiceProfile(ctx context.Context, sp *IMSServiceP
 	return db.writeIMSServiceProfile(ctx, "UPDATE", opUpdateIMSServiceProfile, sp)
 }
 
-func (db *Database) writeIMSServiceProfile(ctx context.Context, operation string, op *ChangesetOp[IMSServiceProfile, struct{}], sp *IMSServiceProfile) error {
+func (db *Database) writeIMSServiceProfile(ctx context.Context, operation string, op *ChangesetOp[IMSServiceProfile, struct{}], sp *IMSServiceProfile) (err error) {
 	if err := sp.Validate(); err != nil {
 		return err
 	}
 
-	ctx, span := startIMSServiceProfilesSpan(ctx, operation)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSServiceProfilesTableName, strings.ToLower(operation)))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSServiceProfilesTableName, strings.ToLower(operation)).Inc()
+	ctx, finish := startDBQuery(ctx, IMSServiceProfilesTableName, operation)
+	defer func() { finish(err) }()
 
 	if _, err := op.Invoke(ctx, db, sp); err != nil {
-		recordSpanError(span, err)
 		return err
 	}
 
@@ -250,17 +227,11 @@ func (db *Database) insertIMSIFCs(ctx context.Context, serviceProfileID string, 
 	return nil
 }
 
-func (db *Database) DeleteIMSServiceProfile(ctx context.Context, name string) error {
-	ctx, span := startIMSServiceProfilesSpan(ctx, "DELETE")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSServiceProfilesTableName, "delete"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSServiceProfilesTableName, "delete").Inc()
+func (db *Database) DeleteIMSServiceProfile(ctx context.Context, name string) (err error) {
+	ctx, finish := startDBQuery(ctx, IMSServiceProfilesTableName, "DELETE")
+	defer func() { finish(err) }()
 
 	if _, err := opDeleteIMSServiceProfile.Invoke(ctx, db, &stringPayload{Value: name}); err != nil {
-		recordSpanError(span, err)
 		return err
 	}
 
@@ -297,14 +268,9 @@ func (db *Database) applyDeleteIMSServiceProfile(ctx context.Context, p *stringP
 	return nil, nil
 }
 
-func (db *Database) GetProfileIMSServiceProfiles(ctx context.Context, profileID string) (map[IMSRegistrationSet]string, error) {
-	ctx, span := startIMSServiceProfilesSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSServiceProfileAssignmentsTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSServiceProfileAssignmentsTableName, "select").Inc()
+func (db *Database) GetProfileIMSServiceProfiles(ctx context.Context, profileID string) (_ map[IMSRegistrationSet]string, err error) {
+	ctx, finish := startDBQuery(ctx, IMSServiceProfileAssignmentsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	out := make(map[IMSRegistrationSet]string)
 
@@ -314,7 +280,6 @@ func (db *Database) GetProfileIMSServiceProfiles(ctx context.Context, profileID 
 
 	rows, err := queryAll(ctx, db.reader(), listProfileIMSServiceProfilesSQL, scanIMSServiceProfileAssignmentRow, profileID)
 	if err != nil {
-		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -325,14 +290,9 @@ func (db *Database) GetProfileIMSServiceProfiles(ctx context.Context, profileID 
 	return out, nil
 }
 
-func (db *Database) ListIMSServiceProfileAssignments(ctx context.Context) ([]ProfileIMSServiceProfiles, error) {
-	ctx, span := startIMSServiceProfilesSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSServiceProfileAssignmentsTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSServiceProfileAssignmentsTableName, "select").Inc()
+func (db *Database) ListIMSServiceProfileAssignments(ctx context.Context) (_ []ProfileIMSServiceProfiles, err error) {
+	ctx, finish := startDBQuery(ctx, IMSServiceProfileAssignmentsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
 		return nil, nil
@@ -340,7 +300,6 @@ func (db *Database) ListIMSServiceProfileAssignments(ctx context.Context) ([]Pro
 
 	rows, err := queryAll(ctx, db.reader(), listAllIMSServiceProfileAssignsSQL, scanIMSServiceProfileAssignmentRow)
 	if err != nil {
-		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -357,7 +316,7 @@ func (db *Database) ListIMSServiceProfileAssignments(ctx context.Context) ([]Pro
 	return out, nil
 }
 
-func (db *Database) SetProfileIMSServiceProfiles(ctx context.Context, profileID string, serviceProfiles map[IMSRegistrationSet]string) error {
+func (db *Database) SetProfileIMSServiceProfiles(ctx context.Context, profileID string, serviceProfiles map[IMSRegistrationSet]string) (err error) {
 	for set, id := range serviceProfiles {
 		if err := set.Validate(); err != nil {
 			return err
@@ -368,16 +327,10 @@ func (db *Database) SetProfileIMSServiceProfiles(ctx context.Context, profileID 
 		}
 	}
 
-	ctx, span := startIMSServiceProfilesSpan(ctx, "UPDATE")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSServiceProfileAssignmentsTableName, "update"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSServiceProfileAssignmentsTableName, "update").Inc()
+	ctx, finish := startDBQuery(ctx, IMSServiceProfileAssignmentsTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	if _, err := opSetProfileIMSServiceProfiles.Invoke(ctx, db, &ProfileIMSServiceProfiles{ProfileID: profileID, ServiceProfiles: serviceProfiles}); err != nil {
-		recordSpanError(span, err)
 		return err
 	}
 
@@ -404,14 +357,9 @@ func (db *Database) applySetProfileIMSServiceProfiles(ctx context.Context, p *Pr
 	return nil, nil
 }
 
-func (db *Database) ProfilesUsingIMSServiceProfile(ctx context.Context, serviceProfileID string) ([]string, error) {
-	ctx, span := startIMSServiceProfilesSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSServiceProfileAssignmentsTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSServiceProfileAssignmentsTableName, "select").Inc()
+func (db *Database) ProfilesUsingIMSServiceProfile(ctx context.Context, serviceProfileID string) (_ []string, err error) {
+	ctx, finish := startDBQuery(ctx, IMSServiceProfileAssignmentsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
 		return nil, nil
@@ -419,7 +367,6 @@ func (db *Database) ProfilesUsingIMSServiceProfile(ctx context.Context, serviceP
 
 	profileIDs, err := queryAll(ctx, db.reader(), listProfilesOfIMSServiceProfileSQL, scanValue[string], serviceProfileID)
 	if err != nil {
-		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -428,22 +375,6 @@ func (db *Database) ProfilesUsingIMSServiceProfile(ctx context.Context, serviceP
 	}
 
 	return profileIDs, nil
-}
-
-func startIMSServiceProfilesSpan(ctx context.Context, operation string) (context.Context, trace.Span) {
-	querySummary := fmt.Sprintf("%s %s", operation, IMSServiceProfilesTableName)
-
-	return tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName(operation),
-			semconv.DBCollectionName(IMSServiceProfilesTableName),
-		),
-	)
 }
 
 func scanIMSServiceProfileRow(row scanner) (imsServiceProfileRow, error) {
