@@ -25,38 +25,30 @@ type BGPImportPrefix struct {
 	MaxLength int
 }
 
-func (db *Database) ListImportPrefixesByPeer(ctx context.Context, peerID int) ([]BGPImportPrefix, error) {
-	ctx, span, timer := startDBQuery(ctx, BGPImportPrefixesTableName, "SELECT", "select", attribute.Int("bgp.peer_id", peerID))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListImportPrefixesByPeer(ctx context.Context, peerID int) (_ []BGPImportPrefix, err error) {
+	ctx, finish := startDBQuery(ctx, BGPImportPrefixesTableName, "SELECT", attribute.Int("bgp.peer_id", peerID))
+	defer func() { finish(err) }()
 
 	prefixes, err := queryAll(ctx, db.reader(), listImportPrefixesByPeerSQL, scanBGPImportPrefix, peerID)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return prefixes, nil
 }
 
-func (db *Database) SetImportPrefixesForPeer(ctx context.Context, peerID int, prefixes []BGPImportPrefix) error {
-	ctx, span, timer := startDBQuery(ctx, BGPImportPrefixesTableName, "REPLACE", "replace", attribute.Int("bgp.peer_id", peerID))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) SetImportPrefixesForPeer(ctx context.Context, peerID int, prefixes []BGPImportPrefix) (err error) {
+	ctx, finish := startDBQuery(ctx, BGPImportPrefixesTableName, "REPLACE", attribute.Int("bgp.peer_id", peerID))
+	defer func() { finish(err) }()
 
 	tx, err := db.writer().BeginTx(ctx, nil)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	defer func() { _ = tx.Rollback() }()
 
 	if _, err := tx.ExecContext(ctx, deleteImportPrefixesByPeerSQL, peerID); err != nil {
-		recordSpanError(span, err)
-
 		return fmt.Errorf("delete existing prefixes: %w", err)
 	}
 
@@ -64,15 +56,11 @@ func (db *Database) SetImportPrefixesForPeer(ctx context.Context, peerID int, pr
 		prefix.PeerID = peerID
 
 		if _, err := tx.ExecContext(ctx, createImportPrefixSQL, prefix.PeerID, prefix.Prefix, prefix.MaxLength); err != nil {
-			recordSpanError(span, err)
-
 			return fmt.Errorf("insert prefix: %w", err)
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 

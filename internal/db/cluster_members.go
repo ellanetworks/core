@@ -75,10 +75,9 @@ func IsValidDrainState(s string) bool {
 	return false
 }
 
-func (db *Database) ListClusterMembers(ctx context.Context) ([]ClusterMember, error) {
-	ctx, span, timer := startDBQuery(ctx, ClusterMembersTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListClusterMembers(ctx context.Context) (_ []ClusterMember, err error) {
+	ctx, finish := startDBQuery(ctx, ClusterMembersTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	query, scan := listClusterMembersSQL, scanClusterMember
 	if !db.appliedSchemaAtLeast(ctx, clusterMemberIdentitySchema) {
@@ -87,18 +86,15 @@ func (db *Database) ListClusterMembers(ctx context.Context) ([]ClusterMember, er
 
 	members, err := queryAll(ctx, db.reader(), query, scan)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return members, nil
 }
 
-func (db *Database) GetClusterMember(ctx context.Context, nodeID string) (*ClusterMember, error) {
-	ctx, span, timer := startDBQuery(ctx, ClusterMembersTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetClusterMember(ctx context.Context, nodeID string) (_ *ClusterMember, err error) {
+	ctx, finish := startDBQuery(ctx, ClusterMembersTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	query, scan := getClusterMemberSQL, scanClusterMember
 	if !db.appliedSchemaAtLeast(ctx, clusterMemberIdentitySchema) {
@@ -108,12 +104,8 @@ func (db *Database) GetClusterMember(ctx context.Context, nodeID string) (*Clust
 	row, err := scan(db.reader().QueryRowContext(ctx, query, nodeID))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			recordSpanError(span, err)
-
 			return nil, ErrNotFound
 		}
-
-		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -121,30 +113,24 @@ func (db *Database) GetClusterMember(ctx context.Context, nodeID string) (*Clust
 	return &row, nil
 }
 
-func (db *Database) UpsertClusterMember(ctx context.Context, member *ClusterMember) error {
-	ctx, span, timer := startDBQuery(ctx, ClusterMembersTableName, "UPSERT", "upsert")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) UpsertClusterMember(ctx context.Context, member *ClusterMember) (err error) {
+	ctx, finish := startDBQuery(ctx, ClusterMembersTableName, "UPSERT")
+	defer func() { finish(err) }()
 
-	_, err := opUpsertClusterMember.Invoke(ctx, db, member)
+	_, err = opUpsertClusterMember.Invoke(ctx, db, member)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) DeleteClusterMember(ctx context.Context, nodeID string) error {
-	ctx, span, timer := startDBQuery(ctx, ClusterMembersTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteClusterMember(ctx context.Context, nodeID string) (err error) {
+	ctx, finish := startDBQuery(ctx, ClusterMembersTableName, "DELETE")
+	defer func() { finish(err) }()
 
-	_, err := opDeleteClusterMember.Invoke(ctx, db, &nodeIDPayload{Value: pki.NodeID(nodeID)})
+	_, err = opDeleteClusterMember.Invoke(ctx, db, &nodeIDPayload{Value: pki.NodeID(nodeID)})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -172,14 +158,13 @@ func drainTransitionAllowed(current string, target string) bool {
 	}
 }
 
-func (db *Database) SetDrainState(ctx context.Context, nodeID string, state string) (string, error) {
+func (db *Database) SetDrainState(ctx context.Context, nodeID string, state string) (_ string, err error) {
 	if !IsValidDrainState(state) {
 		return "", fmt.Errorf("invalid drain state %q", state)
 	}
 
-	ctx, span, timer := startDBQuery(ctx, ClusterMembersTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+	ctx, finish := startDBQuery(ctx, ClusterMembersTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	member := &ClusterMember{
 		NodeID:         nodeID,
@@ -189,23 +174,18 @@ func (db *Database) SetDrainState(ctx context.Context, nodeID string, state stri
 
 	effective, err := opSetDrainState.Invoke(ctx, db, member)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return "", err
 	}
 
 	return effective, nil
 }
 
-func (db *Database) CountClusterMembers(ctx context.Context) (int, error) {
-	ctx, span, timer := startDBQuery(ctx, ClusterMembersTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CountClusterMembers(ctx context.Context) (_ int, err error) {
+	ctx, finish := startDBQuery(ctx, ClusterMembersTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	count, err := queryCount(ctx, db.reader(), countClusterMembersSQL)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -217,20 +197,17 @@ const MaxDisplayNameLength = 63
 
 // SetDisplayName sets a cluster member's operator-facing name. The name
 // is free text; lookups and destructive operations take the identity.
-func (db *Database) SetDisplayName(ctx context.Context, nodeID string, name string) error {
+func (db *Database) SetDisplayName(ctx context.Context, nodeID string, name string) (err error) {
 	if len(name) > MaxDisplayNameLength {
 		return fmt.Errorf("display name is %d bytes, over the %d-byte limit", len(name), MaxDisplayNameLength)
 	}
 
-	ctx, span, timer := startDBQuery(ctx, ClusterMembersTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+	ctx, finish := startDBQuery(ctx, ClusterMembersTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	member := &ClusterMember{NodeID: nodeID, DisplayName: name}
 
 	if _, err := opSetDisplayName.Invoke(ctx, db, member); err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 

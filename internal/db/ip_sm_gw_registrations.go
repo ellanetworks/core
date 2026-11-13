@@ -8,11 +8,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
-
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const IPSMGWRegistrationsTableName = "ip_sm_gw_registrations"
@@ -51,14 +46,9 @@ func (r ipSMGWRegistrationRow) registration() *IPSMGWRegistration {
 	return &IPSMGWRegistration{IMSI: r.Imsi, Number: r.Number, DiameterHost: r.DiameterHost, DiameterRealm: r.DiameterRealm}
 }
 
-func (db *Database) GetIPSMGWRegistration(ctx context.Context, imsi string) (*IPSMGWRegistration, error) {
-	ctx, span := startIPSMGWRegistrationSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPSMGWRegistrationsTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IPSMGWRegistrationsTableName, "select").Inc()
+func (db *Database) GetIPSMGWRegistration(ctx context.Context, imsi string) (_ *IPSMGWRegistration, err error) {
+	ctx, finish := startDBQuery(ctx, IPSMGWRegistrationsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, ipSMGWRegistrationsSchema) {
 		return nil, ErrNotFound
@@ -70,22 +60,15 @@ func (db *Database) GetIPSMGWRegistration(ctx context.Context, imsi string) (*IP
 			return nil, ErrNotFound
 		}
 
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return row.registration(), nil
 }
 
-func (db *Database) ListAllIPSMGWRegistrations(ctx context.Context) ([]IPSMGWRegistration, error) {
-	ctx, span := startIPSMGWRegistrationSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPSMGWRegistrationsTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IPSMGWRegistrationsTableName, "select").Inc()
+func (db *Database) ListAllIPSMGWRegistrations(ctx context.Context) (_ []IPSMGWRegistration, err error) {
+	ctx, finish := startDBQuery(ctx, IPSMGWRegistrationsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, ipSMGWRegistrationsSchema) {
 		return nil, nil
@@ -93,8 +76,6 @@ func (db *Database) ListAllIPSMGWRegistrations(ctx context.Context) ([]IPSMGWReg
 
 	rows, err := queryAll(ctx, db.reader(), listAllIPSMGWRegistrationsSQL, scanIPSMGWRegistrationRow)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -120,19 +101,11 @@ func (db *Database) DeleteIPSMGWRegistration(ctx context.Context, imsi string) e
 	return db.invokeIPSMGWRegistration(ctx, "DELETE", opDeleteIPSMGWRegistration, &ipSMGWRegistrationPayload{Imsi: imsi})
 }
 
-func (db *Database) invokeIPSMGWRegistration(ctx context.Context, operation string, op *ChangesetOp[ipSMGWRegistrationPayload, struct{}], p *ipSMGWRegistrationPayload) error {
-	ctx, span := startIPSMGWRegistrationSpan(ctx, operation)
-	defer span.End()
-
-	label := strings.ToLower(operation)
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPSMGWRegistrationsTableName, label))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IPSMGWRegistrationsTableName, label).Inc()
+func (db *Database) invokeIPSMGWRegistration(ctx context.Context, operation string, op *ChangesetOp[ipSMGWRegistrationPayload, struct{}], p *ipSMGWRegistrationPayload) (err error) {
+	ctx, finish := startDBQuery(ctx, IPSMGWRegistrationsTableName, operation)
+	defer func() { finish(err) }()
 
 	if _, err := op.Invoke(ctx, db, p); err != nil {
-		recordSpanError(span, err)
 		return err
 	}
 
@@ -159,22 +132,6 @@ func (db *Database) applyDeleteIPSMGWRegistration(ctx context.Context, p *ipSMGW
 	}
 
 	return nil, nil
-}
-
-func startIPSMGWRegistrationSpan(ctx context.Context, operation string) (context.Context, trace.Span) {
-	querySummary := fmt.Sprintf("%s %s", operation, IPSMGWRegistrationsTableName)
-
-	return tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName(operation),
-			semconv.DBCollectionName(IPSMGWRegistrationsTableName),
-		),
-	)
 }
 
 func scanIPSMGWRegistrationRow(row scanner) (ipSMGWRegistrationRow, error) {

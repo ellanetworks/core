@@ -8,10 +8,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -46,15 +42,12 @@ func (db *Database) InitializeN3Settings(ctx context.Context) error {
 	return db.UpdateN3Settings(ctx, N3DefaultExternalAddress)
 }
 
-func (db *Database) UpdateN3Settings(ctx context.Context, externalAddress string) error {
-	ctx, span, timer := startDBQuery(ctx, N3SettingsTableName, "UPSERT", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) UpdateN3Settings(ctx context.Context, externalAddress string) (err error) {
+	ctx, finish := startDBQuery(ctx, N3SettingsTableName, "UPSERT")
+	defer func() { finish(err) }()
 
-	_, err := db.applyUpdateN3Settings(ctx, &stringPayload{Value: externalAddress})
+	_, err = db.applyUpdateN3Settings(ctx, &stringPayload{Value: externalAddress})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -63,30 +56,15 @@ func (db *Database) UpdateN3Settings(ctx context.Context, externalAddress string
 	return nil
 }
 
-func (db *Database) GetN3Settings(ctx context.Context) (*N3Settings, error) {
+func (db *Database) GetN3Settings(ctx context.Context) (_ *N3Settings, err error) {
 	querySummary := fmt.Sprintf("%s %s", "SELECT", N3SettingsTableName)
 
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(N3SettingsTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(N3SettingsTableName, "select"))
-	defer timer.ObserveDuration()
+	ctx, finish := startDBQueryNamed(ctx, querySummary, N3SettingsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	var n3Settings N3Settings
 
 	if err := db.reader().QueryRowContext(ctx, getN3SettingsSQL).Scan(&n3Settings.ExternalAddress); err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 

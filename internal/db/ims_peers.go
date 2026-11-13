@@ -13,9 +13,6 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/internal/diameternode"
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const IMSPeersTableName = "ims_peers"
@@ -228,18 +225,12 @@ func ValidateIMSPeers(peers []IMSPeer) error {
 	return nil
 }
 
-func (db *Database) ListIMSPeers(ctx context.Context) ([]IMSPeer, error) {
-	ctx, span := startIMSPeersSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSPeersTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSPeersTableName, "select").Inc()
+func (db *Database) ListIMSPeers(ctx context.Context) (_ []IMSPeer, err error) {
+	ctx, finish := startDBQuery(ctx, IMSPeersTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	peers, err := db.listIMSPeers(ctx)
 	if err != nil {
-		recordSpanError(span, err)
 		return nil, err
 	}
 
@@ -269,24 +260,18 @@ func (db *Database) UpdateIMSPeer(ctx context.Context, peer *IMSPeer) error {
 	return db.writeIMSPeer(ctx, "UPDATE", opUpdateIMSPeer, peer)
 }
 
-func (db *Database) DeleteIMSPeer(ctx context.Context, id string) error {
-	ctx, span := startIMSPeersSpan(ctx, "DELETE")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSPeersTableName, "delete"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSPeersTableName, "delete").Inc()
+func (db *Database) DeleteIMSPeer(ctx context.Context, id string) (err error) {
+	ctx, finish := startDBQuery(ctx, IMSPeersTableName, "DELETE")
+	defer func() { finish(err) }()
 
 	if _, err := opDeleteIMSPeer.Invoke(ctx, db, &stringPayload{Value: id}); err != nil {
-		recordSpanError(span, err)
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) writeIMSPeer(ctx context.Context, operation string, op *ChangesetOp[IMSPeer, struct{}], peer *IMSPeer) error {
+func (db *Database) writeIMSPeer(ctx context.Context, operation string, op *ChangesetOp[IMSPeer, struct{}], peer *IMSPeer) (err error) {
 	addresses, err := NormalizeIMSPeerAddresses(peer.Addresses)
 	if err != nil {
 		return err
@@ -298,16 +283,10 @@ func (db *Database) writeIMSPeer(ctx context.Context, operation string, op *Chan
 		return err
 	}
 
-	ctx, span := startIMSPeersSpan(ctx, operation)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSPeersTableName, strings.ToLower(operation)))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSPeersTableName, strings.ToLower(operation)).Inc()
+	ctx, finish := startDBQuery(ctx, IMSPeersTableName, operation)
+	defer func() { finish(err) }()
 
 	if _, err := op.Invoke(ctx, db, peer); err != nil {
-		recordSpanError(span, err)
 		return err
 	}
 
@@ -319,7 +298,7 @@ func (db *Database) listIMSPeers(ctx context.Context) ([]IMSPeer, error) {
 		return []IMSPeer{}, nil
 	}
 
-	rows, err := queryAll(ctx, db.runner(ctx), listIMSPeersSQL, scanIMSPeerRow)
+	rows, err := queryAll(ctx, db.readQuerier(ctx), listIMSPeersSQL, scanIMSPeerRow)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -420,22 +399,6 @@ func (db *Database) applyDeleteIMSPeer(ctx context.Context, p *stringPayload) (a
 	}
 
 	return nil, nil
-}
-
-func startIMSPeersSpan(ctx context.Context, operation string) (context.Context, trace.Span) {
-	querySummary := fmt.Sprintf("%s %s", operation, IMSPeersTableName)
-
-	return tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName(operation),
-			semconv.DBCollectionName(IMSPeersTableName),
-		),
-	)
 }
 
 func isIPLiteral(s string) bool {
