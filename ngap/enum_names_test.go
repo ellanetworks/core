@@ -39,6 +39,13 @@ func TestEnumNames(t *testing.T) {
 		{"UEContextRequested", UEContextRequested.Name(), "requested"},
 		{"UEContextRequest(9)", UEContextRequest(9).Name(), ""},
 
+		{"OverloadActionRejectRRCCRSignalling", OverloadActionRejectRRCCRSignalling.Name(), "reject-rrc-cr-signalling"},
+		{"OverloadAction(9)", OverloadAction(9).Name(), ""},
+
+		{"ConcurrentWarningMessageIndTrue", ConcurrentWarningMessageIndTrue.Name(), "true"},
+		{"CancelAllWarningMessagesTrue", CancelAllWarningMessagesTrue.Name(), "true"},
+		{"CancelAllWarningMessages(9)", CancelAllWarningMessages(9).Name(), ""},
+
 		{"UERetentionUesRetained", UERetentionUesRetained.Name(), "ues-retained"},
 		{"UERetentionInformation(9)", UERetentionInformation(9).Name(), ""},
 

@@ -585,6 +585,10 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		RoutingID: lib.RoutingID{0x03}, NRPPaPDU: nrppaPDU,
 	})
 
+	for name, b := range pwsOverloadCorpus(t) {
+		corpus[name] = b
+	}
+
 	return corpus
 }
 
@@ -658,6 +662,9 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			lib.ProcUplinkRANStatusTransfer, lib.ProcDownlinkRANStatusTransfer,
 			lib.ProcHandoverPreparation, lib.ProcHandoverResourceAllocation,
 			lib.ProcHandoverNotification, lib.ProcHandoverCancel,
+			lib.ProcOverloadStart, lib.ProcOverloadStop, lib.ProcWriteReplaceWarning,
+			lib.ProcPWSCancel, lib.ProcPWSRestartIndication, lib.ProcPWSFailureIndication,
+			lib.ProcRerouteNASRequest,
 		},
 		"SuccessfulOutcome": {
 			lib.ProcNGSetup, lib.ProcInitialContextSetup, lib.ProcPDUSessionResourceSetup,
@@ -666,6 +673,7 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			lib.ProcPDUSessionResourceModify, lib.ProcPDUSessionResourceModifyIndication,
 			lib.ProcRANConfigurationUpdate, lib.ProcHandoverPreparation,
 			lib.ProcHandoverResourceAllocation, lib.ProcHandoverCancel,
+			lib.ProcWriteReplaceWarning, lib.ProcPWSCancel,
 		},
 		"UnsuccessfulOutcome": {
 			lib.ProcNGSetup, lib.ProcInitialContextSetup, lib.ProcUEContextModification, lib.ProcPathSwitchRequest, lib.ProcRANConfigurationUpdate,

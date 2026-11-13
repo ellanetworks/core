@@ -131,3 +131,24 @@ var handoverTypeNames = map[HandoverType]string{
 }
 
 func (h HandoverType) Name() string { return handoverTypeNames[h] }
+
+var overloadActionNames = map[OverloadAction]string{
+	OverloadActionRejectNonEmergencyMODT:                      "reject-non-emergency-mo-dt",
+	OverloadActionRejectRRCCRSignalling:                       "reject-rrc-cr-signalling",
+	OverloadActionPermitEmergencySessionsAndMTServicesOnly:    "permit-emergency-sessions-and-mobile-terminated-services-only",
+	OverloadActionPermitHighPrioritySessionsAndMTServicesOnly: "permit-high-priority-sessions-and-mobile-terminated-services-only",
+}
+
+func (a OverloadAction) Name() string { return overloadActionNames[a] }
+
+var concurrentWarningMessageIndNames = map[ConcurrentWarningMessageInd]string{
+	ConcurrentWarningMessageIndTrue: "true",
+}
+
+func (c ConcurrentWarningMessageInd) Name() string { return concurrentWarningMessageIndNames[c] }
+
+var cancelAllWarningMessagesNames = map[CancelAllWarningMessages]string{
+	CancelAllWarningMessagesTrue: "true",
+}
+
+func (c CancelAllWarningMessages) Name() string { return cancelAllWarningMessagesNames[c] }

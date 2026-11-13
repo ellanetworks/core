@@ -1,0 +1,76 @@
+{
+  "summary": "Overload Start (action 1)",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 34,
+    "label": "OverloadStart",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 1,
+    "label": "ignore",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 101,
+          "label": "OverloadResponse",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "overload_action": 1
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 154,
+          "label": "GUMMEIList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": [
+          {
+            "plmn_id": {
+              "mcc": "001",
+              "mnc": "01"
+            },
+            "mme_group_id": 32769,
+            "mme_code": 1
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 161,
+          "label": "TrafficLoadReductionIndication",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 40
+      }
+    ]
+  }
+}

@@ -44,12 +44,16 @@ func handleUEContextReleaseCommand(gnb *GnodeB, value []byte) error {
 		}
 	}
 
+	selMcc, selMnc := gnb.explicitPLMN(ranUEID)
+
 	err = gnb.SendUEContextReleaseComplete(&UEContextReleaseCompleteOpts{
 		AMFUENGAPID:   amfUEID,
 		RANUENGAPID:   ranUEID,
 		PDUSessionIDs: released,
 		Mcc:           gnb.MCC,
 		Mnc:           gnb.MNC,
+		SelectedMcc:   selMcc,
+		SelectedMnc:   selMnc,
 		GnbID:         gnb.GnbID,
 		Tac:           gnb.TAC,
 	})

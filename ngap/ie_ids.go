@@ -164,6 +164,8 @@ const (
 	IDENDCSONConfigurationTransferDL              ProtocolIEID = 157
 	IDENDCSONConfigurationTransferUL              ProtocolIEID = 158
 	IDNGRANTNLAssociationToRemoveList             ProtocolIEID = 167
+	IDSourceToTargetAMFInformationReroute         ProtocolIEID = 171
 	IDTargettoSourceFailureTransparentContainer   ProtocolIEID = 262
 	IDNotifySourceNGRANNode                       ProtocolIEID = 269
+	IDPartiallyAllowedNSSAI                       ProtocolIEID = 414
 )

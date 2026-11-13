@@ -31,7 +31,11 @@ func (g *generator) emitStruct(name string, s *structType) error {
 		}
 	}
 
-	extensible := len(extFields) > 0 || s.extSeq
+	extensible := len(extFields) > 0 || s.extSeq || s.extRaw != ""
+
+	if s.extRaw != "" && len(extFields) > 0 {
+		return fmt.Errorf("%s: extraw cannot be combined with modeled extension additions", name)
+	}
 
 	// Root fields carrying a bit in the OPTIONAL/DEFAULT preamble bitmap.
 	var optionalIdx []int
@@ -43,8 +47,8 @@ func (g *generator) emitStruct(name string, s *structType) error {
 	}
 
 	g.emitHeader(name)
-	g.emitMarshalExt(recv, name, rootFields, extFields, optionalIdx, extensible)
-	g.emitUnmarshalExt(recv, name, rootFields, extFields, optionalIdx, extensible)
+	g.emitMarshalExt(recv, name, rootFields, extFields, optionalIdx, extensible, s.extRaw)
+	g.emitUnmarshalExt(recv, name, rootFields, extFields, optionalIdx, extensible, s.extRaw)
 
 	return nil
 }
@@ -59,13 +63,15 @@ func (g *generator) emitHeader(_ string) {
 	}
 }
 
-func (g *generator) emitMarshalExt(recv, typeName string, rootFields, extFields []fieldInfo, optionalIdx []int, extensible bool) {
+func (g *generator) emitMarshalExt(recv, typeName string, rootFields, extFields []fieldInfo, optionalIdx []int, extensible bool, extRaw string) {
 	r := &g.buf
 	fmt.Fprintf(r, "func (%s *%s) MarshalPER(w *per.Writer, enc per.Encoding) error {\n", recv, typeName)
 
 	// Extension bit (X.691 §19.1): set when any extension addition is present.
 	if extensible {
-		if len(extFields) > 0 {
+		if extRaw != "" {
+			fmt.Fprintf(r, "\tw.WriteBit(%s.%s.Present())\n", recv, extRaw)
+		} else if len(extFields) > 0 {
 			fmt.Fprintf(r, "\tw.WriteBit(%s)\n", extPresentExpr(recv, extFields))
 		} else {
 			fmt.Fprintf(r, "\tw.WriteBit(false)\n")
@@ -109,6 +115,12 @@ func (g *generator) emitMarshalExt(recv, typeName string, rootFields, extFields 
 		} else {
 			g.emitFieldMarshal(r, recv, fi, expr, 0)
 		}
+	}
+
+	if extRaw != "" {
+		fmt.Fprintf(r, "\tif %s.%s.Present() {\n", recv, extRaw)
+		fmt.Fprintf(r, "\t\tif err := %s.%s.MarshalPER(w, enc); err != nil {\n\t\t\treturn err\n\t\t}\n", recv, extRaw)
+		fmt.Fprintf(r, "\t}\n")
 	}
 
 	// Extension additions (X.691 §19.6-19.9).
@@ -292,7 +304,7 @@ func asNamed(t types.Type) *types.Named {
 	return n
 }
 
-func (g *generator) emitUnmarshalExt(recv, typeName string, rootFields, extFields []fieldInfo, optionalIdx []int, extensible bool) {
+func (g *generator) emitUnmarshalExt(recv, typeName string, rootFields, extFields []fieldInfo, optionalIdx []int, extensible bool, extRaw string) {
 	r := &g.buf
 	fmt.Fprintf(r, "func (%s *%s) UnmarshalPER(r *per.Reader, enc per.Encoding) error {\n", recv, typeName)
 
@@ -338,6 +350,15 @@ func (g *generator) emitUnmarshalExt(recv, typeName string, rootFields, extField
 		} else {
 			g.emitFieldUnmarshal(r, expr, fi, 0)
 		}
+	}
+
+	if extRaw != "" {
+		fmt.Fprintf(r, "\tif extBit {\n")
+		fmt.Fprintf(r, "\t\tif err := %s.%s.UnmarshalPER(r, enc); err != nil {\n\t\t\treturn err\n\t\t}\n", recv, extRaw)
+		fmt.Fprintf(r, "\t}\n")
+		fmt.Fprintf(r, "\treturn nil\n}\n\n")
+
+		return
 	}
 
 	// Extension additions (X.691 §19.6-19.9).

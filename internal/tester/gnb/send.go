@@ -181,6 +181,10 @@ func (g *GnodeB) SendPathSwitchRequest(opts *PathSwitchRequestOpts) error {
 	opts.Tac = g.TAC
 	opts.GnbID = g.GnbID
 
+	if opts.SelectedMcc == "" {
+		opts.SelectedMcc, opts.SelectedMnc = g.explicitPLMN(opts.RANUENGAPID)
+	}
+
 	pdu, err := BuildPathSwitchRequest(opts)
 	if err != nil {
 		return fmt.Errorf("couldn't build PathSwitchRequest: %s", err.Error())
@@ -339,6 +343,10 @@ func (g *GnodeB) SendHandoverNotify(opts *HandoverNotifyOpts) error {
 	opts.Mnc = firstNonEmpty(opts.Mnc, g.MNC)
 	opts.Tac = firstNonEmpty(opts.Tac, g.TAC)
 	opts.GnbID = firstNonEmpty(opts.GnbID, g.GnbID)
+
+	if opts.SelectedMcc == "" {
+		opts.SelectedMcc, opts.SelectedMnc = g.explicitPLMN(opts.RANUENGAPID)
+	}
 
 	pdu, err := BuildHandoverNotify(opts)
 	if err != nil {

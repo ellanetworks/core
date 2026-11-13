@@ -102,3 +102,43 @@ func TestEmitBoundedEnumerated(t *testing.T) {
 		t.Errorf("bounded ENUMERATED must not use the root-only helpers:\n%s", out)
 	}
 }
+
+func TestEmitExtRaw(t *testing.T) {
+	t.Parallel()
+
+	var g generator
+
+	g.emitMarshalExt("x", "T", nil, nil, nil, true, "ext")
+	g.emitUnmarshalExt("x", "T", nil, nil, nil, true, "ext")
+
+	out := g.buf.String()
+
+	for _, want := range []string{
+		"w.WriteBit(x.ext.Present())",
+		"if err := x.ext.MarshalPER(w, enc); err != nil",
+		"if err := x.ext.UnmarshalPER(r, enc); err != nil",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("generated code lacks %q:\n%s", want, out)
+		}
+	}
+
+	if strings.Contains(out, "SkipOpenType") {
+		t.Errorf("extraw must keep extension additions, not skip them:\n%s", out)
+	}
+
+	if _, err := parser.ParseFile(token.NewFileSet(), "", "package p\n"+out, 0); err != nil {
+		t.Fatalf("generated code does not parse: %v\n%s", err, out)
+	}
+}
+
+func TestExtRawRejectsModeledAdditions(t *testing.T) {
+	t.Parallel()
+
+	g := generator{}
+	st := &structType{name: "T", extRaw: "ext", fields: []fieldInfo{{name: "A", tag: FieldTag{Ext: true}}}}
+
+	if err := g.emitStruct("T", st); err == nil {
+		t.Fatal("extraw combined with an extension addition accepted")
+	}
+}

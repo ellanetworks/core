@@ -444,6 +444,8 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		LPPaPDU:     lppaPDU,
 	})
 
+	addPWSOverloadCorpus(t, corpus)
+
 	return corpus
 }
 
@@ -514,6 +516,9 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			s1ap.ProcENBConfigurationUpdate, s1ap.ProcENBConfigurationTransfer,
 			s1ap.ProcMMEConfigurationTransfer, s1ap.ProcLocationReport,
 			s1ap.ProcDownlinkNonUEAssociatedLPPaTransport, s1ap.ProcUplinkNonUEAssociatedLPPaTransport,
+			s1ap.ProcWriteReplaceWarning, s1ap.ProcKill, s1ap.ProcPWSRestartIndication,
+			s1ap.ProcPWSFailureIndication, s1ap.ProcOverloadStart, s1ap.ProcOverloadStop,
+			s1ap.ProcRerouteNASRequest,
 		},
 		"SuccessfulOutcome": {
 			s1ap.ProcS1Setup, s1ap.ProcInitialContextSetup, s1ap.ProcUEContextRelease, s1ap.ProcUEContextModification,
@@ -522,6 +527,7 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			s1ap.ProcReset, s1ap.ProcPathSwitchRequest,
 			s1ap.ProcERABModify, s1ap.ProcERABModificationIndication,
 			s1ap.ProcENBConfigurationUpdate,
+			s1ap.ProcWriteReplaceWarning, s1ap.ProcKill,
 		},
 		"UnsuccessfulOutcome": {
 			s1ap.ProcS1Setup, s1ap.ProcInitialContextSetup, s1ap.ProcUEContextModification,

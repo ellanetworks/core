@@ -1,0 +1,139 @@
+{
+  "summary": "PWSCancel",
+  "pdu_type": "SuccessfulOutcome",
+  "procedure_code": {
+    "type": "enum",
+    "value": 32,
+    "label": "PWSCancel",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 35,
+          "label": "MessageIdentifier",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": "1112"
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 95,
+          "label": "SerialNumber",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": "3456"
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 12,
+          "label": "BroadcastCancelledAreaList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "emergency_area_id_eutra": [
+            {
+              "emergency_area_id": "010203",
+              "cells": [
+                {
+                  "eutra_cgi": {
+                    "plmn_id": {
+                      "mcc": "001",
+                      "mnc": "01"
+                    },
+                    "eutra_cell_identity": "1234567"
+                  },
+                  "number_of_broadcasts": 3
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 19,
+          "label": "CriticalityDiagnostics",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "procedure_code": {
+            "type": "enum",
+            "value": 21,
+            "label": "NGSetup",
+            "unknown": false
+          },
+          "triggering_message": {
+            "type": "enum",
+            "value": 0,
+            "label": "initiating-message",
+            "unknown": false
+          },
+          "procedure_criticality": {
+            "type": "enum",
+            "value": 0,
+            "label": "reject",
+            "unknown": false
+          },
+          "ies": [
+            {
+              "ie_id": {
+                "type": "enum",
+                "value": 27,
+                "label": "GlobalRANNodeID",
+                "unknown": false
+              },
+              "criticality": {
+                "type": "enum",
+                "value": 0,
+                "label": "reject",
+                "unknown": false
+              },
+              "type_of_error": {
+                "type": "enum",
+                "value": 1,
+                "label": "missing",
+                "unknown": false
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

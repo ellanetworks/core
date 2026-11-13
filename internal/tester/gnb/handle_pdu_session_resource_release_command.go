@@ -52,12 +52,16 @@ func handlePDUSessionResourceReleaseCommand(gnb *GnodeB, value []byte) error {
 		)
 	}
 
+	selMcc, selMnc := gnb.explicitPLMN(ranUeNgapID)
+
 	if err := gnb.SendPDUSessionResourceReleaseResponse(&PDUSessionResourceReleaseResponseOpts{
 		AMFUENGAPID:   amfUeNgapID,
 		RANUENGAPID:   ranUeNgapID,
 		PDUSessionIDs: ids,
 		Mcc:           gnb.MCC,
 		Mnc:           gnb.MNC,
+		SelectedMcc:   selMcc,
+		SelectedMnc:   selMnc,
 		GnbID:         gnb.GnbID,
 		Tac:           gnb.TAC,
 	}); err != nil {

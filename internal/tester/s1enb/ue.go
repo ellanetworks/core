@@ -77,6 +77,7 @@ type UE struct {
 	sqn                       []byte
 	resyncs                   int
 	resyncPending             bool
+	selectedPLMN              *s1ap.PLMNIdentity
 }
 
 func (e *ENB) NewUE(imsi string, k, opc [16]byte) *UE {

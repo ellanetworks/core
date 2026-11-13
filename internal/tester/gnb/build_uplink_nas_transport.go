@@ -15,6 +15,8 @@ type UplinkNasTransportOpts struct {
 	NasPDU      []byte
 	Mcc         string
 	Mnc         string
+	SelectedMcc string
+	SelectedMnc string
 	GnbID       string
 	Tac         string
 }
@@ -36,7 +38,7 @@ func BuildUplinkNasTransport(opts *UplinkNasTransportOpts) ([]byte, error) {
 		return nil, fmt.Errorf("NAS PDU is required to build UplinkNasTransport")
 	}
 
-	uli, err := userLocation(opts.Mcc, opts.Mnc, opts.GnbID, opts.Tac)
+	uli, err := userLocation(opts.Mcc, opts.Mnc, opts.SelectedMcc, opts.SelectedMnc, opts.GnbID, opts.Tac)
 	if err != nil {
 		return nil, err
 	}

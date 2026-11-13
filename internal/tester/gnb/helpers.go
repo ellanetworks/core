@@ -65,8 +65,13 @@ func transportLayerAddress(ip netip.Addr) (ngap.TransportLayerAddress, error) {
 // userLocation builds the User Location Information this simulator reports:
 // the NR cell it serves and the TAI that cell is in (TS 38.413 §9.3.1.16).
 // internal/tester/s1enb reports its E-UTRAN CGI and TAI the same way.
-func userLocation(mcc, mnc, gnbID, tac string) (ngap.UserLocationInformation, error) {
+func userLocation(mcc, mnc, selMcc, selMnc, gnbID, tac string) (ngap.UserLocationInformation, error) {
 	plmn, err := PLMNIdentity(mcc, mnc)
+	if err != nil {
+		return ngap.UserLocationInformation{}, err
+	}
+
+	selected, err := PLMNIdentity(selectedOrServing(mcc, mnc, selMcc, selMnc))
 	if err != nil {
 		return ngap.UserLocationInformation{}, err
 	}
@@ -90,6 +95,6 @@ func userLocation(mcc, mnc, gnbID, tac string) (ngap.UserLocationInformation, er
 		Kind:         ngap.UserLocationNR,
 		PLMNIdentity: plmn,
 		CellIdentity: cellID,
-		TAI:          ngap.TAI{PLMNIdentity: plmn, TAC: tacValue},
+		TAI:          ngap.TAI{PLMNIdentity: selected, TAC: tacValue},
 	}, nil
 }

@@ -172,8 +172,10 @@ var protocolIENames = map[ProtocolIEID]string{
 	IDENDCSONConfigurationTransferDL:              "ENDC-SONConfigurationTransferDL",
 	IDENDCSONConfigurationTransferUL:              "ENDC-SONConfigurationTransferUL",
 	IDNGRANTNLAssociationToRemoveList:             "NGRAN-TNLAssociationToRemoveList",
+	IDSourceToTargetAMFInformationReroute:         "SourceToTarget-AMFInformationReroute",
 	IDTargettoSourceFailureTransparentContainer:   "TargettoSource-Failure-TransparentContainer",
 	IDNotifySourceNGRANNode:                       "NotifySourceNGRANNode",
+	IDPartiallyAllowedNSSAI:                       "Partially-Allowed-NSSAI",
 }
 
 // ProtocolIEIDName returns the TS 38.413 name of id, and whether it is known.

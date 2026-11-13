@@ -26,10 +26,10 @@ const resetAllRootCount = 1
 
 // TS 36.413. Both identities are optional; an item may carry either or both.
 type UEAssociatedLogicalS1ConnectionItem struct {
-	_           [0]struct{}  `per:"extseq"`
-	MMEUES1APID *MMEUES1APID `per:",optional"`
-	ENBUES1APID *ENBUES1APID `per:",optional"`
-	_           ieExtensions `per:",skip"`
+	MMEUES1APID  *MMEUES1APID           `per:",optional"`
+	ENBUES1APID  *ENBUES1APID           `per:",optional"`
+	iEExtensions *rawIEExtensions       `per:",optional"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // All selects s1-Interface, resetting the whole interface; otherwise Part

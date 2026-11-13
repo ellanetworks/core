@@ -198,6 +198,20 @@ func buildInitiatingMessage(m *ngap.InitiatingMessage) NGAPMessageValue {
 		return buildTraceStart(m.Value)
 	case ngap.ProcTraceFailureIndication:
 		return buildTraceFailureIndication(m.Value)
+	case ngap.ProcOverloadStart:
+		return buildOverloadStart(m.Value)
+	case ngap.ProcOverloadStop:
+		return buildOverloadStop(m.Value)
+	case ngap.ProcWriteReplaceWarning:
+		return buildWriteReplaceWarningRequest(m.Value)
+	case ngap.ProcPWSCancel:
+		return buildPWSCancelRequest(m.Value)
+	case ngap.ProcPWSRestartIndication:
+		return buildPWSRestartIndication(m.Value)
+	case ngap.ProcPWSFailureIndication:
+		return buildPWSFailureIndication(m.Value)
+	case ngap.ProcRerouteNASRequest:
+		return buildRerouteNASRequest(m.Value)
 	default:
 		return unsupportedProcedure(m.ProcedureCode)
 	}
@@ -235,6 +249,10 @@ func buildSuccessfulOutcome(m *ngap.SuccessfulOutcome) NGAPMessageValue {
 		return buildHandoverRequestAcknowledge(m.Value)
 	case ngap.ProcHandoverCancel:
 		return buildHandoverCancelAcknowledge(m.Value)
+	case ngap.ProcWriteReplaceWarning:
+		return buildWriteReplaceWarningResponse(m.Value)
+	case ngap.ProcPWSCancel:
+		return buildPWSCancelResponse(m.Value)
 	default:
 		return unsupportedProcedure(m.ProcedureCode)
 	}

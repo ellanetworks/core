@@ -1,0 +1,84 @@
+{
+  "summary": "Kill Request (message 4370, serial 12289)",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 43,
+    "label": "Kill",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 111,
+          "label": "MessageIdentifier",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 4370
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 112,
+          "label": "SerialNumber",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 12289
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 113,
+          "label": "WarningAreaList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "emergency_area_id_list": [
+            "010203"
+          ]
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 191,
+          "label": "KillAllWarningMessages",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": true
+      }
+    ]
+  }
+}

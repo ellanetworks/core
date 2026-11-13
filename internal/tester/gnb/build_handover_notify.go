@@ -12,16 +12,18 @@ type HandoverNotifyOpts struct {
 	RANUENGAPID int64
 
 	// Location info (auto-filled from gNB if empty).
-	Mcc   string
-	Mnc   string
-	Tac   string
-	GnbID string
+	Mcc         string
+	Mnc         string
+	SelectedMcc string
+	SelectedMnc string
+	Tac         string
+	GnbID       string
 }
 
 // BuildHandoverNotify encodes a HANDOVER NOTIFY PDU (TS 38.413 §8.4.3), which
 // the target NG-RAN node sends once the UE has arrived.
 func BuildHandoverNotify(opts *HandoverNotifyOpts) ([]byte, error) {
-	uli, err := userLocation(opts.Mcc, opts.Mnc, opts.GnbID, opts.Tac)
+	uli, err := userLocation(opts.Mcc, opts.Mnc, opts.SelectedMcc, opts.SelectedMnc, opts.GnbID, opts.Tac)
 	if err != nil {
 		return nil, err
 	}

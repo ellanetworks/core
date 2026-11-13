@@ -26,6 +26,8 @@ type NGSetupRequestOpts struct {
 	Sst    int32
 	Sd     string
 	Slices []SliceOpt // If non-empty, overrides Sst/Sd with multiple slices
+
+	AdditionalPLMNs []BroadcastPLMN
 }
 
 // gnbIDBits is the gNB-ID width this simulator advertises. NGAP allows 22..32
@@ -80,15 +82,14 @@ func BuildNGSetupRequest(opts *NGSetupRequestOpts) ([]byte, error) {
 		return nil, fmt.Errorf("TAC is %d octets, want 3", len(tac))
 	}
 
-	support := make(ngap.SliceSupportList, 0, len(slices))
+	support, err := sliceSupportList(slices)
+	if err != nil {
+		return nil, err
+	}
 
-	for _, s := range slices {
-		snssai, err := sliceToNGAP(s)
-		if err != nil {
-			return nil, err
-		}
-
-		support = append(support, ngap.SliceSupportItem{SNSSAI: snssai})
+	bplmns, err := BuildBroadcastPLMNList(plmn, support, opts.AdditionalPLMNs)
+	if err != nil {
+		return nil, err
 	}
 
 	req := &ngap.NGSetupRequest{
@@ -101,7 +102,7 @@ func BuildNGSetupRequest(opts *NGSetupRequestOpts) ([]byte, error) {
 		RANNodeName: ngap.Ptr(opts.Name),
 		SupportedTAList: ngap.SupportedTAList{{
 			TAC:               ngap.TAC(uint32(tac[0])<<16 | uint32(tac[1])<<8 | uint32(tac[2])),
-			BroadcastPLMNList: ngap.BroadcastPLMNList{{PLMNIdentity: plmn, TAISliceSupportList: support}},
+			BroadcastPLMNList: bplmns,
 		}},
 		DefaultPagingDRX: ngap.Ptr(ngap.PagingDRXv128),
 	}

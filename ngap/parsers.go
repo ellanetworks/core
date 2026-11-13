@@ -13,6 +13,7 @@ var messageParsers = []messageParser{
 	{"ParseAMFStatusIndication", func(v []byte) error { _, err := ParseAMFStatusIndication(v); return err }},
 	{"ParseErrorIndication", func(v []byte) error { _, err := ParseErrorIndication(v); return err }},
 	{"ParseNGReset", func(v []byte) error { _, err := ParseNGReset(v); return err }},
+	{"ParseRawPDU", func(v []byte) error { _, err := ParseRawPDU(v); return err }},
 	{"ParseNGResetAcknowledge", func(v []byte) error { _, err := ParseNGResetAcknowledge(v); return err }},
 	{"ParseNGSetupFailure", func(v []byte) error { _, err := ParseNGSetupFailure(v); return err }},
 	{"ParseNGSetupRequest", func(v []byte) error { _, err := ParseNGSetupRequest(v); return err }},
@@ -233,4 +234,13 @@ var transferParsers = []messageParser{
 		_, err := ParsePathSwitchRequestSetupFailedTransfer(v)
 		return err
 	}},
+	{"ParseOverloadStart", func(v []byte) error { _, err := ParseOverloadStart(v); return err }},
+	{"ParseOverloadStop", func(v []byte) error { _, err := ParseOverloadStop(v); return err }},
+	{"ParseWriteReplaceWarningRequest", func(v []byte) error { _, err := ParseWriteReplaceWarningRequest(v); return err }},
+	{"ParseWriteReplaceWarningResponse", func(v []byte) error { _, err := ParseWriteReplaceWarningResponse(v); return err }},
+	{"ParsePWSCancelRequest", func(v []byte) error { _, err := ParsePWSCancelRequest(v); return err }},
+	{"ParsePWSCancelResponse", func(v []byte) error { _, err := ParsePWSCancelResponse(v); return err }},
+	{"ParsePWSRestartIndication", func(v []byte) error { _, err := ParsePWSRestartIndication(v); return err }},
+	{"ParsePWSFailureIndication", func(v []byte) error { _, err := ParsePWSFailureIndication(v); return err }},
+	{"ParseRerouteNASRequest", func(v []byte) error { _, err := ParseRerouteNASRequest(v); return err }},
 }

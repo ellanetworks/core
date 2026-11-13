@@ -142,6 +142,20 @@ func decodeInitiatingMessage(m *s1ap.InitiatingMessage) S1APMessage {
 		msg.Value, msg.Summary = buildDownlinkUEAssociatedLPPaTransport(m.Value)
 	case s1ap.ProcUplinkUEAssociatedLPPaTransport:
 		msg.Value, msg.Summary = buildUplinkUEAssociatedLPPaTransport(m.Value)
+	case s1ap.ProcWriteReplaceWarning:
+		msg.Value, msg.Summary = buildWriteReplaceWarningRequest(m.Value)
+	case s1ap.ProcKill:
+		msg.Value, msg.Summary = buildKillRequest(m.Value)
+	case s1ap.ProcPWSRestartIndication:
+		msg.Value, msg.Summary = buildPWSRestartIndication(m.Value)
+	case s1ap.ProcPWSFailureIndication:
+		msg.Value, msg.Summary = buildPWSFailureIndication(m.Value)
+	case s1ap.ProcOverloadStart:
+		msg.Value, msg.Summary = buildOverloadStart(m.Value)
+	case s1ap.ProcOverloadStop:
+		msg.Value, msg.Summary = buildOverloadStop(m.Value)
+	case s1ap.ProcRerouteNASRequest:
+		msg.Value, msg.Summary = buildRerouteNASRequest(m.Value)
 	default:
 		msg.Value = unsupportedProcedure(m.ProcedureCode)
 	}
@@ -187,6 +201,10 @@ func decodeSuccessfulOutcome(m *s1ap.SuccessfulOutcome) S1APMessage {
 		msg.Value, msg.Summary = buildHandoverRequestAcknowledge(m.Value)
 	case s1ap.ProcHandoverCancel:
 		msg.Value, msg.Summary = buildHandoverCancelAcknowledge(m.Value)
+	case s1ap.ProcWriteReplaceWarning:
+		msg.Value, msg.Summary = buildWriteReplaceWarningResponse(m.Value)
+	case s1ap.ProcKill:
+		msg.Value, msg.Summary = buildKillResponse(m.Value)
 	default:
 		msg.Value = unsupportedProcedure(m.ProcedureCode)
 	}

@@ -21,6 +21,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/teid"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/s1ap"
 	"github.com/ellanetworks/core/sctp"
 	"go.uber.org/zap"
@@ -85,6 +86,8 @@ type StartOpts struct {
 	// SkipS1SetupWait sends the S1 Setup Request but returns without waiting for
 	// the response, so a scenario can assert an S1 Setup Failure (TS 36.413).
 	SkipS1SetupWait bool
+
+	AdditionalPLMNs []nas.PLMN
 }
 
 // ENB is a connected S1AP eNB. Its methods are safe for concurrent use.
@@ -95,6 +98,7 @@ type ENB struct {
 	enbIDKind s1ap.ENBIDKind
 	name      string
 	plmn      s1ap.PLMNIdentity
+	bplmns    s1ap.BPLMNs
 	tac       uint16
 	n3Addr    net.IP // eNB S1-U endpoint reported in bearer setup
 
@@ -118,6 +122,7 @@ type ENB struct {
 	background sync.WaitGroup
 
 	nextENBUEID int64
+	selected    map[int64]s1ap.PLMNIdentity
 	nextTEID    uint32
 	nextFwdTEID uint32
 
@@ -165,6 +170,11 @@ func Start(opts *StartOpts) (*ENB, error) {
 		return nil, err
 	}
 
+	bplmns, err := broadcastPLMNs(plmn, opts.AdditionalPLMNs)
+	if err != nil {
+		return nil, err
+	}
+
 	addresses := opts.CoreS1MMEAddresses
 	if len(addresses) == 0 {
 		addresses = []string{opts.CoreS1MMEAddress}
@@ -200,6 +210,8 @@ func Start(opts *StartOpts) (*ENB, error) {
 		enbIDKind:         opts.ENBIDKind,
 		name:              opts.Name,
 		plmn:              plmn,
+		bplmns:            bplmns,
+		selected:          make(map[int64]s1ap.PLMNIdentity),
 		tac:               tac,
 		n3Addr:            n3IP,
 		tunnels:           make(map[uint32]*tunnel),

@@ -343,3 +343,16 @@ func TestParseTagErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestParseTagExtRaw(t *testing.T) {
+	t.Parallel()
+
+	tag, err := ParseTag(",extraw")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !tag.ExtRaw || tag.Name != "" || tag.ExtSeq {
+		t.Fatalf("ParseTag(\",extraw\") = %+v", tag)
+	}
+}

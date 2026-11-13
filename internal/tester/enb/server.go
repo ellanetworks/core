@@ -140,7 +140,11 @@ func Start(
 }
 
 func (n *NgeNB) SendInitialUEMessage(nasPDU []byte, ranUENGAPID int64, guti5G []byte, cause ngap.RRCEstablishmentCause) error {
+	selMcc, selMnc := n.SelectedPLMN(ranUENGAPID)
+
 	opts := &InitialUEMessageOpts{
+		SelectedMcc:           selMcc,
+		SelectedMnc:           selMnc,
 		Mcc:                   n.MCC,
 		Mnc:                   n.MNC,
 		EnbID:                 n.EnbID,
@@ -174,7 +178,11 @@ func (n *NgeNB) SendInitialUEMessage(nasPDU []byte, ranUENGAPID int64, guti5G []
 }
 
 func (n *NgeNB) SendUplinkNAS(nasPDU []byte, amfUENGAPID int64, ranUENGAPID int64) error {
+	selMcc, selMnc := n.SelectedPLMN(ranUENGAPID)
+
 	err := n.sendUplinkNASTransport(&UplinkNasTransportOpts{
+		SelectedMcc: selMcc,
+		SelectedMnc: selMnc,
 		AMFUeNgapID: amfUENGAPID,
 		RANUeNgapID: ranUENGAPID,
 		Mcc:         n.MCC,

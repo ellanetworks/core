@@ -6,6 +6,66 @@ package s1ap
 
 import "github.com/ellanetworks/core/per"
 
+func (additionalGUTI *AdditionalGUTI) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := additionalGUTI.GUMMEI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := additionalGUTI.MTMSI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (additionalGUTI *AdditionalGUTI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&additionalGUTI.GUMMEI).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&additionalGUTI.MTMSI).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (allocationAndRetentionPriority *AllocationAndRetentionPriority) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(false)
@@ -46,6 +106,354 @@ func (allocationAndRetentionPriority *AllocationAndRetentionPriority) UnmarshalP
 	}
 	allocationAndRetentionPriority.PreemptionVulnerability = PreemptionVulnerability(e2)
 	if p_f3 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (cancelledCellInEAIItem *CancelledCellInEAIItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := cancelledCellInEAIItem.ECGI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 65535, HasUB: true}, int64(cancelledCellInEAIItem.NumberOfBroadcasts)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (cancelledCellInEAIItem *CancelledCellInEAIItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&cancelledCellInEAIItem.ECGI).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 65535, HasUB: true})
+	if err != nil {
+		return err
+	}
+	cancelledCellInEAIItem.NumberOfBroadcasts = uint16(n1)
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (cancelledCellInTAIItem *CancelledCellInTAIItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := cancelledCellInTAIItem.ECGI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 65535, HasUB: true}, int64(cancelledCellInTAIItem.NumberOfBroadcasts)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (cancelledCellInTAIItem *CancelledCellInTAIItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&cancelledCellInTAIItem.ECGI).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 65535, HasUB: true})
+	if err != nil {
+		return err
+	}
+	cancelledCellInTAIItem.NumberOfBroadcasts = uint16(n1)
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (cellIDBroadcastItem *CellIDBroadcastItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := cellIDBroadcastItem.ECGI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (cellIDBroadcastItem *CellIDBroadcastItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f1, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&cellIDBroadcastItem.ECGI).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f1 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (cellIDCancelledItem *CellIDCancelledItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := cellIDCancelledItem.ECGI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 65535, HasUB: true}, int64(cellIDCancelledItem.NumberOfBroadcasts)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (cellIDCancelledItem *CellIDCancelledItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&cellIDCancelledItem.ECGI).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 65535, HasUB: true})
+	if err != nil {
+		return err
+	}
+	cellIDCancelledItem.NumberOfBroadcasts = uint16(n1)
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (completedCellInEAIItem *CompletedCellInEAIItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := completedCellInEAIItem.ECGI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (completedCellInEAIItem *CompletedCellInEAIItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f1, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&completedCellInEAIItem.ECGI).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f1 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (completedCellInTAIItem *CompletedCellInTAIItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := completedCellInTAIItem.ECGI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (completedCellInTAIItem *CompletedCellInTAIItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f1, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&completedCellInTAIItem.ECGI).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_f1 {
 		var v ieExtensions
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
@@ -1117,6 +1525,166 @@ func (eRABToBeSwitchedDLItem *ERABToBeSwitchedDLItem) UnmarshalPER(r *per.Reader
 		return err
 	}
 	if p_f3 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (emergencyAreaIDBroadcastItem *EmergencyAreaIDBroadcastItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := emergencyAreaIDBroadcastItem.EmergencyAreaID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	off1 := 0
+	if err := per.EncodeLength(w, enc, 1, 65535, true, int64(len(emergencyAreaIDBroadcastItem.CompletedCellInEAI)), func(count int64) error {
+		end := off1 + int(count)
+		for i := off1; i < end; i++ {
+			if err := emergencyAreaIDBroadcastItem.CompletedCellInEAI[i].MarshalPER(w, enc); err != nil {
+				return err
+			}
+		}
+		off1 = end
+		return nil
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (emergencyAreaIDBroadcastItem *EmergencyAreaIDBroadcastItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&emergencyAreaIDBroadcastItem.EmergencyAreaID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	emergencyAreaIDBroadcastItem.CompletedCellInEAI = nil
+	if err := per.DecodeLength(r, enc, 1, 65535, true, func(count int64) error {
+		start := len(emergencyAreaIDBroadcastItem.CompletedCellInEAI)
+		emergencyAreaIDBroadcastItem.CompletedCellInEAI = append(emergencyAreaIDBroadcastItem.CompletedCellInEAI, make([]CompletedCellInEAIItem, count)...)
+		for i := int64(0); i < count; i++ {
+			if err := (&emergencyAreaIDBroadcastItem.CompletedCellInEAI[start+int(i)]).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (emergencyAreaIDCancelledItem *EmergencyAreaIDCancelledItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := emergencyAreaIDCancelledItem.EmergencyAreaID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	off1 := 0
+	if err := per.EncodeLength(w, enc, 1, 65535, true, int64(len(emergencyAreaIDCancelledItem.CancelledCellInEAI)), func(count int64) error {
+		end := off1 + int(count)
+		for i := off1; i < end; i++ {
+			if err := emergencyAreaIDCancelledItem.CancelledCellInEAI[i].MarshalPER(w, enc); err != nil {
+				return err
+			}
+		}
+		off1 = end
+		return nil
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (emergencyAreaIDCancelledItem *EmergencyAreaIDCancelledItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&emergencyAreaIDCancelledItem.EmergencyAreaID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	emergencyAreaIDCancelledItem.CancelledCellInEAI = nil
+	if err := per.DecodeLength(r, enc, 1, 65535, true, func(count int64) error {
+		start := len(emergencyAreaIDCancelledItem.CancelledCellInEAI)
+		emergencyAreaIDCancelledItem.CancelledCellInEAI = append(emergencyAreaIDCancelledItem.CancelledCellInEAI, make([]CancelledCellInEAIItem, count)...)
+		for i := int64(0); i < count; i++ {
+			if err := (&emergencyAreaIDCancelledItem.CancelledCellInEAI[start+int(i)]).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	if p_f2 {
 		var v ieExtensions
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
@@ -2243,6 +2811,166 @@ func (tAI *TAI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
+func (tAIBroadcastItem *TAIBroadcastItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := tAIBroadcastItem.TAI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	off1 := 0
+	if err := per.EncodeLength(w, enc, 1, 65535, true, int64(len(tAIBroadcastItem.CompletedCellInTAI)), func(count int64) error {
+		end := off1 + int(count)
+		for i := off1; i < end; i++ {
+			if err := tAIBroadcastItem.CompletedCellInTAI[i].MarshalPER(w, enc); err != nil {
+				return err
+			}
+		}
+		off1 = end
+		return nil
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (tAIBroadcastItem *TAIBroadcastItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&tAIBroadcastItem.TAI).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	tAIBroadcastItem.CompletedCellInTAI = nil
+	if err := per.DecodeLength(r, enc, 1, 65535, true, func(count int64) error {
+		start := len(tAIBroadcastItem.CompletedCellInTAI)
+		tAIBroadcastItem.CompletedCellInTAI = append(tAIBroadcastItem.CompletedCellInTAI, make([]CompletedCellInTAIItem, count)...)
+		for i := int64(0); i < count; i++ {
+			if err := (&tAIBroadcastItem.CompletedCellInTAI[start+int(i)]).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (tAICancelledItem *TAICancelledItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(false)
+	w.WriteBit(false)
+	if err := tAICancelledItem.TAI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	off1 := 0
+	if err := per.EncodeLength(w, enc, 1, 65535, true, int64(len(tAICancelledItem.CancelledCellInTAI)), func(count int64) error {
+		end := off1 + int(count)
+		for i := off1; i < end; i++ {
+			if err := tAICancelledItem.CancelledCellInTAI[i].MarshalPER(w, enc); err != nil {
+				return err
+			}
+		}
+		off1 = end
+		return nil
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (tAICancelledItem *TAICancelledItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_f2, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&tAICancelledItem.TAI).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	tAICancelledItem.CancelledCellInTAI = nil
+	if err := per.DecodeLength(r, enc, 1, 65535, true, func(count int64) error {
+		start := len(tAICancelledItem.CancelledCellInTAI)
+		tAICancelledItem.CancelledCellInTAI = append(tAICancelledItem.CancelledCellInTAI, make([]CancelledCellInTAIItem, count)...)
+		for i := int64(0); i < count; i++ {
+			if err := (&tAICancelledItem.CancelledCellInTAI[start+int(i)]).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	if p_f2 {
+		var v ieExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		_ = v
+	}
+	if extBit {
+		var extBits []bool
+		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
+			for i := int64(0); i < count; i++ {
+				b, err := r.ReadBit()
+				if err != nil {
+					return err
+				}
+				extBits = append(extBits, b)
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, present := range extBits {
+			if !present {
+				continue
+			}
+			if err := per.SkipOpenType(r, enc); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (targetNgRanNodeID *TargetNgRanNodeID) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(false)
@@ -2424,10 +3152,10 @@ func (uEAggregateMaximumBitRate *UEAggregateMaximumBitRate) UnmarshalPER(r *per.
 }
 
 func (uEAssociatedLogicalS1ConnectionItem *UEAssociatedLogicalS1ConnectionItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
+	w.WriteBit(uEAssociatedLogicalS1ConnectionItem.extensions.Present())
 	w.WriteBit(uEAssociatedLogicalS1ConnectionItem.MMEUES1APID != nil)
 	w.WriteBit(uEAssociatedLogicalS1ConnectionItem.ENBUES1APID != nil)
-	w.WriteBit(false)
+	w.WriteBit(uEAssociatedLogicalS1ConnectionItem.iEExtensions != nil)
 	if uEAssociatedLogicalS1ConnectionItem.MMEUES1APID != nil {
 		if err := (*uEAssociatedLogicalS1ConnectionItem.MMEUES1APID).MarshalPER(w, enc); err != nil {
 			return err
@@ -2435,6 +3163,16 @@ func (uEAssociatedLogicalS1ConnectionItem *UEAssociatedLogicalS1ConnectionItem) 
 	}
 	if uEAssociatedLogicalS1ConnectionItem.ENBUES1APID != nil {
 		if err := (*uEAssociatedLogicalS1ConnectionItem.ENBUES1APID).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if uEAssociatedLogicalS1ConnectionItem.iEExtensions != nil {
+		if err := (*uEAssociatedLogicalS1ConnectionItem.iEExtensions).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if uEAssociatedLogicalS1ConnectionItem.extensions.Present() {
+		if err := uEAssociatedLogicalS1ConnectionItem.extensions.MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
@@ -2454,7 +3192,7 @@ func (uEAssociatedLogicalS1ConnectionItem *UEAssociatedLogicalS1ConnectionItem) 
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -2472,34 +3210,16 @@ func (uEAssociatedLogicalS1ConnectionItem *UEAssociatedLogicalS1ConnectionItem) 
 		}
 		uEAssociatedLogicalS1ConnectionItem.ENBUES1APID = &v
 	}
-	if p_f2 {
-		var v ieExtensions
+	if p_iEExtensions {
+		var v rawIEExtensions
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-		_ = v
+		uEAssociatedLogicalS1ConnectionItem.iEExtensions = &v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := uEAssociatedLogicalS1ConnectionItem.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil

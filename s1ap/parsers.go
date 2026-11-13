@@ -53,6 +53,7 @@ var messageParsers = []messageParser{
 	{"ParsePathSwitchRequest", func(v []byte) error { _, err := ParsePathSwitchRequest(v); return err }},
 	{"ParsePathSwitchRequestAcknowledge", func(v []byte) error { _, err := ParsePathSwitchRequestAcknowledge(v); return err }},
 	{"ParsePathSwitchRequestFailure", func(v []byte) error { _, err := ParsePathSwitchRequestFailure(v); return err }},
+	{"ParseRawPDU", func(v []byte) error { _, err := ParseRawPDU(v); return err }},
 	{"ParseReset", func(v []byte) error { _, err := ParseReset(v); return err }},
 	{"ParseResetAcknowledge", func(v []byte) error { _, err := ParseResetAcknowledge(v); return err }},
 	{"ParseS1SetupFailure", func(v []byte) error { _, err := ParseS1SetupFailure(v); return err }},
@@ -75,4 +76,13 @@ var messageParsers = []messageParser{
 		return err
 	}},
 	{"ParseUplinkUEAssociatedLPPaTransport", func(v []byte) error { _, err := ParseUplinkUEAssociatedLPPaTransport(v); return err }},
+	{"ParseOverloadStart", func(v []byte) error { _, err := ParseOverloadStart(v); return err }},
+	{"ParseOverloadStop", func(v []byte) error { _, err := ParseOverloadStop(v); return err }},
+	{"ParseWriteReplaceWarningRequest", func(v []byte) error { _, err := ParseWriteReplaceWarningRequest(v); return err }},
+	{"ParseWriteReplaceWarningResponse", func(v []byte) error { _, err := ParseWriteReplaceWarningResponse(v); return err }},
+	{"ParseKillRequest", func(v []byte) error { _, err := ParseKillRequest(v); return err }},
+	{"ParseKillResponse", func(v []byte) error { _, err := ParseKillResponse(v); return err }},
+	{"ParsePWSRestartIndication", func(v []byte) error { _, err := ParsePWSRestartIndication(v); return err }},
+	{"ParsePWSFailureIndication", func(v []byte) error { _, err := ParsePWSFailureIndication(v); return err }},
+	{"ParseRerouteNASRequest", func(v []byte) error { _, err := ParseRerouteNASRequest(v); return err }},
 }

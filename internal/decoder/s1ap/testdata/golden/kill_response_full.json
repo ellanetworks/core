@@ -1,0 +1,139 @@
+{
+  "summary": "Kill Response (message 4370, serial 12289)",
+  "pdu_type": "SuccessfulOutcome",
+  "procedure_code": {
+    "type": "enum",
+    "value": 43,
+    "label": "Kill",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 111,
+          "label": "MessageIdentifier",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 4370
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 112,
+          "label": "SerialNumber",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 12289
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 141,
+          "label": "BroadcastCancelledAreaList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "emergency_area_id_cancelled": [
+            {
+              "emergency_area_id": "010203",
+              "cancelled_cells": [
+                {
+                  "ecgi": {
+                    "plmn_id": {
+                      "mcc": "001",
+                      "mnc": "01"
+                    },
+                    "cell_id": "0019b01"
+                  },
+                  "number_of_broadcasts": 4
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 58,
+          "label": "CriticalityDiagnostics",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "procedure_code": {
+            "type": "enum",
+            "value": 17,
+            "label": "S1Setup",
+            "unknown": false
+          },
+          "triggering_message": {
+            "type": "enum",
+            "value": 0,
+            "label": "initiating-message",
+            "unknown": false
+          },
+          "procedure_criticality": {
+            "type": "enum",
+            "value": 0,
+            "label": "reject",
+            "unknown": false
+          },
+          "ies": [
+            {
+              "ie_id": {
+                "type": "enum",
+                "value": 59,
+                "label": "Global-ENB-ID",
+                "unknown": false
+              },
+              "criticality": {
+                "type": "enum",
+                "value": 0,
+                "label": "reject",
+                "unknown": false
+              },
+              "type_of_error": {
+                "type": "enum",
+                "value": 1,
+                "label": "missing",
+                "unknown": false
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

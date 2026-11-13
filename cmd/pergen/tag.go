@@ -48,6 +48,7 @@ type FieldTag struct {
 	// ExtSeq marks the parent type extensible ("...") with no extension
 	// additions; it sits on a placeholder field that carries no encoding.
 	ExtSeq bool
+	ExtRaw bool
 
 	EnumExtValues    int64
 	HasEnumExtValues bool
@@ -144,7 +145,7 @@ func knownTypeName(name string) bool { return asn1TypeNames[name] }
 
 // looksLikeOption distinguishes an option token from a bare ASN.1 type name.
 func looksLikeOption(token string) bool {
-	if token == "optional" || token == "ext" || token == "extseq" || token == "skip" {
+	if token == "optional" || token == "ext" || token == "extseq" || token == "extraw" || token == "skip" {
 		return true
 	}
 
@@ -175,6 +176,9 @@ func parseOption(t *FieldTag, opt string) error {
 		return nil
 	case "extseq":
 		t.ExtSeq = true
+		return nil
+	case "extraw":
+		t.ExtRaw = true
 		return nil
 	}
 

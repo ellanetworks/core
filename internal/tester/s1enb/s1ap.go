@@ -81,7 +81,7 @@ func (e *ENB) buildS1SetupRequest() ([]byte, error) {
 		},
 		ENBName: new(e.name),
 		SupportedTAs: s1ap.SupportedTAs{
-			{TAC: s1ap.TAC(e.tac), BroadcastPLMNs: s1ap.BPLMNs{e.plmn}},
+			{TAC: s1ap.TAC(e.tac), BroadcastPLMNs: e.bplmns},
 		},
 		DefaultPagingDRX: s1ap.Ptr(s1ap.PagingDRXv32),
 	}
@@ -152,20 +152,29 @@ func (e *ENB) WaitForS1SetupFailure(timeout time.Duration) (*s1ap.S1SetupFailure
 // SendInitialUEMessage sends an INITIAL UE MESSAGE carrying the UE's first uplink
 // NAS PDU (e.g. an Attach Request), as the eNB does on RRC connection setup.
 func (e *ENB) SendInitialUEMessage(enbUEID int64, nas []byte) error {
+	b, err := e.buildInitialUEMessage(enbUEID, nas)
+	if err != nil {
+		return err
+	}
+
+	return e.SendMessage(b, true)
+}
+
+func (e *ENB) buildInitialUEMessage(enbUEID int64, nas []byte) ([]byte, error) {
 	msg := &s1ap.InitialUEMessage{
 		ENBUES1APID:           s1ap.ENBUES1APID(enbUEID),
 		NASPDU:                s1ap.NASPDU(nas),
-		TAI:                   e.tai(),
+		TAI:                   e.taiFor(enbUEID),
 		EUTRANCGI:             s1ap.Ptr(e.eutranCGI()),
 		RRCEstablishmentCause: s1ap.Ptr(s1ap.RRCCauseMOSignalling),
 	}
 
 	b, err := msg.Marshal()
 	if err != nil {
-		return fmt.Errorf("s1enb: build Initial UE Message: %w", err)
+		return nil, fmt.Errorf("s1enb: build Initial UE Message: %w", err)
 	}
 
-	return e.SendMessage(b, true)
+	return b, nil
 }
 
 // SendInitialUEMessageWithSTMSI sends an INITIAL UE MESSAGE identified by the
@@ -186,7 +195,7 @@ func (e *ENB) sendInitialUEMessageWithSTMSI(enbUEID int64, mmec uint8, mtmsi uin
 	msg := &s1ap.InitialUEMessage{
 		ENBUES1APID:           s1ap.ENBUES1APID(enbUEID),
 		NASPDU:                s1ap.NASPDU(nas),
-		TAI:                   e.tai(),
+		TAI:                   e.taiFor(enbUEID),
 		EUTRANCGI:             s1ap.Ptr(e.eutranCGI()),
 		RRCEstablishmentCause: s1ap.Ptr(cause),
 		STMSI:                 &s1ap.STMSI{MMEC: s1ap.MMECode(mmec), MTMSI: s1ap.MTMSI(mtmsi)},
@@ -208,7 +217,7 @@ func (e *ENB) SendUplinkNASTransport(mmeUEID, enbUEID int64, nas []byte) error {
 		ENBUES1APID: s1ap.ENBUES1APID(enbUEID),
 		NASPDU:      s1ap.NASPDU(nas),
 		EUTRANCGI:   s1ap.Ptr(e.eutranCGI()),
-		TAI:         s1ap.Ptr(e.tai()),
+		TAI:         s1ap.Ptr(e.taiFor(enbUEID)),
 	}
 
 	b, err := msg.Marshal()
@@ -240,7 +249,7 @@ func (e *ENB) SendPathSwitchRequest(enbUEID, sourceMMEUEID int64, erabID s1ap.ER
 		}},
 		SourceMMEUES1APID:      s1ap.MMEUES1APID(sourceMMEUEID),
 		EUTRANCGI:              s1ap.Ptr(e.eutranCGI()),
-		TAI:                    s1ap.Ptr(e.tai()),
+		TAI:                    s1ap.Ptr(e.taiFor(enbUEID)),
 		UESecurityCapabilities: s1ap.Ptr(caps),
 	}
 
