@@ -334,6 +334,10 @@ func (f *fakeUPFClient) QueryUsage(ctx context.Context, _ uint64, _ models.Usage
 	return nil, nil
 }
 
+func (f *fakeUPFClient) PeekUsage(ctx context.Context, _ uint64) ([]models.UsageReport, error) {
+	return nil, nil
+}
+
 func (f *fakeUPFClient) DeleteSession(ctx context.Context, _ uint64) ([]models.UsageReport, error) {
 	return nil, nil
 }

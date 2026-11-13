@@ -302,7 +302,7 @@ func GetRoamer(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme.M
 		}
 
 		name, homePLMN := partners.describe(*visitor)
-		registrations, sessions := liveRegistrations(supi, imsi, amfInstance, mmeInstance, sessionQuerier)
+		registrations, sessions := liveRegistrations(r.Context(), supi, imsi, amfInstance, mmeInstance, sessionQuerier)
 
 		writeResponse(ctx, w, RoamerDetail{
 			Imsi:          visitor.Imsi,
@@ -316,7 +316,7 @@ func GetRoamer(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme.M
 	})
 }
 
-func liveRegistrations(supi etsi.SUPI, imsi string, amfInstance *amf.AMF, mmeInstance *mme.MME, sessionQuerier smf.SessionQuerier) ([]Registration, []Session) {
+func liveRegistrations(ctx context.Context, supi etsi.SUPI, imsi string, amfInstance *amf.AMF, mmeInstance *mme.MME, sessionQuerier smf.SessionQuerier) ([]Registration, []Session) {
 	snap, pduSessions, found := amfInstance.LookupSubscriber(supi)
 
 	var (
@@ -351,7 +351,7 @@ func liveRegistrations(supi etsi.SUPI, imsi string, amfInstance *amf.AMF, mmeIns
 				break
 			}
 
-			sessions = append(sessions, withBearers(sessionFrom5G(pdu), sessionQuerier, pdu.Ref))
+			sessions = append(sessions, withSessionState(ctx, sessionFrom5G(pdu), sessionQuerier, pdu.Ref))
 		}
 	}
 
@@ -360,7 +360,7 @@ func liveRegistrations(supi etsi.SUPI, imsi string, amfInstance *amf.AMF, mmeIns
 			break
 		}
 
-		sessions = append(sessions, withBearers(sessionFrom4G(&cs.Sessions[i]), sessionQuerier, cs.Sessions[i].SessionRef))
+		sessions = append(sessions, withSessionState(ctx, sessionFrom4G(&cs.Sessions[i]), sessionQuerier, cs.Sessions[i].SessionRef))
 	}
 
 	return registrations, sessions

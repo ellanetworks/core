@@ -125,6 +125,10 @@ func (f *fakeSmf) SessionsByDNN(string) []*smf.SMContext              { return n
 func (f *fakeSmf) SessionCount() int                                  { return 0 }
 func (f *fakeSmf) ReleaseBarredSession(context.Context, string) error { return nil }
 
+func (f *fakeSmf) SessionView(context.Context, string) (smf.SessionView, bool) {
+	return smf.SessionView{}, false
+}
+
 func (f *fakeSmf) CreateSmContext(context.Context, etsi.SUPI, uint8, string, *models.Snssai, fgs.RequestType, []byte, uint8, *smf.HPLMNTarget) (string, []byte, error) {
 	return "", nil, nil
 }

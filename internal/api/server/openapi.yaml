@@ -5450,6 +5450,12 @@ components:
         ambr_downlink:
           type: string
           description: "Effective downlink session AMBR (e.g. \"200 Mbps\")."
+        established_at:
+          type: string
+          format: date-time
+          description: "When the session was installed in the data plane."
+        traffic:
+          $ref: "#/components/schemas/Traffic"
         bearers:
           type: array
           description: "EPS bearers (4G) or QoS flows (5G) enforcing the session's QoS, the default one first. Absent when the session has no default QoS yet."
@@ -5498,7 +5504,35 @@ components:
           description: "Identifiers of the PCC rules bound to it."
           items:
             type: string
+        traffic:
+          $ref: "#/components/schemas/Traffic"
       required: [id, default, var5qi, arp, preemption_capability, preemption_vulnerability, rules]
+
+    Traffic:
+      type: object
+      description: "Traffic carried since the session or bearer was installed in the data plane, read from the data plane. A session's counters include those of its released bearers. Bytes count the subscriber's IP packets, without tunnel or Ethernet headers. Absent when the data plane counters cannot be read."
+      properties:
+        read_at:
+          type: string
+          format: date-time
+          description: "When the counters were read from the data plane."
+        uplink_bytes:
+          type: integer
+          format: int64
+        downlink_bytes:
+          type: integer
+          format: int64
+        uplink_packets:
+          type: integer
+          format: int64
+        downlink_packets:
+          type: integer
+          format: int64
+        last_packet_at:
+          type: string
+          format: date-time
+          description: "When the last packet was forwarded. Absent before the first packet."
+      required: [read_at, uplink_bytes, downlink_bytes, uplink_packets, downlink_packets]
 
     CreateSubscriberParams:
       type: object

@@ -138,7 +138,12 @@ func TestSessionViewListsBearersAndTheirRules(t *testing.T) {
 		t.Fatalf("DedicatedBearerActivated: %v", err)
 	}
 
-	got := s.GetSession(ref).Bearers()
+	view, ok := s.SessionView(context.Background(), ref)
+	if !ok {
+		t.Fatal("session view not found")
+	}
+
+	got := view.Bearers
 	if len(got) != 2 {
 		t.Fatalf("bearers %+v, want the default and the floor control bearer", got)
 	}

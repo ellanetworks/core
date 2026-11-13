@@ -73,6 +73,7 @@ const mobilityRetryInterval = time.Second
 // packages (API, AMF export, metrics), avoiding a package-level SMF singleton.
 type SessionQuerier interface {
 	GetSession(ref string) *SMContext
+	SessionView(ctx context.Context, ref string) (SessionView, bool)
 	SessionsByDNN(dnn string) []*SMContext
 	SessionCount() int
 }
@@ -105,6 +106,7 @@ type UPFClient interface {
 	EstablishSession(ctx context.Context, req *models.EstablishRequest) (*models.EstablishResponse, error)
 	ModifySession(ctx context.Context, req *models.ModifyRequest) (*models.ModifyResponse, error)
 	QueryUsage(ctx context.Context, seid uint64, trigger models.UsageReportTrigger) ([]models.UsageReport, error)
+	PeekUsage(ctx context.Context, seid uint64) ([]models.UsageReport, error)
 	DeleteSession(ctx context.Context, seid uint64) ([]models.UsageReport, error)
 	SuppressDownlinkDataNotification(ctx context.Context, seid uint64)
 	ClearDownlinkDataNotification(ctx context.Context, seid uint64)
@@ -231,7 +233,7 @@ func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Op
 
 		dedicatedAwaitLimit: 30 * time.Second,
 	}
-	s.usageConsumers = []usageConsumer{s.recordSubscriberUsage}
+	s.usageConsumers = []usageConsumer{s.recordSubscriberUsage, s.recordSessionTraffic}
 
 	for _, o := range opts {
 		o(s)

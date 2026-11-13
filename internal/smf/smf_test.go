@@ -385,6 +385,7 @@ type fakeUPF struct {
 	counters         map[uint64]map[uint32]models.UsageReport
 	queryCalls       []uint64
 	queryErr         error
+	peekErr          error
 }
 
 type deletionCall struct {
@@ -488,6 +489,18 @@ func (f *fakeUPF) QueryUsage(_ context.Context, seid uint64, trigger models.Usag
 	f.queryCalls = append(f.queryCalls, seid)
 
 	return f.takeLocked(seid, trigger), f.queryErr
+}
+
+func (f *fakeUPF) PeekUsage(_ context.Context, seid uint64) ([]models.UsageReport, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	reports := make([]models.UsageReport, 0, len(f.counters[seid]))
+	for _, id := range slices.Sorted(maps.Keys(f.counters[seid])) {
+		reports = append(reports, f.counters[seid][id])
+	}
+
+	return reports, f.peekErr
 }
 
 func (f *fakeUPF) DeleteSession(_ context.Context, seid uint64) ([]models.UsageReport, error) {
