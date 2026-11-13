@@ -5,6 +5,7 @@
 </p>
 
 [![ella-core](https://snapcraft.io/ella-core/badge.svg)](https://snapcraft.io/ella-core)
+[![CNTi essential](https://raw.githubusercontent.com/ellanetworks/core/badges/cnti-badge.svg)](https://github.com/ellanetworks/core/actions/workflows/cnti.yaml)
 
 Ella Core is a mobile core designed for private networks. It consolidates the complexity of traditional mobile networks into a single application, offering simplicity, reliability, and security.
 
