@@ -1,0 +1,9 @@
+- test: non_root_containers
+  status: failed
+  reason: The Core container runs as root.
+- test: specialized_init_system
+  status: failed
+  reason: Core runs as PID 1 without a dedicated init process.
+- test: zombie_handled
+  status: failed
+  reason: Core runs as PID 1 and does not reap orphaned child processes.

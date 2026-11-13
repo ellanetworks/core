@@ -23,18 +23,19 @@ defaults:
 
 concurrency:
   group: cnti-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   essential:
+    if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: write
-    env:
+    env: &cnti-env
       MULTUS_VERSION: v4.3.2
       CNI_PLUGINS_VERSION: v1.9.1
-    steps:
+    steps: &cnti-steps
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
@@ -89,7 +90,8 @@ jobs:
           create_kind_cluster: false
           install_timeout: 600
           tests: cert
-          badge_branch: ${{ github.ref_name == github.event.repository.default_branch && 'badges' || '' }}
+          expected_results: .github/cnti/expected.yaml
+          badge_branch: ${{ github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch && 'badges' || '' }}
 
       - name: Collect deployment diagnostics
         if: failure()
@@ -97,3 +99,10 @@ jobs:
           kubectl get pods -A -o wide
           kubectl -n ella logs statefulset/ella-core --tail=100 || true
           kubectl -n ella get events --sort-by=.lastTimestamp | tail -40
+
+  essential-pr:
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.ref_name != github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env: *cnti-env
+    steps: *cnti-steps
