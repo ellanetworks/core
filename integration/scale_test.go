@@ -28,6 +28,7 @@ const (
 	scaleMaxRadios        = 150
 	scaleLargeUEIPv4Pool  = "10.44.0.0/14"
 	scaleLargePoolAbove   = 65000
+	scaleDiskOverlay      = "disk.yaml"
 )
 
 var (
@@ -62,13 +63,20 @@ func TestIntegrationScale1k(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	env := setupTesterEnv(ctx, t)
+
+	var overlays []string
+	if os.Getenv("ELLA_CORE_DATA_DIR") != "" {
+		overlays = append(overlays, scaleDiskOverlay)
+	}
+
+	env := setupTesterEnv(ctx, t, overlays...)
 	env.ScenarioTimeout = 5*time.Minute + time.Duration(scaleSubscribers)*10*time.Millisecond
 	env.Quiet = scaleSubscribers > 1000
 
 	dataNetwork := fixture.DefaultDataNetworkSpec()
 	if scaleSubscribers > scaleLargePoolAbove {
 		dataNetwork.IPv4Pool = scaleLargeUEIPv4Pool
+
 		routeScalePoolToCore(ctx, t, env)
 	}
 

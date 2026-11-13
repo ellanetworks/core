@@ -87,7 +87,7 @@ func setupTesterEnv(ctx context.Context, t *testing.T, overlays ...string) *test
 		for _, overlay := range overlays {
 			if overlay == jaegerOverlay {
 				services = append(services, "jaeger")
-			} else if !slices.Contains(services, "smsc") {
+			} else if overlay != scaleDiskOverlay && !slices.Contains(services, "smsc") {
 				services = append(services, "smsc", "ims")
 			}
 		}
