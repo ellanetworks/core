@@ -143,7 +143,9 @@ func (c *UeConn) SendTraceStart(ctx context.Context, id tracing.RANTraceID) erro
 		return fmt.Errorf("no S1 connection")
 	}
 
-	activation, err := c.m.traceActivation(id)
+	conn := c.Conn()
+
+	activation, err := c.m.traceActivation(id, conn)
 	if err != nil {
 		return err
 	}
@@ -157,7 +159,7 @@ func (c *UeConn) SendTraceStart(ctx context.Context, id tracing.RANTraceID) erro
 		return fmt.Errorf("could not build Trace Start: %w", err)
 	}
 
-	if err := c.m.SendToRadio(c.TraceContext(ctx), c.Conn(), S1APProcedureTraceStart, b); err != nil {
+	if err := c.m.SendToRadio(c.TraceContext(ctx), conn, S1APProcedureTraceStart, b); err != nil {
 		return err
 	}
 
@@ -176,17 +178,17 @@ func (c *UeConn) HandoverTraceActivation() (*s1ap.TraceActivation, error) {
 		return nil, nil
 	}
 
-	return c.m.traceActivation(id)
+	return c.m.traceActivation(id, c.Conn())
 }
 
-func (m *MME) traceActivation(id tracing.RANTraceID) (*s1ap.TraceActivation, error) {
+func (m *MME) traceActivation(id tracing.RANTraceID, conn S1APWriter) (*s1ap.TraceActivation, error) {
 	if m.ranTrace == nil {
 		return nil, fmt.Errorf("RAN trace is not enabled")
 	}
 
-	tce := m.ranTrace.Config().TCEAddress
-	if !tce.IsValid() {
-		return nil, fmt.Errorf("no Trace Collection Entity address")
+	tce, err := tracing.TCEAddress(conn)
+	if err != nil {
+		return nil, err
 	}
 
 	return &s1ap.TraceActivation{
