@@ -46,41 +46,33 @@ type AuditLogFilters struct {
 }
 
 // InsertAuditLogJSON parses the zap JSON and inserts a structured row.
-func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.AuditLog) error {
-	ctx, span, timer := startDBQuery(ctx, AuditLogsTableName, "INSERT", "insert")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.AuditLog) (err error) {
+	ctx, finish := startDBQuery(ctx, AuditLogsTableName, "INSERT")
+	defer func() { finish(err) }()
 
 	if auditLog.ID == "" {
 		err := fmt.Errorf("InsertAuditLog: ID must be set by the caller")
-		recordSpanError(span, err)
-
 		return err
 	}
 
-	_, err := db.writer().ExecContext(context.WithoutCancel(ctx), insertAuditLogSQL, auditLog.ID, auditLog.Timestamp, auditLog.Level, auditLog.Actor, auditLog.Action, auditLog.IP, auditLog.Details)
+	_, err = db.writer().ExecContext(context.WithoutCancel(ctx), insertAuditLogSQL, auditLog.ID, auditLog.Timestamp, auditLog.Level, auditLog.Actor, auditLog.Action, auditLog.IP, auditLog.Details)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) ListAuditLogsPage(ctx context.Context, filters *AuditLogFilters, page, perPage int) ([]dbwriter.AuditLog, int, error) {
+func (db *Database) ListAuditLogsPage(ctx context.Context, filters *AuditLogFilters, page, perPage int) (_ []dbwriter.AuditLog, _ int, err error) {
 	if filters == nil {
 		filters = &AuditLogFilters{}
 	}
 
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+AuditLogsTableName+" (paged)", AuditLogsTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
-	defer span.End()
-	defer timer.ObserveDuration()
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+AuditLogsTableName+" (paged)", AuditLogsTableName, "SELECT", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
+	defer func() { finish(err) }()
 
 	logs, count, err := queryPageWithTotal(ctx, db.reader(), listAuditLogsFilteredPageSQL, scanAuditLog, filters.Actor, filters.Action, filters.TimestampFrom, filters.TimestampTo, perPage, (page-1)*perPage)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -88,18 +80,15 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, filters *AuditLogFilt
 }
 
 // DeleteOldAuditLogs removes logs older than the specified retention period in days.
-func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
-	ctx, span, timer := startDBQueryNamed(ctx, "DELETE "+AuditLogsTableName+" (retention)", AuditLogsTableName, "DELETE", "delete", attribute.Int("retention.days", days))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) (err error) {
+	ctx, finish := startDBQueryNamed(ctx, "DELETE "+AuditLogsTableName+" (retention)", AuditLogsTableName, "DELETE", attribute.Int("retention.days", days))
+	defer func() { finish(err) }()
 
 	// Compute cutoff entirely in UTC so the boundary is timezone/DST-independent.
 	cutoff := dbwriter.EpochMillis(time.Now().UTC().AddDate(0, 0, -days))
 
-	_, err := db.writer().ExecContext(ctx, deleteOldAuditLogsSQL, cutoff)
+	_, err = db.writer().ExecContext(ctx, deleteOldAuditLogsSQL, cutoff)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 

@@ -10,9 +10,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const SliceDataNetworksTableName = "slice_data_networks"
@@ -53,30 +50,24 @@ func (f SliceDataNetworkForwarding) Key() string {
 	return f.SliceID + "/" + f.DataNetworkID
 }
 
-func (db *Database) ListSliceDataNetworks(ctx context.Context) ([]SliceDataNetwork, error) {
-	ctx, span, done := db.sliceDataNetworkSpan(ctx, "SELECT")
-	defer done()
+func (db *Database) ListSliceDataNetworks(ctx context.Context) (_ []SliceDataNetwork, err error) {
+	ctx, finish := startDBQuery(ctx, SliceDataNetworksTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, sliceDataNetworkSchema) {
 		pairs, err := db.legacySliceDataNetworks(ctx)
-		if err != nil {
-			recordSpanError(span, err)
-		}
-
 		return pairs, err
 	}
 
 	pairs, err := queryAll(ctx, db.reader(), listSliceDataNetworksSQL, scanSliceDataNetwork)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return pairs, nil
 }
 
-func (db *Database) GetSliceDataNetwork(ctx context.Context, sliceID, dataNetworkID string) (*SliceDataNetwork, error) {
+func (db *Database) GetSliceDataNetwork(ctx context.Context, sliceID, dataNetworkID string) (_ *SliceDataNetwork, err error) {
 	if !db.appliedSchemaAtLeast(ctx, sliceDataNetworkSchema) {
 		pairs, err := db.ListSliceDataNetworks(ctx)
 		if err != nil {
@@ -92,8 +83,8 @@ func (db *Database) GetSliceDataNetwork(ctx context.Context, sliceID, dataNetwor
 		return nil, ErrNotFound
 	}
 
-	ctx, span, done := db.sliceDataNetworkSpan(ctx, "SELECT")
-	defer done()
+	ctx, finish := startDBQuery(ctx, SliceDataNetworksTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	row, err := scanSliceDataNetwork(db.reader().QueryRowContext(ctx, getSliceDataNetworkSQL, sliceID, dataNetworkID))
 	if err != nil {
@@ -101,51 +92,43 @@ func (db *Database) GetSliceDataNetwork(ctx context.Context, sliceID, dataNetwor
 			return nil, ErrNotFound
 		}
 
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return &row, nil
 }
 
-func (db *Database) CreateSliceDataNetwork(ctx context.Context, pair *SliceDataNetwork) error {
-	ctx, span, done := db.sliceDataNetworkSpan(ctx, "INSERT")
-	defer done()
+func (db *Database) CreateSliceDataNetwork(ctx context.Context, pair *SliceDataNetwork) (err error) {
+	ctx, finish := startDBQuery(ctx, SliceDataNetworksTableName, "INSERT")
+	defer func() { finish(err) }()
 
 	normalizeSliceDataNetwork(pair)
 
 	if _, err := opCreateSliceDataNetwork.Invoke(ctx, db, pair); err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) UpdateSliceDataNetwork(ctx context.Context, pair *SliceDataNetwork) error {
-	ctx, span, done := db.sliceDataNetworkSpan(ctx, "UPDATE")
-	defer done()
+func (db *Database) UpdateSliceDataNetwork(ctx context.Context, pair *SliceDataNetwork) (err error) {
+	ctx, finish := startDBQuery(ctx, SliceDataNetworksTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	normalizeSliceDataNetwork(pair)
 
 	if _, err := opUpdateSliceDataNetwork.Invoke(ctx, db, pair); err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) DeleteSliceDataNetwork(ctx context.Context, sliceID, dataNetworkID string) error {
-	ctx, span, done := db.sliceDataNetworkSpan(ctx, "DELETE")
-	defer done()
+func (db *Database) DeleteSliceDataNetwork(ctx context.Context, sliceID, dataNetworkID string) (err error) {
+	ctx, finish := startDBQuery(ctx, SliceDataNetworksTableName, "DELETE")
+	defer func() { finish(err) }()
 
 	if _, err := opDeleteSliceDataNetwork.Invoke(ctx, db, &SliceDataNetwork{SliceID: sliceID, DataNetworkID: dataNetworkID}); err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -189,9 +172,9 @@ type LeaseWithholding struct {
 	IPv6 bool
 }
 
-func (db *Database) WithheldLeaseOwners(ctx context.Context, nodeID string) (map[string]LeaseWithholding, error) {
-	ctx, span, done := db.sliceDataNetworkSpan(ctx, "SELECT")
-	defer done()
+func (db *Database) WithheldLeaseOwners(ctx context.Context, nodeID string) (_ map[string]LeaseWithholding, err error) {
+	ctx, finish := startDBQuery(ctx, SliceDataNetworksTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, sliceDataNetworkSchema) {
 		return nil, nil
@@ -213,8 +196,6 @@ func (db *Database) WithheldLeaseOwners(ctx context.Context, nodeID string) (map
 
 	rows, err := queryAll(ctx, db.reader(), query, scanWithheldLease, models.DefaultNetworkInstanceName, models.DefaultNetworkInstanceName, nodeID)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -227,16 +208,12 @@ func (db *Database) WithheldLeaseOwners(ctx context.Context, nodeID string) (map
 	return out, nil
 }
 
-func (db *Database) sliceDataNetworkForwarding(ctx context.Context, where string, args []any) ([]SliceDataNetworkForwarding, error) {
-	ctx, span, done := db.sliceDataNetworkSpan(ctx, "SELECT")
-	defer done()
+func (db *Database) sliceDataNetworkForwarding(ctx context.Context, where string, args []any) (_ []SliceDataNetworkForwarding, err error) {
+	ctx, finish := startDBQuery(ctx, SliceDataNetworksTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, sliceDataNetworkSchema) {
 		out, err := db.legacySliceDataNetworkForwarding(ctx, args)
-		if err != nil {
-			recordSpanError(span, err)
-		}
-
 		return out, err
 	}
 
@@ -244,8 +221,6 @@ func (db *Database) sliceDataNetworkForwarding(ctx context.Context, where string
 
 	out, err := queryAll(ctx, db.reader(), query, scanSliceDataNetworkForwarding, args...)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -421,33 +396,6 @@ func requireRowAffected(res sql.Result) error {
 func normalizeSliceDataNetwork(pair *SliceDataNetwork) {
 	if pair.NetworkInstance == "" {
 		pair.NetworkInstance = models.DefaultNetworkInstanceName
-	}
-}
-
-func (db *Database) sliceDataNetworkSpan(ctx context.Context, operation string) (context.Context, trace.Span, func()) {
-	table := SliceDataNetworksTableName
-
-	querySummary := fmt.Sprintf("%s %s", operation, table)
-
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName(operation),
-			semconv.DBCollectionName(table),
-		),
-	)
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(table, operation))
-
-	DBQueriesTotal.WithLabelValues(table, operation).Inc()
-
-	return ctx, span, func() {
-		timer.ObserveDuration()
-		span.End()
 	}
 }
 

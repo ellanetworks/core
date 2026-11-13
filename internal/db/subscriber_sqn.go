@@ -112,22 +112,17 @@ func (db *Database) AdvanceSubscriberIMSSQN(ctx context.Context, imsi, resyncAut
 	return db.advanceSubscriberSQN(ctx, &AdvanceSQNPayload{IMSI: imsi, ResyncAuts: resyncAuts, ResyncRand: resyncRand, Domain: SQNDomainIMS})
 }
 
-func (db *Database) advanceSubscriberSQN(ctx context.Context, payload *AdvanceSQNPayload) (*AdvancedCredentials, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "UPDATE "+SubscribersTableName+" (advance sqn)", SubscribersTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) advanceSubscriberSQN(ctx context.Context, payload *AdvanceSQNPayload) (_ *AdvancedCredentials, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "UPDATE "+SubscribersTableName+" (advance sqn)", SubscribersTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	creds, err := opAdvanceSubscriberSQN.Invoke(ctx, db, payload)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, err
 	}
 
 	if creds == nil {
 		err = fmt.Errorf("advance sequence number for subscriber %s: leader returned no credentials", payload.IMSI)
-		recordSpanError(span, err)
-
 		return nil, err
 	}
 

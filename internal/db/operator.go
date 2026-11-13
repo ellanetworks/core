@@ -158,17 +158,16 @@ func getOperator(ctx context.Context, q querier) (Operator, error) {
 }
 
 func (db *Database) IsOperatorInitialized(ctx context.Context) bool {
-	ctx, span, timer := startDBQuery(ctx, OperatorTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+	ctx, finish := startDBQuery(ctx, OperatorTableName, "SELECT")
 
 	op, err := getOperator(ctx, db.reader())
+	finish(err)
+
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false
 		}
 
-		recordSpanError(span, err)
 		logger.From(ctx, logger.DBLog).Error("Failed to get operator", zap.Error(err))
 
 		return false
@@ -177,15 +176,12 @@ func (db *Database) IsOperatorInitialized(ctx context.Context) bool {
 	return op.ID > 0
 }
 
-func (db *Database) InitializeOperator(ctx context.Context, initialOperator *Operator) error {
-	ctx, span, timer := startDBQuery(ctx, OperatorTableName, "INSERT", "insert")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) InitializeOperator(ctx context.Context, initialOperator *Operator) (err error) {
+	ctx, finish := startDBQuery(ctx, OperatorTableName, "INSERT")
+	defer func() { finish(err) }()
 
-	_, err := opInitializeOperator.Invoke(ctx, db, initialOperator)
+	_, err = opInitializeOperator.Invoke(ctx, db, initialOperator)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -193,15 +189,12 @@ func (db *Database) InitializeOperator(ctx context.Context, initialOperator *Ope
 }
 
 // GetOperator retrieves the operator row.
-func (db *Database) GetOperator(ctx context.Context) (*Operator, error) {
-	ctx, span, timer := startDBQuery(ctx, OperatorTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetOperator(ctx context.Context) (_ *Operator, err error) {
+	ctx, finish := startDBQuery(ctx, OperatorTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	op, err := getOperator(ctx, db.reader())
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -209,24 +202,19 @@ func (db *Database) GetOperator(ctx context.Context) (*Operator, error) {
 }
 
 // UpdateOperatorTracking updates supported TACs.
-func (db *Database) UpdateOperatorTracking(ctx context.Context, supportedTACs []string) error {
-	ctx, span, timer := startDBQuery(ctx, OperatorTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) UpdateOperatorTracking(ctx context.Context, supportedTACs []string) (err error) {
+	ctx, finish := startDBQuery(ctx, OperatorTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	op := &Operator{}
 
-	err := op.SetSupportedTacs(supportedTACs)
+	err = op.SetSupportedTacs(supportedTACs)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return fmt.Errorf("failed to set supported TACs: %w", err)
 	}
 
 	_, err = opUpdateOperatorTracking.Invoke(ctx, db, op)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -239,17 +227,14 @@ func (db *Database) UpdateOperatorID(ctx context.Context, mcc, mnc string) error
 	return err
 }
 
-func (db *Database) ChangeOperatorID(ctx context.Context, mcc, mnc string) (bool, error) {
-	ctx, span, timer := startDBQuery(ctx, OperatorTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ChangeOperatorID(ctx context.Context, mcc, mnc string) (_ bool, err error) {
+	ctx, finish := startDBQuery(ctx, OperatorTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	op := &Operator{Mcc: mcc, Mnc: mnc}
 
 	seppIdentityDeleted, err := opUpdateOperatorID.Invoke(ctx, db, op)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return false, err
 	}
 
@@ -257,15 +242,12 @@ func (db *Database) ChangeOperatorID(ctx context.Context, mcc, mnc string) (bool
 }
 
 // GetOperatorCode fetches only the operatorCode field.
-func (db *Database) GetOperatorCode(ctx context.Context) (string, error) {
-	ctx, span, timer := startDBQuery(ctx, OperatorTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetOperatorCode(ctx context.Context) (_ string, err error) {
+	ctx, finish := startDBQuery(ctx, OperatorTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	op, err := getOperator(ctx, db.reader())
 	if err != nil {
-		recordSpanError(span, err)
-
 		return "", fmt.Errorf("query failed: %w", err)
 	}
 
@@ -273,17 +255,14 @@ func (db *Database) GetOperatorCode(ctx context.Context) (string, error) {
 }
 
 // UpdateOperatorCode sets a new operatorCode.
-func (db *Database) UpdateOperatorCode(ctx context.Context, operatorCode string) error {
-	ctx, span, timer := startDBQuery(ctx, OperatorTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) UpdateOperatorCode(ctx context.Context, operatorCode string) (err error) {
+	ctx, finish := startDBQuery(ctx, OperatorTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	op := &Operator{OperatorCode: operatorCode}
 
-	_, err := opUpdateOperatorCode.Invoke(ctx, db, op)
+	_, err = opUpdateOperatorCode.Invoke(ctx, db, op)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -291,31 +270,24 @@ func (db *Database) UpdateOperatorCode(ctx context.Context, operatorCode string)
 }
 
 // UpdateOperatorSecurityAlgorithms updates the NAS security algorithm preference order.
-func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipheringOrder, integrityOrder []string) error {
-	ctx, span, timer := startDBQuery(ctx, OperatorTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipheringOrder, integrityOrder []string) (err error) {
+	ctx, finish := startDBQuery(ctx, OperatorTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	op := &Operator{}
 
-	err := op.SetCiphering(cipheringOrder)
+	err = op.SetCiphering(cipheringOrder)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return fmt.Errorf("failed to set ciphering order: %w", err)
 	}
 
 	err = op.SetIntegrity(integrityOrder)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return fmt.Errorf("failed to set integrity order: %w", err)
 	}
 
 	_, err = opUpdateOperatorSecurityAlgorithms.Invoke(ctx, db, op)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -323,17 +295,14 @@ func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipher
 }
 
 // UpdateOperatorSPN updates the Service Provider Name (full and short).
-func (db *Database) UpdateOperatorSPN(ctx context.Context, spnFullName, spnShortName string) error {
-	ctx, span, timer := startDBQuery(ctx, OperatorTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) UpdateOperatorSPN(ctx context.Context, spnFullName, spnShortName string) (err error) {
+	ctx, finish := startDBQuery(ctx, OperatorTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	op := &Operator{SpnFullName: spnFullName, SpnShortName: spnShortName}
 
-	_, err := opUpdateOperatorSPN.Invoke(ctx, db, op)
+	_, err = opUpdateOperatorSPN.Invoke(ctx, db, op)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -342,7 +311,7 @@ func (db *Database) UpdateOperatorSPN(ctx context.Context, spnFullName, spnShort
 
 // UpdateOperatorAMFIdentity updates the AMF Region ID and Set ID used to
 // compute the 24-bit AMF ID (3GPP TS 23.003 §2.10.1).
-func (db *Database) UpdateOperatorAMFIdentity(ctx context.Context, regionID, setID int) error {
+func (db *Database) UpdateOperatorAMFIdentity(ctx context.Context, regionID, setID int) (err error) {
 	if regionID < 0 || regionID > maxAmfRegionID {
 		return fmt.Errorf("amfRegionID must be between 0 and %d (the node-type bit is reserved), got %d", maxAmfRegionID, regionID)
 	}
@@ -351,16 +320,13 @@ func (db *Database) UpdateOperatorAMFIdentity(ctx context.Context, regionID, set
 		return fmt.Errorf("amfSetID must be between 0 and %d (constrained by the 10-bit AMF Set ID field), got %d", maxAmfSetID, setID)
 	}
 
-	ctx, span, timer := startDBQueryNamed(ctx, "UPDATE "+OperatorTableName+" (amf identity)", OperatorTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+	ctx, finish := startDBQueryNamed(ctx, "UPDATE "+OperatorTableName+" (amf identity)", OperatorTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	op := &Operator{AmfRegionID: regionID, AmfSetID: setID}
 
-	_, err := opUpdateOperatorAMFIdentity.Invoke(ctx, db, op)
+	_, err = opUpdateOperatorAMFIdentity.Invoke(ctx, db, op)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -368,17 +334,14 @@ func (db *Database) UpdateOperatorAMFIdentity(ctx context.Context, regionID, set
 }
 
 // UpdateOperatorClusterID sets the cluster UUID in the operator row.
-func (db *Database) UpdateOperatorClusterID(ctx context.Context, clusterID string) error {
-	ctx, span, timer := startDBQueryNamed(ctx, "UPDATE "+OperatorTableName+" (cluster id)", OperatorTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) UpdateOperatorClusterID(ctx context.Context, clusterID string) (err error) {
+	ctx, finish := startDBQueryNamed(ctx, "UPDATE "+OperatorTableName+" (cluster id)", OperatorTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	op := &Operator{ClusterID: clusterID}
 
-	_, err := opUpdateOperatorClusterID.Invoke(ctx, db, op)
+	_, err = opUpdateOperatorClusterID.Invoke(ctx, db, op)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 

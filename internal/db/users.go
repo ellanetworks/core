@@ -43,23 +43,18 @@ type User struct {
 	HashedPassword string
 }
 
-func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]User, int, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+UsersTableName+" (paged)", UsersTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) (_ []User, _ int, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+UsersTableName+" (paged)", UsersTableName, "SELECT", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
+	defer func() { finish(err) }()
 
 	users, count, err := queryPageWithTotal(ctx, db.reader(), listUsersPageSQL, scanUser, perPage, (page-1)*perPage)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	if len(users) == 0 {
 		fallbackCount, err := db.CountUsers(ctx)
 		if err != nil {
-			recordSpanError(span, err)
-
 			return nil, 0, fmt.Errorf("count failed: %w", err)
 		}
 
@@ -70,18 +65,15 @@ func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]Use
 }
 
 // GetUser fetches a single user by email with a span named "SELECT users".
-func (db *Database) GetUser(ctx context.Context, email string) (*User, error) {
-	ctx, span, timer := startDBQuery(ctx, UsersTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetUser(ctx context.Context, email string) (_ *User, err error) {
+	ctx, finish := startDBQuery(ctx, UsersTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	row, err := scanUser(db.reader().QueryRowContext(ctx, getUserSQL, email))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
-
-		recordSpanError(span, err)
 
 		return nil, err
 	}
@@ -90,10 +82,9 @@ func (db *Database) GetUser(ctx context.Context, email string) (*User, error) {
 }
 
 // GetUserByID fetches a single user by ID with a span named "SELECT users".
-func (db *Database) GetUserByID(ctx context.Context, id string) (*User, error) {
-	ctx, span, timer := startDBQuery(ctx, UsersTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetUserByID(ctx context.Context, id string) (_ *User, err error) {
+	ctx, finish := startDBQuery(ctx, UsersTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	row, err := scanUser(db.reader().QueryRowContext(ctx, getUserByIDSQL, id))
 	if err != nil {
@@ -101,24 +92,19 @@ func (db *Database) GetUserByID(ctx context.Context, id string) (*User, error) {
 			return nil, ErrNotFound
 		}
 
-		recordSpanError(span, err)
-
 		return nil, err
 	}
 
 	return &row, nil
 }
 
-func (db *Database) CreateUser(ctx context.Context, user *User) (string, error) {
-	ctx, span, timer := startDBQuery(ctx, UsersTableName, "INSERT", "insert")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CreateUser(ctx context.Context, user *User) (_ string, err error) {
+	ctx, finish := startDBQuery(ctx, UsersTableName, "INSERT")
+	defer func() { finish(err) }()
 
 	if user.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
-			recordSpanError(span, err)
-
 			return "", fmt.Errorf("generate user id: %w", err)
 		}
 
@@ -126,8 +112,6 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (string, error) 
 	}
 
 	if _, err := opCreateUser.Invoke(ctx, db, user); err != nil {
-		recordSpanError(span, err)
-
 		return "", err
 	}
 
@@ -135,20 +119,17 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (string, error) 
 }
 
 // UpdateUser updates a user's role with a span named "UPDATE users".
-func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID) error {
-	ctx, span, timer := startDBQuery(ctx, UsersTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID) (err error) {
+	ctx, finish := startDBQuery(ctx, UsersTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	user := &User{
 		Email:  email,
 		RoleID: roleID,
 	}
 
-	_, err := opUpdateUser.Invoke(ctx, db, user)
+	_, err = opUpdateUser.Invoke(ctx, db, user)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -156,20 +137,17 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 }
 
 // UpdateUserPassword sets a new password hash with a span named "UPDATE users".
-func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashedPassword string) error {
-	ctx, span, timer := startDBQuery(ctx, UsersTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashedPassword string) (err error) {
+	ctx, finish := startDBQuery(ctx, UsersTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	user := &User{
 		Email:          email,
 		HashedPassword: hashedPassword,
 	}
 
-	_, err := opUpdateUserPassword.Invoke(ctx, db, user)
+	_, err = opUpdateUserPassword.Invoke(ctx, db, user)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -177,15 +155,12 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 }
 
 // DeleteUser removes a user by email with a span named "DELETE users".
-func (db *Database) DeleteUser(ctx context.Context, email string) error {
-	ctx, span, timer := startDBQuery(ctx, UsersTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteUser(ctx context.Context, email string) (err error) {
+	ctx, finish := startDBQuery(ctx, UsersTableName, "DELETE")
+	defer func() { finish(err) }()
 
-	_, err := opDeleteUser.Invoke(ctx, db, &stringPayload{Value: email})
+	_, err = opDeleteUser.Invoke(ctx, db, &stringPayload{Value: email})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -193,15 +168,12 @@ func (db *Database) DeleteUser(ctx context.Context, email string) error {
 }
 
 // CountUsers returns user count with a span named "SELECT users".
-func (db *Database) CountUsers(ctx context.Context) (int, error) {
-	ctx, span, timer := startDBQuery(ctx, UsersTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CountUsers(ctx context.Context) (_ int, err error) {
+	ctx, finish := startDBQuery(ctx, UsersTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	count, err := queryCount(ctx, db.reader(), countUsersSQL)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, err
 	}
 

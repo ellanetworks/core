@@ -79,15 +79,12 @@ func deriveHomeNetworkPublicKeyProfileB(privateKeyHex string) (string, error) {
 }
 
 // ListHomeNetworkKeys returns all home network keys ordered by scheme and key identifier.
-func (db *Database) ListHomeNetworkKeys(ctx context.Context) ([]HomeNetworkKey, error) {
-	ctx, span, timer := startDBQuery(ctx, HomeNetworkKeysTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListHomeNetworkKeys(ctx context.Context) (_ []HomeNetworkKey, err error) {
+	ctx, finish := startDBQuery(ctx, HomeNetworkKeysTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	keys, err := queryAll(ctx, db.reader(), listHomeNetworkKeysSQL, scanHomeNetworkKey)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -95,18 +92,15 @@ func (db *Database) ListHomeNetworkKeys(ctx context.Context) ([]HomeNetworkKey, 
 }
 
 // GetHomeNetworkKey retrieves a home network key by its UUID.
-func (db *Database) GetHomeNetworkKey(ctx context.Context, id string) (*HomeNetworkKey, error) {
-	ctx, span, timer := startDBQuery(ctx, HomeNetworkKeysTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetHomeNetworkKey(ctx context.Context, id string) (_ *HomeNetworkKey, err error) {
+	ctx, finish := startDBQuery(ctx, HomeNetworkKeysTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	row, err := scanHomeNetworkKey(db.reader().QueryRowContext(ctx, getHomeNetworkKeySQL, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
-
-		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -115,18 +109,15 @@ func (db *Database) GetHomeNetworkKey(ctx context.Context, id string) (*HomeNetw
 }
 
 // GetHomeNetworkKeyBySchemeAndIdentifier retrieves a home network key by its (scheme, keyIdentifier) pair.
-func (db *Database) GetHomeNetworkKeyBySchemeAndIdentifier(ctx context.Context, scheme string, keyIdentifier int) (*HomeNetworkKey, error) {
-	ctx, span, timer := startDBQuery(ctx, HomeNetworkKeysTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetHomeNetworkKeyBySchemeAndIdentifier(ctx context.Context, scheme string, keyIdentifier int) (_ *HomeNetworkKey, err error) {
+	ctx, finish := startDBQuery(ctx, HomeNetworkKeysTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	row, err := scanHomeNetworkKey(db.reader().QueryRowContext(ctx, getHomeNetworkKeyBySchemeAndIdentifierSQL, scheme, keyIdentifier))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
-
-		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -135,22 +126,17 @@ func (db *Database) GetHomeNetworkKeyBySchemeAndIdentifier(ctx context.Context, 
 }
 
 // CreateHomeNetworkKey inserts a new home network key.
-func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKey) error {
-	ctx, span, timer := startDBQuery(ctx, HomeNetworkKeysTableName, "INSERT", "insert")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKey) (err error) {
+	ctx, finish := startDBQuery(ctx, HomeNetworkKeysTableName, "INSERT")
+	defer func() { finish(err) }()
 
 	if key.ID == "" {
 		err := fmt.Errorf("CreateHomeNetworkKey: ID must be set by the caller")
-		recordSpanError(span, err)
-
 		return err
 	}
 
-	_, err := opCreateHomeNetworkKey.Invoke(ctx, db, key)
+	_, err = opCreateHomeNetworkKey.Invoke(ctx, db, key)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -158,15 +144,12 @@ func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKe
 }
 
 // DeleteHomeNetworkKey removes a home network key by its UUID.
-func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id string) error {
-	ctx, span, timer := startDBQuery(ctx, HomeNetworkKeysTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id string) (err error) {
+	ctx, finish := startDBQuery(ctx, HomeNetworkKeysTableName, "DELETE")
+	defer func() { finish(err) }()
 
-	_, err := opDeleteHomeNetworkKey.Invoke(ctx, db, &stringPayload{Value: id})
+	_, err = opDeleteHomeNetworkKey.Invoke(ctx, db, &stringPayload{Value: id})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -174,15 +157,12 @@ func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id string) error {
 }
 
 // CountHomeNetworkKeys returns the number of home network keys.
-func (db *Database) CountHomeNetworkKeys(ctx context.Context) (int, error) {
-	ctx, span, timer := startDBQuery(ctx, HomeNetworkKeysTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CountHomeNetworkKeys(ctx context.Context) (_ int, err error) {
+	ctx, finish := startDBQuery(ctx, HomeNetworkKeysTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	count, err := queryCount(ctx, db.reader(), countHomeNetworkKeysSQL)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 

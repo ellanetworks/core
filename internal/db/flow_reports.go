@@ -11,7 +11,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
@@ -159,7 +158,7 @@ type FlowReportFilters struct {
 // InsertFlowReports inserts multiple flow reports in a single SQLite
 // transaction. This is significantly faster than individual inserts because
 // SQLite only performs one fsync per transaction instead of one per row.
-func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwriter.FlowReport) error {
+func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwriter.FlowReport) (err error) {
 	if len(flowReports) == 0 {
 		return nil
 	}
@@ -175,29 +174,11 @@ func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwrit
 
 	querySummary := fmt.Sprintf("%s %s", operation, FlowReportsTableName)
 
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName(operation),
-			semconv.DBCollectionName(FlowReportsTableName),
-		),
-		trace.WithAttributes(batchAttrs...),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(FlowReportsTableName, "batch_insert"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(FlowReportsTableName, "batch_insert").Inc()
+	ctx, finish := startDBQueryNamed(ctx, querySummary, FlowReportsTableName, operation, batchAttrs...)
+	defer func() { finish(err) }()
 
 	tx, err := db.writer().BeginTx(ctx, nil)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return fmt.Errorf("begin transaction failed: %w", err)
 	}
 
@@ -210,8 +191,6 @@ func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwrit
 			inserted, err := insertFlowReportOfKnownIMSI(ctx, tx, fr)
 			if err != nil {
 				_ = tx.Rollback()
-
-				recordSpanError(span, err)
 
 				return fmt.Errorf("insert failed: %w", err)
 			}
@@ -231,14 +210,12 @@ func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwrit
 
 			_ = tx.Rollback()
 
-			recordSpanError(span, err)
-
 			return fmt.Errorf("insert failed: %w", err)
 		}
 	}
 
 	if orphaned > 0 {
-		span.SetAttributes(attribute.Int("ella.db.batch_orphaned", orphaned))
+		trace.SpanFromContext(ctx).SetAttributes(attribute.Int("ella.db.batch_orphaned", orphaned))
 		logger.DBLog.Warn("Dropped flow reports for deleted subscribers",
 			zap.Int("dropped", orphaned),
 			zap.Int("batch_size", len(flowReports)),
@@ -246,18 +223,15 @@ func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwrit
 	}
 
 	if err := tx.Commit(); err != nil {
-		recordSpanError(span, err)
-
 		return fmt.Errorf("commit failed: %w", err)
 	}
 
 	return nil
 }
 
-func (db *Database) ListFlowReports(ctx context.Context, page int, perPage int, filters *FlowReportFilters) ([]dbwriter.FlowReport, int, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+FlowReportsTableName+" (paged+filtered)", FlowReportsTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListFlowReports(ctx context.Context, page int, perPage int, filters *FlowReportFilters) (_ []dbwriter.FlowReport, _ int, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+FlowReportsTableName+" (paged+filtered)", FlowReportsTableName, "SELECT", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
+	defer func() { finish(err) }()
 
 	if filters == nil {
 		filters = &FlowReportFilters{}
@@ -265,16 +239,12 @@ func (db *Database) ListFlowReports(ctx context.Context, page int, perPage int, 
 
 	reports, count, err := queryPageWithTotal(ctx, db.reader(), listFlowReportsPagedFilteredSQL, scanFlowReport, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action, perPage, (page-1)*perPage)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	if len(reports) == 0 {
 		fallbackCount, err := queryCount(ctx, db.reader(), countFlowReportsFilteredSQL, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action)
 		if err != nil {
-			recordSpanError(span, err)
-
 			return nil, 0, fmt.Errorf("count failed: %w", err)
 		}
 
@@ -285,42 +255,35 @@ func (db *Database) ListFlowReports(ctx context.Context, page int, perPage int, 
 }
 
 // DeleteOldFlowReports removes flow reports older than the specified retention period in days.
-func (db *Database) DeleteOldFlowReports(ctx context.Context, days int) error {
-	ctx, span, timer := startDBQueryNamed(ctx, "DELETE "+FlowReportsTableName+" (retention)", FlowReportsTableName, "DELETE", "delete", attribute.Int("retention.days", days))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteOldFlowReports(ctx context.Context, days int) (err error) {
+	ctx, finish := startDBQueryNamed(ctx, "DELETE "+FlowReportsTableName+" (retention)", FlowReportsTableName, "DELETE", attribute.Int("retention.days", days))
+	defer func() { finish(err) }()
 
 	cutoff := dbwriter.EpochMillis(time.Now().UTC().AddDate(0, 0, -days))
 
-	_, err := db.writer().ExecContext(ctx, deleteOldFlowReportsSQL, cutoff)
+	_, err = db.writer().ExecContext(ctx, deleteOldFlowReportsSQL, cutoff)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return fmt.Errorf("query failed: %w", err)
 	}
 
 	return nil
 }
 
-func (db *Database) ClearFlowReports(ctx context.Context) error {
-	ctx, span, timer := startDBQueryNamed(ctx, "DELETE "+FlowReportsTableName+" (all)", FlowReportsTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ClearFlowReports(ctx context.Context) (err error) {
+	ctx, finish := startDBQueryNamed(ctx, "DELETE "+FlowReportsTableName+" (all)", FlowReportsTableName, "DELETE")
+	defer func() { finish(err) }()
 
-	_, err := db.writer().ExecContext(ctx, deleteAllFlowReportsSQL)
+	_, err = db.writer().ExecContext(ctx, deleteAllFlowReportsSQL)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return fmt.Errorf("query failed: %w", err)
 	}
 
 	return nil
 }
 
-func (db *Database) ListFlowReportsByDay(ctx context.Context, filters *FlowReportFilters) ([]dbwriter.FlowReport, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+FlowReportsTableName+" (by day)", FlowReportsTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListFlowReportsByDay(ctx context.Context, filters *FlowReportFilters) (_ []dbwriter.FlowReport, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+FlowReportsTableName+" (by day)", FlowReportsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if filters == nil {
 		filters = &FlowReportFilters{}
@@ -328,18 +291,15 @@ func (db *Database) ListFlowReportsByDay(ctx context.Context, filters *FlowRepor
 
 	results, err := queryAll(ctx, db.reader(), listFlowReportsFilteredByDaySQL, scanFlowReport, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return results, nil
 }
 
-func (db *Database) ListFlowReportsBySubscriber(ctx context.Context, filters *FlowReportFilters) ([]dbwriter.FlowReport, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+FlowReportsTableName+" (by subscriber)", FlowReportsTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListFlowReportsBySubscriber(ctx context.Context, filters *FlowReportFilters) (_ []dbwriter.FlowReport, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+FlowReportsTableName+" (by subscriber)", FlowReportsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if filters == nil {
 		filters = &FlowReportFilters{}
@@ -347,8 +307,6 @@ func (db *Database) ListFlowReportsBySubscriber(ctx context.Context, filters *Fl
 
 	results, err := queryAll(ctx, db.reader(), listFlowReportsFilteredBySubscriberSQL, scanFlowReport, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -356,10 +314,9 @@ func (db *Database) ListFlowReportsBySubscriber(ctx context.Context, filters *Fl
 }
 
 // GetFlowReportStats returns aggregated protocol counts and top destination IPs for uplink traffic.
-func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportFilters) ([]FlowReportProtocolCount, []FlowReportIPCount, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+FlowReportsTableName+" (stats)", FlowReportsTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportFilters) (_ []FlowReportProtocolCount, _ []FlowReportIPCount, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+FlowReportsTableName+" (stats)", FlowReportsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if filters == nil {
 		filters = &FlowReportFilters{}
@@ -367,15 +324,11 @@ func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportF
 
 	protocols, err := queryAll(ctx, db.reader(), flowReportProtocolCountsSQL, scanFlowReportProtocolCount, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, nil, fmt.Errorf("protocol counts query failed: %w", err)
 	}
 
 	destinationsUplink, err := queryAll(ctx, db.reader(), flowReportTopDestinationsUplinkSQL, scanFlowReportIPCount, filters.SubscriberID, filters.Protocol, filters.SourceIP, filters.DestinationIP, filters.SourcePort, filters.DestinationPort, filters.RangeStart, filters.RangeEnd, filters.Direction, filters.Action)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, nil, fmt.Errorf("top destinations uplink query failed: %w", err)
 	}
 
