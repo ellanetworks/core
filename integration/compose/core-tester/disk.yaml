@@ -1,0 +1,5 @@
+services:
+  ella-core:
+    tmpfs: !reset []
+    volumes:
+      - ${ELLA_CORE_DATA_DIR}:/data

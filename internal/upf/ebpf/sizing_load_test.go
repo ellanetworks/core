@@ -103,3 +103,65 @@ func countEntries(t *testing.T, m *ebpf.Map) int {
 
 	return n
 }
+
+func TestProjectedBytesMatchesKernelAccounting(t *testing.T) {
+	requireProgTestRun(t)
+
+	cpus, err := ebpf.PossibleCPU()
+	if err != nil {
+		t.Fatalf("possible CPUs: %v", err)
+	}
+
+	for _, sessions := range []uint32{DefaultMaxSessions, 50000, MaxSessionsLimit} {
+		obj := NewBpfObjects(true, true, 0, 1, 0, 0)
+		obj.Sizing = NewMapSizing(sessions)
+
+		spec, err := obj.loadSpec()
+		if err != nil {
+			t.Fatalf("load spec: %v", err)
+		}
+
+		if err := obj.Sizing.apply(spec); err != nil {
+			t.Fatalf("apply: %v", err)
+		}
+
+		if err := obj.Load(); err != nil {
+			t.Fatalf("load %d sessions: %v", sessions, err)
+		}
+
+		loaded := map[string]*ebpf.Map{
+			"pdrs_uplink":         obj.PdrsUplink,
+			"pdrs_downlink_ip4":   obj.PdrsDownlinkIp4,
+			"pdrs_downlink_ip6":   obj.PdrsDownlinkIp6,
+			"sdf_classifiers":     obj.SdfClassifiers,
+			"veth_tunnels":        obj.VethTunnels,
+			"qer_windows":         obj.QerWindows,
+			"urr_map":             obj.UrrMap,
+			"framed_downlink_ip4": obj.FramedDownlinkIp4,
+			"framed_downlink_ip6": obj.FramedDownlinkIp6,
+			"nat_ct":              obj.NatCt,
+			"flow_stats":          obj.FlowStats,
+		}
+
+		var projected, measured uint64
+
+		for name, n := range obj.Sizing.maxEntries() {
+			want := startupBytes(spec.Maps[name], n, uint64(cpus))
+			got := fdinfoMemlock(loaded[name].FD())
+			projected += want
+			measured += got
+
+			if want > 0 && (got < want*95/100 || got > want*105/100) {
+				t.Errorf("%d sessions: %s memlock %d, projected %d", sessions, name, got, want)
+			}
+		}
+
+		if total := obj.Sizing.ProjectedBytes(spec, cpus); total != projected {
+			t.Errorf("%d sessions: ProjectedBytes %d, want the per-map sum %d", sessions, total, projected)
+		}
+
+		t.Logf("%d sessions: projected %d MiB, kernel %d MiB for the sized maps", sessions, projected>>20, measured>>20)
+
+		_ = obj.Close()
+	}
+}

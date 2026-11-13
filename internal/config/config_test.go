@@ -665,3 +665,76 @@ datapath:
 		})
 	}
 }
+
+func TestMaxSessionsResolution(t *testing.T) {
+	config.CheckInterfaceExistsFunc = func(name string) (bool, error) { return true, nil }
+	config.GetInterfaceNameFunc = func(name string) (string, error) { return InterfaceName, nil }
+	config.VRFDeviceForInterfaceFunc = func(name string) (string, error) { return "", nil }
+	config.GetVLANConfigForInterfaceFunc = func(name string) (*config.VlanConfig, error) { return nil, nil }
+
+	const tmpl = `logging:
+  system:
+    level: "info"
+    output: "stdout"
+  audit:
+    output: "stdout"
+db:
+  path: "test"
+interfaces:
+  n2:
+    address: "0.0.0.0"
+  n3:
+    address: "33.33.33.3"
+  n6:
+    name: "enp6s0"
+  api:
+    address: "0.0.0.0"
+    port: 5002
+%s`
+
+	cases := []struct {
+		name         string
+		datapath     string
+		want         uint32
+		wantErrParts string
+	}{
+		{"absent is unset", "", 0, ""},
+		{"absent within datapath is unset", "datapath:\n  attach-mode: \"tcx\"\n", 0, ""},
+		{"explicit value", "datapath:\n  max-sessions: 100000\n", 100000, ""},
+		{"upper bound", "datapath:\n  max-sessions: 508400\n", 508400, ""},
+		{"zero", "datapath:\n  max-sessions: 0\n", 0, "datapath.max-sessions must be between 1 and 508400"},
+		{"negative", "datapath:\n  max-sessions: -1\n", 0, "datapath.max-sessions must be between 1 and 508400"},
+		{"above the bound", "datapath:\n  max-sessions: 508401\n", 0, "datapath.max-sessions must be between 1 and 508400"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "core.yaml")
+			if err := os.WriteFile(path, []byte(fmt.Sprintf(tmpl, tc.datapath)), 0o600); err != nil {
+				t.Fatalf("write config: %s", err)
+			}
+
+			cfg, err := config.Validate(path)
+
+			if tc.wantErrParts != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got none", tc.wantErrParts)
+				}
+
+				if !strings.Contains(err.Error(), tc.wantErrParts) {
+					t.Fatalf("error = %q, want it to contain %q", err.Error(), tc.wantErrParts)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+
+			if cfg.Datapath.MaxSessions != tc.want {
+				t.Errorf("max sessions = %d, want %d", cfg.Datapath.MaxSessions, tc.want)
+			}
+		})
+	}
+}

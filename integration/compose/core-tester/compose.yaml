@@ -3,7 +3,7 @@ configs:
     content: |
       logging:
         system:
-          level: "debug"
+          level: "${ELLA_CORE_LOG_LEVEL:-debug}"
           output: "stdout"
         audit:
           output: "stdout"
@@ -23,6 +23,7 @@ configs:
           address: "10.3.0.2"
       datapath:
         attach-mode: "${ELLA_CORE_ATTACH_MODE:-xdp-generic}"
+        max-sessions: ${ELLA_CORE_MAX_SESSIONS:-2000}
       telemetry:
         enabled: ${ELLA_CORE_TELEMETRY:-false}
         otlp-endpoint: "jaeger:4317"

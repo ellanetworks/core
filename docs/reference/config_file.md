@@ -53,7 +53,8 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
         - `port` (int, optional): The port to listen on. Default `443`.
 - `datapath` (object): The datapath configuration (optional). When omitted, the datapath attaches at the XDP hook in driver mode where the network interface supports it, and at the TCX hook otherwise.
     - `attach-mode` (string): The kernel hook the datapath attaches to (optional): `xdp-native`, `tcx`, or `xdp-generic`. See [the eBPF attach mode explanation](../explanation/user_plane_packet_processing_with_ebpf.md).
-- `xdp` (object, deprecated): Replaced by `datapath`. Cannot be set together with `datapath`.
+    - `max-sessions` (int): The maximum number of concurrent PDU sessions (optional): `1` to `508400`. Default `2000`. See [system requirements](system_reqs.md).
+- `xdp` (object, deprecated): Replaced by `datapath`. `xdp.attach-mode` cannot be set together with `datapath.attach-mode`.
     - `attach-mode` (string): `native` is equivalent to `datapath.attach-mode: xdp-native`, `generic` to `xdp-generic`.
 - `telemetry` (object): The telemetry configuration.
     - `enabled` (boolean): Whether telemetry is enabled or not. Default is `false`.
@@ -102,6 +103,7 @@ interfaces:
       key: "/etc/ella/key.pem"
 datapath:
   attach-mode: "xdp-native"
+  max-sessions: 2000
 telemetry:
   enabled: true
   otlp-endpoint: "localhost:4317"
