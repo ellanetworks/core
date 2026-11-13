@@ -13,6 +13,8 @@ on:
       - '.github/cnti/**'
       - '.github/workflows/cnti.yaml'
   workflow_dispatch:
+  schedule:
+    - cron: '23 8 * * 1'
 
 permissions:
   contents: read
@@ -33,6 +35,8 @@ jobs:
     permissions:
       contents: write
     env: &cnti-env
+      KIND_VERSION: v0.33.0
+      KIND_NODE_IMAGE: kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
       MULTUS_VERSION: v4.3.2
       CNI_PLUGINS_VERSION: v1.9.1
     steps: &cnti-steps
@@ -40,11 +44,20 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Install kind
+        run: |
+          mkdir -p "$RUNNER_TEMP/kind-bin"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/kind-bin/kind" \
+            "https://github.com/kubernetes-sigs/kind/releases/download/${KIND_VERSION}/kind-linux-amd64"
+          printf '%s  %s\n' aee6151561422756b764a4ae28e7f44cda5af5a9eead3cc9985112b1de8d8e0d "$RUNNER_TEMP/kind-bin/kind" | sha256sum --check
+          chmod +x "$RUNNER_TEMP/kind-bin/kind"
+          echo "$RUNNER_TEMP/kind-bin" >> "$GITHUB_PATH"
+
       - name: Create kind cluster
         run: |
           mkdir -p /tmp/kind-shared-storage
           sudo modprobe sctp
-          kind create cluster --name cnti-testsuite --config .github/cnti/kind.yaml --wait 5m
+          kind create cluster --name cnti-testsuite --config .github/cnti/kind.yaml --image "$KIND_NODE_IMAGE" --wait 5m
 
       - name: Configure the Multus RAN attachment
         run: |
