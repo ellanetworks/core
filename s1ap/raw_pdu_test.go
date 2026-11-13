@@ -43,7 +43,7 @@ func loadCorpus(t testing.TB) []corpusPDU {
 
 	var out []corpusPDU
 
-	f, err := os.Open(filepath.Join("testdata", "captures", "open5gs.txt"))
+	f, err := os.Open(filepath.Join("testdata", "captures", "corpus.txt"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,10 +61,10 @@ func loadCorpus(t testing.TB) []corpusPDU {
 
 		b, err := hex.DecodeString(line)
 		if err != nil {
-			t.Fatalf("open5gs.txt:%d: %v", n, err)
+			t.Fatalf("corpus.txt:%d: %v", n, err)
 		}
 
-		out = append(out, corpusPDU{source: fmt.Sprintf("open5gs.txt:%d", n), b: b})
+		out = append(out, corpusPDU{source: fmt.Sprintf("corpus.txt:%d", n), b: b})
 	}
 
 	if err := sc.Err(); err != nil {
@@ -549,7 +549,7 @@ func TestRawPDUTshark(t *testing.T) {
 			t.Errorf("frame %d (%s): splice changed tshark's verdict from %q to %q", i+1, e.source, strings.Join(orig[i][3:], "|"), strings.Join(cols[3:], "|"))
 		}
 
-		if strings.HasPrefix(e.source, "open5gs") && (cols[3] != "" || strings.Contains(cols[4], "8388608")) {
+		if strings.HasPrefix(e.source, "corpus") && (cols[3] != "" || strings.Contains(cols[4], "8388608")) {
 			t.Errorf("frame %d (%s): tshark reports an error: %q", i+1, e.source, strings.Join(cols, "|"))
 		}
 

@@ -99,14 +99,6 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "Ella Networks Inc."
 SPDX-License-Identifier = "Apache-2.0"
 
-# S1AP and NGAP PDUs extracted with tshark from the pcapng files in the
-# Open5GS repository (docs/assets/pcapng, commit 39a8c771f6d5).
-[[annotations]]
-path = ["s1ap/testdata/captures/open5gs.txt", "ngap/testdata/captures/open5gs.txt"]
-precedence = "override"
-SPDX-FileCopyrightText = "Open5GS contributors"
-SPDX-License-Identifier = "AGPL-3.0-or-later"
-
 # pergen generated code, not hand-edited
 [[annotations]]
 path = ["**/per_gen.go"]
