@@ -1,5 +1,5 @@
 ---
-description: Step-by-step instructions to deploy an Ella Core high-availability cluster on Google Cloud or AWS, with radios connecting from a site over IPsec.
+description: Step-by-step instructions to deploy an Ella Core high-availability cluster on Google Cloud, AWS or Azure, with radios connecting from a site over IPsec.
 ---
 
 # Deploy in the Cloud
@@ -23,6 +23,13 @@ Run Ella Core in the cloud while your radios stay on site. Deploy a three-node c
       <figcaption>Ella Core running in AWS</figcaption>
     </figure>
 
+=== "Azure"
+
+    <figure markdown="span">
+      ![Ella Core running in Azure](../images/cloud_azure.png){ width="800" }
+      <figcaption>Ella Core running in Azure</figcaption>
+    </figure>
+
 ## Prerequisites
 
 - A radio that supports IPsec and several MME or AMF addresses. Without IPsec on the radio, use an IPsec router at the site.
@@ -38,6 +45,13 @@ Run Ella Core in the cloud while your radios stay on site. Deploy a three-node c
     - An AWS account and the `aws` CLI.
 
     The examples use `203.0.113.10` for the site's public address, `192.168.1.50` for the radio, and the default VPC (`172.31.0.0/16`) in `us-east-1`.
+
+=== "Azure"
+
+    - An Azure subscription and the `az` CLI, with the `bastion` and `ssh` extensions.
+    - An SSH key at `~/.ssh/id_ed25519`.
+
+    The examples use `203.0.113.10` for the site's public address, `192.168.1.50` for the radio, and `10.10.0.0/16` for the virtual network in `eastus`.
 
 ## 1. Prepare the project
 
@@ -110,6 +124,39 @@ Run Ella Core in the cloud while your radios stay on site. Deploy a three-node c
     aws iam add-role-to-instance-profile --instance-profile-name ella-core-ssm --role-name ella-core-ssm
     ```
 
+=== "Azure"
+
+    Create the resource group:
+
+    ```shell
+    az group create -n ella-core -l eastus
+    G="-g ella-core"
+    ```
+
+    Create the virtual network, with subnets for the instances, the VPN gateway and Bastion:
+
+    ```shell
+    az network vnet create $G -n ella-vnet --address-prefixes 10.10.0.0/16 --subnet-name ella --subnet-prefixes 10.10.1.0/24
+    az network vnet subnet create $G --vnet-name ella-vnet -n GatewaySubnet --address-prefixes 10.10.255.0/27
+    az network vnet subnet create $G --vnet-name ella-vnet -n AzureBastionSubnet --address-prefixes 10.10.254.0/26
+    ```
+
+    Give the instances internet access:
+
+    ```shell
+    az network public-ip create $G -n ella-nat-ip --sku StandardV2 --allocation-method Static
+    az network nat gateway create $G -n ella-nat --sku StandardV2 --public-ip-addresses ella-nat-ip
+    az network vnet subnet update $G --vnet-name ella-vnet -n ella --nat-gateway ella-nat
+    ```
+
+    Create a Bastion host to reach SSH and the UI:
+
+    ```shell
+    az network public-ip create $G -n ella-bastion-ip --sku Standard
+    az network bastion create $G -n ella-bastion --vnet-name ella-vnet --public-ip-address ella-bastion-ip \
+      --sku Standard --enable-tunneling
+    ```
+
 ## 2. Create the VPN gateway
 
 === "Google Cloud"
@@ -163,6 +210,31 @@ Run Ella Core in the cloud while your radios stay on site. Deploy a three-node c
     echo $GW
     ```
 
+=== "Azure"
+
+    Create the VPN gateway. This can take 45 minutes:
+
+    ```shell
+    az network public-ip create $G -n radio-vpn-ip --sku Standard --zone 1 2 3
+    az network vnet-gateway create $G -n radio-vpn --vnet ella-vnet --public-ip-addresses radio-vpn-ip \
+      --gateway-type Vpn --vpn-type RouteBased --sku VpnGw1AZ
+    GW=$(az network public-ip show $G -n radio-vpn-ip --query ipAddress -o tsv)
+    echo $GW
+    ```
+
+    Create a local network gateway for the site, a pre-shared key, and the connection:
+
+    ```shell
+    az network local-gateway create $G -n radio-site --gateway-ip-address 203.0.113.10 --local-address-prefixes 192.168.1.50/32
+    head -c 32 /dev/urandom | base64 | tr -d '/+=' | head -c 32 > radio-vpn.psk
+    az network vpn-connection create $G -n radio-tunnel --vnet-gateway1 radio-vpn --local-gateway2 radio-site \
+      --shared-key "$(cat radio-vpn.psk)"
+    az network vpn-connection ipsec-policy add $G --connection-name radio-tunnel \
+      --ike-encryption AES256 --ike-integrity SHA256 --dh-group DHGroup14 \
+      --ipsec-encryption AES256 --ipsec-integrity SHA256 --pfs-group PFS2048 \
+      --sa-lifetime 27000 --sa-max-size 102400000
+    ```
+
 ## 3. Create the instances
 
 === "Google Cloud"
@@ -208,6 +280,21 @@ Run Ella Core in the cloud while your radios stay on site. Deploy a three-node c
     ```
 
     The following steps use these example values.
+
+=== "Azure"
+
+    Create one instance per zone, at `10.10.1.10`, `10.10.1.11` and `10.10.1.12`:
+
+    ```shell
+    i=10
+    for z in 1 2 3; do
+      az vm create $G -n ella-core-$z --zone $z --size Standard_D2as_v7 \
+        --image Canonical:ubuntu-24_04-lts:server:latest --vnet-name ella-vnet --subnet ella \
+        --private-ip-address 10.10.1.$i --public-ip-address "" --nsg "" \
+        --admin-username azureuser --ssh-key-values ~/.ssh/id_ed25519.pub
+      i=$((i+1))
+    done
+    ```
 
 ## 4. Install Ella Core
 
@@ -345,6 +432,74 @@ Run Ella Core in the cloud while your radios stay on site. Deploy a three-node c
     sudo snap start --enable ella-core.cored
     ```
 
+=== "Azure"
+
+    On each instance:
+
+    ```shell
+    az network bastion ssh $G -n ella-bastion --target-resource-id $(az vm show $G -n ella-core-<z> --query id -o tsv) \
+      --auth-type ssh-key --username azureuser --ssh-key ~/.ssh/id_ed25519
+    ```
+
+    Limit the size of packets sent to the radio, so they fit in the VPN tunnel:
+
+    ```shell
+    sudo tee /etc/netplan/60-ella.yaml <<'EOF'
+    network:
+      version: 2
+      ethernets:
+        eth0:
+          routes:
+            - to: 192.168.1.50/32
+              via: 10.10.1.1
+              mtu: 1300
+    EOF
+    sudo chmod 600 /etc/netplan/60-ella.yaml
+    sudo netplan apply
+    ```
+
+    Install Ella Core:
+
+    ```shell
+    sudo snap install ella-core
+    ```
+
+    Replace `/var/snap/ella-core/common/core.yaml` with the following, setting `bind-address` to the instance's address:
+
+    ```yaml
+    logging:
+      system:
+        level: "info"
+        output: "stdout"
+      audit:
+        output: "stdout"
+    db:
+      path: "/var/snap/ella-core/common/data/ella.db"
+    interfaces:
+      n2:
+        name: "eth0"
+      n3:
+        name: "eth0"
+      n6:
+        name: "eth0"
+      api:
+        address: "0.0.0.0"
+        port: 5002
+        tls:
+          cert: "/var/snap/ella-core/common/cert.pem"
+          key: "/var/snap/ella-core/common/key.pem"
+    datapath:
+      attach-mode: "tcx"
+    cluster:
+      bind-address: "10.10.1.10:7000"
+    ```
+
+    Start Ella Core:
+
+    ```shell
+    sudo snap start --enable ella-core.cored
+    ```
+
 ## 5. Form the cluster
 
 === "Google Cloud"
@@ -376,6 +531,21 @@ Run Ella Core in the cloud while your radios stay on site. Deploy a three-node c
     2. Open **Cluster**, click **Add Node**, click **Mint Token**, and copy the token.
     3. Open `https://localhost:5003`, click **Join an existing cluster instead**, paste the token, enter node a's address from step 3 with port `7000`, e.g. `172.31.0.10:7000`, and click **Join**.
     4. Repeat steps 2 and 3 for node c, at `https://localhost:5004`.
+
+=== "Azure"
+
+    Open each node's UI through Bastion, each in its own terminal:
+
+    ```shell
+    az network bastion tunnel $G -n ella-bastion --target-resource-id $(az vm show $G -n ella-core-1 --query id -o tsv) --resource-port 5002 --port 5002
+    az network bastion tunnel $G -n ella-bastion --target-resource-id $(az vm show $G -n ella-core-2 --query id -o tsv) --resource-port 5002 --port 5003
+    az network bastion tunnel $G -n ella-bastion --target-resource-id $(az vm show $G -n ella-core-3 --query id -o tsv) --resource-port 5002 --port 5004
+    ```
+
+    1. Open `https://localhost:5002` and initialize node 1.
+    2. Open **Cluster**, click **Add Node**, click **Mint Token**, and copy the token.
+    3. Open `https://localhost:5003`, click **Join an existing cluster instead**, paste the token, enter `10.10.1.10:7000`, and click **Join**.
+    4. Repeat steps 2 and 3 for node 3, at `https://localhost:5004`.
 
 On the **Cluster** page, the three nodes appear as **Healthy**.
 
@@ -427,6 +597,23 @@ Configure an IPsec tunnel on the radio:
 
     Set the radio's MME (4G) or AMF (5G) addresses to the three instance addresses from step 3, e.g. `172.31.0.10`, `172.31.80.10` and `172.31.16.10`.
 
+=== "Azure"
+
+    | Setting | Value |
+    |---|---|
+    | Peer | The VPN gateway address (`$GW`) |
+    | IKE version | IKEv2 |
+    | Authentication | The pre-shared key in `radio-vpn.psk` |
+    | Local ID | The site's public address, e.g. `203.0.113.10` |
+    | Remote ID | The VPN gateway address |
+    | Local subnet | `192.168.1.50/32` |
+    | Remote subnet | `10.10.0.0/16` |
+    | IKE and ESP | AES-256, SHA-256, DH group 14 (MODP 2048) |
+    | IKE lifetime | 8 h or less |
+    | IPsec SA lifetime | 7.5 h or less |
+
+    Set the radio's MME (4G) or AMF (5G) addresses to `10.10.1.10`, `10.10.1.11` and `10.10.1.12`, then restart the radio.
+
 ## 8. Verify
 
 Check that the tunnel is up:
@@ -446,5 +633,13 @@ Check that the tunnel is up:
     ```
 
     The output is `UP`.
+
+=== "Azure"
+
+    ```shell
+    az network vpn-connection show $G -n radio-tunnel --query connectionStatus -o tsv
+    ```
+
+    The output is `Connected`.
 
 The radio appears on the **Radios** page, and attached phones appear as **Registered** on the **Subscribers** page.
