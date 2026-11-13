@@ -10,9 +10,12 @@ export const subscriberStatus = (
   status?: SubscriberListStatus,
 ): { label: string; color: "success" | "default"; rank: number } => {
   if (status?.registered) {
-    return status.connection_state === "connected"
-      ? { label: "Connected", color: "success", rank: 3 }
-      : { label: "Idle", color: "default", rank: 2 };
+    if (status.connection_state === "connected") {
+      return { label: "Connected", color: "success", rank: 3 };
+    }
+    return status.connection_state === "idle"
+      ? { label: "Idle", color: "default", rank: 2 }
+      : { label: "Registered", color: "default", rank: 2 };
   }
   if (status?.systems?.length) {
     return { label: "Registering", color: "default", rank: 1 };
