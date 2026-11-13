@@ -33,23 +33,18 @@ type BGPPeer struct {
 	Description string
 }
 
-func (db *Database) ListBGPPeersPage(ctx context.Context, page, perPage int) ([]BGPPeer, int, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+BGPPeersTableName+" (paged)", BGPPeersTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListBGPPeersPage(ctx context.Context, page, perPage int) (_ []BGPPeer, _ int, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+BGPPeersTableName+" (paged)", BGPPeersTableName, "SELECT", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
+	defer func() { finish(err) }()
 
 	peers, count, err := queryPageWithTotal(ctx, db.reader(), listBGPPeersPagedSQL, scanBGPPeer, perPage, (page-1)*perPage)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	if len(peers) == 0 {
 		fallbackCount, err := db.CountBGPPeers(ctx)
 		if err != nil {
-			recordSpanError(span, err)
-
 			return nil, 0, fmt.Errorf("count failed: %w", err)
 		}
 
@@ -59,35 +54,27 @@ func (db *Database) ListBGPPeersPage(ctx context.Context, page, perPage int) ([]
 	return peers, count, nil
 }
 
-func (db *Database) ListAllBGPPeers(ctx context.Context) ([]BGPPeer, error) {
-	ctx, span, timer := startDBQuery(ctx, BGPPeersTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListAllBGPPeers(ctx context.Context) (_ []BGPPeer, err error) {
+	ctx, finish := startDBQuery(ctx, BGPPeersTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	peers, err := queryAll(ctx, db.reader(), listAllBGPPeersSQL, scanBGPPeer)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return peers, nil
 }
 
-func (db *Database) GetBGPPeer(ctx context.Context, id int) (*BGPPeer, error) {
-	ctx, span, timer := startDBQuery(ctx, BGPPeersTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetBGPPeer(ctx context.Context, id int) (_ *BGPPeer, err error) {
+	ctx, finish := startDBQuery(ctx, BGPPeersTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	row, err := scanBGPPeer(db.reader().QueryRowContext(ctx, getBGPPeerSQL, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			recordSpanError(span, err)
-
 			return nil, ErrNotFound
 		}
-
-		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -95,15 +82,12 @@ func (db *Database) GetBGPPeer(ctx context.Context, id int) (*BGPPeer, error) {
 	return &row, nil
 }
 
-func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
-	ctx, span, timer := startDBQuery(ctx, BGPPeersTableName, "INSERT", "insert")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) (err error) {
+	ctx, finish := startDBQuery(ctx, BGPPeersTableName, "INSERT")
+	defer func() { finish(err) }()
 
 	result, err := db.applyCreateBGPPeer(ctx, peer)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -114,15 +98,12 @@ func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 	return nil
 }
 
-func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
-	ctx, span, timer := startDBQuery(ctx, BGPPeersTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) (err error) {
+	ctx, finish := startDBQuery(ctx, BGPPeersTableName, "UPDATE")
+	defer func() { finish(err) }()
 
-	_, err := db.applyUpdateBGPPeer(ctx, peer)
+	_, err = db.applyUpdateBGPPeer(ctx, peer)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -131,15 +112,12 @@ func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 	return nil
 }
 
-func (db *Database) DeleteBGPPeer(ctx context.Context, id int) error {
-	ctx, span, timer := startDBQuery(ctx, BGPPeersTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteBGPPeer(ctx context.Context, id int) (err error) {
+	ctx, finish := startDBQuery(ctx, BGPPeersTableName, "DELETE")
+	defer func() { finish(err) }()
 
-	_, err := db.applyDeleteBGPPeer(ctx, &intPayload{Value: id})
+	_, err = db.applyDeleteBGPPeer(ctx, &intPayload{Value: id})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -148,15 +126,12 @@ func (db *Database) DeleteBGPPeer(ctx context.Context, id int) error {
 	return nil
 }
 
-func (db *Database) CountBGPPeers(ctx context.Context) (int, error) {
-	ctx, span, timer := startDBQuery(ctx, BGPPeersTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CountBGPPeers(ctx context.Context) (_ int, err error) {
+	ctx, finish := startDBQuery(ctx, BGPPeersTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	count, err := queryCount(ctx, db.reader(), countBGPPeersSQL)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 

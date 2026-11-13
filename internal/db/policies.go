@@ -120,10 +120,9 @@ func (p *Policy) defaultPreemption() {
 	}
 }
 
-func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int) ([]Policy, int, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (paged)", PoliciesTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int) (_ []Policy, _ int, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (paged)", PoliciesTableName, "SELECT", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
+	defer func() { finish(err) }()
 
 	query, scan := listPoliciesPagedSQL, scanPolicy
 	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
@@ -132,16 +131,12 @@ func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int)
 
 	policies, count, err := queryPageWithTotal(ctx, db.reader(), query, scan, perPage, (page-1)*perPage)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	if len(policies) == 0 {
 		fallbackCount, err := db.CountPolicies(ctx)
 		if err != nil {
-			recordSpanError(span, err)
-
 			return nil, 0, fmt.Errorf("count failed: %w", err)
 		}
 
@@ -153,10 +148,9 @@ func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int)
 	return policies, count, nil
 }
 
-func (db *Database) ListPoliciesByProfilePage(ctx context.Context, profileID string, page int, perPage int) ([]Policy, int, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (paged by profile)", PoliciesTableName, "SELECT", "select", attrs.ProfileID(profileID), attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListPoliciesByProfilePage(ctx context.Context, profileID string, page int, perPage int) (_ []Policy, _ int, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (paged by profile)", PoliciesTableName, "SELECT", attrs.ProfileID(profileID), attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
+	defer func() { finish(err) }()
 
 	query, scan := listPoliciesByProfilePagedSQL, scanPolicy
 	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
@@ -165,8 +159,6 @@ func (db *Database) ListPoliciesByProfilePage(ctx context.Context, profileID str
 
 	policies, count, err := queryPageWithTotal(ctx, db.reader(), query, scan, profileID, perPage, (page-1)*perPage)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -175,10 +167,9 @@ func (db *Database) ListPoliciesByProfilePage(ctx context.Context, profileID str
 	return policies, count, nil
 }
 
-func (db *Database) ListPoliciesByProfile(ctx context.Context, profileID string) ([]Policy, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (all by profile)", PoliciesTableName, "SELECT", "select", attrs.ProfileID(profileID))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListPoliciesByProfile(ctx context.Context, profileID string) (_ []Policy, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (all by profile)", PoliciesTableName, "SELECT", attrs.ProfileID(profileID))
+	defer func() { finish(err) }()
 
 	query, scan := listPoliciesByProfileAllSQL, scanPolicy
 	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
@@ -187,8 +178,6 @@ func (db *Database) ListPoliciesByProfile(ctx context.Context, profileID string)
 
 	policies, err := queryAll(ctx, db.reader(), query, scan, profileID)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -197,10 +186,9 @@ func (db *Database) ListPoliciesByProfile(ctx context.Context, profileID string)
 	return policies, nil
 }
 
-func (db *Database) GetPolicy(ctx context.Context, name string) (*Policy, error) {
-	ctx, span, timer := startDBQuery(ctx, PoliciesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetPolicy(ctx context.Context, name string) (_ *Policy, err error) {
+	ctx, finish := startDBQuery(ctx, PoliciesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	query, scan := getPolicySQL, scanPolicy
 	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
@@ -213,8 +201,6 @@ func (db *Database) GetPolicy(ctx context.Context, name string) (*Policy, error)
 			return nil, ErrNotFound
 		}
 
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -224,10 +210,9 @@ func (db *Database) GetPolicy(ctx context.Context, name string) (*Policy, error)
 }
 
 // GetPolicyByLookup finds a policy by its profileID, sliceID, and dataNetworkID.
-func (db *Database) GetPolicyByLookup(ctx context.Context, profileID, sliceID, dataNetworkID string) (*Policy, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (lookup)", PoliciesTableName, "SELECT", "select", attrs.ProfileID(profileID), attrs.SliceID(sliceID), attrs.DataNetworkID(dataNetworkID))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetPolicyByLookup(ctx context.Context, profileID, sliceID, dataNetworkID string) (_ *Policy, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (lookup)", PoliciesTableName, "SELECT", attrs.ProfileID(profileID), attrs.SliceID(sliceID), attrs.DataNetworkID(dataNetworkID))
+	defer func() { finish(err) }()
 
 	query, scan := getPolicyByLookupSQL, scanPolicy
 	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
@@ -239,8 +224,6 @@ func (db *Database) GetPolicyByLookup(ctx context.Context, profileID, sliceID, d
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
-
-		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -254,10 +237,9 @@ func (db *Database) GetPolicyByLookup(ctx context.Context, profileID, sliceID, d
 // Used by the AMF to resolve a default DNN when the UE does not specify one.
 // GetDefaultPolicyByProfile returns the profile's default data-network binding
 // (the default APN/DNN). Returns ErrNotFound when the profile has no default.
-func (db *Database) GetDefaultPolicyByProfile(ctx context.Context, profileID string) (*Policy, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (default by profile)", PoliciesTableName, "SELECT", "select", attrs.ProfileID(profileID))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetDefaultPolicyByProfile(ctx context.Context, profileID string) (_ *Policy, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (default by profile)", PoliciesTableName, "SELECT", attrs.ProfileID(profileID))
+	defer func() { finish(err) }()
 
 	query, scan := getDefaultPolicyByProfileSQL, scanPolicy
 	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
@@ -270,8 +252,6 @@ func (db *Database) GetDefaultPolicyByProfile(ctx context.Context, profileID str
 			return nil, ErrNotFound
 		}
 
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -282,25 +262,21 @@ func (db *Database) GetDefaultPolicyByProfile(ctx context.Context, profileID str
 
 // SetDefaultPolicy makes the named policy the sole default binding of the given
 // profile (the default APN/DNN), clearing any previous default in one atomic op.
-func (db *Database) SetDefaultPolicy(ctx context.Context, profileID, name string) error {
-	ctx, span, timer := startDBQueryNamed(ctx, "UPDATE "+PoliciesTableName+" (set default)", PoliciesTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) SetDefaultPolicy(ctx context.Context, profileID, name string) (err error) {
+	ctx, finish := startDBQueryNamed(ctx, "UPDATE "+PoliciesTableName+" (set default)", PoliciesTableName, "UPDATE")
+	defer func() { finish(err) }()
 
-	_, err := opSetDefaultPolicy.Invoke(ctx, db, &Policy{ProfileID: profileID, Name: name})
+	_, err = opSetDefaultPolicy.Invoke(ctx, db, &Policy{ProfileID: profileID, Name: name})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID string) (*Policy, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (by profile+slice)", PoliciesTableName, "SELECT", "select", attrs.ProfileID(profileID), attrs.SliceID(sliceID))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID string) (_ *Policy, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (by profile+slice)", PoliciesTableName, "SELECT", attrs.ProfileID(profileID), attrs.SliceID(sliceID))
+	defer func() { finish(err) }()
 
 	query, scan := getPolicyByProfileAndSliceSQL, scanPolicy
 	if !db.appliedSchemaAtLeast(ctx, policyPreemptionSchema) {
@@ -312,8 +288,6 @@ func (db *Database) GetPolicyByProfileAndSlice(ctx context.Context, profileID, s
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
-
-		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -425,56 +399,45 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 	return nil, err
 }
 
-func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
-	ctx, span, timer := startDBQuery(ctx, PoliciesTableName, "INSERT", "insert")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) (err error) {
+	ctx, finish := startDBQuery(ctx, PoliciesTableName, "INSERT")
+	defer func() { finish(err) }()
 
 	if policy.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
-			recordSpanError(span, err)
-
 			return fmt.Errorf("generate policy id: %w", err)
 		}
 
 		policy.ID = id.String()
 	}
 
-	_, err := opCreatePolicy.Invoke(ctx, db, policy)
+	_, err = opCreatePolicy.Invoke(ctx, db, policy)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
-	ctx, span, timer := startDBQuery(ctx, PoliciesTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) (err error) {
+	ctx, finish := startDBQuery(ctx, PoliciesTableName, "UPDATE")
+	defer func() { finish(err) }()
 
-	_, err := opUpdatePolicy.Invoke(ctx, db, policy)
+	_, err = opUpdatePolicy.Invoke(ctx, db, policy)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) DeletePolicy(ctx context.Context, name string) error {
-	ctx, span, timer := startDBQuery(ctx, PoliciesTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeletePolicy(ctx context.Context, name string) (err error) {
+	ctx, finish := startDBQuery(ctx, PoliciesTableName, "DELETE")
+	defer func() { finish(err) }()
 
-	_, err := opDeletePolicy.Invoke(ctx, db, &stringPayload{Value: name})
+	_, err = opDeletePolicy.Invoke(ctx, db, &stringPayload{Value: name})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -482,75 +445,60 @@ func (db *Database) DeletePolicy(ctx context.Context, name string) error {
 }
 
 // CountPolicies returns policy count
-func (db *Database) CountPolicies(ctx context.Context) (int, error) {
-	ctx, span, timer := startDBQuery(ctx, PoliciesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CountPolicies(ctx context.Context) (_ int, err error) {
+	ctx, finish := startDBQuery(ctx, PoliciesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	count, err := queryCount(ctx, db.reader(), countPoliciesSQL)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	return count, nil
 }
 
-func (db *Database) CountPoliciesInProfile(ctx context.Context, profileID string) (int, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (by profile)", PoliciesTableName, "SELECT", "select", attrs.ProfileID(profileID))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CountPoliciesInProfile(ctx context.Context, profileID string) (_ int, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (by profile)", PoliciesTableName, "SELECT", attrs.ProfileID(profileID))
+	defer func() { finish(err) }()
 
 	count, err := queryCount(ctx, db.reader(), countPoliciesInProfileSQL, profileID)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	return count, nil
 }
 
-func (db *Database) CountPoliciesInSlice(ctx context.Context, sliceID string) (int, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (by slice)", PoliciesTableName, "SELECT", "select", attrs.SliceID(sliceID))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CountPoliciesInSlice(ctx context.Context, sliceID string) (_ int, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (by slice)", PoliciesTableName, "SELECT", attrs.SliceID(sliceID))
+	defer func() { finish(err) }()
 
 	count, err := queryCount(ctx, db.reader(), countPoliciesInSliceSQL, sliceID)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	return count, nil
 }
 
-func (db *Database) CountPoliciesInDataNetwork(ctx context.Context, dataNetworkID string) (int, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (by data network)", PoliciesTableName, "SELECT", "select", attrs.DataNetworkID(dataNetworkID))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CountPoliciesInDataNetwork(ctx context.Context, dataNetworkID string) (_ int, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (by data network)", PoliciesTableName, "SELECT", attrs.DataNetworkID(dataNetworkID))
+	defer func() { finish(err) }()
 
 	count, err := queryCount(ctx, db.reader(), countPoliciesInDataNetworkSQL, dataNetworkID)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	return count, nil
 }
 
-func (db *Database) DataNetworkPolicy5QIs(ctx context.Context, dataNetworkID string) ([]int32, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (5QIs in data network)", PoliciesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DataNetworkPolicy5QIs(ctx context.Context, dataNetworkID string) (_ []int32, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+PoliciesTableName+" (5QIs in data network)", PoliciesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	fiveQIs, err := queryAll(ctx, db.reader(), listPolicy5QIsInDataNetworkSQL, scanValue[int32], dataNetworkID)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 

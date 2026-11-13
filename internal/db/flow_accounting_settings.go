@@ -38,32 +38,26 @@ func (db *Database) InitializeFlowAccountingSettings(ctx context.Context) error 
 	return db.UpdateFlowAccountingSettings(ctx, FlowAccountingDefaultEnabled)
 }
 
-func (db *Database) IsFlowAccountingEnabled(ctx context.Context) (bool, error) {
-	ctx, span, timer := startDBQuery(ctx, FlowAccountingSettingsTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) IsFlowAccountingEnabled(ctx context.Context) (_ bool, err error) {
+	ctx, finish := startDBQuery(ctx, FlowAccountingSettingsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	var enabled bool
 
-	err := db.reader().QueryRowContext(ctx, getFlowAccountingSettingsSQL).Scan(&enabled)
+	err = db.reader().QueryRowContext(ctx, getFlowAccountingSettingsSQL).Scan(&enabled)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return false, fmt.Errorf("query failed: %w", err)
 	}
 
 	return enabled, nil
 }
 
-func (db *Database) UpdateFlowAccountingSettings(ctx context.Context, enabled bool) error {
-	ctx, span, timer := startDBQuery(ctx, FlowAccountingSettingsTableName, "UPSERT", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) UpdateFlowAccountingSettings(ctx context.Context, enabled bool) (err error) {
+	ctx, finish := startDBQuery(ctx, FlowAccountingSettingsTableName, "UPSERT")
+	defer func() { finish(err) }()
 
-	_, err := db.applyUpdateFlowAccountingSettings(ctx, &boolPayload{Value: enabled})
+	_, err = db.applyUpdateFlowAccountingSettings(ctx, &boolPayload{Value: enabled})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 

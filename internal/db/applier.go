@@ -230,8 +230,18 @@ func (db *Database) PlainDB() *sql.DB {
 	return db.conn()
 }
 
+func (db *Database) BlockNewConnections() func() {
+	unblockWriter := db.connector.blockConnects()
+	unblockReader := db.readConnector.blockConnects()
+
+	return func() {
+		unblockReader()
+		unblockWriter()
+	}
+}
+
 // Reopen migrates the database file FSM.Restore swapped in and retires the
-// pool's connections so later checkouts open that file. Reopen is only
+// pools' connections so later checkouts open that file. Reopen is only
 // invoked from FSM.Restore which holds the FSM write lock, so concurrent
 // applies and snapshots are already serialised; the handle is never
 // closed, so ad-hoc read sites (API handlers) never observe a closed
@@ -255,6 +265,7 @@ func (db *Database) Reopen(ctx context.Context) error {
 	}
 
 	db.connector.retireConnections()
+	db.readConnector.retireConnections()
 
 	if err := db.refreshAppliedSchema(ctx); err != nil {
 		return fmt.Errorf("refresh applied-schema cache after reopen: %w", err)
@@ -771,10 +782,8 @@ type allocateIPLeasePayload struct {
 // Every query and write goes through db.runner(ctx) so they target the
 // pinned SQLite connection set up by applyWithPinnedConn. Calling the
 // public DB methods (GetDataNetworkByID, GetLeaseBySession, etc.) here
-// would dispatch to db.conn() — the shared pool with MaxOpenConns=1
-// whose only connection is already held by the active capture, and
-// every such SELECT would deadlock until the proposeTimeout context
-// fires.
+// would dispatch to the reader pool, which cannot see the capture's
+// uncommitted writes.
 func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLeasePayload) (any, error) {
 	if p.IMSI == "" {
 		return nil, fmt.Errorf("IMSI required")

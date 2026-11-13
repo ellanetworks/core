@@ -125,6 +125,8 @@ func (a *testApplier) withDB(fn func(*sql.DB) error) error {
 
 func (a *testApplier) Path() string { return a.dbPath }
 
+func (a *testApplier) BlockNewConnections() func() { return func() {} }
+
 func (a *testApplier) Reopen(_ context.Context) error {
 	db, err := openTestDB(a.dbPath)
 	if err != nil {

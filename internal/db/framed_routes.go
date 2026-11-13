@@ -37,24 +37,21 @@ type framedRoutesPayload struct {
 // ReplaceFramedRoutes atomically swaps a (subscriber, data network) pair's
 // framed-route set (delete-then-insert); an empty set clears it. Prefixes are
 // normalized so the UNIQUE(prefix) constraint and overlap checks see one form.
-func (db *Database) ReplaceFramedRoutes(ctx context.Context, imsi, dataNetworkID string, prefixes []netip.Prefix) error {
-	ctx, span, timer := startDBQuery(ctx, FramedRoutesTableName, "REPLACE", "replace")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ReplaceFramedRoutes(ctx context.Context, imsi, dataNetworkID string, prefixes []netip.Prefix) (err error) {
+	ctx, finish := startDBQuery(ctx, FramedRoutesTableName, "REPLACE")
+	defer func() { finish(err) }()
 
 	normalized := make([]string, 0, len(prefixes))
 	for _, p := range prefixes {
 		normalized = append(normalized, p.Masked().String())
 	}
 
-	_, err := opReplaceFramedRoutes.Invoke(ctx, db, &framedRoutesPayload{
+	_, err = opReplaceFramedRoutes.Invoke(ctx, db, &framedRoutesPayload{
 		Imsi:          imsi,
 		DataNetworkID: dataNetworkID,
 		Prefixes:      normalized,
 	})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -96,15 +93,12 @@ func (db *Database) applyReplaceFramedRoutes(ctx context.Context, payload *frame
 	return nil, nil
 }
 
-func (db *Database) ListFramedRoutesBySubscriberDataNetwork(ctx context.Context, imsi, dataNetworkID string) ([]SubscriberFramedRoute, error) {
-	ctx, span, timer := startDBQuery(ctx, FramedRoutesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListFramedRoutesBySubscriberDataNetwork(ctx context.Context, imsi, dataNetworkID string) (_ []SubscriberFramedRoute, err error) {
+	ctx, finish := startDBQuery(ctx, FramedRoutesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	routes, err := queryAll(ctx, db.reader(), listFramedRoutesByPairSQL, scanSubscriberFramedRoute, imsi, dataNetworkID)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -115,15 +109,12 @@ func (db *Database) ListFramedRoutesBySubscriberDataNetwork(ctx context.Context,
 	return routes, nil
 }
 
-func (db *Database) ListFramedRoutesByDataNetwork(ctx context.Context, dataNetworkID string) ([]SubscriberFramedRoute, error) {
-	ctx, span, timer := startDBQuery(ctx, FramedRoutesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListFramedRoutesByDataNetwork(ctx context.Context, dataNetworkID string) (_ []SubscriberFramedRoute, err error) {
+	ctx, finish := startDBQuery(ctx, FramedRoutesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	routes, err := queryAll(ctx, db.reader(), listFramedRoutesByDNSQL, scanSubscriberFramedRoute, dataNetworkID)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -134,15 +125,12 @@ func (db *Database) ListFramedRoutesByDataNetwork(ctx context.Context, dataNetwo
 	return routes, nil
 }
 
-func (db *Database) ListAllFramedRoutes(ctx context.Context) ([]SubscriberFramedRoute, error) {
-	ctx, span, timer := startDBQuery(ctx, FramedRoutesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListAllFramedRoutes(ctx context.Context) (_ []SubscriberFramedRoute, err error) {
+	ctx, finish := startDBQuery(ctx, FramedRoutesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	routes, err := queryAll(ctx, db.reader(), listAllFramedRoutesSQL, scanSubscriberFramedRoute)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 

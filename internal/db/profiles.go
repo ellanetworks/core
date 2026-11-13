@@ -48,23 +48,18 @@ func scanProfile(row scanner) (Profile, error) {
 	return p, nil
 }
 
-func (db *Database) ListProfilesPage(ctx context.Context, page, perPage int) ([]Profile, int, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+ProfilesTableName+" (paged)", ProfilesTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListProfilesPage(ctx context.Context, page, perPage int) (_ []Profile, _ int, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+ProfilesTableName+" (paged)", ProfilesTableName, "SELECT", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
+	defer func() { finish(err) }()
 
 	profiles, count, err := queryPageWithTotal(ctx, db.reader(), listProfilesPagedSQL, scanProfile, perPage, (page-1)*perPage)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	if len(profiles) == 0 {
 		fallbackCount, err := db.CountProfiles(ctx)
 		if err != nil {
-			recordSpanError(span, err)
-
 			return nil, 0, fmt.Errorf("count failed: %w", err)
 		}
 
@@ -74,10 +69,9 @@ func (db *Database) ListProfilesPage(ctx context.Context, page, perPage int) ([]
 	return profiles, count, nil
 }
 
-func (db *Database) GetProfile(ctx context.Context, name string) (*Profile, error) {
-	ctx, span, timer := startDBQuery(ctx, ProfilesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetProfile(ctx context.Context, name string) (_ *Profile, err error) {
+	ctx, finish := startDBQuery(ctx, ProfilesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	row, err := scanProfile(db.reader().QueryRowContext(ctx, getProfileSQL, name))
 	if err != nil {
@@ -85,18 +79,15 @@ func (db *Database) GetProfile(ctx context.Context, name string) (*Profile, erro
 			return nil, ErrNotFound
 		}
 
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return &row, nil
 }
 
-func (db *Database) GetProfileByID(ctx context.Context, id string) (*Profile, error) {
-	ctx, span, timer := startDBQuery(ctx, ProfilesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetProfileByID(ctx context.Context, id string) (_ *Profile, err error) {
+	ctx, finish := startDBQuery(ctx, ProfilesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	row, err := scanProfile(db.reader().QueryRowContext(ctx, getProfileByIDSQL, id))
 	if err != nil {
@@ -104,94 +95,75 @@ func (db *Database) GetProfileByID(ctx context.Context, id string) (*Profile, er
 			return nil, ErrNotFound
 		}
 
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return &row, nil
 }
 
-func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
-	ctx, span, timer := startDBQuery(ctx, ProfilesTableName, "INSERT", "insert")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CreateProfile(ctx context.Context, profile *Profile) (err error) {
+	ctx, finish := startDBQuery(ctx, ProfilesTableName, "INSERT")
+	defer func() { finish(err) }()
 
 	if profile.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
-			recordSpanError(span, err)
-
 			return fmt.Errorf("generate profile id: %w", err)
 		}
 
 		profile.ID = id.String()
 	}
 
-	_, err := opCreateProfile.Invoke(ctx, db, profile)
+	_, err = opCreateProfile.Invoke(ctx, db, profile)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
-	ctx, span, timer := startDBQuery(ctx, ProfilesTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) (err error) {
+	ctx, finish := startDBQuery(ctx, ProfilesTableName, "UPDATE")
+	defer func() { finish(err) }()
 
-	_, err := opUpdateProfile.Invoke(ctx, db, profile)
+	_, err = opUpdateProfile.Invoke(ctx, db, profile)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) DeleteProfile(ctx context.Context, name string) error {
-	ctx, span, timer := startDBQuery(ctx, ProfilesTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteProfile(ctx context.Context, name string) (err error) {
+	ctx, finish := startDBQuery(ctx, ProfilesTableName, "DELETE")
+	defer func() { finish(err) }()
 
-	_, err := opDeleteProfile.Invoke(ctx, db, &stringPayload{Value: name})
+	_, err = opDeleteProfile.Invoke(ctx, db, &stringPayload{Value: name})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) CountProfiles(ctx context.Context) (int, error) {
-	ctx, span, timer := startDBQuery(ctx, ProfilesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CountProfiles(ctx context.Context) (_ int, err error) {
+	ctx, finish := startDBQuery(ctx, ProfilesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	count, err := queryCount(ctx, db.reader(), countProfilesSQL)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	return count, nil
 }
 
-func (db *Database) CountSubscribersInProfile(ctx context.Context, profileID string) (int, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+SubscribersTableName+" (by profile)", SubscribersTableName, "SELECT", "select", attrs.ProfileID(profileID))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CountSubscribersInProfile(ctx context.Context, profileID string) (_ int, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+SubscribersTableName+" (by profile)", SubscribersTableName, "SELECT", attrs.ProfileID(profileID))
+	defer func() { finish(err) }()
 
 	count, err := queryCount(ctx, db.reader(), countSubscribersInProfileSQL, profileID)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
