@@ -14,10 +14,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const SubscribersTableName = "subscribers"
@@ -173,15 +170,12 @@ func (f *SubscriberFilters) args() (subscriberFilterArgs, error) {
 	return args, nil
 }
 
-func (db *Database) ListSubscribersPage(ctx context.Context, filters *SubscriberFilters, page int, perPage int) ([]Subscriber, int, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+SubscribersTableName+" (paged)", SubscribersTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListSubscribersPage(ctx context.Context, filters *SubscriberFilters, page int, perPage int) (_ []Subscriber, _ int, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+SubscribersTableName+" (paged)", SubscribersTableName, "SELECT", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
+	defer func() { finish(err) }()
 
 	filterArgs, err := filters.args()
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, 0, err
 	}
 
@@ -189,8 +183,6 @@ func (db *Database) ListSubscribersPage(ctx context.Context, filters *Subscriber
 
 	subs, err := queryAll(ctx, db.reader(), query, scan, filterArgs.Search, filterArgs.DataNetworkID, filterArgs.IMSIs, perPage, (page-1)*perPage)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -203,43 +195,35 @@ func (db *Database) ListSubscribersPage(ctx context.Context, filters *Subscriber
 	}
 
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, 0, err
 	}
 
 	return subs, count, nil
 }
 
-func (db *Database) countSubscribersFiltered(ctx context.Context, filterArgs subscriberFilterArgs) (int, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+SubscribersTableName+" (filtered count)", SubscribersTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) countSubscribersFiltered(ctx context.Context, filterArgs subscriberFilterArgs) (_ int, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+SubscribersTableName+" (filtered count)", SubscribersTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	query, _ := db.subscriberQuery(ctx, countSubscribersQueries)
 
 	count, err := queryCount(ctx, db.reader(), query, filterArgs.Search, filterArgs.DataNetworkID, filterArgs.IMSIs)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	return count, nil
 }
 
-func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber, error) {
-	ctx, span, timer := startDBQuery(ctx, SubscribersTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetSubscriber(ctx context.Context, imsi string) (_ *Subscriber, err error) {
+	ctx, finish := startDBQuery(ctx, SubscribersTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	row, err := db.getOwnSubscriber(ctx, db.reader(), imsi)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
-
-		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -276,10 +260,9 @@ func (db *Database) getOwnSubscriber(ctx context.Context, q querier, imsi string
 	return scan(q.QueryRowContext(ctx, query, imsi))
 }
 
-func (db *Database) IMSIsWithMSISDN(ctx context.Context, imsis []string) (map[string]bool, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+SubscribersTableName+" (with msisdn)", SubscribersTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) IMSIsWithMSISDN(ctx context.Context, imsis []string) (_ map[string]bool, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+SubscribersTableName+" (with msisdn)", SubscribersTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	found := make(map[string]bool, len(imsis))
 
@@ -289,7 +272,6 @@ func (db *Database) IMSIsWithMSISDN(ctx context.Context, imsis []string) (map[st
 
 	matched, err := queryAll(ctx, db.reader(), listIMSIsWithMSISDNSQL, scanValue[string], jsonArray(imsis))
 	if err != nil {
-		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -300,10 +282,9 @@ func (db *Database) IMSIsWithMSISDN(ctx context.Context, imsis []string) (map[st
 	return found, nil
 }
 
-func (db *Database) GetSubscriberByMSISDN(ctx context.Context, msisdn string) (*Subscriber, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+SubscribersTableName+" (by msisdn)", SubscribersTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetSubscriberByMSISDN(ctx context.Context, msisdn string) (_ *Subscriber, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+SubscribersTableName+" (by msisdn)", SubscribersTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if msisdn == "" || !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema) {
 		return nil, ErrNotFound
@@ -315,129 +296,94 @@ func (db *Database) GetSubscriberByMSISDN(ctx context.Context, msisdn string) (*
 			return nil, ErrNotFound
 		}
 
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return &row, nil
 }
 
-func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber) error {
-	ctx, span, timer := startDBQuery(ctx, SubscribersTableName, "INSERT", "insert")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber) (err error) {
+	ctx, finish := startDBQuery(ctx, SubscribersTableName, "INSERT")
+	defer func() { finish(err) }()
 
 	if subscriber.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
-			recordSpanError(span, err)
-
 			return fmt.Errorf("generate subscriber id: %w", err)
 		}
 
 		subscriber.ID = id.String()
 	}
 
-	_, err := opCreateSubscriber.Invoke(ctx, db, subscriber)
+	_, err = opCreateSubscriber.Invoke(ctx, db, subscriber)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) UpdateSubscriberProfile(ctx context.Context, subscriber *Subscriber) error {
-	ctx, span, timer := startDBQuery(ctx, SubscribersTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) UpdateSubscriberProfile(ctx context.Context, subscriber *Subscriber) (err error) {
+	ctx, finish := startDBQuery(ctx, SubscribersTableName, "UPDATE")
+	defer func() { finish(err) }()
 
-	_, err := opUpdateSubscriberProfile.Invoke(ctx, db, subscriber)
+	_, err = opUpdateSubscriberProfile.Invoke(ctx, db, subscriber)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi string, sequenceNumber string) error {
-	ctx, span, timer := startDBQueryNamed(ctx, "UPDATE "+SubscribersTableName+" (sequence number)", SubscribersTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi string, sequenceNumber string) (err error) {
+	ctx, finish := startDBQueryNamed(ctx, "UPDATE "+SubscribersTableName+" (sequence number)", SubscribersTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	subscriber := &Subscriber{
 		Imsi:           imsi,
 		SequenceNumber: sequenceNumber,
 	}
 
-	_, err := opEditSubscriberSeqNum.Invoke(ctx, db, subscriber)
+	_, err = opEditSubscriberSeqNum.Invoke(ctx, db, subscriber)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
-	ctx, span, timer := startDBQuery(ctx, SubscribersTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) (err error) {
+	ctx, finish := startDBQuery(ctx, SubscribersTableName, "DELETE")
+	defer func() { finish(err) }()
 
-	_, err := opDeleteSubscriber.Invoke(ctx, db, &stringPayload{Value: imsi})
+	_, err = opDeleteSubscriber.Invoke(ctx, db, &stringPayload{Value: imsi})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) CountSubscribers(ctx context.Context) (int, error) {
-	ctx, span, timer := startDBQuery(ctx, SubscribersTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CountSubscribers(ctx context.Context) (_ int, err error) {
+	ctx, finish := startDBQuery(ctx, SubscribersTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	count, err := queryCount(ctx, db.reader(), countSubscribersSQL)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	return count, nil
 }
 
-func (db *Database) CountSubscribersAndVisitors(ctx context.Context) (int, error) {
+func (db *Database) CountSubscribersAndVisitors(ctx context.Context) (_ int, err error) {
 	querySummary := fmt.Sprintf("%s %s (with %s)", "SELECT", SubscribersTableName, VisitorsTableName)
 
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(SubscribersTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
+	ctx, finish := startDBQueryNamed(ctx, querySummary, SubscribersTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	n, err := db.countSubscribersAndVisitors(ctx, db.reader())
 	if err != nil {
-		recordSpanError(span, err)
 		return 0, err
 	}
 

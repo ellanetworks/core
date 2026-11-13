@@ -3106,7 +3106,7 @@
                 "uid": "${DS_MIMIR}"
               },
               "editorMode": "code",
-              "expr": "rate(app_database_queries_total{job=~\"$job\",instance=~\"$instance\",}[$__rate_interval])",
+              "expr": "sum by (table, operation) (rate(app_database_queries_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]))",
               "interval": "1m",
               "legendFormat": "{{operation}} {{table}} ",
               "range": true,

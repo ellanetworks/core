@@ -58,12 +58,15 @@ type Database struct {
 	// next leadership change.
 	migrationCheckCh chan struct{}
 
-	// connection holds the SQLite handle for the application database.
-	// Reopen retires its connections through connector instead of
-	// replacing it, so concurrent readers (API handlers, FSM apply
-	// goroutines) never use a closed handle. Readers use conn() to load it.
+	// connection holds the SQLite write handle for the application
+	// database. Reopen retires its connections through connector instead
+	// of replacing it, so concurrent users (FSM apply goroutines,
+	// local-only writes) never use a closed handle.
 	connection *sql.DB
 	connector  *sqliteConnector
+
+	readConnection *sql.DB
+	readConnector  *sqliteConnector
 
 	// appliedSchemaCache mirrors schema_version.version for the
 	// op-gate / apply-gate hot path. Updated by refreshAppliedSchema.
@@ -156,7 +159,7 @@ func openSQLitePool(ctx context.Context, databasePath string) (*sql.DB, *sqliteC
 	// acquires a write lock up front. This is important for migrations
 	// (prevents two processes from entering the same migration) and is
 	// harmless for normal operations because SetMaxOpenConns(1) already
-	// serialises all in-process access.
+	// serialises all in-process writes.
 	dsn := databasePath + "?_txlock=immediate" +
 		"&_busy_timeout=5000" +
 		"&_journal_mode=WAL" +
@@ -191,20 +194,70 @@ func openSQLitePool(ctx context.Context, databasePath string) (*sql.DB, *sqliteC
 	return sqlConnection, connector, nil
 }
 
+const readConns = 8
+
+func openSQLiteReaderPool(ctx context.Context, databasePath string) (*sql.DB, *sqliteConnector, error) {
+	dsn := databasePath + "?_query_only=1" +
+		"&_busy_timeout=5000" +
+		"&_foreign_keys=on" +
+		"&_stmt_cache_size=256"
+
+	var readPool *sql.DB
+
+	connector := newSQLiteConnector(dsn)
+
+	err := osutil.WithTightUmask(func() error {
+		pool := sql.OpenDB(connector)
+
+		pool.SetMaxOpenConns(readConns)
+		pool.SetMaxIdleConns(readConns)
+
+		if pingErr := pool.PingContext(ctx); pingErr != nil {
+			_ = pool.Close()
+			return fmt.Errorf("failed to open database reader pool: %w", pingErr)
+		}
+
+		readPool = pool
+
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return readPool, connector, nil
+}
+
+func (db *Database) openReaderPool(ctx context.Context) error {
+	pool, connector, err := openSQLiteReaderPool(ctx, db.dbPath)
+	if err != nil {
+		return err
+	}
+
+	db.readConnection = pool
+	db.readConnector = connector
+
+	return nil
+}
+
 // Close closes the database connection and shuts down the raft manager.
 // Both are always attempted and any errors are joined.
 func (db *Database) Close() error {
-	var raftErr, connErr error
+	var raftErr, readErr, connErr error
 
 	if db.raftManager != nil {
 		raftErr = db.raftManager.Shutdown()
+	}
+
+	if db.readConnection != nil {
+		readErr = db.readConnection.Close()
 	}
 
 	if c := db.conn(); c != nil {
 		connErr = c.Close()
 	}
 
-	return errors.Join(raftErr, connErr)
+	return errors.Join(raftErr, readErr, connErr)
 }
 
 // signalMigrationCheck requests a non-blocking re-run of
@@ -1230,9 +1283,8 @@ func (db *Database) selfUpsertClusterMember(ctx context.Context, binaryVersion s
 //
 // Runs inside applyUpsertClusterMember, so the read goes through
 // db.runner(ctx) — the pinned capture connection. Calling the public
-// ListClusterMembers here would dispatch to db.conn(), whose single
-// connection the capture already holds, and deadlock until the propose
-// timeout fires.
+// ListClusterMembers here would dispatch to the reader pool, which
+// cannot see the capture's uncommitted writes.
 func (db *Database) resolveAMFPointer(ctx context.Context, nodeID string) (int, error) {
 	members, err := queryAll(ctx, db.runner(ctx), listClusterMembersSQL, scanClusterMember)
 	if err != nil {
@@ -1295,6 +1347,11 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	db.clusterEnabled = raftCfg.Enabled
 	db.migrationCeiling = baselineVersion
 	db.changefeed = NewChangefeed()
+
+	if err := db.openReaderPool(ctx); err != nil {
+		_ = sqlConn.Close()
+		return nil, err
+	}
 
 	if err := db.assertTableReplicationClassification(ctx); err != nil {
 		_ = db.Close()
@@ -1369,6 +1426,11 @@ func NewDatabaseWithoutRaft(ctx context.Context, dbPath string) (*Database, erro
 	db.dataDir = dataDir
 	db.migrationCeiling = 0
 	db.changefeed = NewChangefeed()
+
+	if err := db.openReaderPool(ctx); err != nil {
+		_ = sqlConn.Close()
+		return nil, err
+	}
 
 	if err := db.assertTableReplicationClassification(ctx); err != nil {
 		_ = db.Close()

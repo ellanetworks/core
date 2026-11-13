@@ -14,9 +14,6 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/diameter"
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -234,18 +231,12 @@ func ValidateSMSCs(smscs []SMSC) error {
 	return nil
 }
 
-func (db *Database) ListSMSCs(ctx context.Context) ([]SMSC, error) {
-	ctx, span := startSMSCsSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SMSCsTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SMSCsTableName, "select").Inc()
+func (db *Database) ListSMSCs(ctx context.Context) (_ []SMSC, err error) {
+	ctx, finish := startDBQuery(ctx, SMSCsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	smscs, err := db.listSMSCs(ctx, db.reader())
 	if err != nil {
-		recordSpanError(span, err)
 		return nil, err
 	}
 
@@ -275,38 +266,26 @@ func (db *Database) UpdateSMSC(ctx context.Context, smsc *SMSC) error {
 	return db.writeSMSC(ctx, "UPDATE", opUpdateSMSC, smsc)
 }
 
-func (db *Database) writeSMSC(ctx context.Context, operation string, op *ChangesetOp[SMSC, struct{}], smsc *SMSC) error {
+func (db *Database) writeSMSC(ctx context.Context, operation string, op *ChangesetOp[SMSC, struct{}], smsc *SMSC) (err error) {
 	if err := smsc.Validate(); err != nil {
 		return err
 	}
 
-	ctx, span := startSMSCsSpan(ctx, operation)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SMSCsTableName, strings.ToLower(operation)))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SMSCsTableName, strings.ToLower(operation)).Inc()
+	ctx, finish := startDBQuery(ctx, SMSCsTableName, operation)
+	defer func() { finish(err) }()
 
 	if _, err := op.Invoke(ctx, db, smsc); err != nil {
-		recordSpanError(span, err)
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) DeleteSMSC(ctx context.Context, id string) error {
-	ctx, span := startSMSCsSpan(ctx, "DELETE")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SMSCsTableName, "delete"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SMSCsTableName, "delete").Inc()
+func (db *Database) DeleteSMSC(ctx context.Context, id string) (err error) {
+	ctx, finish := startDBQuery(ctx, SMSCsTableName, "DELETE")
+	defer func() { finish(err) }()
 
 	if _, err := opDeleteSMSC.Invoke(ctx, db, &stringPayload{Value: id}); err != nil {
-		recordSpanError(span, err)
 		return err
 	}
 
@@ -479,22 +458,6 @@ func (db *Database) insertSMSCChildren(ctx context.Context, s *SMSC) error {
 	}
 
 	return nil
-}
-
-func startSMSCsSpan(ctx context.Context, operation string) (context.Context, trace.Span) {
-	querySummary := fmt.Sprintf("%s %s", operation, SMSCsTableName)
-
-	return tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName(operation),
-			semconv.DBCollectionName(SMSCsTableName),
-		),
-	)
 }
 
 func scanSMSCRow(row scanner) (smscRow, error) {

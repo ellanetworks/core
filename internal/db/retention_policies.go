@@ -5,8 +5,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -39,17 +37,14 @@ type RetentionPolicy struct {
 	Days     int
 }
 
-func (db *Database) GetRetentionPolicy(ctx context.Context, category RetentionCategory) (int, error) {
-	ctx, span, timer := startDBQuery(ctx, RetentionPolicyTableName, "SELECT", "select", attribute.String("policy.category", string(category)))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetRetentionPolicy(ctx context.Context, category RetentionCategory) (_ int, err error) {
+	ctx, finish := startDBQuery(ctx, RetentionPolicyTableName, "SELECT", attribute.String("policy.category", string(category)))
+	defer func() { finish(err) }()
 
 	var days int
 
-	err := db.reader().QueryRowContext(ctx, selectRetentionPolicySQL, string(category)).Scan(&days)
+	err = db.reader().QueryRowContext(ctx, selectRetentionPolicySQL, string(category)).Scan(&days)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -58,49 +53,34 @@ func (db *Database) GetRetentionPolicy(ctx context.Context, category RetentionCa
 
 // Ensure that we have a row for the Audit Log retention policy.
 func (db *Database) IsRetentionPolicyInitialized(ctx context.Context, category RetentionCategory) bool {
-	ctx, span, timer := startDBQuery(ctx, RetentionPolicyTableName, "SELECT", "select", attribute.String("policy.category", string(category)))
-	defer span.End()
-	defer timer.ObserveDuration()
+	ctx, finish := startDBQuery(ctx, RetentionPolicyTableName, "SELECT", attribute.String("policy.category", string(category)))
 
 	var days int
 
 	err := db.reader().QueryRowContext(ctx, selectRetentionPolicySQL, string(category)).Scan(&days)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return false
-		}
+	finish(err)
 
-		recordSpanError(span, err)
-
-		return false
-	}
-
-	return true
+	return err == nil
 }
 
 // SetRetentionPolicy upserts the retention policy for a category.
 // If policy.ID is empty (new row, not an update of an existing one),
 // a UUIDv7 is generated. The id is ignored on UPDATE conflict.
-func (db *Database) SetRetentionPolicy(ctx context.Context, policy *RetentionPolicy) error {
-	ctx, span, timer := startDBQuery(ctx, RetentionPolicyTableName, "UPSERT", "insert", attribute.String("policy.category", string(policy.Category)), attribute.Int("policy.days", policy.Days))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) SetRetentionPolicy(ctx context.Context, policy *RetentionPolicy) (err error) {
+	ctx, finish := startDBQuery(ctx, RetentionPolicyTableName, "UPSERT", attribute.String("policy.category", string(policy.Category)), attribute.Int("policy.days", policy.Days))
+	defer func() { finish(err) }()
 
 	if policy.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
-			recordSpanError(span, err)
-
 			return fmt.Errorf("generate retention policy id: %w", err)
 		}
 
 		policy.ID = id.String()
 	}
 
-	_, err := opSetRetentionPolicy.Invoke(ctx, db, policy)
+	_, err = opSetRetentionPolicy.Invoke(ctx, db, policy)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 

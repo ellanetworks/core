@@ -48,36 +48,30 @@ type DeleteOldestArgs struct {
 	Limit  int
 }
 
-func (db *Database) CreateSession(ctx context.Context, session *Session) error {
-	ctx, span, timer := startDBQuery(ctx, SessionsTableName, "INSERT", "insert")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CreateSession(ctx context.Context, session *Session) (err error) {
+	ctx, finish := startDBQuery(ctx, SessionsTableName, "INSERT")
+	defer func() { finish(err) }()
 
 	if session.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
-			recordSpanError(span, err)
-
 			return fmt.Errorf("generate session id: %w", err)
 		}
 
 		session.ID = id.String()
 	}
 
-	_, err := opCreateSession.Invoke(ctx, db, session)
+	_, err = opCreateSession.Invoke(ctx, db, session)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (*Session, error) {
-	ctx, span, timer := startDBQuery(ctx, SessionsTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (_ *Session, err error) {
+	ctx, finish := startDBQuery(ctx, SessionsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	row, err := scanSession(db.reader().QueryRowContext(ctx, getSessionByTokenHashSQL, tokenHash))
 	if err != nil {
@@ -85,115 +79,92 @@ func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte)
 			return nil, ErrNotFound
 		}
 
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return &row, nil
 }
 
-func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []byte) error {
-	ctx, span, timer := startDBQuery(ctx, SessionsTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []byte) (err error) {
+	ctx, finish := startDBQuery(ctx, SessionsTableName, "DELETE")
+	defer func() { finish(err) }()
 
-	_, err := opDeleteSessionByTokenHash.Invoke(ctx, db, &bytesPayload{Value: tokenHash})
+	_, err = opDeleteSessionByTokenHash.Invoke(ctx, db, &bytesPayload{Value: tokenHash})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
-	ctx, span, timer := startDBQuery(ctx, SessionsTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteExpiredSessions(ctx context.Context) (_ int, err error) {
+	ctx, finish := startDBQuery(ctx, SessionsTableName, "DELETE")
+	defer func() { finish(err) }()
 
 	nowUnix := time.Now().Unix()
 
 	count, err := opDeleteExpiredSessions.Invoke(ctx, db, &int64Payload{Value: nowUnix})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, err
 	}
 
 	return count, nil
 }
 
-func (db *Database) CountSessionsByUser(ctx context.Context, userID string) (int, error) {
-	ctx, span, timer := startDBQuery(ctx, SessionsTableName, "COUNT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CountSessionsByUser(ctx context.Context, userID string) (_ int, err error) {
+	ctx, finish := startDBQuery(ctx, SessionsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	count, err := queryCount(ctx, db.reader(), countSessionsByUserSQL, userID)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	return count, nil
 }
 
-func (db *Database) CountExpiredSessions(ctx context.Context, nowUnix int64) (int, error) {
-	ctx, span, timer := startDBQuery(ctx, SessionsTableName, "COUNT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CountExpiredSessions(ctx context.Context, nowUnix int64) (_ int, err error) {
+	ctx, finish := startDBQuery(ctx, SessionsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	count, err := queryCount(ctx, db.reader(), countExpiredSessionsSQL, nowUnix)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	return count, nil
 }
 
-func (db *Database) DeleteOldestSessions(ctx context.Context, userID string, limit int) error {
-	ctx, span, timer := startDBQuery(ctx, SessionsTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteOldestSessions(ctx context.Context, userID string, limit int) (err error) {
+	ctx, finish := startDBQuery(ctx, SessionsTableName, "DELETE")
+	defer func() { finish(err) }()
 
-	_, err := opDeleteOldestSessions.Invoke(ctx, db, &DeleteOldestArgs{UserID: userID, Limit: limit})
+	_, err = opDeleteOldestSessions.Invoke(ctx, db, &DeleteOldestArgs{UserID: userID, Limit: limit})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID string) error {
-	ctx, span, timer := startDBQuery(ctx, SessionsTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID string) (err error) {
+	ctx, finish := startDBQuery(ctx, SessionsTableName, "DELETE")
+	defer func() { finish(err) }()
 
-	_, err := opDeleteAllSessionsForUser.Invoke(ctx, db, &stringPayload{Value: userID})
+	_, err = opDeleteAllSessionsForUser.Invoke(ctx, db, &stringPayload{Value: userID})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) DeleteAllSessions(ctx context.Context) error {
-	ctx, span, timer := startDBQueryNamed(ctx, "DELETE "+SessionsTableName+" (all)", SessionsTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteAllSessions(ctx context.Context) (err error) {
+	ctx, finish := startDBQueryNamed(ctx, "DELETE "+SessionsTableName+" (all)", SessionsTableName, "DELETE")
+	defer func() { finish(err) }()
 
-	_, err := opDeleteAllSessions.Invoke(ctx, db, &emptyPayload{})
+	_, err = opDeleteAllSessions.Invoke(ctx, db, &emptyPayload{})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 

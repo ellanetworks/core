@@ -105,15 +105,15 @@ func RegisterMetrics(db *Database) {
 	DBQueriesTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "app_database_queries_total",
-			Help: "Total number of database queries by table and operation",
+			Help: "Database queries by table, operation and error type. error_type is empty for queries that succeeded or returned a result such as not found or already exists.",
 		},
-		[]string{"table", "operation"},
+		[]string{"table", "operation", "error_type"},
 	)
 
 	DBQueryDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "app_database_query_duration_seconds",
-			Help:    "Duration of database queries",
+			Help:    "Duration of database queries by table and operation, in seconds.",
 			Buckets: []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10}, // 1ms to 10s
 		},
 		[]string{"table", "operation"},

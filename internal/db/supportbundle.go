@@ -20,7 +20,6 @@ func (db *Database) ExportSupportData(ctx context.Context, options supportbundle
 	ctx, span := tracer.Start(ctx, "db/export_support_data")
 	defer span.End()
 
-	start := time.Now()
 	capturedAt := time.Now().UTC().Format(time.RFC3339)
 
 	out := supportbundle.SanitizedData{}
@@ -50,8 +49,6 @@ func (db *Database) ExportSupportData(ctx context.Context, options supportbundle
 	db.collectSupportEvents(ctx, out, options, sections, failure)
 
 	out["bundle_metadata"].(map[string]any)["sections"] = sections
-
-	DBQueryDuration.WithLabelValues("support_bundle", "export").Observe(time.Since(start).Seconds())
 
 	return out, nil
 }

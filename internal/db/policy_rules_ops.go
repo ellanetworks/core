@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 type PolicyRuleInput struct {
@@ -32,63 +30,37 @@ type policyWithRulesPayload struct {
 	Rules  *PolicyRulesInput `json:"rules,omitempty"`
 }
 
-func (db *Database) CreatePolicyWithRules(ctx context.Context, policy *Policy, rules *PolicyRulesInput) error {
+func (db *Database) CreatePolicyWithRules(ctx context.Context, policy *Policy, rules *PolicyRulesInput) (err error) {
 	querySummary := fmt.Sprintf("%s %s (with rules)", "INSERT", PoliciesTableName)
 
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			semconv.DBCollectionName(PoliciesTableName),
-		),
-	)
-	defer span.End()
+	ctx, finish := startDBQueryNamed(ctx, querySummary, PoliciesTableName, "INSERT")
+	defer func() { finish(err) }()
 
 	if policy.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
-			recordSpanError(span, err)
-
 			return fmt.Errorf("generate policy id: %w", err)
 		}
 
 		policy.ID = id.String()
 	}
 
-	_, err := opCreatePolicyWithRules.Invoke(ctx, db, &policyWithRulesPayload{Policy: *policy, Rules: rules})
+	_, err = opCreatePolicyWithRules.Invoke(ctx, db, &policyWithRulesPayload{Policy: *policy, Rules: rules})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) UpdatePolicyWithRules(ctx context.Context, policy *Policy, rules *PolicyRulesInput) error {
+func (db *Database) UpdatePolicyWithRules(ctx context.Context, policy *Policy, rules *PolicyRulesInput) (err error) {
 	querySummary := fmt.Sprintf("%s %s (with rules)", "UPDATE", PoliciesTableName)
 
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			semconv.DBCollectionName(PoliciesTableName),
-		),
-	)
-	defer span.End()
+	ctx, finish := startDBQueryNamed(ctx, querySummary, PoliciesTableName, "UPDATE")
+	defer func() { finish(err) }()
 
-	_, err := opUpdatePolicyWithRules.Invoke(ctx, db, &policyWithRulesPayload{Policy: *policy, Rules: rules})
+	_, err = opUpdatePolicyWithRules.Invoke(ctx, db, &policyWithRulesPayload{Policy: *policy, Rules: rules})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
