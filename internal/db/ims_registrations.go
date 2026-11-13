@@ -10,10 +10,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -159,14 +155,9 @@ func validateIMSRegistration(r *IMSRegistration) error {
 	return nil
 }
 
-func (db *Database) ListAllIMSRegistrations(ctx context.Context) ([]IMSRegistration, error) {
-	ctx, span := startIMSRegistrationsSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSRegistrationsTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSRegistrationsTableName, "select").Inc()
+func (db *Database) ListAllIMSRegistrations(ctx context.Context) (_ []IMSRegistration, err error) {
+	ctx, finish := startDBQuery(ctx, IMSRegistrationsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, imsRegistrationsSchema) {
 		return nil, nil
@@ -174,8 +165,6 @@ func (db *Database) ListAllIMSRegistrations(ctx context.Context) ([]IMSRegistrat
 
 	tx, err := db.reader().BeginTx(ctx, nil)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("begin transaction failed: %w", err)
 	}
 
@@ -183,15 +172,11 @@ func (db *Database) ListAllIMSRegistrations(ctx context.Context) ([]IMSRegistrat
 
 	rows, err := queryAll(ctx, tx, listAllIMSRegistrationsSQL, scanIMSRegistrationRow)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	setRows, err := queryAll(ctx, tx, listAllIMSRegistrationSetsSQL, scanIMSRegistrationSetRow)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -209,14 +194,9 @@ func (db *Database) ListAllIMSRegistrations(ctx context.Context) ([]IMSRegistrat
 	return regs, nil
 }
 
-func (db *Database) GetIMSRegistration(ctx context.Context, imsi string) (*IMSRegistration, error) {
-	ctx, span := startIMSRegistrationsSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSRegistrationsTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSRegistrationsTableName, "select").Inc()
+func (db *Database) GetIMSRegistration(ctx context.Context, imsi string) (_ *IMSRegistration, err error) {
+	ctx, finish := startDBQuery(ctx, IMSRegistrationsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, imsRegistrationsSchema) {
 		return nil, nil
@@ -224,8 +204,6 @@ func (db *Database) GetIMSRegistration(ctx context.Context, imsi string) (*IMSRe
 
 	tx, err := db.reader().BeginTx(ctx, nil)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("begin transaction failed: %w", err)
 	}
 
@@ -233,22 +211,15 @@ func (db *Database) GetIMSRegistration(ctx context.Context, imsi string) (*IMSRe
 
 	reg, err := db.getIMSRegistration(ctx, tx, imsi)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, err
 	}
 
 	return reg, nil
 }
 
-func (db *Database) CountIMSRegistrations(ctx context.Context, state IMSRegistrationState) (int, error) {
-	ctx, span := startIMSRegistrationsSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSRegistrationsTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSRegistrationsTableName, "select").Inc()
+func (db *Database) CountIMSRegistrations(ctx context.Context, state IMSRegistrationState) (_ int, err error) {
+	ctx, finish := startDBQuery(ctx, IMSRegistrationsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, imsRegistrationsSchema) {
 		return 0, nil
@@ -256,34 +227,23 @@ func (db *Database) CountIMSRegistrations(ctx context.Context, state IMSRegistra
 
 	count, err := queryCount(ctx, db.reader(), countIMSRegistrationsSQL, int(state))
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	return count, nil
 }
 
-func (db *Database) CompareAndSwapIMSRegistration(ctx context.Context, imsi string, expected, next *IMSRegistration) (*IMSRegistration, bool, error) {
-	ctx, span := startIMSRegistrationsSpan(ctx, "UPDATE")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSRegistrationsTableName, "update"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSRegistrationsTableName, "update").Inc()
+func (db *Database) CompareAndSwapIMSRegistration(ctx context.Context, imsi string, expected, next *IMSRegistration) (_ *IMSRegistration, _ bool, err error) {
+	ctx, finish := startDBQuery(ctx, IMSRegistrationsTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	result, err := opCompareAndSwapIMSRegistration.Invoke(ctx, db, &imsRegistrationCASPayload{IMSI: imsi, Expected: expected, Next: next})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, false, err
 	}
 
 	if result == nil {
 		err = fmt.Errorf("compare and swap IMS registration for subscriber %s: leader returned no result", imsi)
-		recordSpanError(span, err)
-
 		return nil, false, err
 	}
 
@@ -392,22 +352,6 @@ func (db *Database) getIMSRegistration(ctx context.Context, q querier, imsi stri
 	}
 
 	return imsRegistrationOf(row, sets), nil
-}
-
-func startIMSRegistrationsSpan(ctx context.Context, operation string) (context.Context, trace.Span) {
-	querySummary := fmt.Sprintf("%s %s", operation, IMSRegistrationsTableName)
-
-	return tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName(operation),
-			semconv.DBCollectionName(IMSRegistrationsTableName),
-		),
-	)
 }
 
 func scanIMSRegistrationRow(row scanner) (imsRegistrationRow, error) {

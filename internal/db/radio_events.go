@@ -60,22 +60,19 @@ type RadioEventFilters struct {
 	TimestampTo   *int64  // epoch milliseconds, exclusive upper bound
 }
 
-func (db *Database) InsertRadioEvent(ctx context.Context, radioEvent *dbwriter.RadioEvent) error {
-	ctx, span, timer := startDBQuery(ctx, RadioEventsTableName, "INSERT", "insert")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) InsertRadioEvent(ctx context.Context, radioEvent *dbwriter.RadioEvent) (err error) {
+	ctx, finish := startDBQuery(ctx, RadioEventsTableName, "INSERT")
+	defer func() { finish(err) }()
 
-	_, err := db.writer().ExecContext(ctx, insertRadioEventSQL, radioEvent.Timestamp, radioEvent.Protocol, radioEvent.MessageType, radioEvent.Direction, radioEvent.LocalAddress, radioEvent.RemoteAddress, radioEvent.RadioName, radioEvent.Raw, radioEvent.Details)
+	_, err = db.writer().ExecContext(ctx, insertRadioEventSQL, radioEvent.Timestamp, radioEvent.Protocol, radioEvent.MessageType, radioEvent.Direction, radioEvent.LocalAddress, radioEvent.RemoteAddress, radioEvent.RadioName, radioEvent.Raw, radioEvent.Details)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return fmt.Errorf("query failed: %w", err)
 	}
 
 	return nil
 }
 
-func (db *Database) InsertRadioEvents(ctx context.Context, radioEvents []*dbwriter.RadioEvent) error {
+func (db *Database) InsertRadioEvents(ctx context.Context, radioEvents []*dbwriter.RadioEvent) (err error) {
 	switch len(radioEvents) {
 	case 0:
 		return nil
@@ -83,14 +80,11 @@ func (db *Database) InsertRadioEvents(ctx context.Context, radioEvents []*dbwrit
 		return db.InsertRadioEvent(ctx, radioEvents[0])
 	}
 
-	ctx, span, timer := startDBQuery(ctx, RadioEventsTableName, "BATCH INSERT", "batch_insert", semconv.DBOperationBatchSize(len(radioEvents)))
-	defer span.End()
-	defer timer.ObserveDuration()
+	ctx, finish := startDBQuery(ctx, RadioEventsTableName, "BATCH INSERT", semconv.DBOperationBatchSize(len(radioEvents)))
+	defer func() { finish(err) }()
 
 	tx, err := db.writer().BeginTx(ctx, nil)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return fmt.Errorf("begin transaction failed: %w", err)
 	}
 
@@ -98,25 +92,20 @@ func (db *Database) InsertRadioEvents(ctx context.Context, radioEvents []*dbwrit
 		if _, err := tx.ExecContext(ctx, insertRadioEventSQL, radioEvent.Timestamp, radioEvent.Protocol, radioEvent.MessageType, radioEvent.Direction, radioEvent.LocalAddress, radioEvent.RemoteAddress, radioEvent.RadioName, radioEvent.Raw, radioEvent.Details); err != nil {
 			_ = tx.Rollback()
 
-			recordSpanError(span, err)
-
 			return fmt.Errorf("query failed: %w", err)
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
-		recordSpanError(span, err)
-
 		return fmt.Errorf("commit failed: %w", err)
 	}
 
 	return nil
 }
 
-func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, filters *RadioEventFilters) ([]dbwriter.RadioEvent, int, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+RadioEventsTableName+" (paged+filtered)", RadioEventsTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, filters *RadioEventFilters) (_ []dbwriter.RadioEvent, _ int, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+RadioEventsTableName+" (paged+filtered)", RadioEventsTableName, "SELECT", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
+	defer func() { finish(err) }()
 
 	if filters == nil {
 		filters = &RadioEventFilters{}
@@ -124,16 +113,12 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 
 	logs, count, err := queryPageWithTotal(ctx, db.reader(), listRadioEventsPagedFilteredSQL, scanRadioEvent, filters.Protocol, filters.Direction, filters.RadioName, filters.MessageType, filters.TimestampFrom, filters.TimestampTo, perPage, (page-1)*perPage)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	if len(logs) == 0 {
 		fallbackCount, err := queryCount(ctx, db.reader(), countRadioEventsFilteredSQL, filters.Protocol, filters.Direction, filters.RadioName, filters.MessageType, filters.TimestampFrom, filters.TimestampTo)
 		if err != nil {
-			recordSpanError(span, err)
-
 			return nil, 0, fmt.Errorf("count failed: %w", err)
 		}
 
@@ -144,50 +129,41 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 }
 
 // DeleteOldRadioEvents removes logs older than the specified retention period in days.
-func (db *Database) DeleteOldRadioEvents(ctx context.Context, days int) error {
-	ctx, span, timer := startDBQueryNamed(ctx, "DELETE "+RadioEventsTableName+" (retention)", RadioEventsTableName, "DELETE", "delete", attribute.Int("retention.days", days))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteOldRadioEvents(ctx context.Context, days int) (err error) {
+	ctx, finish := startDBQueryNamed(ctx, "DELETE "+RadioEventsTableName+" (retention)", RadioEventsTableName, "DELETE", attribute.Int("retention.days", days))
+	defer func() { finish(err) }()
 
 	cutoff := dbwriter.EpochMillis(time.Now().UTC().AddDate(0, 0, -days))
 
-	_, err := db.writer().ExecContext(ctx, deleteOldRadioEventsSQL, cutoff)
+	_, err = db.writer().ExecContext(ctx, deleteOldRadioEventsSQL, cutoff)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return fmt.Errorf("query failed: %w", err)
 	}
 
 	return nil
 }
 
-func (db *Database) ClearRadioEvents(ctx context.Context) error {
-	ctx, span, timer := startDBQueryNamed(ctx, "DELETE "+RadioEventsTableName+" (all)", RadioEventsTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ClearRadioEvents(ctx context.Context) (err error) {
+	ctx, finish := startDBQueryNamed(ctx, "DELETE "+RadioEventsTableName+" (all)", RadioEventsTableName, "DELETE")
+	defer func() { finish(err) }()
 
-	_, err := db.writer().ExecContext(ctx, deleteAllRadioEventsSQL)
+	_, err = db.writer().ExecContext(ctx, deleteAllRadioEventsSQL)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return fmt.Errorf("query failed: %w", err)
 	}
 
 	return nil
 }
 
-func (db *Database) GetRadioEventByID(ctx context.Context, id int) (*dbwriter.RadioEvent, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+RadioEventsTableName+" (by ID)", RadioEventsTableName, "SELECT", "select", attribute.Int("radio_event.id", id))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetRadioEventByID(ctx context.Context, id int) (_ *dbwriter.RadioEvent, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+RadioEventsTableName+" (by ID)", RadioEventsTableName, "SELECT", attribute.Int("radio_event.id", id))
+	defer func() { finish(err) }()
 
 	log, err := scanRadioEvent(db.reader().QueryRowContext(ctx, getRadioEventByIDSQL, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
-
-		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

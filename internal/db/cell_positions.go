@@ -63,16 +63,13 @@ type CellPosition struct {
 	UpdatedAt            string
 }
 
-func (db *Database) CreateCellPosition(ctx context.Context, c *CellPosition) error {
-	ctx, span, timer := startDBQuery(ctx, CellPositionsTableName, "INSERT", "insert")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CreateCellPosition(ctx context.Context, c *CellPosition) (err error) {
+	ctx, finish := startDBQuery(ctx, CellPositionsTableName, "INSERT")
+	defer func() { finish(err) }()
 
 	if c.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
-			recordSpanError(span, err)
-
 			return fmt.Errorf("generate cell position id: %w", err)
 		}
 
@@ -90,23 +87,18 @@ func (db *Database) CreateCellPosition(ctx context.Context, c *CellPosition) err
 	c.UpdatedAt = now
 
 	if _, err := opCreateCellPosition.Invoke(ctx, db, c); err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) GetCellPosition(ctx context.Context, id string) (*CellPosition, error) {
-	ctx, span, timer := startDBQuery(ctx, CellPositionsTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetCellPosition(ctx context.Context, id string) (_ *CellPosition, err error) {
+	ctx, finish := startDBQuery(ctx, CellPositionsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	c, err := scanCellPosition(db.reader().QueryRowContext(ctx, getCellPositionSQL, id))
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -115,10 +107,9 @@ func (db *Database) GetCellPosition(ctx context.Context, id string) (*CellPositi
 
 // GetCellPositionByCell looks up a provisioned position by its serving-cell
 // natural key. Returns ErrNotFound when no row matches.
-func (db *Database) GetCellPositionByCell(ctx context.Context, rat, mcc, mnc, cellIdentity string) (*CellPosition, error) {
-	ctx, span, timer := startDBQuery(ctx, CellPositionsTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetCellPositionByCell(ctx context.Context, rat, mcc, mnc, cellIdentity string) (_ *CellPosition, err error) {
+	ctx, finish := startDBQuery(ctx, CellPositionsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	filter := CellPosition{RAT: rat, Mcc: mcc, Mnc: mnc, CellIdentity: strings.ToLower(cellIdentity)}
 
@@ -128,33 +119,27 @@ func (db *Database) GetCellPositionByCell(ctx context.Context, rat, mcc, mnc, ce
 			return nil, ErrNotFound
 		}
 
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return &c, nil
 }
 
-func (db *Database) ListCellPositions(ctx context.Context) ([]CellPosition, error) {
-	ctx, span, timer := startDBQuery(ctx, CellPositionsTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListCellPositions(ctx context.Context) (_ []CellPosition, err error) {
+	ctx, finish := startDBQuery(ctx, CellPositionsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	positions, err := queryAll(ctx, db.reader(), listCellPositionsSQL, scanCellPosition)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return positions, nil
 }
 
-func (db *Database) UpdateCellPosition(ctx context.Context, c *CellPosition) error {
-	ctx, span, timer := startDBQuery(ctx, CellPositionsTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) UpdateCellPosition(ctx context.Context, c *CellPosition) (err error) {
+	ctx, finish := startDBQuery(ctx, CellPositionsTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	c.UpdatedAt = time.Now().Format(time.RFC3339)
 	c.CreatedAt = c.UpdatedAt
@@ -165,22 +150,17 @@ func (db *Database) UpdateCellPosition(ctx context.Context, c *CellPosition) err
 	}
 
 	if _, err := opUpdateCellPosition.Invoke(ctx, db, c); err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) DeleteCellPosition(ctx context.Context, id string) error {
-	ctx, span, timer := startDBQuery(ctx, CellPositionsTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteCellPosition(ctx context.Context, id string) (err error) {
+	ctx, finish := startDBQuery(ctx, CellPositionsTableName, "DELETE")
+	defer func() { finish(err) }()
 
 	if _, err := opDeleteCellPosition.Invoke(ctx, db, &stringPayload{Value: id}); err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 

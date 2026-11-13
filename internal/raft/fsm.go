@@ -50,6 +50,8 @@ type Applier interface {
 	// it. Called after FSM.Restore replaces the database file on disk.
 	Reopen(ctx context.Context) error
 
+	BlockNewConnections() (unblock func())
+
 	// RestoreLocalTables replaces the local-only tables (radio_events,
 	// flow_reports, etc.) in the staged snapshot at destPath with this
 	// node's rows from livePath, before the snapshot is swapped in.
@@ -454,13 +456,19 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 		return err
 	}
 
+	unblock := f.applier.BlockNewConnections()
+
 	// Remove WAL/SHM sidecars before the rename.
 	for _, suffix := range []string{"-wal", "-shm"} {
 		_ = os.Remove(dbPath + suffix)
 	}
 
 	// Atomically replace the database file.
-	if err := os.Rename(tmpPath, dbPath); err != nil {
+	err = os.Rename(tmpPath, dbPath)
+
+	unblock()
+
+	if err != nil {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("rename snapshot over database: %w", err)
 	}
