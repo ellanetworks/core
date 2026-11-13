@@ -71,7 +71,7 @@ func TestListSubscribers_RegisteredOnAnotherNode(t *testing.T) {
 		t.Fatalf("PurgeUERegistration: %s", err)
 	}
 
-	code, resp, err := listSubscribers(url, client, token, 1, 25)
+	code, resp, err := listSubscribers(url, client, token, 25)
 	if err != nil || code != http.StatusOK {
 		t.Fatalf("listSubscribers: %d %v", code, err)
 	}
