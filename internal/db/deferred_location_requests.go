@@ -91,21 +91,16 @@ type DeferredLocationTermination struct {
 	At     time.Time
 }
 
-func (db *Database) CreateDeferredLocationRequest(ctx context.Context, r *DeferredLocationRequest) error {
-	ctx, span, timer := startDBQuery(ctx, DeferredLocationRequestsTableName, "INSERT", "insert")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CreateDeferredLocationRequest(ctx context.Context, r *DeferredLocationRequest) (err error) {
+	ctx, finish := startDBQuery(ctx, DeferredLocationRequestsTableName, "INSERT")
+	defer func() { finish(err) }()
 
 	if err := db.checkOpSchema(deferredLocationSchema); err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	id, err := uuid.NewV7()
 	if err != nil {
-		recordSpanError(span, err)
-
 		return fmt.Errorf("generate id: %w", err)
 	}
 
@@ -121,18 +116,15 @@ func (db *Database) CreateDeferredLocationRequest(ctx context.Context, r *Deferr
 			return ErrAlreadyExists
 		}
 
-		recordSpanError(span, err)
-
 		return fmt.Errorf("query failed: %w", err)
 	}
 
 	return nil
 }
 
-func (db *Database) GetDeferredLocationRequest(ctx context.Context, id string) (*DeferredLocationRequest, error) {
-	ctx, span, timer := startDBQuery(ctx, DeferredLocationRequestsTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetDeferredLocationRequest(ctx context.Context, id string) (_ *DeferredLocationRequest, err error) {
+	ctx, finish := startDBQuery(ctx, DeferredLocationRequestsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, deferredLocationSchema) {
 		return nil, ErrNotFound
@@ -144,18 +136,15 @@ func (db *Database) GetDeferredLocationRequest(ctx context.Context, id string) (
 			return nil, ErrNotFound
 		}
 
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return &r, nil
 }
 
-func (db *Database) ListDeferredLocationRequests(ctx context.Context, page, perPage int, filters *DeferredLocationRequestFilters) ([]DeferredLocationRequest, int, error) {
-	ctx, span, timer := startDBQuery(ctx, DeferredLocationRequestsTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListDeferredLocationRequests(ctx context.Context, page, perPage int, filters *DeferredLocationRequestFilters) (_ []DeferredLocationRequest, _ int, err error) {
+	ctx, finish := startDBQuery(ctx, DeferredLocationRequestsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, deferredLocationSchema) {
 		return nil, 0, nil
@@ -167,16 +156,12 @@ func (db *Database) ListDeferredLocationRequests(ctx context.Context, page, perP
 
 	requests, total, err := queryPageWithTotal(ctx, db.reader(), listDeferredLocationRequestsSQL, scanDeferredLocationRequest, filters.SUPI, filters.Status, perPage, (page-1)*perPage)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	if len(requests) == 0 {
 		count, err := queryCount(ctx, db.reader(), countDeferredLocationRequestsSQL, filters.SUPI, filters.Status)
 		if err != nil {
-			recordSpanError(span, err)
-
 			return nil, 0, fmt.Errorf("count failed: %w", err)
 		}
 
@@ -186,21 +171,16 @@ func (db *Database) ListDeferredLocationRequests(ctx context.Context, page, perP
 	return requests, total, nil
 }
 
-func (db *Database) TerminateDeferredLocationRequest(ctx context.Context, id string, t DeferredLocationTermination) error {
-	ctx, span, timer := startDBQuery(ctx, DeferredLocationRequestsTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) TerminateDeferredLocationRequest(ctx context.Context, id string, t DeferredLocationTermination) (err error) {
+	ctx, finish := startDBQuery(ctx, DeferredLocationRequestsTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	if err := db.checkOpSchema(deferredLocationSchema); err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	n, err := db.execCounting(ctx, terminateDeferredLocationSQL, t.Cause, t.Reason, dbwriter.EpochMillis(t.At), id)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -211,10 +191,9 @@ func (db *Database) TerminateDeferredLocationRequest(ctx context.Context, id str
 	return nil
 }
 
-func (db *Database) TerminateActiveDeferredLocationRequests(ctx context.Context, t DeferredLocationTermination) (int, error) {
-	ctx, span, timer := startDBQuery(ctx, DeferredLocationRequestsTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) TerminateActiveDeferredLocationRequests(ctx context.Context, t DeferredLocationTermination) (_ int, err error) {
+	ctx, finish := startDBQuery(ctx, DeferredLocationRequestsTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, deferredLocationSchema) {
 		return 0, nil
@@ -222,18 +201,15 @@ func (db *Database) TerminateActiveDeferredLocationRequests(ctx context.Context,
 
 	n, err := db.execCounting(ctx, terminateAllDeferredLocationSQL, t.Cause, t.Reason, dbwriter.EpochMillis(t.At))
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, err
 	}
 
 	return n, nil
 }
 
-func (db *Database) DeleteDeferredLocationRequest(ctx context.Context, id string) error {
-	ctx, span, timer := startDBQuery(ctx, DeferredLocationRequestsTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteDeferredLocationRequest(ctx context.Context, id string) (err error) {
+	ctx, finish := startDBQuery(ctx, DeferredLocationRequestsTableName, "DELETE")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, deferredLocationSchema) {
 		return ErrNotFound
@@ -241,8 +217,6 @@ func (db *Database) DeleteDeferredLocationRequest(ctx context.Context, id string
 
 	n, err := db.execCounting(ctx, deleteDeferredLocationRequestSQL, id)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -253,24 +227,19 @@ func (db *Database) DeleteDeferredLocationRequest(ctx context.Context, id string
 	return nil
 }
 
-func (db *Database) DeleteEndedDeferredLocationRequests(ctx context.Context, endedBefore time.Time) error {
-	ctx, span, timer := startDBQuery(ctx, DeferredLocationRequestsTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteEndedDeferredLocationRequests(ctx context.Context, endedBefore time.Time) (err error) {
+	ctx, finish := startDBQuery(ctx, DeferredLocationRequestsTableName, "DELETE")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, deferredLocationSchema) {
 		return nil
 	}
 
 	if _, err := db.writer().ExecContext(ctx, deleteEndedDeferredLocationSQL, dbwriter.EpochMillis(endedBefore)); err != nil {
-		recordSpanError(span, err)
-
 		return fmt.Errorf("query failed: %w", err)
 	}
 
 	if _, err := db.writer().ExecContext(ctx, deleteOrphanLocationReportsSQL); err != nil {
-		recordSpanError(span, err)
-
 		return fmt.Errorf("delete orphan reports: %w", err)
 	}
 

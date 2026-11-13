@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/pki"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const IPLeasesTableName = "ip_leases"
@@ -86,10 +87,9 @@ func (l *IPLease) Address() netip.Addr {
 // follower, the call is forwarded to the leader through the existing
 // /cluster/internal/propose path, so the allocation is serialised
 // regardless of which node initiated it. Returns the chosen address.
-func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID string) (netip.Addr, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "INSERT "+IPLeasesTableName+" (allocate)", IPLeasesTableName, "INSERT", "allocate")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID string) (_ netip.Addr, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "INSERT "+IPLeasesTableName+" (allocate)", IPLeasesTableName, "INSERT")
+	defer func() { finish(err) }()
 
 	addrStr, err := opAllocateIPLease.Invoke(ctx, db, &allocateIPLeasePayload{
 		PoolID:    poolID,
@@ -99,19 +99,15 @@ func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType
 		NodeID:    pki.NodeID(nodeID),
 	})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return netip.Addr{}, err
 	}
 
 	addr, err := netip.ParseAddr(addrStr)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return netip.Addr{}, fmt.Errorf("parse allocated address %q: %w", addrStr, err)
 	}
 
-	span.SetAttributes(attribute.String("ip_lease.ipv4", addr.String()))
+	trace.SpanFromContext(ctx).SetAttributes(attribute.String("ip_lease.ipv4", addr.String()))
 
 	return addr, nil
 }
@@ -121,10 +117,9 @@ func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType
 // forwards intent to the leader through the replication mechanism so that
 // concurrent allocations from any node serialise correctly under proposeMu.
 // Each allocated unit is a /64 prefix delegated from the IPv6 CIDR pool.
-func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID string) (netip.Addr, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "INSERT "+IPLeasesTableName+" (allocate_ipv6)", IPLeasesTableName, "INSERT", "allocate_ipv6")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID string) (_ netip.Addr, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "INSERT "+IPLeasesTableName+" (allocate_ipv6)", IPLeasesTableName, "INSERT")
+	defer func() { finish(err) }()
 
 	addrStr, err := opAllocateIPv6Lease.Invoke(ctx, db, &allocateIPLeasePayload{
 		PoolID:    poolID,
@@ -134,19 +129,15 @@ func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolTy
 		NodeID:    pki.NodeID(nodeID),
 	})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return netip.Addr{}, err
 	}
 
 	addr, err := netip.ParseAddr(addrStr)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return netip.Addr{}, fmt.Errorf("parse allocated address %q: %w", addrStr, err)
 	}
 
-	span.SetAttributes(attribute.String("ip_lease.ipv6", addr.String()))
+	trace.SpanFromContext(ctx).SetAttributes(attribute.String("ip_lease.ipv6", addr.String()))
 
 	return addr, nil
 }
@@ -154,18 +145,15 @@ func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolTy
 // CreateLease inserts a new IP lease row. The address is stored as a 16-byte
 // binary form. Returns ErrAlreadyExists if the (poolID, addressBin) unique
 // constraint is violated.
-func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address netip.Addr) error {
-	ctx, span, timer := startDBQuery(ctx, IPLeasesTableName, "INSERT", "insert")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address netip.Addr) (err error) {
+	ctx, finish := startDBQuery(ctx, IPLeasesTableName, "INSERT")
+	defer func() { finish(err) }()
 
 	b := address.As16()
 	lease.AddressBin = b[:]
 
-	_, err := opCreateLease.Invoke(ctx, db, lease)
+	_, err = opCreateLease.Invoke(ctx, db, lease)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -173,10 +161,9 @@ func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address net
 }
 
 // GetLeaseBySession returns the lease matching (poolID, poolType, sessionID, imsi), or ErrNotFound.
-func (db *Database) GetLeaseBySession(ctx context.Context, poolID string, poolType string, sessionID int, imsi string) (*IPLease, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (by session)", IPLeasesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetLeaseBySession(ctx context.Context, poolID string, poolType string, sessionID int, imsi string) (_ *IPLease, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (by session)", IPLeasesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	row, err := scanIPLease(db.reader().QueryRowContext(ctx, getLeaseBySessionSQL, poolID, poolType, sessionID, imsi))
 	if err != nil {
@@ -184,18 +171,15 @@ func (db *Database) GetLeaseBySession(ctx context.Context, poolID string, poolTy
 			return nil, ErrNotFound
 		}
 
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return &row, nil
 }
 
-func (db *Database) GetActiveLeaseByAddress(ctx context.Context, poolID string, address netip.Addr) (*IPLease, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (by address)", IPLeasesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetActiveLeaseByAddress(ctx context.Context, poolID string, address netip.Addr) (_ *IPLease, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (by address)", IPLeasesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	b := address.As16()
 
@@ -205,8 +189,6 @@ func (db *Database) GetActiveLeaseByAddress(ctx context.Context, poolID string, 
 			return nil, ErrNotFound
 		}
 
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -214,27 +196,23 @@ func (db *Database) GetActiveLeaseByAddress(ctx context.Context, poolID string, 
 }
 
 // UpdateLeaseSession sets the sessionID on an existing lease.
-func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID string, sessionID int) error {
-	ctx, span, timer := startDBQueryNamed(ctx, "UPDATE "+IPLeasesTableName+" (session)", IPLeasesTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID string, sessionID int) (err error) {
+	ctx, finish := startDBQueryNamed(ctx, "UPDATE "+IPLeasesTableName+" (session)", IPLeasesTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	lease := &IPLease{ID: leaseID, SessionID: &sessionID}
 
-	_, err := opUpdateLeaseSession.Invoke(ctx, db, lease)
+	_, err = opUpdateLeaseSession.Invoke(ctx, db, lease)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) ReleaseIPLease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID string) (netip.Addr, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "DELETE "+IPLeasesTableName+" (release)", IPLeasesTableName, "DELETE", "release")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ReleaseIPLease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID string) (_ netip.Addr, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "DELETE "+IPLeasesTableName+" (release)", IPLeasesTableName, "DELETE")
+	defer func() { finish(err) }()
 
 	addrStr, err := opReleaseIPLease.Invoke(ctx, db, &releaseIPLeasePayload{
 		PoolID:    poolID,
@@ -244,8 +222,6 @@ func (db *Database) ReleaseIPLease(ctx context.Context, poolID string, poolType 
 		NodeID:    pki.NodeID(nodeID),
 	})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return netip.Addr{}, err
 	}
 
@@ -255,25 +231,20 @@ func (db *Database) ReleaseIPLease(ctx context.Context, poolID string, poolType 
 
 	addr, err := netip.ParseAddr(addrStr)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return netip.Addr{}, fmt.Errorf("parse released address %q: %w", addrStr, err)
 	}
 
-	span.SetAttributes(attribute.String("ip_lease.ipv4", addr.String()))
+	trace.SpanFromContext(ctx).SetAttributes(attribute.String("ip_lease.ipv4", addr.String()))
 
 	return addr, nil
 }
 
-func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID string) error {
-	ctx, span, timer := startDBQuery(ctx, IPLeasesTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID string) (err error) {
+	ctx, finish := startDBQuery(ctx, IPLeasesTableName, "DELETE")
+	defer func() { finish(err) }()
 
-	_, err := opDeleteDynamicLease.Invoke(ctx, db, &stringPayload{Value: leaseID})
+	_, err = opDeleteDynamicLease.Invoke(ctx, db, &stringPayload{Value: leaseID})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -282,15 +253,12 @@ func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID string) erro
 
 // DeleteAllDynamicLeases removes all dynamic leases cluster-wide,
 // preserving static ones. No production caller.
-func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
-	ctx, span, timer := startDBQueryNamed(ctx, "DELETE "+IPLeasesTableName+" (dynamic)", IPLeasesTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteAllDynamicLeases(ctx context.Context) (err error) {
+	ctx, finish := startDBQueryNamed(ctx, "DELETE "+IPLeasesTableName+" (dynamic)", IPLeasesTableName, "DELETE")
+	defer func() { finish(err) }()
 
-	_, err := opDeleteAllDynamicLeases.Invoke(ctx, db, nil)
+	_, err = opDeleteAllDynamicLeases.Invoke(ctx, db, nil)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -300,15 +268,12 @@ func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
 // DeleteDynamicLeasesByNode removes dynamic leases tagged with the
 // given nodeID. Static leases are preserved: an admin-pinned IP stays
 // bound to its IMSI regardless of which node previously served it.
-func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID string) error {
-	ctx, span, timer := startDBQueryNamed(ctx, "DELETE "+IPLeasesTableName+" (dynamic by node)", IPLeasesTableName, "DELETE", "delete", attrs.NodeID(nodeID))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID string) (err error) {
+	ctx, finish := startDBQueryNamed(ctx, "DELETE "+IPLeasesTableName+" (dynamic by node)", IPLeasesTableName, "DELETE", attrs.NodeID(nodeID))
+	defer func() { finish(err) }()
 
-	_, err := opDeleteDynamicLeasesByNode.Invoke(ctx, db, &nodeIDPayload{Value: pki.NodeID(nodeID)})
+	_, err = opDeleteDynamicLeasesByNode.Invoke(ctx, db, &nodeIDPayload{Value: pki.NodeID(nodeID)})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -317,17 +282,14 @@ func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID string
 
 // UpdateLeaseNode updates the nodeID and sessionID on an existing lease.
 // Used during failover to transfer lease ownership to the new serving node.
-func (db *Database) UpdateLeaseNode(ctx context.Context, leaseID string, nodeID string, sessionID int) error {
-	ctx, span, timer := startDBQueryNamed(ctx, "UPDATE "+IPLeasesTableName+" (node)", IPLeasesTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) UpdateLeaseNode(ctx context.Context, leaseID string, nodeID string, sessionID int) (err error) {
+	ctx, finish := startDBQueryNamed(ctx, "UPDATE "+IPLeasesTableName+" (node)", IPLeasesTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	lease := &IPLease{ID: leaseID, NodeID: nodeID, SessionID: &sessionID}
 
-	_, err := opUpdateLeaseNode.Invoke(ctx, db, lease)
+	_, err = opUpdateLeaseNode.Invoke(ctx, db, lease)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -335,15 +297,12 @@ func (db *Database) UpdateLeaseNode(ctx context.Context, leaseID string, nodeID 
 }
 
 // ListActiveLeases returns all leases with a non-NULL sessionID (dynamic + active static).
-func (db *Database) ListActiveLeases(ctx context.Context) ([]IPLease, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (active)", IPLeasesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListActiveLeases(ctx context.Context) (_ []IPLease, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (active)", IPLeasesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	leases, err := queryAll(ctx, db.reader(), listActiveLeasesSQL, scanIPLease)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -355,15 +314,12 @@ func (db *Database) ListActiveLeases(ctx context.Context) ([]IPLease, error) {
 // node to derive its local advertisement set: BGP routes are advertised
 // from the node that hosts the PDU session, not by every node in the
 // cluster.
-func (db *Database) ListActiveLeasesByNode(ctx context.Context, nodeID string) ([]IPLease, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (active,by_node)", IPLeasesTableName, "SELECT", "select", attrs.NodeID(nodeID))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListActiveLeasesByNode(ctx context.Context, nodeID string) (_ []IPLease, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (active,by_node)", IPLeasesTableName, "SELECT", attrs.NodeID(nodeID))
+	defer func() { finish(err) }()
 
 	leases, err := queryAll(ctx, db.reader(), listActiveLeasesByNodeSQL, scanIPLease, nodeID)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -381,15 +337,12 @@ func (db *Database) listAllLeases(ctx context.Context) ([]IPLease, error) {
 }
 
 // ListLeasesByPool returns all leases (dynamic + static) for a given pool.
-func (db *Database) ListLeasesByPool(ctx context.Context, poolID string, poolType string) ([]IPLease, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (by pool)", IPLeasesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListLeasesByPool(ctx context.Context, poolID string, poolType string) (_ []IPLease, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (by pool)", IPLeasesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	leases, err := queryAll(ctx, db.reader(), listLeasesByPoolSQL, scanIPLease, poolID, poolType)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -398,22 +351,17 @@ func (db *Database) ListLeasesByPool(ctx context.Context, poolID string, poolTyp
 
 // ListLeasesByPoolPage returns a page of leases for a pool, ordered by address,
 // along with the total count. The page parameter is 1-based.
-func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID, poolType string, page, perPage int) ([]IPLease, int, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (paged by pool)", IPLeasesTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID, poolType string, page, perPage int) (_ []IPLease, _ int, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (paged by pool)", IPLeasesTableName, "SELECT", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
+	defer func() { finish(err) }()
 
 	leases, err := queryAll(ctx, db.reader(), listLeasesByPoolPageSQL, scanIPLease, poolID, poolType, perPage, (page-1)*perPage)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	count, err := db.CountLeasesByPool(ctx, poolID, poolType)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, 0, fmt.Errorf("count failed: %w", err)
 	}
 
@@ -421,15 +369,12 @@ func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID, poolType s
 }
 
 // CountLeasesByPool returns the total number of leases in a pool.
-func (db *Database) CountLeasesByPool(ctx context.Context, poolID, poolType string) (int, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (count by pool)", IPLeasesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CountLeasesByPool(ctx context.Context, poolID, poolType string) (_ int, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (count by pool)", IPLeasesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	count, err := queryCount(ctx, db.reader(), countLeasesByPoolSQL, poolID, poolType)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -438,15 +383,12 @@ func (db *Database) CountLeasesByPool(ctx context.Context, poolID, poolType stri
 
 // CountIPv4LeasesByPool returns the number of IPv4 leases in a pool.
 // IPv4 addresses are stored as IPv4-mapped IPv6 (::ffff:x.x.x.x).
-func (db *Database) CountIPv4LeasesByPool(ctx context.Context, poolID, poolType string) (int, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (count IPv4 by pool)", IPLeasesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CountIPv4LeasesByPool(ctx context.Context, poolID, poolType string) (_ int, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (count IPv4 by pool)", IPLeasesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	count, err := queryCount(ctx, db.reader(), countIPv4LeasesByPoolSQL, poolID, poolType)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -454,15 +396,12 @@ func (db *Database) CountIPv4LeasesByPool(ctx context.Context, poolID, poolType 
 }
 
 // CountIPv6LeasesByPool returns the number of IPv6 leases in a pool.
-func (db *Database) CountIPv6LeasesByPool(ctx context.Context, poolID, poolType string) (int, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (count IPv6 by pool)", IPLeasesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CountIPv6LeasesByPool(ctx context.Context, poolID, poolType string) (_ int, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (count IPv6 by pool)", IPLeasesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	count, err := queryCount(ctx, db.reader(), countIPv6LeasesByPoolSQL, poolID, poolType)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -470,15 +409,12 @@ func (db *Database) CountIPv6LeasesByPool(ctx context.Context, poolID, poolType 
 }
 
 // CountActiveLeases returns the total number of active leases (sessionID IS NOT NULL).
-func (db *Database) CountActiveLeases(ctx context.Context) (int, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (count active)", IPLeasesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CountActiveLeases(ctx context.Context) (_ int, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (count active)", IPLeasesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	count, err := queryCount(ctx, db.reader(), countActiveLeasesSQL)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -486,15 +422,12 @@ func (db *Database) CountActiveLeases(ctx context.Context) (int, error) {
 }
 
 // CountLeasesByIMSI returns the total number of leases (all types) for a subscriber.
-func (db *Database) CountLeasesByIMSI(ctx context.Context, imsi string) (int, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (count by imsi)", IPLeasesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CountLeasesByIMSI(ctx context.Context, imsi string) (_ int, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (count by imsi)", IPLeasesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	count, err := queryCount(ctx, db.reader(), countLeasesByIMSISQL, imsi)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -504,10 +437,9 @@ func (db *Database) CountLeasesByIMSI(ctx context.Context, imsi string) (int, er
 // CreateStaticLease pins an address to a subscriber for a data network and
 // family. Returns ErrAlreadyExists when a static lease already exists for
 // (poolID, poolType, imsi) or the address is already leased.
-func (db *Database) CreateStaticLease(ctx context.Context, imsi, poolID, poolType string, addr netip.Addr) error {
-	ctx, span, timer := startDBQueryNamed(ctx, "INSERT "+IPLeasesTableName+" (static)", IPLeasesTableName, "INSERT", "insert")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CreateStaticLease(ctx context.Context, imsi, poolID, poolType string, addr netip.Addr) (err error) {
+	ctx, finish := startDBQueryNamed(ctx, "INSERT "+IPLeasesTableName+" (static)", IPLeasesTableName, "INSERT")
+	defer func() { finish(err) }()
 
 	b := addr.As16()
 	lease := &IPLease{
@@ -517,10 +449,8 @@ func (db *Database) CreateStaticLease(ctx context.Context, imsi, poolID, poolTyp
 		IMSI:       imsi,
 	}
 
-	_, err := opCreateStaticLease.Invoke(ctx, db, lease)
+	_, err = opCreateStaticLease.Invoke(ctx, db, lease)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -529,18 +459,15 @@ func (db *Database) CreateStaticLease(ctx context.Context, imsi, poolID, poolTyp
 
 // GetStaticLease returns the static reservation for (poolID, poolType,
 // imsi), or ErrNotFound.
-func (db *Database) GetStaticLease(ctx context.Context, poolID, poolType, imsi string) (*IPLease, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (static)", IPLeasesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetStaticLease(ctx context.Context, poolID, poolType, imsi string) (_ *IPLease, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (static)", IPLeasesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	row, err := scanIPLease(db.reader().QueryRowContext(ctx, getStaticLeaseSQL, poolID, poolType, imsi))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
-
-		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -550,15 +477,12 @@ func (db *Database) GetStaticLease(ctx context.Context, poolID, poolType, imsi s
 
 // ListStaticLeasesByIMSI returns every static reservation held by a
 // subscriber across data networks and families.
-func (db *Database) ListStaticLeasesByIMSI(ctx context.Context, imsi string) ([]IPLease, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (static by imsi)", IPLeasesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListStaticLeasesByIMSI(ctx context.Context, imsi string) (_ []IPLease, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (static by imsi)", IPLeasesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	leases, err := queryAll(ctx, db.reader(), listStaticLeasesByIMSISQL, scanIPLease, imsi)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -567,15 +491,12 @@ func (db *Database) ListStaticLeasesByIMSI(ctx context.Context, imsi string) ([]
 
 // ListStaticLeasesByDataNetwork returns every static reservation in a pool
 // (both families), ordered by family then address.
-func (db *Database) ListStaticLeasesByDataNetwork(ctx context.Context, poolID string) ([]IPLease, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (static by data network)", IPLeasesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListStaticLeasesByDataNetwork(ctx context.Context, poolID string) (_ []IPLease, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+IPLeasesTableName+" (static by data network)", IPLeasesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	leases, err := queryAll(ctx, db.reader(), listStaticLeasesByDNSQL, scanIPLease, poolID)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -585,15 +506,12 @@ func (db *Database) ListStaticLeasesByDataNetwork(ctx context.Context, poolID st
 // ClearStaticLeaseSession returns a static lease to reserved by nulling its
 // sessionID, so listActiveLeases and BGP (sessionID IS NOT NULL) drop the
 // address while the row persists.
-func (db *Database) ClearStaticLeaseSession(ctx context.Context, leaseID string) error {
-	ctx, span, timer := startDBQueryNamed(ctx, "UPDATE "+IPLeasesTableName+" (static clear)", IPLeasesTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ClearStaticLeaseSession(ctx context.Context, leaseID string) (err error) {
+	ctx, finish := startDBQueryNamed(ctx, "UPDATE "+IPLeasesTableName+" (static clear)", IPLeasesTableName, "UPDATE")
+	defer func() { finish(err) }()
 
-	_, err := opUpdateLeaseSession.Invoke(ctx, db, &IPLease{ID: leaseID})
+	_, err = opUpdateLeaseSession.Invoke(ctx, db, &IPLease{ID: leaseID})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -603,17 +521,14 @@ func (db *Database) ClearStaticLeaseSession(ctx context.Context, leaseID string)
 // UpdateStaticLeaseAddress repins a reserved static lease to a new address.
 // Returns ErrNotFound if the reservation is gone, ErrAlreadyExists if the
 // address is already leased.
-func (db *Database) UpdateStaticLeaseAddress(ctx context.Context, leaseID string, addr netip.Addr) error {
-	ctx, span, timer := startDBQueryNamed(ctx, "UPDATE "+IPLeasesTableName+" (static repin)", IPLeasesTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) UpdateStaticLeaseAddress(ctx context.Context, leaseID string, addr netip.Addr) (err error) {
+	ctx, finish := startDBQueryNamed(ctx, "UPDATE "+IPLeasesTableName+" (static repin)", IPLeasesTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	b := addr.As16()
 
-	_, err := opUpdateStaticLeaseAddress.Invoke(ctx, db, &IPLease{ID: leaseID, AddressBin: b[:]})
+	_, err = opUpdateStaticLeaseAddress.Invoke(ctx, db, &IPLease{ID: leaseID, AddressBin: b[:]})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -622,15 +537,12 @@ func (db *Database) UpdateStaticLeaseAddress(ctx context.Context, leaseID string
 
 // DeleteStaticLease removes a reserved static lease. Returns ErrNotFound if
 // the reservation is gone.
-func (db *Database) DeleteStaticLease(ctx context.Context, leaseID string) error {
-	ctx, span, timer := startDBQueryNamed(ctx, "DELETE "+IPLeasesTableName+" (static)", IPLeasesTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteStaticLease(ctx context.Context, leaseID string) (err error) {
+	ctx, finish := startDBQueryNamed(ctx, "DELETE "+IPLeasesTableName+" (static)", IPLeasesTableName, "DELETE")
+	defer func() { finish(err) }()
 
-	_, err := opDeleteStaticLease.Invoke(ctx, db, &stringPayload{Value: leaseID})
+	_, err = opDeleteStaticLease.Invoke(ctx, db, &stringPayload{Value: leaseID})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 

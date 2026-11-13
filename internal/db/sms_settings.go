@@ -8,10 +8,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const SMSSettingsTableName = "sms_settings"
@@ -59,14 +55,9 @@ func IsValidMSISDN(msisdn string) bool {
 	return true
 }
 
-func (db *Database) GetSMSSettings(ctx context.Context) (*SMSSettings, error) {
-	ctx, span := startSMSSettingsSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SMSSettingsTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SMSSettingsTableName, "select").Inc()
+func (db *Database) GetSMSSettings(ctx context.Context) (_ *SMSSettings, err error) {
+	ctx, finish := startDBQuery(ctx, SMSSettingsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	settings := DefaultSMSSettings()
 
@@ -74,7 +65,7 @@ func (db *Database) GetSMSSettings(ctx context.Context) (*SMSSettings, error) {
 		return &settings, nil
 	}
 
-	err := db.reader().QueryRowContext(ctx, getSMSSettingsSQL).Scan(&settings.SMSNumber)
+	err = db.reader().QueryRowContext(ctx, getSMSSettingsSQL).Scan(&settings.SMSNumber)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			settings = DefaultSMSSettings()
@@ -82,30 +73,21 @@ func (db *Database) GetSMSSettings(ctx context.Context) (*SMSSettings, error) {
 			return &settings, nil
 		}
 
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return &settings, nil
 }
 
-func (db *Database) UpdateSMSSettings(ctx context.Context, settings *SMSSettings) error {
+func (db *Database) UpdateSMSSettings(ctx context.Context, settings *SMSSettings) (err error) {
 	if err := settings.Validate(); err != nil {
 		return err
 	}
 
-	ctx, span := startSMSSettingsSpan(ctx, "UPSERT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SMSSettingsTableName, "upsert"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SMSSettingsTableName, "upsert").Inc()
+	ctx, finish := startDBQuery(ctx, SMSSettingsTableName, "UPSERT")
+	defer func() { finish(err) }()
 
 	if _, err := opUpdateSMSSettings.Invoke(ctx, db, settings); err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -118,20 +100,4 @@ func (db *Database) applyUpdateSMSSettings(ctx context.Context, s *SMSSettings) 
 	}
 
 	return nil, nil
-}
-
-func startSMSSettingsSpan(ctx context.Context, operation string) (context.Context, trace.Span) {
-	querySummary := fmt.Sprintf("%s %s", operation, SMSSettingsTableName)
-
-	return tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName(operation),
-			semconv.DBCollectionName(SMSSettingsTableName),
-		),
-	)
 }

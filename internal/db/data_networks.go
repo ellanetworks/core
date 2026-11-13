@@ -80,10 +80,9 @@ func editDataNetworkQuery(dn *DataNetwork, current bool) (string, []any) {
 	return editDataNetworkPreV25SQL, []any{dn.IPv4Pool, dn.IPv6Pool, dn.DNS, dn.MTU, dn.Name}
 }
 
-func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int) ([]DataNetwork, int, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+DataNetworksTableName+" (paged)", DataNetworksTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int) (_ []DataNetwork, _ int, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+DataNetworksTableName+" (paged)", DataNetworksTableName, "SELECT", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
+	defer func() { finish(err) }()
 
 	query := listDataNetworksPagedSQL
 	if !db.appliedSchemaAtLeast(ctx, dataNetworkIMSSchema) {
@@ -92,16 +91,12 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 
 	dataNetworks, count, err := queryPageWithTotal(ctx, db.reader(), query, scanDataNetwork, perPage, (page-1)*perPage)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	if len(dataNetworks) == 0 {
 		fallbackCount, err := db.CountDataNetworks(ctx)
 		if err != nil {
-			recordSpanError(span, err)
-
 			return nil, 0, fmt.Errorf("count failed: %w", err)
 		}
 
@@ -111,10 +106,9 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 	return dataNetworks, count, nil
 }
 
-func (db *Database) ListAllDataNetworks(ctx context.Context) ([]DataNetwork, error) {
-	ctx, span, timer := startDBQuery(ctx, DataNetworksTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListAllDataNetworks(ctx context.Context) (_ []DataNetwork, err error) {
+	ctx, finish := startDBQuery(ctx, DataNetworksTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	query := listAllDataNetworksSQL
 	if !db.appliedSchemaAtLeast(ctx, dataNetworkIMSSchema) {
@@ -123,18 +117,15 @@ func (db *Database) ListAllDataNetworks(ctx context.Context) ([]DataNetwork, err
 
 	dataNetworks, err := queryAll(ctx, db.reader(), query, scanDataNetwork)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return dataNetworks, nil
 }
 
-func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwork, error) {
-	ctx, span, timer := startDBQuery(ctx, DataNetworksTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetDataNetwork(ctx context.Context, name string) (_ *DataNetwork, err error) {
+	ctx, finish := startDBQuery(ctx, DataNetworksTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	query := getDataNetworkSQL
 	if !db.appliedSchemaAtLeast(ctx, dataNetworkIMSSchema) {
@@ -144,12 +135,8 @@ func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwo
 	row, err := scanDataNetwork(db.reader().QueryRowContext(ctx, query, name))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			recordSpanError(span, err)
-
 			return nil, ErrNotFound
 		}
-
-		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -157,10 +144,9 @@ func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwo
 	return &row, nil
 }
 
-func (db *Database) GetDataNetworkByID(ctx context.Context, id string) (*DataNetwork, error) {
-	ctx, span, timer := startDBQuery(ctx, DataNetworksTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetDataNetworkByID(ctx context.Context, id string) (_ *DataNetwork, err error) {
+	ctx, finish := startDBQuery(ctx, DataNetworksTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	query := getDataNetworkByIDSQL
 	if !db.appliedSchemaAtLeast(ctx, dataNetworkIMSSchema) {
@@ -170,12 +156,8 @@ func (db *Database) GetDataNetworkByID(ctx context.Context, id string) (*DataNet
 	row, err := scanDataNetwork(db.reader().QueryRowContext(ctx, query, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			recordSpanError(span, err)
-
 			return nil, ErrNotFound
 		}
-
-		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -183,71 +165,57 @@ func (db *Database) GetDataNetworkByID(ctx context.Context, id string) (*DataNet
 	return &row, nil
 }
 
-func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetwork) error {
-	ctx, span, timer := startDBQuery(ctx, DataNetworksTableName, "INSERT", "insert")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetwork) (err error) {
+	ctx, finish := startDBQuery(ctx, DataNetworksTableName, "INSERT")
+	defer func() { finish(err) }()
 
 	if dataNetwork.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
-			recordSpanError(span, err)
-
 			return fmt.Errorf("generate data network id: %w", err)
 		}
 
 		dataNetwork.ID = id.String()
 	}
 
-	_, err := opCreateDataNetwork.Invoke(ctx, db, dataNetwork)
+	_, err = opCreateDataNetwork.Invoke(ctx, db, dataNetwork)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetwork) error {
-	ctx, span, timer := startDBQuery(ctx, DataNetworksTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetwork) (err error) {
+	ctx, finish := startDBQuery(ctx, DataNetworksTableName, "UPDATE")
+	defer func() { finish(err) }()
 
-	_, err := opUpdateDataNetwork.Invoke(ctx, db, dataNetwork)
+	_, err = opUpdateDataNetwork.Invoke(ctx, db, dataNetwork)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
-	ctx, span, timer := startDBQuery(ctx, DataNetworksTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteDataNetwork(ctx context.Context, name string) (err error) {
+	ctx, finish := startDBQuery(ctx, DataNetworksTableName, "DELETE")
+	defer func() { finish(err) }()
 
-	_, err := opDeleteDataNetwork.Invoke(ctx, db, &stringPayload{Value: name})
+	_, err = opDeleteDataNetwork.Invoke(ctx, db, &stringPayload{Value: name})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) CountDataNetworks(ctx context.Context) (int, error) {
-	ctx, span, timer := startDBQuery(ctx, DataNetworksTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CountDataNetworks(ctx context.Context) (_ int, err error) {
+	ctx, finish := startDBQuery(ctx, DataNetworksTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	count, err := queryCount(ctx, db.reader(), countDataNetworksSQL)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
