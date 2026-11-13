@@ -67,6 +67,7 @@ type Message struct {
 }
 
 func Parse(b []byte, opaque func(procedureCode uint8) bool) (*Message, error) {
+	b = bytes.Clone(b)
 	r := per.NewReader(b)
 	enc := per.Aligned
 

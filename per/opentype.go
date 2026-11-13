@@ -127,5 +127,19 @@ func DecodeNormallySmallLength(r *Reader, enc Encoding, consume func(count int64
 		return consume(n)
 	}
 
-	return decodeUnconstrainedLengthFrag(r, enc, consume)
+	var total int64
+
+	err = decodeUnconstrainedLengthFrag(r, enc, func(count int64) error {
+		total += count
+		return consume(count)
+	})
+	if err != nil {
+		return err
+	}
+
+	if total == 0 {
+		return ErrOverflow
+	}
+
+	return nil
 }

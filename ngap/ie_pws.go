@@ -63,7 +63,6 @@ func (c *EUTRACellIdentity) UnmarshalPER(r *per.Reader, enc per.Encoding) error 
 	return nil
 }
 
-// TS 38.413 §9.3.1.7.
 type NRCGI struct {
 	_              [0]struct{} `per:"extseq"`
 	PLMNIdentity   PLMNIdentity
@@ -71,7 +70,6 @@ type NRCGI struct {
 	_              ieExtensions `per:",skip"`
 }
 
-// TS 38.413 §9.3.1.9.
 type EUTRACGI struct {
 	_                 [0]struct{} `per:"extseq"`
 	PLMNIdentity      PLMNIdentity
@@ -79,7 +77,6 @@ type EUTRACGI struct {
 	_                 ieExtensions `per:",skip"`
 }
 
-// TS 38.413 §9.3.1.35.
 type MessageIdentifier uint16
 
 func (m MessageIdentifier) MarshalPER(w *per.Writer, enc per.Encoding) error {
@@ -97,7 +94,6 @@ func (m *MessageIdentifier) UnmarshalPER(r *per.Reader, enc per.Encoding) error 
 	return nil
 }
 
-// TS 38.413 §9.3.1.36.
 type SerialNumber uint16
 
 func (s SerialNumber) MarshalPER(w *per.Writer, enc per.Encoding) error {
@@ -115,7 +111,6 @@ func (s *SerialNumber) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
-// TS 38.413 §9.3.1.49.
 type RepetitionPeriod uint32
 
 func (p RepetitionPeriod) MarshalPER(w *per.Writer, enc per.Encoding) error {
@@ -133,7 +128,6 @@ func (p *RepetitionPeriod) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
-// TS 38.413 §9.3.1.38.
 type NumberOfBroadcastsRequested uint16
 
 func (n NumberOfBroadcastsRequested) MarshalPER(w *per.Writer, enc per.Encoding) error {
@@ -151,7 +145,6 @@ func (n *NumberOfBroadcastsRequested) UnmarshalPER(r *per.Reader, enc per.Encodi
 	return nil
 }
 
-// TS 38.413 §9.3.1.39.
 type WarningType [2]byte
 
 func (t WarningType) MarshalPER(w *per.Writer, enc per.Encoding) error {
@@ -186,7 +179,6 @@ func (s *WarningSecurityInfo) UnmarshalPER(r *per.Reader, enc per.Encoding) erro
 	return nil
 }
 
-// TS 38.413 §9.3.1.41.
 type DataCodingScheme uint8
 
 func (d DataCodingScheme) MarshalPER(w *per.Writer, enc per.Encoding) error {
@@ -204,7 +196,6 @@ func (d *DataCodingScheme) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
-// TS 38.413 §9.3.1.42.
 type WarningMessageContents []byte
 
 func (c WarningMessageContents) MarshalPER(w *per.Writer, enc per.Encoding) error {
@@ -222,7 +213,6 @@ func (c *WarningMessageContents) UnmarshalPER(r *per.Reader, enc per.Encoding) e
 	return nil
 }
 
-// TS 38.413 §9.3.1.112.
 type WarningAreaCoordinates []byte
 
 func (c WarningAreaCoordinates) MarshalPER(w *per.Writer, enc per.Encoding) error {
@@ -240,7 +230,6 @@ func (c *WarningAreaCoordinates) UnmarshalPER(r *per.Reader, enc per.Encoding) e
 	return nil
 }
 
-// TS 38.413 §9.3.1.46.
 type ConcurrentWarningMessageInd uint8
 
 const (
@@ -264,7 +253,6 @@ func (c *ConcurrentWarningMessageInd) UnmarshalPER(r *per.Reader, enc per.Encodi
 	return nil
 }
 
-// TS 38.413 §9.3.1.48.
 type EmergencyAreaID [3]byte
 
 func (e EmergencyAreaID) MarshalPER(w *per.Writer, enc per.Encoding) error {
@@ -314,7 +302,6 @@ const (
 	warningAreaListAlternatives = 5
 )
 
-// TS 38.413 §9.3.1.37.
 type WarningAreaList struct {
 	EUTRACGIs        []EUTRACGI
 	NRCGIs           []NRCGI
@@ -450,7 +437,6 @@ const (
 	broadcastAreaAlternatives = 7
 )
 
-// TS 38.413 §9.3.1.43.
 type BroadcastCompletedAreaList struct {
 	CellIDBroadcastEUTRA          []CellIDBroadcastEUTRAItem
 	TAIBroadcastEUTRA             []TAIBroadcastEUTRAItem
@@ -522,7 +508,6 @@ func (l *BroadcastCompletedAreaList) UnmarshalPER(r *per.Reader, enc per.Encodin
 	return nil
 }
 
-// TS 38.413 §9.3.1.47.
 type CancelAllWarningMessages uint8
 
 const (
@@ -616,7 +601,6 @@ type EmergencyAreaIDCancelledNRItem struct {
 	_                   ieExtensions                `per:",skip"`
 }
 
-// TS 38.413 §9.3.1.44.
 type BroadcastCancelledAreaList struct {
 	CellIDCancelledEUTRA          []CellIDCancelledEUTRAItem
 	TAICancelledEUTRA             []TAICancelledEUTRAItem

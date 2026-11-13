@@ -125,3 +125,12 @@ func TestReaderSince(t *testing.T) {
 		t.Fatal("start past the reader accepted")
 	}
 }
+
+func TestExtensionAdditionsRejectsZeroLengthBitmap(t *testing.T) {
+	for _, enc := range []Encoding{Aligned, Unaligned} {
+		var e ExtensionAdditions
+		if err := e.UnmarshalPER(NewReader([]byte{0x80, 0x00}), enc); err == nil {
+			t.Fatalf("%s: zero-length extension bitmap accepted", enc)
+		}
+	}
+}

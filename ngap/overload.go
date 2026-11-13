@@ -9,7 +9,6 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// TS 38.413 §9.3.1.105.
 type OverloadAction uint8
 
 const (
@@ -43,7 +42,6 @@ const (
 	overloadResponseAlternatives = 2
 )
 
-// TS 38.413 §9.3.1.104.
 type OverloadResponse struct {
 	OverloadAction OverloadAction
 }
@@ -74,7 +72,6 @@ const (
 	trafficLoadReductionMax = 99
 )
 
-// TS 38.413 §9.3.1.106.
 type TrafficLoadReductionIndication uint8
 
 func (t TrafficLoadReductionIndication) MarshalPER(w *per.Writer, enc per.Encoding) error {
@@ -123,7 +120,6 @@ func (l *OverloadStartNSSAIList) UnmarshalPER(r *per.Reader, enc per.Encoding) e
 	return nil
 }
 
-// TS 38.413 §9.2.6.14.
 type OverloadStart struct {
 	AMFOverloadResponse               *OverloadResponse
 	AMFTrafficLoadReductionIndication *TrafficLoadReductionIndication
@@ -214,7 +210,6 @@ func ParseOverloadStart(value []byte) (*OverloadStart, error) {
 	return parseMessageBody[OverloadStart](ProcOverloadStart, TriggeringInitiatingMessage, overloadStartIEs, value)
 }
 
-// TS 38.413 §9.2.6.15.
 type OverloadStop struct {
 	messageMeta
 }

@@ -21,7 +21,7 @@ func (s *S1Message) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 		return err
 	}
 
-	*s = b
+	*s = append(S1Message{}, b...)
 
 	return nil
 }
@@ -33,7 +33,6 @@ type AdditionalGUTI struct {
 	_      ieExtensions `per:",skip"`
 }
 
-// TS 36.413 §9.1.7.5.
 type RerouteNASRequest struct {
 	ENBUES1APID    ENBUES1APID
 	MMEUES1APID    *MMEUES1APID

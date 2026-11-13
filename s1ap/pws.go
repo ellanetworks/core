@@ -50,7 +50,6 @@ func integerIE(b per.Bounds, v int64) per.Marshaler {
 	})
 }
 
-// TS 36.413 §9.1.13.1.
 type WriteReplaceWarningRequest struct {
 	MessageIdentifier                 MessageIdentifier
 	SerialNumber                      SerialNumber
@@ -201,7 +200,6 @@ func ParseWriteReplaceWarningRequest(value []byte) (*WriteReplaceWarningRequest,
 	return parseMessageBody[WriteReplaceWarningRequest](ProcWriteReplaceWarning, TriggeringInitiatingMessage, writeReplaceWarningRequestIEs, value)
 }
 
-// TS 36.413 §9.1.13.2.
 type WriteReplaceWarningResponse struct {
 	MessageIdentifier          MessageIdentifier
 	SerialNumber               SerialNumber
@@ -270,7 +268,6 @@ func ParseWriteReplaceWarningResponse(value []byte) (*WriteReplaceWarningRespons
 	return parseMessageBody[WriteReplaceWarningResponse](ProcWriteReplaceWarning, TriggeringSuccessfulOutcome, writeReplaceWarningResponseIEs, value)
 }
 
-// TS 36.413 §9.1.13.3.
 type KillRequest struct {
 	MessageIdentifier      MessageIdentifier
 	SerialNumber           SerialNumber
@@ -335,7 +332,6 @@ func ParseKillRequest(value []byte) (*KillRequest, error) {
 	return parseMessageBody[KillRequest](ProcKill, TriggeringInitiatingMessage, killRequestIEs, value)
 }
 
-// TS 36.413 §9.1.13.4.
 type KillResponse struct {
 	MessageIdentifier          MessageIdentifier
 	SerialNumber               SerialNumber
@@ -400,7 +396,6 @@ func ParseKillResponse(value []byte) (*KillResponse, error) {
 	return parseMessageBody[KillResponse](ProcKill, TriggeringSuccessfulOutcome, killResponseIEs, value)
 }
 
-// TS 36.413 §9.1.13.5.
 type PWSRestartIndication struct {
 	ECGIListForRestart            []EUTRANCGI
 	GlobalENBID                   GlobalENBID
@@ -501,7 +496,6 @@ func ParsePWSRestartIndication(value []byte) (*PWSRestartIndication, error) {
 	return parseMessageBody[PWSRestartIndication](ProcPWSRestartIndication, TriggeringInitiatingMessage, pWSRestartIndicationIEs, value)
 }
 
-// TS 36.413 §9.1.13.6.
 type PWSFailureIndication struct {
 	PWSFailedECGIList []EUTRANCGI
 	GlobalENBID       GlobalENBID

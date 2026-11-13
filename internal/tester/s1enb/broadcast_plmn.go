@@ -73,3 +73,10 @@ func (e *ENB) taiFor(enbUEID int64) s1ap.TAI {
 
 	return s1ap.TAI{PLMNIdentity: plmn, TAC: s1ap.TAC(e.tac)}
 }
+
+func (e *ENB) dropSelectedPLMN(enbUEID int64) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	delete(e.selected, enbUEID)
+}

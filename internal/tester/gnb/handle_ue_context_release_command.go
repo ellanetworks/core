@@ -66,6 +66,7 @@ func handleUEContextReleaseCommand(gnb *GnodeB, value []byte) error {
 	gnb.dropPDUSessions(ranUEID)
 	gnb.dropRadioCapabilityReport(ranUEID)
 	gnb.dropUEContext(ranUEID)
+	gnb.dropSelectedPLMN(ranUEID)
 
 	ue.RRCRelease()
 

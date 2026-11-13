@@ -78,7 +78,6 @@ func gUMMEIListIE(l []GUMMEI) (per.Marshaler, bool) {
 	}), true
 }
 
-// TS 36.413 §9.1.8.13.
 type OverloadStart struct {
 	OverloadResponse               OverloadResponse
 	GUMMEIList                     []GUMMEI
@@ -145,7 +144,6 @@ func ParseOverloadStart(value []byte) (*OverloadStart, error) {
 	return parseMessageBody[OverloadStart](ProcOverloadStart, TriggeringInitiatingMessage, overloadStartIEs, value)
 }
 
-// TS 36.413 §9.1.8.14.
 type OverloadStop struct {
 	GUMMEIList []GUMMEI
 

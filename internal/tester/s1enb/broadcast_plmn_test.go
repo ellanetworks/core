@@ -120,3 +120,23 @@ func TestInitialUEMessageCarriesSelectedPLMNInTAI(t *testing.T) {
 		t.Errorf("unselected UE TAI PLMN = % x, want the primary PLMN", tai.PLMNIdentity)
 	}
 }
+
+func TestUEContextReleaseCompleteClearsSelectedPLMN(t *testing.T) {
+	e := multiPLMNENB(t)
+
+	ue := e.NewUE("001010000000001", [16]byte{}, [16]byte{})
+	if err := ue.SelectPLMN("310", "260"); err != nil {
+		t.Fatalf("SelectPLMN: %v", err)
+	}
+
+	id := e.AllocateENBUEIDFor(ue)
+	if tai := e.taiFor(id); tai.PLMNIdentity != testOtherPLMN {
+		t.Fatalf("TAI PLMN = % x, want the selected 310/260", tai.PLMNIdentity)
+	}
+
+	_ = e.SendUEContextReleaseComplete(1, id)
+
+	if tai := e.taiFor(id); tai.PLMNIdentity != testHomePLMN {
+		t.Errorf("released UE TAI PLMN = % x, want the primary PLMN", tai.PLMNIdentity)
+	}
+}

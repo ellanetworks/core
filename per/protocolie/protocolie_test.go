@@ -119,6 +119,38 @@ func TestParseHeaderAndFields(t *testing.T) {
 	}
 }
 
+func TestParseIndependentOfInput(t *testing.T) {
+	fields := []Field{
+		{ID: 0, Criticality: 0, Value: []byte{0x00, 0x01}},
+		{ID: 8, Criticality: 0, Value: []byte{0x00, 0x07}},
+		{ID: 26, Criticality: 1, Value: []byte{0x01, 0x07}},
+	}
+	b := encodePDU(t, 1, 11, 1, encodeBody(t, fields))
+	orig := bytes.Clone(b)
+
+	unmodified := mustParse(t, b)
+	modified := mustParse(t, b)
+
+	if err := modified.SetValue(1, []byte{0x00, 0x09}); err != nil {
+		t.Fatal(err)
+	}
+
+	for i := range b {
+		b[i] = 0xff
+	}
+
+	if got := mustBytes(t, unmodified); !bytes.Equal(got, orig) {
+		t.Fatalf("unmodified re-emit = % x, want % x", got, orig)
+	}
+
+	fields[1].Value = []byte{0x00, 0x09}
+
+	want := encodePDU(t, 1, 11, 1, encodeBody(t, fields))
+	if got := mustBytes(t, modified); !bytes.Equal(got, want) {
+		t.Fatalf("modified re-emit = % x, want % x", got, want)
+	}
+}
+
 func TestEmptyContainer(t *testing.T) {
 	b := encodePDU(t, 0, 14, 0, encodeBody(t, nil))
 	m := mustParse(t, b)

@@ -355,6 +355,8 @@ func (e *ENB) SendUEContextReleaseComplete(mmeUEID, enbUEID int64) error {
 		return fmt.Errorf("s1enb: build UE Context Release Complete: %w", err)
 	}
 
+	e.dropSelectedPLMN(enbUEID)
+
 	return e.SendMessage(b, true)
 }
 

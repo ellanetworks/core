@@ -430,7 +430,7 @@ func TestRawPDUSpliceLocality(t *testing.T) {
 	}
 }
 
-func tsharkFields(t *testing.T, tshark, text2pcap, dump string) [][]string {
+func tsharkFields(t *testing.T, tshark, text2pcap, dump string, fields ...string) [][]string {
 	t.Helper()
 
 	pcap := exec.CommandContext(t.Context(), text2pcap, "-q", "-S", "38412,38412,60", "-", "-")
@@ -441,8 +441,12 @@ func tsharkFields(t *testing.T, tshark, text2pcap, dump string) [][]string {
 		t.Fatalf("text2pcap: %v", err)
 	}
 
-	cmd := exec.CommandContext(t.Context(), tshark, "-r", "-", "-T", "fields", "-E", "separator=|", "-E", "occurrence=a", "-E", "aggregator=,",
-		"-e", "frame.number", "-e", "ngap.AMF_UE_NGAP_ID", "-e", "ngap.RAN_UE_NGAP_ID", "-e", "_ws.malformed", "-e", "_ws.expert.severity")
+	args := []string{"-r", "-", "-T", "fields", "-E", "separator=|", "-E", "occurrence=a", "-E", "aggregator=,"}
+	for _, f := range fields {
+		args = append(args, "-e", f)
+	}
+
+	cmd := exec.CommandContext(t.Context(), tshark, args...)
 	cmd.Stdin = bytes.NewReader(pcapBytes)
 
 	cmd.Env = append(os.Environ(), "HOME="+t.TempDir())
@@ -460,7 +464,7 @@ func tsharkFields(t *testing.T, tshark, text2pcap, dump string) [][]string {
 
 	for line := range strings.SplitSeq(strings.TrimRight(string(res), "\n"), "\n") {
 		cols := strings.Split(line, "|")
-		if len(cols) != 5 {
+		if len(cols) != len(fields) {
 			t.Fatalf("unexpected tshark output %q", line)
 		}
 
@@ -529,8 +533,8 @@ func TestRawPDUTshark(t *testing.T) {
 		expects = append(expects, e)
 	}
 
-	orig := tsharkFields(t, tshark, text2pcap, origDump.String())
-	spliced := tsharkFields(t, tshark, text2pcap, splicedDump.String())
+	orig := tsharkFields(t, tshark, text2pcap, origDump.String(), "frame.number", "ngap.AMF_UE_NGAP_ID", "ngap.RAN_UE_NGAP_ID", "_ws.malformed", "_ws.expert.severity")
+	spliced := tsharkFields(t, tshark, text2pcap, splicedDump.String(), "frame.number", "ngap.AMF_UE_NGAP_ID", "ngap.RAN_UE_NGAP_ID", "_ws.malformed", "_ws.expert.severity")
 
 	if len(orig) != len(expects) || len(spliced) != len(expects) {
 		t.Fatalf("tshark decoded %d/%d frames, want %d", len(orig), len(spliced), len(expects))

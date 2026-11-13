@@ -80,7 +80,6 @@ func (n *RejectedNSSAIinTA) UnmarshalPER(r *per.Reader, enc per.Encoding) error 
 	return nil
 }
 
-// TS 38.413 §9.3.3.27.
 type SourceToTargetAMFInformationReroute struct {
 	_                   [0]struct{}          `per:"extseq"`
 	ConfiguredNSSAI     *ConfiguredNSSAI     `per:",optional"`
@@ -95,7 +94,6 @@ type PartiallyAllowedNSSAIItem struct {
 	_      ieExtensions `per:",skip"`
 }
 
-// TS 38.413 §9.3.1.261.
 type PartiallyAllowedNSSAI []PartiallyAllowedNSSAIItem
 
 func (p PartiallyAllowedNSSAI) MarshalPER(w *per.Writer, enc per.Encoding) error {
@@ -113,7 +111,6 @@ func (p *PartiallyAllowedNSSAI) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 	return nil
 }
 
-// TS 38.413 §9.2.5.5.
 type RerouteNASRequest struct {
 	RANUENGAPID                         RANUENGAPID
 	AMFUENGAPID                         *AMFUENGAPID

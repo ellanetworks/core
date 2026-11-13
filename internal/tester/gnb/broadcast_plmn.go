@@ -115,3 +115,10 @@ func (g *GnodeB) explicitPLMN(ranUENGAPID int64) (mcc, mnc string) {
 
 	return p.Mcc, p.Mnc
 }
+
+func (g *GnodeB) dropSelectedPLMN(ranUENGAPID int64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	delete(g.selectedPLMNs, ranUENGAPID)
+}

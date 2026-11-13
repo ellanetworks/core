@@ -228,6 +228,16 @@ func newMessageCases() []newMessageCase {
 			choice: isInitiating,
 			golden: "0034005d00000600080002000100004002000200e100302f000c402b000005000800020001001a000302074a004300060000f1100001006440080000f11012345010008640013000df0002800200e0400b0000f110800101deadbeef00e6400180",
 		},
+		{
+			name: "RerouteNASRequestEmptyS1Message",
+			msg: &RerouteNASRequest{
+				ENBUES1APID: 1,
+				S1Message:   S1Message{},
+				MMEGroupID:  MMEGroupID{0x80, 0x02},
+			},
+			parse:  func(b []byte) (any, error) { return ParseRerouteNASRequest(b) },
+			choice: isInitiating,
+		},
 	}
 }
 

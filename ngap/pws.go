@@ -5,7 +5,6 @@ package ngap
 
 import "github.com/ellanetworks/core/per"
 
-// TS 38.413 §9.2.8.1.
 type WriteReplaceWarningRequest struct {
 	MessageIdentifier           MessageIdentifier
 	SerialNumber                SerialNumber
@@ -208,7 +207,6 @@ func ParseWriteReplaceWarningRequest(value []byte) (*WriteReplaceWarningRequest,
 	return parseMessageBody[WriteReplaceWarningRequest](ProcWriteReplaceWarning, TriggeringInitiatingMessage, writeReplaceWarningRequestIEs, value)
 }
 
-// TS 38.413 §9.2.8.2.
 type WriteReplaceWarningResponse struct {
 	MessageIdentifier          MessageIdentifier
 	SerialNumber               SerialNumber
@@ -301,7 +299,6 @@ func ParseWriteReplaceWarningResponse(value []byte) (*WriteReplaceWarningRespons
 	return parseMessageBody[WriteReplaceWarningResponse](ProcWriteReplaceWarning, TriggeringSuccessfulOutcome, writeReplaceWarningResponseIEs, value)
 }
 
-// TS 38.413 §9.2.8.3.
 type PWSCancelRequest struct {
 	MessageIdentifier        MessageIdentifier
 	SerialNumber             SerialNumber
@@ -394,7 +391,6 @@ func ParsePWSCancelRequest(value []byte) (*PWSCancelRequest, error) {
 	return parseMessageBody[PWSCancelRequest](ProcPWSCancel, TriggeringInitiatingMessage, pWSCancelRequestIEs, value)
 }
 
-// TS 38.413 §9.2.8.4.
 type PWSCancelResponse struct {
 	MessageIdentifier          MessageIdentifier
 	SerialNumber               SerialNumber
@@ -487,7 +483,6 @@ func ParsePWSCancelResponse(value []byte) (*PWSCancelResponse, error) {
 	return parseMessageBody[PWSCancelResponse](ProcPWSCancel, TriggeringSuccessfulOutcome, pWSCancelResponseIEs, value)
 }
 
-// TS 38.413 §9.2.8.5.
 type PWSRestartIndication struct {
 	CellIDListForRestart          CellIDListForRestart
 	GlobalRANNodeID               GlobalRANNodeID
@@ -558,7 +553,6 @@ func ParsePWSRestartIndication(value []byte) (*PWSRestartIndication, error) {
 	return parseMessageBody[PWSRestartIndication](ProcPWSRestartIndication, TriggeringInitiatingMessage, pWSRestartIndicationIEs, value)
 }
 
-// TS 38.413 §9.2.8.6.
 type PWSFailureIndication struct {
 	PWSFailedCellIDList PWSFailedCellIDList
 	GlobalRANNodeID     GlobalRANNodeID

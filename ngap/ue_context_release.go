@@ -24,6 +24,9 @@ type UENGAPIDs struct {
 	AMFUENGAPID AMFUENGAPID
 	RANUENGAPID RANUENGAPID
 	Pair        bool
+
+	pairIEExtensions *rawIEExtensions
+	pairExtensions   per.ExtensionAdditions
 }
 
 func (u UENGAPIDs) MarshalPER(w *per.Writer, enc per.Encoding) error {
@@ -41,14 +44,24 @@ func (u UENGAPIDs) MarshalPER(w *per.Writer, enc per.Encoding) error {
 
 	// UE-NGAP-ID-pair ::= SEQUENCE { aMF-UE-NGAP-ID, rAN-UE-NGAP-ID,
 	// iE-Extensions OPTIONAL } (extensible).
-	w.WriteBit(false)
-	w.WriteBit(false)
+	w.WriteBit(u.pairExtensions.Present())
+	w.WriteBit(u.pairIEExtensions != nil)
 
 	if err := u.AMFUENGAPID.MarshalPER(w, enc); err != nil {
 		return err
 	}
 
-	return u.RANUENGAPID.MarshalPER(w, enc)
+	if err := u.RANUENGAPID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+
+	if u.pairIEExtensions != nil {
+		if err := u.pairIEExtensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+
+	return u.pairExtensions.MarshalPER(w, enc)
 }
 
 func (u *UENGAPIDs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
@@ -79,11 +92,24 @@ func (u *UENGAPIDs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 			return err
 		}
 
-		if err := skipSequenceExtensionsPER(r, enc, extContainer, extBit); err != nil {
-			return err
+		var ieExt *rawIEExtensions
+
+		if extContainer {
+			ieExt = &rawIEExtensions{}
+			if err := ieExt.UnmarshalPER(r, enc); err != nil {
+				return err
+			}
 		}
 
-		*u = UENGAPIDs{AMFUENGAPID: amf, RANUENGAPID: ran, Pair: true}
+		var ext per.ExtensionAdditions
+
+		if extBit {
+			if err := ext.UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+		}
+
+		*u = UENGAPIDs{AMFUENGAPID: amf, RANUENGAPID: ran, Pair: true, pairIEExtensions: ieExt, pairExtensions: ext}
 
 		return nil
 	case ueNGAPIDsChoiceExtensions:
