@@ -168,4 +168,6 @@ const (
 	IDTargettoSourceFailureTransparentContainer   ProtocolIEID = 262
 	IDNotifySourceNGRANNode                       ProtocolIEID = 269
 	IDPartiallyAllowedNSSAI                       ProtocolIEID = 414
+	IDGUAMIList                                   ProtocolIEID = 451
+	IDGWContextReleaseIndication                  ProtocolIEID = 452
 )

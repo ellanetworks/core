@@ -11,6 +11,7 @@ type UEContextModificationRequest struct {
 	AMFUENGAPID               AMFUENGAPID
 	RANUENGAPID               RANUENGAPID
 	UEAggregateMaximumBitRate *UEAggregateMaximumBitRate
+	NewAMFUENGAPID            *AMFUENGAPID
 
 	messageMeta
 }
@@ -49,6 +50,27 @@ var uEContextModificationRequestIEs = []ieSpec[UEContextModificationRequest]{
 			}
 
 			return m.UEAggregateMaximumBitRate, true
+		},
+	},
+	{
+		id: IDNewAMFUENGAPID, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *UEContextModificationRequest, raw []byte, enc per.Encoding) error {
+			var v AMFUENGAPID
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.NewAMFUENGAPID = &v
+
+			return nil
+		},
+		encode: func(m *UEContextModificationRequest) (per.Marshaler, bool) {
+			if m.NewAMFUENGAPID == nil {
+				return nil, false
+			}
+
+			return m.NewAMFUENGAPID, true
 		},
 	},
 }

@@ -181,6 +181,10 @@ func buildInitialContextSetupRequest(value []byte) NGAPMessageValue {
 		ie(ngap.IDSecurityKey, ngap.CriticalityReject, hex.EncodeToString(m.SecurityKey[:])),
 	)
 
+	if m.TraceActivation != nil {
+		ies = append(ies, ie(ngap.IDTraceActivation, ngap.CriticalityIgnore, traceActivation(*m.TraceActivation)))
+	}
+
 	if m.NASPDU != nil {
 		ies = append(ies, ie(ngap.IDNASPDU, ngap.CriticalityIgnore, libNASPDU(*m.NASPDU)))
 	}

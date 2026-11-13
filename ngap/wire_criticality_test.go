@@ -143,6 +143,19 @@ func TestWireCriticality(t *testing.T) {
 			},
 		},
 		{
+			"InitialContextSetupRequest §9.2.2.1 Trace Activation",
+			goldInitialContextSetupRequestTraceActivation().encodeBody,
+			[]wireIE{
+				{IDAMFUENGAPID, CriticalityReject},
+				{IDRANUENGAPID, CriticalityReject},
+				{IDGUAMI, CriticalityReject},
+				{IDAllowedNSSAI, CriticalityReject},
+				{IDUESecurityCapabilities, CriticalityReject},
+				{IDSecurityKey, CriticalityReject},
+				{IDTraceActivation, CriticalityIgnore},
+			},
+		},
+		{
 			"InitialContextSetupResponse §9.2.2.2",
 			(&InitialContextSetupResponse{
 				AMFUENGAPID:              Ptr(AMFUENGAPID(1)),
@@ -166,6 +179,16 @@ func TestWireCriticality(t *testing.T) {
 				{IDAMFUENGAPID, CriticalityReject},
 				{IDRANUENGAPID, CriticalityReject},
 				{IDUEAggregateMaximumBitRate, CriticalityIgnore},
+			},
+		},
+		{
+			"UEContextModificationRequest §9.2.2.7 New AMF UE NGAP ID",
+			goldUEContextModificationRequestNewAMFUENGAPID().encodeBody,
+			[]wireIE{
+				{IDAMFUENGAPID, CriticalityReject},
+				{IDRANUENGAPID, CriticalityReject},
+				{IDUEAggregateMaximumBitRate, CriticalityIgnore},
+				{IDNewAMFUENGAPID, CriticalityReject},
 			},
 		},
 		{
@@ -376,6 +399,31 @@ func TestWireCriticality(t *testing.T) {
 				{IDRANUENGAPID, CriticalityReject},
 				{IDPDUSessionResourceListCxtRelReq, CriticalityReject},
 				{IDCause, CriticalityIgnore},
+			},
+		},
+		{
+			"UEContextReleaseRequest §9.2.2.4 GW Context Release Indication",
+			(&UEContextReleaseRequest{
+				AMFUENGAPID:                1,
+				RANUENGAPID:                2,
+				Cause:                      Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUserInactivity}),
+				GWContextReleaseIndication: Ptr(GWContextReleaseIndicationTrue),
+			}).encodeBody,
+			[]wireIE{
+				{IDAMFUENGAPID, CriticalityReject},
+				{IDRANUENGAPID, CriticalityReject},
+				{IDCause, CriticalityIgnore},
+				{IDGWContextReleaseIndication, CriticalityReject},
+			},
+		},
+		{
+			"AMFConfigurationUpdate §9.2.6.7 PLMN Support List",
+			goldAMFConfigurationUpdatePLMNSupport().encodeBody,
+			[]wireIE{
+				{IDAMFName, CriticalityReject},
+				{IDServedGUAMIList, CriticalityReject},
+				{IDRelativeAMFCapacity, CriticalityIgnore},
+				{IDPLMNSupportList, CriticalityReject},
 			},
 		},
 		{

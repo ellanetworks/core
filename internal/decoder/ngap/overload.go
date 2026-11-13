@@ -47,6 +47,15 @@ func overloadStartNSSAIList(list ngap.OverloadStartNSSAIList) []OverloadStartNSS
 	return out
 }
 
+func guamiList(list ngap.GUAMIList) []Guami {
+	out := make([]Guami, 0, len(list))
+	for _, item := range list {
+		out = append(out, guami(item.GUAMI))
+	}
+
+	return out
+}
+
 func buildOverloadStart(value []byte) NGAPMessageValue {
 	m, err := ngap.ParseOverloadStart(value)
 	if err != nil {
@@ -67,6 +76,10 @@ func buildOverloadStart(value []byte) NGAPMessageValue {
 		ies = append(ies, ie(ngap.IDOverloadStartNSSAIList, ngap.CriticalityIgnore, overloadStartNSSAIList(m.OverloadStartNSSAIList)))
 	}
 
+	if len(m.GUAMIList) > 0 {
+		ies = append(ies, ie(ngap.IDGUAMIList, ngap.CriticalityIgnore, guamiList(m.GUAMIList)))
+	}
+
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }
 
@@ -76,5 +89,11 @@ func buildOverloadStop(value []byte) NGAPMessageValue {
 		return NGAPMessageValue{Error: fmt.Sprintf("parse Overload Stop: %v", err)}
 	}
 
-	return NGAPMessageValue{IEs: unmodeledIEs(m.UnknownIEs())}
+	var ies []IE
+
+	if len(m.GUAMIList) > 0 {
+		ies = append(ies, ie(ngap.IDGUAMIList, ngap.CriticalityIgnore, guamiList(m.GUAMIList)))
+	}
+
+	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }

@@ -176,6 +176,8 @@ var protocolIENames = map[ProtocolIEID]string{
 	IDTargettoSourceFailureTransparentContainer:   "TargettoSource-Failure-TransparentContainer",
 	IDNotifySourceNGRANNode:                       "NotifySourceNGRANNode",
 	IDPartiallyAllowedNSSAI:                       "Partially-Allowed-NSSAI",
+	IDGUAMIList:                                   "GUAMIList",
+	IDGWContextReleaseIndication:                  "GW-Context-Release-Indication",
 }
 
 // ProtocolIEIDName returns the TS 38.413 name of id, and whether it is known.

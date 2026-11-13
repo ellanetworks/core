@@ -11,6 +11,7 @@ type AMFConfigurationUpdate struct {
 	AMFName             *string
 	ServedGUAMIList     ServedGUAMIList
 	RelativeAMFCapacity *uint8
+	PLMNSupportList     PLMNSupportList
 
 	messageMeta
 }
@@ -72,6 +73,19 @@ var aMFConfigurationUpdateIEs = []ieSpec[AMFConfigurationUpdate]{
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
 				return per.EncodeInteger(w, enc, relativeAMFCapacityBounds, int64(*m.RelativeAMFCapacity))
 			}), true
+		},
+	},
+	{
+		id: IDPLMNSupportList, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *AMFConfigurationUpdate, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.PLMNSupportList)
+		},
+		encode: func(m *AMFConfigurationUpdate) (per.Marshaler, bool) {
+			if len(m.PLMNSupportList) == 0 {
+				return nil, false
+			}
+
+			return m.PLMNSupportList, true
 		},
 	},
 }

@@ -77,7 +77,9 @@ const (
 	CauseProtocolTransferSyntaxError                = 0 // transfer-syntax-error
 	CauseProtocolAbstractSyntaxErrorReject          = 1 // abstract-syntax-error-reject
 	CauseProtocolAbstractSyntaxErrorIgnoreAndNotify = 2 // abstract-syntax-error-ignore-and-notify
+	CauseProtocolMessageNotCompatible               = 3
 	CauseProtocolSemanticError                      = 4 // semantic-error
+	CauseProtocolUnspecified                        = 6
 
 	// abstract-syntax-error-falsely-constructed-message
 	CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage = 5

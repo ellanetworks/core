@@ -82,6 +82,7 @@ type InitialContextSetupRequest struct {
 	AllowedNSSAI               AllowedNSSAI
 	UESecurityCapabilities     UESecurityCapabilities
 	SecurityKey                SecurityKey
+	TraceActivation            *TraceActivation
 	UERadioCapability          UERadioCapability
 	NASPDU                     *NASPDU
 	UERadioCapabilityForPaging *UERadioCapabilityForPaging
@@ -174,6 +175,27 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 			return perIEDecode(raw, &m.SecurityKey)
 		},
 		encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) { return &m.SecurityKey, true },
+	},
+	{
+		id: IDTraceActivation, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
+			var v TraceActivation
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.TraceActivation = &v
+
+			return nil
+		},
+		encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) {
+			if m.TraceActivation == nil {
+				return nil, false
+			}
+
+			return m.TraceActivation, true
+		},
 	},
 	{
 		id: IDUERadioCapability, presence: presenceOptional, crit: CriticalityIgnore,

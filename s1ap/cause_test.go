@@ -70,3 +70,44 @@ func TestCauseEnumeratedValueContinuesPastTheRoot(t *testing.T) {
 		t.Fatalf("extension value = %d, want %d", got, causeGroupRootCount[CauseGroupRadioNetwork]+5)
 	}
 }
+
+func TestCauseProtocolConstantsMatchTS36413(t *testing.T) {
+	cases := []struct {
+		value int
+		name  string
+	}{
+		{CauseProtocolTransferSyntaxError, "transfer-syntax-error"},
+		{CauseProtocolAbstractSyntaxErrorReject, "abstract-syntax-error-reject"},
+		{CauseProtocolAbstractSyntaxErrorIgnoreAndNotify, "abstract-syntax-error-ignore-and-notify"},
+		{CauseProtocolMessageNotCompatible, "message-not-compatible-with-receiver-state"},
+		{CauseProtocolSemanticError, "semantic-error"},
+		{CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage, "abstract-syntax-error-falsely-constructed-message"},
+		{CauseProtocolUnspecified, "unspecified"},
+	}
+
+	if len(cases) != len(protocolRoot) {
+		t.Fatalf("%d named protocol causes, CauseProtocol has %d root values", len(cases), len(protocolRoot))
+	}
+
+	for i, c := range cases {
+		if c.value != i {
+			t.Errorf("%s = %d, want %d", c.name, c.value, i)
+		}
+
+		if got, _ := (Cause{Group: CauseGroupProtocol, Value: c.value}).ValueName(); got != c.name {
+			t.Errorf("value %d named %q, want %q", c.value, got, c.name)
+		}
+	}
+}
+
+func TestCauseMessageNotCompatibleVector(t *testing.T) {
+	w := per.NewWriter()
+
+	if err := (Cause{Group: CauseGroupProtocol, Value: CauseProtocolMessageNotCompatible}).MarshalPER(w, per.Aligned); err != nil {
+		t.Fatal(err)
+	}
+
+	if want := []byte{0x33}; !bytes.Equal(perBytes(w), want) {
+		t.Fatalf("cause = % x, want % x", perBytes(w), want)
+	}
+}

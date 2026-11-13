@@ -3,7 +3,10 @@
 
 package ngap
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestAMFConfigurationUpdateRoundTrips(t *testing.T) {
 	in := &AMFConfigurationUpdate{
@@ -120,5 +123,59 @@ func TestAMFConfigurationUpdateFailureRoundTrips(t *testing.T) {
 
 	if out.TimeToWait == nil || *out.TimeToWait != ttw {
 		t.Fatalf("TimeToWait mismatch: %+v", out.TimeToWait)
+	}
+}
+
+func goldAMFConfigurationUpdatePLMNSupport() *AMFConfigurationUpdate {
+	return &AMFConfigurationUpdate{
+		AMFName:             Ptr("ella-amf"),
+		ServedGUAMIList:     goldResponse().ServedGUAMIList,
+		RelativeAMFCapacity: Ptr(uint8(255)),
+		PLMNSupportList: PLMNSupportList{
+			{
+				PLMNIdentity:     goldPLMN(),
+				SliceSupportList: SliceSupportList{{SNSSAI: SNSSAI{SST: 1, SD: &SD{0x01, 0x02, 0x03}}}},
+			},
+			{
+				PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10},
+				SliceSupportList: SliceSupportList{
+					{SNSSAI: SNSSAI{SST: 1}},
+					{SNSSAI: SNSSAI{SST: 2, SD: &SD{0xff, 0xff, 0xfe}}},
+				},
+			},
+		},
+	}
+}
+
+func amfConfigurationUpdateGoldenCases() []goldenRoundTrip {
+	return []goldenRoundTrip{
+		{
+			"AMFConfigurationUpdatePLMNSupportList",
+			goldAMFConfigurationUpdatePLMNSupport(),
+			func(v []byte) (any, error) { return ParseAMFConfigurationUpdate(v) },
+			"0000003e0000040001000a0380656c6c612d616d6600600008000002f83902004300564001ff005000181002f839000010080102030000f110000100088080fffffe",
+		},
+		{
+			"AMFConfigurationUpdatePLMNSupportListOnly",
+			&AMFConfigurationUpdate{PLMNSupportList: goldAMFConfigurationUpdatePLMNSupport().PLMNSupportList[:1]},
+			func(v []byte) (any, error) { return ParseAMFConfigurationUpdate(v) },
+			"000000120000010050000b0002f83900001008010203",
+		},
+	}
+}
+
+func TestAMFConfigurationUpdatePLMNSupportListGolden(t *testing.T) {
+	for _, c := range amfConfigurationUpdateGoldenCases() {
+		t.Run(c.name, func(t *testing.T) { checkGoldenRoundTrip(t, c) })
+	}
+}
+
+func TestAMFConfigurationUpdateUnsetPLMNSupportListLeavesEncodingUnchanged(t *testing.T) {
+	m := goldAMFConfigurationUpdatePLMNSupport()
+	m.PLMNSupportList = nil
+
+	got := mustMarshalHex(t, m)
+	if strings.Contains(got, "0050000b") {
+		t.Fatalf("PLMN Support List encoded while unset: %s", got)
 	}
 }

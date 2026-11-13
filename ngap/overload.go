@@ -120,10 +120,36 @@ func (l *OverloadStartNSSAIList) UnmarshalPER(r *per.Reader, enc per.Encoding) e
 	return nil
 }
 
+const maxnoofGUAMIs = 1024
+
+type GUAMIListItem struct {
+	_     [0]struct{} `per:"extseq"`
+	GUAMI GUAMI
+	_     ieExtensions `per:",skip"`
+}
+
+type GUAMIList []GUAMIListItem
+
+func (l GUAMIList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofGUAMIs, []GUAMIListItem(l))
+}
+
+func (l *GUAMIList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[GUAMIListItem](r, enc, 1, maxnoofGUAMIs)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
 type OverloadStart struct {
 	AMFOverloadResponse               *OverloadResponse
 	AMFTrafficLoadReductionIndication *TrafficLoadReductionIndication
 	OverloadStartNSSAIList            OverloadStartNSSAIList
+	GUAMIList                         GUAMIList
 
 	messageMeta
 }
@@ -184,6 +210,19 @@ var overloadStartIEs = []ieSpec[OverloadStart]{
 			return m.OverloadStartNSSAIList, true
 		},
 	},
+	{
+		id: IDGUAMIList, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *OverloadStart, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.GUAMIList)
+		},
+		encode: func(m *OverloadStart) (per.Marshaler, bool) {
+			if len(m.GUAMIList) == 0 {
+				return nil, false
+			}
+
+			return m.GUAMIList, true
+		},
+	},
 }
 
 func (m *OverloadStart) encodeBody(w *per.Writer, enc per.Encoding) error {
@@ -211,10 +250,26 @@ func ParseOverloadStart(value []byte) (*OverloadStart, error) {
 }
 
 type OverloadStop struct {
+	GUAMIList GUAMIList
+
 	messageMeta
 }
 
-var overloadStopIEs = []ieSpec[OverloadStop]{}
+var overloadStopIEs = []ieSpec[OverloadStop]{
+	{
+		id: IDGUAMIList, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *OverloadStop, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.GUAMIList)
+		},
+		encode: func(m *OverloadStop) (per.Marshaler, bool) {
+			if len(m.GUAMIList) == 0 {
+				return nil, false
+			}
+
+			return m.GUAMIList, true
+		},
+	},
+}
 
 func (m *OverloadStop) encodeBody(w *per.Writer, enc per.Encoding) error {
 	return encodeMessageBody(w, enc, ProcOverloadStop, overloadStopIEs, m)

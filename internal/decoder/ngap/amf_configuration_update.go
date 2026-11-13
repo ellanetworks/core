@@ -29,6 +29,10 @@ func buildAMFConfigurationUpdate(value []byte) NGAPMessageValue {
 		ies = append(ies, ie(ngap.IDRelativeAMFCapacity, ngap.CriticalityIgnore, *m.RelativeAMFCapacity))
 	}
 
+	if len(m.PLMNSupportList) > 0 {
+		ies = append(ies, ie(ngap.IDPLMNSupportList, ngap.CriticalityReject, buildPLMNSupportList(m.PLMNSupportList)))
+	}
+
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }
 

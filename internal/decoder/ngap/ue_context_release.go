@@ -65,6 +65,10 @@ func buildUEContextReleaseRequest(value []byte) NGAPMessageValue {
 		ies = append(ies, ie(ngap.IDCause, ngap.CriticalityIgnore, cause(*m.Cause)))
 	}
 
+	if m.GWContextReleaseIndication != nil {
+		ies = append(ies, ie(ngap.IDGWContextReleaseIndication, ngap.CriticalityReject, true))
+	}
+
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }
 

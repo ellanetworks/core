@@ -169,3 +169,33 @@ func TestUEContextModificationRoundTrips(t *testing.T) {
 		}
 	})
 }
+
+func goldUEContextModificationRequestNewAMFUENGAPID() *UEContextModificationRequest {
+	m := goldUEContextModificationRequest()
+	m.NewAMFUENGAPID = Ptr(AMFUENGAPID(0xffffffffff))
+
+	return m
+}
+
+func uEContextModificationRequestGoldenCases() []goldenRoundTrip {
+	return []goldenRoundTrip{
+		{
+			"UEContextModificationRequestNewAMFUENGAPID",
+			goldUEContextModificationRequestNewAMFUENGAPID(),
+			func(v []byte) (any, error) { return ParseUEContextModificationRequest(v) },
+			"00280027000004000a00020001005500020002006e400a0c0bebc2003005f5e1000028000680ffffffffff",
+		},
+		{
+			"UEContextModificationRequestNewAMFUENGAPIDOnly",
+			&UEContextModificationRequest{AMFUENGAPID: 1, RANUENGAPID: 2, NewAMFUENGAPID: Ptr(AMFUENGAPID(3))},
+			func(v []byte) (any, error) { return ParseUEContextModificationRequest(v) },
+			"00280015000003000a00020001005500020002002800020003",
+		},
+	}
+}
+
+func TestUEContextModificationRequestNewAMFUENGAPIDGolden(t *testing.T) {
+	for _, c := range uEContextModificationRequestGoldenCases() {
+		t.Run(c.name, func(t *testing.T) { checkGoldenRoundTrip(t, c) })
+	}
+}

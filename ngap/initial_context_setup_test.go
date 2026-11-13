@@ -277,3 +277,34 @@ func TestInitialContextSetupRequestMissingRejectIE(t *testing.T) {
 		}
 	}
 }
+
+func goldInitialContextSetupRequestTraceActivation() *InitialContextSetupRequest {
+	ta := goldenTraceActivation()
+
+	return &InitialContextSetupRequest{
+		AMFUENGAPID:            1,
+		RANUENGAPID:            2,
+		GUAMI:                  goldContextGUAMI(),
+		AllowedNSSAI:           AllowedNSSAI{{SNSSAI: SNSSAI{SST: 1, SD: &SD{0x01, 0x02, 0x03}}}},
+		UESecurityCapabilities: goldUESecurityCapabilities(),
+		SecurityKey:            goldSecurityKey(),
+		TraceActivation:        &ta,
+	}
+}
+
+func initialContextSetupRequestGoldenCases() []goldenRoundTrip {
+	return []goldenRoundTrip{
+		{
+			"InitialContextSetupRequestTraceActivation",
+			goldInitialContextSetupRequestTraceActivation(),
+			func(v []byte) (any, error) { return ParseInitialContextSetupRequest(v) },
+			"000e0068000007000a00020001005500020002001c00070000f11001004000000005020101020300770009100004000100004000005e0020000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f006c40100002f8390a0b0c1234f800f80a000001",
+		},
+	}
+}
+
+func TestInitialContextSetupRequestTraceActivationGolden(t *testing.T) {
+	for _, c := range initialContextSetupRequestGoldenCases() {
+		t.Run(c.name, func(t *testing.T) { checkGoldenRoundTrip(t, c) })
+	}
+}

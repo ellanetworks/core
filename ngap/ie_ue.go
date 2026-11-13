@@ -118,6 +118,29 @@ func (u *UEContextRequest) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
+type GWContextReleaseIndication uint8
+
+const (
+	GWContextReleaseIndicationTrue GWContextReleaseIndication = iota
+
+	gwContextReleaseIndicationRootCount = 1
+)
+
+func (g GWContextReleaseIndication) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return encodeRootEnumerated(w, enc, gwContextReleaseIndicationRootCount, int64(g), "GWContextReleaseIndication")
+}
+
+func (g *GWContextReleaseIndication) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	idx, err := decodeRootEnumerated(r, enc, gwContextReleaseIndicationRootCount, "GWContextReleaseIndication")
+	if err != nil {
+		return err
+	}
+
+	*g = GWContextReleaseIndication(idx)
+
+	return nil
+}
+
 // Cell identity widths of the two 3GPP-access CGIs (TS 38.413 §9.3.1.7,
 // §9.3.1.9). S1AP has one, 28 bits wide.
 const (

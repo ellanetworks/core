@@ -6,10 +6,59 @@ package ngap
 import (
 	"encoding/hex"
 	"os/exec"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
 )
+
+type goldenRoundTrip struct {
+	name   string
+	msg    interface{ Marshal() ([]byte, error) }
+	parse  func([]byte) (any, error)
+	golden string
+}
+
+func checkGoldenRoundTrip(t *testing.T, c goldenRoundTrip) {
+	t.Helper()
+
+	if got := mustMarshalHex(t, c.msg); got != c.golden {
+		t.Fatalf("encoded\n got %s\nwant %s", got, c.golden)
+	}
+
+	pdu, err := Unmarshal(mustHex(t, c.golden))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := c.parse(pdu.value())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(out, c.msg) {
+		t.Fatalf("decoded\n got %+v\nwant %+v", out, c.msg)
+	}
+
+	m, ok := out.(interface{ Marshal() ([]byte, error) })
+	if !ok {
+		t.Fatalf("%T cannot be re-encoded", out)
+	}
+
+	if got := mustMarshalHex(t, m); got != c.golden {
+		t.Fatalf("re-encoded\n got %s\nwant %s", got, c.golden)
+	}
+}
+
+func ieAdditionGoldenCases() []goldenRoundTrip {
+	var out []goldenRoundTrip
+
+	out = append(out, amfConfigurationUpdateGoldenCases()...)
+	out = append(out, initialContextSetupRequestGoldenCases()...)
+	out = append(out, uEContextModificationRequestGoldenCases()...)
+
+	return append(out, uEContextReleaseRequestGoldenCases()...)
+}
 
 type tsharkVector struct {
 	name             string
@@ -27,6 +76,10 @@ func goldenTsharkVectors(t *testing.T) []tsharkVector {
 		mustNil(t, err)
 
 		out = append(out, tsharkVector{name: c.name, b: b})
+	}
+
+	for _, c := range ieAdditionGoldenCases() {
+		out = append(out, tsharkVector{name: c.name, b: mustHex(t, c.golden)})
 	}
 
 	return append(out,

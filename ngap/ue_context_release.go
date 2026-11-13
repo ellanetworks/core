@@ -357,10 +357,11 @@ func ParseUEContextReleaseComplete(value []byte) (*UEContextReleaseComplete, err
 
 // TS 38.413 §9.2.2.4.
 type UEContextReleaseRequest struct {
-	AMFUENGAPID            AMFUENGAPID
-	RANUENGAPID            RANUENGAPID
-	PDUSessionResourceList PDUSessionResourceListCxtRelReq
-	Cause                  *Cause
+	AMFUENGAPID                AMFUENGAPID
+	RANUENGAPID                RANUENGAPID
+	PDUSessionResourceList     PDUSessionResourceListCxtRelReq
+	Cause                      *Cause
+	GWContextReleaseIndication *GWContextReleaseIndication
 
 	messageMeta
 }
@@ -412,6 +413,27 @@ var uEContextReleaseRequestIEs = []ieSpec[UEContextReleaseRequest]{
 			}
 
 			return m.Cause, true
+		},
+	},
+	{
+		id: IDGWContextReleaseIndication, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *UEContextReleaseRequest, raw []byte, enc per.Encoding) error {
+			var v GWContextReleaseIndication
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.GWContextReleaseIndication = &v
+
+			return nil
+		},
+		encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) {
+			if m.GWContextReleaseIndication == nil {
+				return nil, false
+			}
+
+			return m.GWContextReleaseIndication, true
 		},
 	},
 }

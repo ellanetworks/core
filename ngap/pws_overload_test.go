@@ -43,6 +43,24 @@ func goldOverloadStart() *OverloadStart {
 	}
 }
 
+func goldGUAMIList() GUAMIList {
+	return GUAMIList{
+		{GUAMI: GUAMI{PLMNIdentity: pwsPLMN(), AMFRegionID: 0xca, AMFSetID: 0x3f8, AMFPointer: 0x01}},
+		{GUAMI: GUAMI{PLMNIdentity: PLMNIdentity{0x02, 0xf8, 0x39}, AMFRegionID: 0x01, AMFSetID: 0x001, AMFPointer: 0x3f}},
+	}
+}
+
+func goldOverloadStartGUAMIList() *OverloadStart {
+	m := goldOverloadStart()
+	m.GUAMIList = goldGUAMIList()
+
+	return m
+}
+
+func goldOverloadStopGUAMIList() *OverloadStop {
+	return &OverloadStop{GUAMIList: goldGUAMIList()}
+}
+
 func goldWriteReplaceWarningRequest() *WriteReplaceWarningRequest {
 	return &WriteReplaceWarningRequest{
 		MessageIdentifier:           0x1112,
@@ -131,6 +149,8 @@ func pwsCases() []pwsCase {
 	return []pwsCase{
 		{"OverloadStart", goldOverloadStart().Marshal, func(v []byte) (any, error) { return ParseOverloadStart(v) }, goldOverloadStart(), "0016401d000003000200011000094001620031400c000060000010080000012260"},
 		{"OverloadStop", (&OverloadStop{}).Marshal, func(v []byte) (any, error) { return ParseOverloadStop(v) }, &OverloadStop{}, "00170003000000"},
+		{"OverloadStartGUAMIList", goldOverloadStartGUAMIList().Marshal, func(v []byte) (any, error) { return ParseOverloadStart(v) }, goldOverloadStartGUAMIList(), "00164031000004000200011000094001620031400c00006000001008000001226001c3401000010000f110cafe010002f83901007f"},
+		{"OverloadStopGUAMIList", goldOverloadStopGUAMIList().Marshal, func(v []byte) (any, error) { return ParseOverloadStop(v) }, goldOverloadStopGUAMIList(), "0017001700000101c3401000010000f110cafe010002f83901007f"},
 		{"WriteReplaceWarningRequest", goldWriteReplaceWarningRequest().Marshal, func(v []byte) (any, error) { return ParseWriteReplaceWarningRequest(v) }, goldWriteReplaceWarningRequest(), "003300809d00000a002300021112005f00023456007a400c2000000000f110123456789000570002000a002f00020001007d40020580001440010f007b4056005301d4f29c0e000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000040011000100008d40040001aabb"},
 		{"WriteReplaceWarningResponse", goldWriteReplaceWarningResponse().Marshal, func(v []byte) (any, error) { return ParseWriteReplaceWarningResponse(v) }, goldWriteReplaceWarningResponse(), "20330028000003002300021112005f00023456000d40158000000000f11000000100000000f1101234567890"},
 		{"PWSCancelRequest", goldPWSCancelRequest().Marshal, func(v []byte) (any, error) { return ParsePWSCancelRequest(v) }, goldPWSCancelRequest(), "00200022000004002300021112005f00023456007a400a4000000000f110000001000e000100"},
@@ -186,7 +206,16 @@ func TestPWSOverloadWireCriticality(t *testing.T) {
 			{IDAMFTrafficLoadReductionIndication, CriticalityIgnore},
 			{IDOverloadStartNSSAIList, CriticalityIgnore},
 		}},
+		{"OverloadStart §9.2.6.14 GUAMI List", goldOverloadStartGUAMIList().encodeBody, []wireIE{
+			{IDAMFOverloadResponse, CriticalityReject},
+			{IDAMFTrafficLoadReductionIndication, CriticalityIgnore},
+			{IDOverloadStartNSSAIList, CriticalityIgnore},
+			{IDGUAMIList, CriticalityIgnore},
+		}},
 		{"OverloadStop §9.2.6.15", (&OverloadStop{}).encodeBody, nil},
+		{"OverloadStop §9.2.6.15 GUAMI List", goldOverloadStopGUAMIList().encodeBody, []wireIE{
+			{IDGUAMIList, CriticalityIgnore},
+		}},
 		{"WriteReplaceWarningRequest §9.2.8.1", func() func(*per.Writer, per.Encoding) error {
 			m := goldWriteReplaceWarningRequest()
 			m.WarningSecurityInfo = &WarningSecurityInfo{}
@@ -408,5 +437,15 @@ func TestTrafficLoadReductionIndicationRange(t *testing.T) {
 		if err := v.MarshalPER(per.NewWriter(), per.Aligned); err == nil {
 			t.Errorf("TrafficLoadReductionIndication %d encoded", v)
 		}
+	}
+}
+
+func TestOverloadStopGUAMIListBounds(t *testing.T) {
+	if _, err := (&OverloadStop{GUAMIList: make(GUAMIList, maxnoofGUAMIs+1)}).Marshal(); err == nil {
+		t.Fatal("encoded a GUAMI List longer than maxnoofGUAMIs")
+	}
+
+	if _, err := (&OverloadStop{GUAMIList: make(GUAMIList, maxnoofGUAMIs)}).Marshal(); err != nil {
+		t.Fatalf("maxnoofGUAMIs items: %v", err)
 	}
 }
