@@ -8,10 +8,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const UERegistrationsTableName = "ue_registrations"
@@ -30,6 +26,7 @@ const (
 	purgeUERegistrationsByNodeSQL    = "UPDATE " + UERegistrationsTableName + " SET purged=1, version=? WHERE nodeID==? AND purged==0"
 	getUERegistrationSQL             = "SELECT imsi, type, nodeID, purged, version FROM " + UERegistrationsTableName + " WHERE imsi==? AND type==?"
 	listAllUERegistrationsSQL        = "SELECT imsi, type, nodeID, purged, version FROM " + UERegistrationsTableName + " ORDER BY imsi ASC"
+	listActiveUERegistrationsSQL     = "SELECT imsi, type, nodeID, purged, version FROM " + UERegistrationsTableName + " WHERE purged==0 AND imsi IN (SELECT value FROM json_each(?)) ORDER BY imsi ASC"
 	maxUERegistrationVersionSQL      = "SELECT COALESCE(MAX(version), 0) FROM " + UERegistrationsTableName
 	resetUERegistrationsSQL          = "UPDATE %s SET purged=0, version=0"
 	ueRegistrationsTableExistsSQLFmt = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='%s'"
@@ -81,18 +78,13 @@ func validateRegisterUE(regType, nodeID, cancel string) error {
 	return nil
 }
 
-func (db *Database) RegisterUE(ctx context.Context, imsi, regType, nodeID, cancel string) (int64, error) {
+func (db *Database) RegisterUE(ctx context.Context, imsi, regType, nodeID, cancel string) (_ int64, err error) {
 	if err := validateRegisterUE(regType, nodeID, cancel); err != nil {
 		return 0, err
 	}
 
-	ctx, span := startUERegistrationsSpan(ctx, "UPSERT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(UERegistrationsTableName, "upsert"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(UERegistrationsTableName, "upsert").Inc()
+	ctx, finish := startDBQuery(ctx, UERegistrationsTableName, "UPSERT")
+	defer func() { finish(err) }()
 
 	version, err := opRegisterUE.Invoke(ctx, db, &registerUEPayload{
 		Imsi:   imsi,
@@ -101,49 +93,35 @@ func (db *Database) RegisterUE(ctx context.Context, imsi, regType, nodeID, cance
 		Cancel: cancel,
 	})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, err
 	}
 
 	return version, nil
 }
 
-func (db *Database) PurgeUERegistration(ctx context.Context, imsi, regType, nodeID string) error {
+func (db *Database) PurgeUERegistration(ctx context.Context, imsi, regType, nodeID string) (err error) {
 	if !IsValidUERegistrationType(regType) {
 		return fmt.Errorf("invalid UE registration type %q", regType)
 	}
 
-	ctx, span := startUERegistrationsSpan(ctx, "UPDATE")
-	defer span.End()
+	ctx, finish := startDBQuery(ctx, UERegistrationsTableName, "UPDATE")
+	defer func() { finish(err) }()
 
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(UERegistrationsTableName, "update"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(UERegistrationsTableName, "update").Inc()
-
-	_, err := opPurgeUERegistration.Invoke(ctx, db, &purgeUERegistrationPayload{
+	_, err = opPurgeUERegistration.Invoke(ctx, db, &purgeUERegistrationPayload{
 		Imsi:   imsi,
 		Type:   regType,
 		NodeID: nodeID,
 	})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) GetUERegistration(ctx context.Context, imsi, regType string) (*UERegistration, error) {
-	ctx, span := startUERegistrationsSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(UERegistrationsTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(UERegistrationsTableName, "select").Inc()
+func (db *Database) GetUERegistration(ctx context.Context, imsi, regType string) (_ *UERegistration, err error) {
+	ctx, finish := startDBQuery(ctx, UERegistrationsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	row, err := scanUERegistration(db.reader().QueryRowContext(ctx, getUERegistrationSQL, imsi, regType))
 	if err != nil {
@@ -151,22 +129,15 @@ func (db *Database) GetUERegistration(ctx context.Context, imsi, regType string)
 			return nil, ErrNotFound
 		}
 
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return &row, nil
 }
 
-func (db *Database) ListAllUERegistrations(ctx context.Context) ([]UERegistration, error) {
-	ctx, span := startUERegistrationsSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(UERegistrationsTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(UERegistrationsTableName, "select").Inc()
+func (db *Database) ListAllUERegistrations(ctx context.Context) (_ []UERegistration, err error) {
+	ctx, finish := startDBQuery(ctx, UERegistrationsTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, ueRegistrationsSchema) {
 		return nil, nil
@@ -174,28 +145,26 @@ func (db *Database) ListAllUERegistrations(ctx context.Context) ([]UERegistratio
 
 	regs, err := queryAll(ctx, db.reader(), listAllUERegistrationsSQL, scanUERegistration)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return regs, nil
 }
 
-func startUERegistrationsSpan(ctx context.Context, operation string) (context.Context, trace.Span) {
-	querySummary := fmt.Sprintf("%s %s", operation, UERegistrationsTableName)
+func (db *Database) ListActiveUERegistrations(ctx context.Context, imsis []string) (_ []UERegistration, err error) {
+	ctx, finish := startDBQuery(ctx, UERegistrationsTableName, "SELECT")
+	defer func() { finish(err) }()
 
-	return tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName(operation),
-			semconv.DBCollectionName(UERegistrationsTableName),
-		),
-	)
+	if len(imsis) == 0 || !db.appliedSchemaAtLeast(ctx, ueRegistrationsSchema) {
+		return nil, nil
+	}
+
+	regs, err := queryAll(ctx, db.reader(), listActiveUERegistrationsSQL, scanUERegistration, jsonArray(imsis))
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	return regs, nil
 }
 
 func (db *Database) nextUERegistrationVersion(ctx context.Context) (int64, error) {

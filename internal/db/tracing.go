@@ -5,33 +5,48 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"slices"
 	"strconv"
+	"strings"
+	"time"
 
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	hraft "github.com/hashicorp/raft"
 	"github.com/mattn/go-sqlite3"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
-var spanErrorTypes = []struct {
+var errorTypes = []struct {
 	err  error
 	name string
 }{
 	{ErrNotFound, "not_found"},
+	{sql.ErrNoRows, "not_found"},
 	{ErrAlreadyExists, "already_exists"},
+	{ErrInUse, "in_use"},
+	{ErrMSISDNInUse, "msisdn_in_use"},
 	{ErrDataNetworkNotFound, "data_network_not_found"},
 	{ErrNoMatchingPolicy, "no_matching_policy"},
 	{ErrDNNNotInSlice, "dnn_not_in_slice"},
+	{ErrSubscriberLimit, "subscriber_limit"},
+	{ErrPSIConflict, "psi_conflict"},
+	{ErrIMSPeerConflict, "ims_peer_conflict"},
+	{ErrSMSCConflict, "smsc_conflict"},
+	{ErrRoamingConflict, "roaming_conflict"},
+	{ErrRoamingRefused, "roaming_refused"},
+	{ErrRoamerDeregistering, "roamer_deregistering"},
 	{ErrRestoreInProgress, "restore_in_progress"},
 	{ErrInvalidBackupFile, "invalid_backup_file"},
+	{ErrRestoreBackupAhead, "restore_backup_ahead"},
 	{ErrProposeTimeout, "propose_timeout"},
 	{ErrOutcomeUnknown, "outcome_unknown"},
 	{ErrMigrationPending, "migration_pending"},
+	{ErrSchemaNewerThanBinary, "schema_newer_than_binary"},
 	{ErrJoinTokenAlreadyConsumed, "join_token_already_consumed"},
 	{ErrJoinTokenNodeMismatch, "join_token_node_mismatch"},
 	{ErrNodeIdentityBound, "node_identity_bound"},
@@ -45,6 +60,33 @@ var spanErrorTypes = []struct {
 	{hraft.ErrLeadershipLost, "leadership_lost"},
 	{context.DeadlineExceeded, "timeout"},
 	{context.Canceled, "canceled"},
+}
+
+var outcomes = []error{
+	ErrNotFound, sql.ErrNoRows, ErrAlreadyExists, ErrInUse, ErrMSISDNInUse, ErrDataNetworkNotFound,
+	ErrNoMatchingPolicy, ErrDNNNotInSlice, ErrSubscriberLimit, ErrPSIConflict, ErrIMSPeerConflict,
+	ErrSMSCConflict, ErrRoamingConflict, ErrRoamingRefused, ErrRoamerDeregistering, ErrInvalidBackupFile,
+	ErrRestoreBackupAhead, ErrJoinTokenAlreadyConsumed, ErrJoinTokenNodeMismatch, ErrNodeIdentityBound,
+	ErrJoinTokenExpired, context.Canceled,
+}
+
+func failed(err error) bool {
+	return err != nil && !slices.ContainsFunc(outcomes, func(o error) bool { return errors.Is(err, o) })
+}
+
+func errorType(err error) string {
+	var se sqlite3.Error
+	if errors.As(err, &se) {
+		return strconv.Itoa(int(se.ExtendedCode))
+	}
+
+	for _, t := range errorTypes {
+		if errors.Is(err, t.err) {
+			return t.name
+		}
+	}
+
+	return "_OTHER"
 }
 
 func recordSpanError(span trace.Span, err error) {
@@ -61,30 +103,21 @@ func endSpan(span trace.Span, err error) {
 }
 
 func spanErrorAttributes(err error) []attribute.KeyValue {
+	attrs := []attribute.KeyValue{semconv.ErrorTypeKey.String(errorType(err))}
+
 	var se sqlite3.Error
 	if errors.As(err, &se) {
-		code := strconv.Itoa(int(se.ExtendedCode))
-
-		return []attribute.KeyValue{
-			semconv.DBResponseStatusCode(code),
-			semconv.ErrorTypeKey.String(code),
-		}
+		attrs = append(attrs, semconv.DBResponseStatusCode(strconv.Itoa(int(se.ExtendedCode))))
 	}
 
-	for _, t := range spanErrorTypes {
-		if errors.Is(err, t.err) {
-			return []attribute.KeyValue{semconv.ErrorTypeKey.String(t.name)}
-		}
-	}
-
-	return []attribute.KeyValue{semconv.ErrorType(err)}
+	return attrs
 }
 
-func startDBQuery(ctx context.Context, table, operation, metric string, attrs ...attribute.KeyValue) (context.Context, trace.Span, *prometheus.Timer) {
-	return startDBQueryNamed(ctx, operation+" "+table, table, operation, metric, attrs...)
+func startDBQuery(ctx context.Context, table, operation string, attrs ...attribute.KeyValue) (context.Context, func(error)) {
+	return startDBQueryNamed(ctx, operation+" "+table, table, operation, attrs...)
 }
 
-func startDBQueryNamed(ctx context.Context, summary, table, operation, metric string, attrs ...attribute.KeyValue) (context.Context, trace.Span, *prometheus.Timer) {
+func startDBQueryNamed(ctx context.Context, summary, table, operation string, attrs ...attribute.KeyValue) (context.Context, func(error)) {
 	ctx, span := tracer.Start(
 		ctx,
 		summary,
@@ -92,12 +125,32 @@ func startDBQueryNamed(ctx context.Context, summary, table, operation, metric st
 		trace.WithAttributes(append([]attribute.KeyValue{
 			semconv.DBQuerySummary(summary),
 			semconv.DBSystemNameSQLite,
+			semconv.DBNamespace(dbNamespace),
 			semconv.DBOperationName(operation),
 			semconv.DBCollectionName(table),
 		}, attrs...)...),
 	)
 
-	DBQueriesTotal.WithLabelValues(table, metric).Inc()
+	start := time.Now()
+	label := operationLabel(operation)
 
-	return ctx, span, prometheus.NewTimer(DBQueryDuration.WithLabelValues(table, metric))
+	return ctx, func(err error) {
+		errType := ""
+
+		if failed(err) {
+			errType = errorType(err)
+			recordSpanError(span, err)
+		}
+
+		DBQueriesTotal.WithLabelValues(table, label, errType).Inc()
+		DBQueryDuration.WithLabelValues(table, label).Observe(time.Since(start).Seconds())
+
+		span.End()
+	}
+}
+
+const dbNamespace = "main"
+
+func operationLabel(operation string) string {
+	return strings.ReplaceAll(strings.ToLower(operation), " ", "_")
 }

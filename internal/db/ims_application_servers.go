@@ -15,9 +15,6 @@ import (
 	"github.com/ellanetworks/core/diameter/cx"
 	"github.com/ellanetworks/core/internal/hss/psi"
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -105,14 +102,9 @@ func (as IMSApplicationServer) canonical() (IMSApplicationServer, error) {
 	return as, nil
 }
 
-func (db *Database) ListIMSApplicationServers(ctx context.Context) ([]IMSApplicationServer, error) {
-	ctx, span := startIMSApplicationServersSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSApplicationServersTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSApplicationServersTableName, "select").Inc()
+func (db *Database) ListIMSApplicationServers(ctx context.Context) (_ []IMSApplicationServer, err error) {
+	ctx, finish := startDBQuery(ctx, IMSApplicationServersTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
 		return nil, nil
@@ -120,13 +112,11 @@ func (db *Database) ListIMSApplicationServers(ctx context.Context) ([]IMSApplica
 
 	rows, err := queryAll(ctx, db.reader(), listIMSApplicationServersSQL, scanIMSApplicationServerRow)
 	if err != nil {
-		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	psis, err := queryAll(ctx, db.reader(), listIMSPSIsSQL, scanIMSPSIRow)
 	if err != nil {
-		recordSpanError(span, err)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -147,14 +137,9 @@ func (db *Database) ListIMSApplicationServers(ctx context.Context) ([]IMSApplica
 	return servers, nil
 }
 
-func (db *Database) GetIMSApplicationServer(ctx context.Context, name string) (*IMSApplicationServer, error) {
-	ctx, span := startIMSApplicationServersSpan(ctx, "SELECT")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSApplicationServersTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSApplicationServersTableName, "select").Inc()
+func (db *Database) GetIMSApplicationServer(ctx context.Context, name string) (_ *IMSApplicationServer, err error) {
+	ctx, finish := startDBQuery(ctx, IMSApplicationServersTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
 		return nil, ErrNotFound
@@ -162,7 +147,6 @@ func (db *Database) GetIMSApplicationServer(ctx context.Context, name string) (*
 
 	as, err := db.getIMSApplicationServer(ctx, db.reader(), name)
 	if err != nil {
-		recordSpanError(span, err)
 		return nil, err
 	}
 
@@ -210,7 +194,7 @@ func (db *Database) UpdateIMSApplicationServer(ctx context.Context, as *IMSAppli
 	return db.writeIMSApplicationServer(ctx, "UPDATE", opUpdateIMSApplicationServer, as)
 }
 
-func (db *Database) writeIMSApplicationServer(ctx context.Context, operation string, op *ChangesetOp[IMSApplicationServer, struct{}], as *IMSApplicationServer) error {
+func (db *Database) writeIMSApplicationServer(ctx context.Context, operation string, op *ChangesetOp[IMSApplicationServer, struct{}], as *IMSApplicationServer) (err error) {
 	canonical, err := as.canonical()
 	if err != nil {
 		return err
@@ -218,33 +202,21 @@ func (db *Database) writeIMSApplicationServer(ctx context.Context, operation str
 
 	*as = canonical
 
-	ctx, span := startIMSApplicationServersSpan(ctx, operation)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSApplicationServersTableName, strings.ToLower(operation)))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSApplicationServersTableName, strings.ToLower(operation)).Inc()
+	ctx, finish := startDBQuery(ctx, IMSApplicationServersTableName, operation)
+	defer func() { finish(err) }()
 
 	if _, err := op.Invoke(ctx, db, as); err != nil {
-		recordSpanError(span, err)
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) DeleteIMSApplicationServer(ctx context.Context, name string) error {
-	ctx, span := startIMSApplicationServersSpan(ctx, "DELETE")
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IMSApplicationServersTableName, "delete"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IMSApplicationServersTableName, "delete").Inc()
+func (db *Database) DeleteIMSApplicationServer(ctx context.Context, name string) (err error) {
+	ctx, finish := startDBQuery(ctx, IMSApplicationServersTableName, "DELETE")
+	defer func() { finish(err) }()
 
 	if _, err := opDeleteIMSApplicationServer.Invoke(ctx, db, &stringPayload{Value: name}); err != nil {
-		recordSpanError(span, err)
 		return err
 	}
 
@@ -538,22 +510,6 @@ func (db *Database) applyDeleteIMSApplicationServer(ctx context.Context, p *stri
 	}
 
 	return nil, nil
-}
-
-func startIMSApplicationServersSpan(ctx context.Context, operation string) (context.Context, trace.Span) {
-	querySummary := fmt.Sprintf("%s %s", operation, IMSApplicationServersTableName)
-
-	return tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName(operation),
-			semconv.DBCollectionName(IMSApplicationServersTableName),
-		),
-	)
 }
 
 func scanIMSApplicationServerRow(row scanner) (imsApplicationServerRow, error) {

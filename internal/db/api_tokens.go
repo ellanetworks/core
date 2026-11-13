@@ -33,23 +33,18 @@ const (
 	countAPITokensSQL     = "SELECT COUNT(*) FROM " + APITokensTableName + " WHERE user_id==?"                                                       // #nosec: G101
 )
 
-func (db *Database) ListAPITokensPage(ctx context.Context, userID string, page int, perPage int) ([]APIToken, int, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+APITokensTableName+" (paged)", APITokensTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListAPITokensPage(ctx context.Context, userID string, page int, perPage int) (_ []APIToken, _ int, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+APITokensTableName+" (paged)", APITokensTableName, "SELECT", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
+	defer func() { finish(err) }()
 
 	tokens, count, err := queryPageWithTotal(ctx, db.reader(), listAPITokensPagedSQL, scanAPIToken, userID, perPage, (page-1)*perPage)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	if len(tokens) == 0 {
 		fallbackCount, err := db.CountAPITokens(ctx, userID)
 		if err != nil {
-			recordSpanError(span, err)
-
 			return nil, 0, fmt.Errorf("count failed: %w", err)
 		}
 
@@ -60,36 +55,30 @@ func (db *Database) ListAPITokensPage(ctx context.Context, userID string, page i
 }
 
 // CreateAPIToken inserts a new api token with a span named "INSERT api_token".
-func (db *Database) CreateAPIToken(ctx context.Context, apiToken *APIToken) error {
-	ctx, span, timer := startDBQuery(ctx, APITokensTableName, "INSERT", "insert")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CreateAPIToken(ctx context.Context, apiToken *APIToken) (err error) {
+	ctx, finish := startDBQuery(ctx, APITokensTableName, "INSERT")
+	defer func() { finish(err) }()
 
 	if apiToken.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
-			recordSpanError(span, err)
-
 			return fmt.Errorf("generate api token id: %w", err)
 		}
 
 		apiToken.ID = id.String()
 	}
 
-	_, err := opCreateAPIToken.Invoke(ctx, db, apiToken)
+	_, err = opCreateAPIToken.Invoke(ctx, db, apiToken)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) GetAPITokenByTokenID(ctx context.Context, tokenID string) (*APIToken, error) {
-	ctx, span, timer := startDBQuery(ctx, APITokensTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetAPITokenByTokenID(ctx context.Context, tokenID string) (_ *APIToken, err error) {
+	ctx, finish := startDBQuery(ctx, APITokensTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	row, err := scanAPIToken(db.reader().QueryRowContext(ctx, getByTokenIDSQL, tokenID))
 	if err != nil {
@@ -97,38 +86,30 @@ func (db *Database) GetAPITokenByTokenID(ctx context.Context, tokenID string) (*
 			return nil, ErrNotFound
 		}
 
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return &row, nil
 }
 
-func (db *Database) DeleteAPIToken(ctx context.Context, id string) error {
-	ctx, span, timer := startDBQuery(ctx, APITokensTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteAPIToken(ctx context.Context, id string) (err error) {
+	ctx, finish := startDBQuery(ctx, APITokensTableName, "DELETE")
+	defer func() { finish(err) }()
 
-	_, err := opDeleteAPIToken.Invoke(ctx, db, &stringPayload{Value: id})
+	_, err = opDeleteAPIToken.Invoke(ctx, db, &stringPayload{Value: id})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) CountAPITokens(ctx context.Context, userID string) (int, error) {
-	ctx, span, timer := startDBQuery(ctx, APITokensTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CountAPITokens(ctx context.Context, userID string) (_ int, err error) {
+	ctx, finish := startDBQuery(ctx, APITokensTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	count, err := queryCount(ctx, db.reader(), countAPITokensSQL, userID)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 

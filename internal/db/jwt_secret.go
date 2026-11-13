@@ -42,20 +42,17 @@ func (db *Database) InitializeJWTSecret(ctx context.Context) error {
 	return db.SetJWTSecret(ctx, secret)
 }
 
-func (db *Database) GetJWTSecret(ctx context.Context) ([]byte, error) {
-	ctx, span, timer := startDBQuery(ctx, JWTSecretTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetJWTSecret(ctx context.Context) (_ []byte, err error) {
+	ctx, finish := startDBQuery(ctx, JWTSecretTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	var row JWTSecret
 
-	err := db.reader().QueryRowContext(ctx, getJWTSecretSQL).Scan(&row.Secret)
+	err = db.reader().QueryRowContext(ctx, getJWTSecretSQL).Scan(&row.Secret)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
-
-		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -63,15 +60,12 @@ func (db *Database) GetJWTSecret(ctx context.Context) ([]byte, error) {
 	return row.Secret, nil
 }
 
-func (db *Database) SetJWTSecret(ctx context.Context, secret []byte) error {
-	ctx, span, timer := startDBQuery(ctx, JWTSecretTableName, "UPSERT", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) SetJWTSecret(ctx context.Context, secret []byte) (err error) {
+	ctx, finish := startDBQuery(ctx, JWTSecretTableName, "UPSERT")
+	defer func() { finish(err) }()
 
-	_, err := opSetJWTSecret.Invoke(ctx, db, &bytesPayload{Value: secret})
+	_, err = opSetJWTSecret.Invoke(ctx, db, &bytesPayload{Value: secret})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -80,14 +74,11 @@ func (db *Database) SetJWTSecret(ctx context.Context, secret []byte) error {
 
 // RotateJWTSecret atomically updates the JWT secret and deletes all sessions
 // within a single transaction. If either operation fails, both are rolled back.
-func (db *Database) RotateJWTSecret(ctx context.Context, newSecret []byte) error {
-	ctx, span, timer := startDBQuery(ctx, JWTSecretTableName, "ROTATE", "rotate")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) RotateJWTSecret(ctx context.Context, newSecret []byte) (err error) {
+	ctx, finish := startDBQuery(ctx, JWTSecretTableName, "ROTATE")
+	defer func() { finish(err) }()
 
 	if _, err := opRotateJWTSecret.Invoke(ctx, db, &bytesPayload{Value: newSecret}); err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 

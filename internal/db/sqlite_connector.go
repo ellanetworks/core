@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"fmt"
+	"sync"
 	"sync/atomic"
 
 	"github.com/mattn/go-sqlite3"
@@ -16,6 +17,7 @@ type sqliteConnector struct {
 	dsn        string
 	driver     *sqlite3.SQLiteDriver
 	generation atomic.Uint64
+	opening    sync.RWMutex
 }
 
 func newSQLiteConnector(dsn string) *sqliteConnector {
@@ -23,6 +25,9 @@ func newSQLiteConnector(dsn string) *sqliteConnector {
 }
 
 func (c *sqliteConnector) Connect(context.Context) (driver.Conn, error) {
+	c.opening.RLock()
+	defer c.opening.RUnlock()
+
 	generation := c.generation.Load()
 
 	conn, err := c.driver.Open(c.dsn)
@@ -45,6 +50,12 @@ func (c *sqliteConnector) Driver() driver.Driver {
 
 func (c *sqliteConnector) retireConnections() {
 	c.generation.Add(1)
+}
+
+func (c *sqliteConnector) blockConnects() func() {
+	c.opening.Lock()
+
+	return c.opening.Unlock
 }
 
 type generationConn struct {

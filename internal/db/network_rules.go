@@ -45,10 +45,9 @@ type NetworkRule struct {
 }
 
 // CreateNetworkRule creates a new network rule and returns its ID.
-func (db *Database) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (string, error) {
-	ctx, span, timer := startDBQuery(ctx, NetworkRulesTableName, "INSERT", "insert")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (_ string, err error) {
+	ctx, finish := startDBQuery(ctx, NetworkRulesTableName, "INSERT")
+	defer func() { finish(err) }()
 
 	now := time.Now().UTC()
 	nr.CreatedAt = now
@@ -57,18 +56,14 @@ func (db *Database) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (str
 	if nr.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
-			recordSpanError(span, err)
-
 			return "", fmt.Errorf("generate network rule id: %w", err)
 		}
 
 		nr.ID = id.String()
 	}
 
-	_, err := opCreateNetworkRule.Invoke(ctx, db, nr)
+	_, err = opCreateNetworkRule.Invoke(ctx, db, nr)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return "", err
 	}
 
@@ -76,18 +71,15 @@ func (db *Database) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (str
 }
 
 // GetNetworkRule retrieves a network rule by ID.
-func (db *Database) GetNetworkRule(ctx context.Context, id string) (*NetworkRule, error) {
-	ctx, span, timer := startDBQuery(ctx, NetworkRulesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetNetworkRule(ctx context.Context, id string) (_ *NetworkRule, err error) {
+	ctx, finish := startDBQuery(ctx, NetworkRulesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	row, err := scanNetworkRule(db.reader().QueryRowContext(ctx, getNetworkRuleSQL, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
-
-		recordSpanError(span, err)
 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -96,17 +88,14 @@ func (db *Database) GetNetworkRule(ctx context.Context, id string) (*NetworkRule
 }
 
 // UpdateNetworkRule updates an existing network rule.
-func (db *Database) UpdateNetworkRule(ctx context.Context, nr *NetworkRule) error {
-	ctx, span, timer := startDBQuery(ctx, NetworkRulesTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) UpdateNetworkRule(ctx context.Context, nr *NetworkRule) (err error) {
+	ctx, finish := startDBQuery(ctx, NetworkRulesTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	nr.UpdatedAt = time.Now().UTC()
 
-	_, err := opUpdateNetworkRule.Invoke(ctx, db, nr)
+	_, err = opUpdateNetworkRule.Invoke(ctx, db, nr)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -114,15 +103,12 @@ func (db *Database) UpdateNetworkRule(ctx context.Context, nr *NetworkRule) erro
 }
 
 // ReorderRulesForPolicy moves a rule to a new position within its policy and normalizes all precedence values.
-func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID string, movedRuleID string, newIndex int, direction string) error {
-	ctx, span, timer := startDBQuery(ctx, NetworkRulesTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID string, movedRuleID string, newIndex int, direction string) (err error) {
+	ctx, finish := startDBQuery(ctx, NetworkRulesTableName, "UPDATE")
+	defer func() { finish(err) }()
 
 	rules, err := db.ListRulesForPolicy(ctx, policyID)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return fmt.Errorf("failed to list rules for policy: %w", err)
 	}
 
@@ -150,8 +136,6 @@ func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID string, 
 	}
 
 	if movedRule == nil {
-		recordSpanError(span, ErrNotFound)
-
 		return ErrNotFound
 	}
 
@@ -177,16 +161,12 @@ func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID string, 
 	reorderedRules = append(reorderedRules, remainingRules[newIndex:]...)
 
 	if err := db.UpdateNetworkRule(ctx, movedRule); err != nil {
-		recordSpanError(span, err)
-
 		return fmt.Errorf("failed to update rule precedence for rule %s: %w", movedRule.ID, err)
 	}
 
 	for i, rule := range reorderedRules {
 		rule.Precedence = int32((i+1)*gap) + offset
 		if err := db.UpdateNetworkRule(ctx, rule); err != nil {
-			recordSpanError(span, err)
-
 			return fmt.Errorf("failed to update rule precedence for rule %s: %w", rule.ID, err)
 		}
 	}
@@ -195,15 +175,12 @@ func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID string, 
 }
 
 // DeleteNetworkRule deletes a network rule by ID.
-func (db *Database) DeleteNetworkRule(ctx context.Context, id string) error {
-	ctx, span, timer := startDBQuery(ctx, NetworkRulesTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteNetworkRule(ctx context.Context, id string) (err error) {
+	ctx, finish := startDBQuery(ctx, NetworkRulesTableName, "DELETE")
+	defer func() { finish(err) }()
 
-	_, err := opDeleteNetworkRule.Invoke(ctx, db, &stringPayload{Value: id})
+	_, err = opDeleteNetworkRule.Invoke(ctx, db, &stringPayload{Value: id})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
@@ -211,15 +188,12 @@ func (db *Database) DeleteNetworkRule(ctx context.Context, id string) error {
 }
 
 // ListRulesForPolicy retrieves all network rules associated with a policy.
-func (db *Database) ListRulesForPolicy(ctx context.Context, policyID string) ([]*NetworkRule, error) {
-	ctx, span, timer := startDBQuery(ctx, NetworkRulesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListRulesForPolicy(ctx context.Context, policyID string) (_ []*NetworkRule, err error) {
+	ctx, finish := startDBQuery(ctx, NetworkRulesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	rules, err := queryAll(ctx, db.reader(), listRulesForPolicySQL, scanNetworkRule, policyID)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
@@ -231,15 +205,12 @@ func (db *Database) ListRulesForPolicy(ctx context.Context, policyID string) ([]
 }
 
 // DeleteNetworkRulesByPolicyID deletes all network rules for a given policy ID.
-func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID string) error {
-	ctx, span, timer := startDBQuery(ctx, NetworkRulesTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID string) (err error) {
+	ctx, finish := startDBQuery(ctx, NetworkRulesTableName, "DELETE")
+	defer func() { finish(err) }()
 
-	_, err := opDeleteNetworkRulesByPolicy.Invoke(ctx, db, &stringPayload{Value: policyID})
+	_, err = opDeleteNetworkRulesByPolicy.Invoke(ctx, db, &stringPayload{Value: policyID})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 

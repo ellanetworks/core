@@ -12,10 +12,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
-	"go.opentelemetry.io/otel/trace"
 )
 
 const NetworkSlicesTableName = "network_slices"
@@ -39,23 +36,18 @@ type NetworkSlice struct {
 	Name string
 }
 
-func (db *Database) ListNetworkSlicesPage(ctx context.Context, page, perPage int) ([]NetworkSlice, int, error) {
-	ctx, span, timer := startDBQueryNamed(ctx, "SELECT "+NetworkSlicesTableName+" (paged)", NetworkSlicesTableName, "SELECT", "select", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListNetworkSlicesPage(ctx context.Context, page, perPage int) (_ []NetworkSlice, _ int, err error) {
+	ctx, finish := startDBQueryNamed(ctx, "SELECT "+NetworkSlicesTableName+" (paged)", NetworkSlicesTableName, "SELECT", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
+	defer func() { finish(err) }()
 
 	slices, count, err := queryPageWithTotal(ctx, db.reader(), listNetworkSlicesPagedSQL, scanNetworkSlice, perPage, (page-1)*perPage)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	if len(slices) == 0 {
 		fallbackCount, err := db.CountNetworkSlices(ctx)
 		if err != nil {
-			recordSpanError(span, err)
-
 			return nil, 0, fmt.Errorf("count failed: %w", err)
 		}
 
@@ -65,25 +57,21 @@ func (db *Database) ListNetworkSlicesPage(ctx context.Context, page, perPage int
 	return slices, count, nil
 }
 
-func (db *Database) ListAllNetworkSlices(ctx context.Context) ([]NetworkSlice, error) {
-	ctx, span, timer := startDBQuery(ctx, NetworkSlicesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) ListAllNetworkSlices(ctx context.Context) (_ []NetworkSlice, err error) {
+	ctx, finish := startDBQuery(ctx, NetworkSlicesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	slices, err := queryAll(ctx, db.reader(), listAllNetworkSlicesSQL, scanNetworkSlice)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return slices, nil
 }
 
-func (db *Database) GetNetworkSlice(ctx context.Context, name string) (*NetworkSlice, error) {
-	ctx, span, timer := startDBQuery(ctx, NetworkSlicesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetNetworkSlice(ctx context.Context, name string) (_ *NetworkSlice, err error) {
+	ctx, finish := startDBQuery(ctx, NetworkSlicesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	row, err := scanNetworkSlice(db.reader().QueryRowContext(ctx, getNetworkSliceSQL, name))
 	if err != nil {
@@ -91,18 +79,15 @@ func (db *Database) GetNetworkSlice(ctx context.Context, name string) (*NetworkS
 			return nil, ErrNotFound
 		}
 
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return &row, nil
 }
 
-func (db *Database) GetNetworkSliceByID(ctx context.Context, id string) (*NetworkSlice, error) {
-	ctx, span, timer := startDBQuery(ctx, NetworkSlicesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) GetNetworkSliceByID(ctx context.Context, id string) (_ *NetworkSlice, err error) {
+	ctx, finish := startDBQuery(ctx, NetworkSlicesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	row, err := scanNetworkSlice(db.reader().QueryRowContext(ctx, getNetworkSliceByIDSQL, id))
 	if err != nil {
@@ -110,114 +95,81 @@ func (db *Database) GetNetworkSliceByID(ctx context.Context, id string) (*Networ
 			return nil, ErrNotFound
 		}
 
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return &row, nil
 }
 
-func (db *Database) CreateNetworkSlice(ctx context.Context, slice *NetworkSlice) error {
-	ctx, span, timer := startDBQuery(ctx, NetworkSlicesTableName, "INSERT", "insert")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CreateNetworkSlice(ctx context.Context, slice *NetworkSlice) (err error) {
+	ctx, finish := startDBQuery(ctx, NetworkSlicesTableName, "INSERT")
+	defer func() { finish(err) }()
 
 	if slice.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
-			recordSpanError(span, err)
-
 			return fmt.Errorf("generate network slice id: %w", err)
 		}
 
 		slice.ID = id.String()
 	}
 
-	_, err := opCreateNetworkSlice.Invoke(ctx, db, slice)
+	_, err = opCreateNetworkSlice.Invoke(ctx, db, slice)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) UpdateNetworkSlice(ctx context.Context, slice *NetworkSlice) error {
-	ctx, span, timer := startDBQuery(ctx, NetworkSlicesTableName, "UPDATE", "update")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) UpdateNetworkSlice(ctx context.Context, slice *NetworkSlice) (err error) {
+	ctx, finish := startDBQuery(ctx, NetworkSlicesTableName, "UPDATE")
+	defer func() { finish(err) }()
 
-	_, err := opUpdateNetworkSlice.Invoke(ctx, db, slice)
+	_, err = opUpdateNetworkSlice.Invoke(ctx, db, slice)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) DeleteNetworkSlice(ctx context.Context, name string) error {
-	ctx, span, timer := startDBQuery(ctx, NetworkSlicesTableName, "DELETE", "delete")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) DeleteNetworkSlice(ctx context.Context, name string) (err error) {
+	ctx, finish := startDBQuery(ctx, NetworkSlicesTableName, "DELETE")
+	defer func() { finish(err) }()
 
-	_, err := opDeleteNetworkSlice.Invoke(ctx, db, &stringPayload{Value: name})
+	_, err = opDeleteNetworkSlice.Invoke(ctx, db, &stringPayload{Value: name})
 	if err != nil {
-		recordSpanError(span, err)
-
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) CountNetworkSlices(ctx context.Context) (int, error) {
-	ctx, span, timer := startDBQuery(ctx, NetworkSlicesTableName, "SELECT", "select")
-	defer span.End()
-	defer timer.ObserveDuration()
+func (db *Database) CountNetworkSlices(ctx context.Context) (_ int, err error) {
+	ctx, finish := startDBQuery(ctx, NetworkSlicesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	count, err := queryCount(ctx, db.reader(), countNetworkSlicesSQL)
 	if err != nil {
-		recordSpanError(span, err)
-
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
 	return count, nil
 }
 
-func (db *Database) ListNetworkSlicesByIDs(ctx context.Context, ids []string) ([]NetworkSlice, error) {
+func (db *Database) ListNetworkSlicesByIDs(ctx context.Context, ids []string) (_ []NetworkSlice, err error) {
 	querySummary := fmt.Sprintf("%s %s (by IDs)", "SELECT", NetworkSlicesTableName)
 
-	ctx, span := tracer.Start(
-		ctx,
-		querySummary,
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBQuerySummary(querySummary),
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			semconv.DBCollectionName(NetworkSlicesTableName),
-		),
-	)
-	defer span.End()
+	ctx, finish := startDBQueryNamed(ctx, querySummary, NetworkSlicesTableName, "SELECT")
+	defer func() { finish(err) }()
 
 	if len(ids) == 0 {
 		return nil, nil
 	}
 
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(NetworkSlicesTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(NetworkSlicesTableName, "select").Inc()
-
 	slices, err := queryAll(ctx, db.reader(), listNetworkSlicesByIDsSQL, scanNetworkSlice, jsonArray(ids))
 	if err != nil {
-		recordSpanError(span, err)
-
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 

@@ -356,21 +356,7 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 
 		ctx := r.Context()
 
-		var mmeStatus map[string]mme.ConnectedSubscriber
-
-		if mmeInstance != nil {
-			mmeStatus = mmeInstance.ConnectedSubscribers()
-		}
-
-		amf5GStatus := amfInstance.ConnectedSubscribers()
-
-		amf5GLastSeen := amfInstance.LastSeenAll()
-
-		var mmeLastSeen map[string]mme.LastSeen
-
-		if mmeInstance != nil {
-			mmeLastSeen = mmeInstance.LastSeenAll()
-		}
+		live := snapshotLiveStatus(amfInstance, mmeInstance)
 
 		filters := &db.SubscriberFilters{}
 
@@ -381,19 +367,7 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 				return
 			}
 
-			radioIMSIs := make(map[string]struct{})
-
-			for imsi := range amf5GStatus {
-				if amf5GLastSeen[imsi].RadioName == radioFilter {
-					radioIMSIs[imsi] = struct{}{}
-				}
-			}
-
-			for imsi := range mmeStatus {
-				if mmeLastSeen[imsi].RadioName == radioFilter {
-					radioIMSIs[imsi] = struct{}{}
-				}
-			}
+			radioIMSIs := live.onRadio(radioFilter)
 
 			filters.IMSIs = make([]string, 0, len(radioIMSIs))
 			for imsi := range radioIMSIs {
@@ -418,6 +392,16 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 		dbSubscribers, total, err := dbInstance.ListSubscribersPage(ctx, filters, page, perPage)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list subscribers", err, logger.APILog)
+			return
+		}
+
+		imsis := make([]string, 0, len(dbSubscribers))
+		for _, dbSubscriber := range dbSubscribers {
+			imsis = append(imsis, dbSubscriber.Imsi)
+		}
+
+		if err := live.loadElsewhere(ctx, dbInstance, imsis); err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list UE registrations", err, logger.APILog)
 			return
 		}
 
@@ -446,40 +430,12 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 				return
 			}
 
-			amf5G, on5G := amf5GStatus[dbSubscriber.Imsi]
-			mme4G, on4G := mmeStatus[dbSubscriber.Imsi]
-
-			merged := mergeSystems(
-				systemView{
-					system: System5G, present: on5G, registered: amf5G.Registered, connected: amf5G.Connected,
-					lastSeenAt:    lastSeenAt(on5G, amf5G.LastSeenAt, amf5GLastSeen[dbSubscriber.Imsi].At),
-					lastSeenRadio: amf5GLastSeen[dbSubscriber.Imsi].RadioName,
-				},
-				systemView{
-					system: System4G, present: on4G, registered: mme4G.Registered, connected: mme4G.Connected,
-					lastSeenAt:    lastSeenAt(on4G, mme4G.LastSeenAt, mmeLastSeen[dbSubscriber.Imsi].At),
-					lastSeenRadio: mmeLastSeen[dbSubscriber.Imsi].RadioName,
-				},
-			)
-
-			subscriberStatus := SubscriberStatus{
-				Registered:      merged.Registered,
-				ConnectionState: connectionState(on5G || on4G, merged.Connected),
-				Systems:         merged.Systems,
-				NumSessions:     mme4G.NumSessions + amf5G.NumSessions,
-				LastSeenRadio:   merged.LastSeenRadio,
-			}
-
-			if !merged.LastSeenAt.IsZero() {
-				subscriberStatus.LastSeenAt = merged.LastSeenAt.UTC().Format(time.RFC3339)
-			}
-
 			items = append(items, Subscriber{
 				Imsi:        dbSubscriber.Imsi,
 				ProfileName: profile.Name,
 				Description: dbSubscriber.Description,
 				Msisdn:      formatE164(dbSubscriber.Msisdn),
-				Status:      subscriberStatus,
+				Status:      live.of(dbSubscriber.Imsi),
 			})
 		}
 
