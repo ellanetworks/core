@@ -98,6 +98,7 @@ type liveStatus struct {
 	amf5GLastSeen map[string]amf.LastSeen
 	mme4G         map[string]mme.ConnectedSubscriber
 	mmeLastSeen   map[string]mme.LastSeen
+	elsewhere     map[string]map[string]bool
 }
 
 func snapshotLiveStatus(amfInstance *amf.AMF, mmeInstance *mme.MME) liveStatus {
@@ -112,6 +113,67 @@ func snapshotLiveStatus(amfInstance *amf.AMF, mmeInstance *mme.MME) liveStatus {
 	}
 
 	return s
+}
+
+func (s *liveStatus) loadElsewhere(ctx context.Context, dbInstance *db.Database, imsis []string) error {
+	regs, err := dbInstance.ListActiveUERegistrations(ctx, imsis)
+	if err != nil {
+		return err
+	}
+
+	s.elsewhere = registeredElsewhere(regs, dbInstance.RaftID())
+
+	return nil
+}
+
+func registeredElsewhere(regs []db.UERegistration, localID string) map[string]map[string]bool {
+	out := make(map[string]map[string]bool)
+
+	for _, reg := range regs {
+		if reg.Purged || reg.NodeID == localID {
+			continue
+		}
+
+		system, ok := registrationSystem(reg.Type)
+		if !ok {
+			continue
+		}
+
+		if out[reg.Imsi] == nil {
+			out[reg.Imsi] = make(map[string]bool)
+		}
+
+		out[reg.Imsi][system] = true
+	}
+
+	return out
+}
+
+func registrationSystem(regType string) (string, bool) {
+	switch regType {
+	case db.UERegistrationTypeAMF3GPPAccess:
+		return System5G, true
+	case db.UERegistrationTypeMME:
+		return System4G, true
+	}
+
+	return "", false
+}
+
+func withElsewhere(systems []string, elsewhere map[string]bool) []string {
+	if len(elsewhere) == 0 {
+		return systems
+	}
+
+	out := make([]string, 0, 2)
+
+	for _, system := range []string{System5G, System4G} {
+		if slices.Contains(systems, system) || elsewhere[system] {
+			out = append(out, system)
+		}
+	}
+
+	return out
 }
 
 func (s liveStatus) of(imsi string) SubscriberStatus {
@@ -131,10 +193,12 @@ func (s liveStatus) of(imsi string) SubscriberStatus {
 		},
 	)
 
+	elsewhere := s.elsewhere[imsi]
+
 	status := SubscriberStatus{
-		Registered:      merged.Registered,
+		Registered:      merged.Registered || len(elsewhere) > 0,
 		ConnectionState: connectionState(on5G || on4G, merged.Connected),
-		Systems:         merged.Systems,
+		Systems:         withElsewhere(merged.Systems, elsewhere),
 		NumSessions:     mme4G.NumSessions + amf5G.NumSessions,
 		LastSeenRadio:   merged.LastSeenRadio,
 	}
@@ -251,6 +315,16 @@ func ListRoamers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme
 			})
 			total = len(visitors)
 			visitors = visitors[min((page-1)*perPage, total):min(page*perPage, total)]
+		}
+
+		imsis := make([]string, 0, len(visitors))
+		for _, v := range visitors {
+			imsis = append(imsis, v.Imsi)
+		}
+
+		if err := live.loadElsewhere(ctx, dbInstance, imsis); err != nil {
+			writeError(ctx, w, http.StatusInternalServerError, "Failed to list UE registrations", err, logger.APILog)
+			return
 		}
 
 		items := make([]Roamer, 0, len(visitors))

@@ -393,6 +393,18 @@ describe("Subscribers connection state", () => {
     expect(cellOf(IMSIS[2], "status")).not.toHaveTextContent(/4G|5G/);
   });
 
+  it("shows a registration held by another node", async () => {
+    seedStatuses({
+      [IMSIS[0]]: { registered: true, systems: ["4G"] },
+    });
+    await renderSubscribers();
+    await screen.findByText(IMSIS[0]);
+
+    expect(cellOf(IMSIS[0], "status")).toHaveTextContent("Registered");
+    expect(cellOf(IMSIS[0], "status")).not.toHaveTextContent("Idle");
+    expect(cellOf(IMSIS[0], "status")).toHaveTextContent("4G");
+  });
+
   it("shows a registration in progress", async () => {
     seedStatuses({
       [IMSIS[0]]: {

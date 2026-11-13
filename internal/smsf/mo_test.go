@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -345,6 +346,14 @@ func TestMemoryAvailableIsAcknowledged(t *testing.T) {
 func TestNextMobileOriginatedSMSImplicitlyAcknowledgesThePreviousReport(t *testing.T) {
 	e := newEnv(t)
 
+	var once sync.Once
+
+	e.ue.beforeSendReturns(func(m sms.CPMessage) {
+		if _, ok := m.(*sms.CPData); ok && m.TI() == moTI(1).Peer() {
+			once.Do(func() { sendRPData(t, e, moTI(2), 2) })
+		}
+	})
+
 	sendRPData(t, e, moTI(1), 1)
 	expectCPAck(t, e, moTI(1).Peer())
 
@@ -352,7 +361,6 @@ func TestNextMobileOriginatedSMSImplicitlyAcknowledgesThePreviousReport(t *testi
 		t.Fatalf("report on %s", data.TransactionIdentifier)
 	}
 
-	sendRPData(t, e, moTI(2), 2)
 	expectCPAck(t, e, moTI(2).Peer())
 
 	if _, ok := expectReport(t, e, moTI(2).Peer()).(*sms.RPAck); !ok {
