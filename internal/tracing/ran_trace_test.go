@@ -16,7 +16,7 @@ import (
 var testPLMN = [3]byte{0x02, 0xf8, 0x39}
 
 func TestAcquireSharesSessionPerSubscriber(t *testing.T) {
-	s := NewTraceSessions(TraceConfig{}, func() int { return 5 })
+	s := NewTraceSessions(func() int { return 5 })
 
 	a, err := s.Acquire("001010000000001", testPLMN)
 	if err != nil {
@@ -52,7 +52,7 @@ func TestAcquireSharesSessionPerSubscriber(t *testing.T) {
 }
 
 func TestReleaseFreesOnLastReference(t *testing.T) {
-	s := NewTraceSessions(TraceConfig{}, func() int { return 1 })
+	s := NewTraceSessions(func() int { return 1 })
 
 	a, _ := s.Acquire("001010000000001", testPLMN)
 	_, _ = s.Acquire("001010000000001", testPLMN)
@@ -78,7 +78,7 @@ func TestReleaseFreesOnLastReference(t *testing.T) {
 }
 
 func TestAllocationExhaustion(t *testing.T) {
-	s := NewTraceSessions(TraceConfig{}, func() int { return 1 })
+	s := NewTraceSessions(func() int { return 1 })
 
 	for v := range uint32(traceIDValueMask + 1) {
 		s.inUse[v] = struct{}{}
@@ -90,7 +90,7 @@ func TestAllocationExhaustion(t *testing.T) {
 }
 
 func TestRecordingSessionReference(t *testing.T) {
-	s := NewTraceSessions(TraceConfig{}, func() int { return 1 })
+	s := NewTraceSessions(func() int { return 1 })
 
 	var amf, mme UETrace
 
@@ -131,7 +131,7 @@ func TestRecordingSessionReference(t *testing.T) {
 }
 
 func TestTakeOverKeepsTraceReference(t *testing.T) {
-	s := NewTraceSessions(TraceConfig{}, func() int { return 1 })
+	s := NewTraceSessions(func() int { return 1 })
 
 	var old, fresh UETrace
 
@@ -169,7 +169,7 @@ func TestTakeOverKeepsTraceReference(t *testing.T) {
 }
 
 func TestAcquireRefusesWithoutNodePrefix(t *testing.T) {
-	s := NewTraceSessions(TraceConfig{}, func() int { return 0 })
+	s := NewTraceSessions(func() int { return 0 })
 
 	if _, err := s.Acquire("001010000000001", testPLMN); !errors.Is(err, ErrNoNodePrefix) {
 		t.Fatalf("err %v, want ErrNoNodePrefix", err)
