@@ -1,0 +1,50 @@
+# v1.11
+
+- **Release date**: May 20, 2026
+- **GitHub release**: [v1.11.0](https://github.com/ellanetworks/core/releases/tag/v1.11.0)
+
+## New features
+
+- **End-to-end IPv6 support**: Deploy Ella Core on IPv6 hosts, provision subscribers with IPv6 addresses, advertise those addresses to IPv6 BGP peers, create IPv6 network rules, and monitor IPv6 traffic flows.
+- **Claude AI agent marketplace plugin**: Install the Ella Core AI skill via the [Claude marketplace plugin](https://docs.ellanetworks.com/core/how_to/ai_agents/index.md). This makes it easier and faster to manage your private 5G network with AI agents.
+
+## Maintenance
+
+- **Integration tests overhaul**: As we write more code with AI, the change velocity increases and we get less good at reviewing code. To balance the problem and maintain a high level of reliability through changes, we significantly increase integration test coverage. Our integration tests now completely cover the API, HA and network rules. Future releases will continue expanding this support. Read more about this idea [here](https://medium.com/@gruyaume/implicit-knowledge-is-a-liability-0a33442bf1a4).
+- **Complete Go client**: Manage network interfaces, flow accounting and BGP via to Go client SDK. You can now use the Go client to perform every API action.
+- Bug fixes
+- Dependency updates
+
+## Patch releases
+
+### v1.11.1
+
+- **Release date**: June 10, 2026
+- **GitHub release**: [v1.11.1](https://github.com/ellanetworks/core/releases/tag/v1.11.1)
+
+#### Improvements
+
+- Changes to DNN impact active sessions ([#1390](https://github.com/ellanetworks/core/pull/1390))
+- Send GTP-U Error Indication on unknown TEID ([#1398](https://github.com/ellanetworks/core/pull/1398))
+
+#### Bug fixes
+
+- Correct UDP/TCP checksums and add connectivity integration tests ([#1355](https://github.com/ellanetworks/core/pull/1355))
+- NG Setup edge cases ([#1369](https://github.com/ellanetworks/core/pull/1369))
+- Send registration reject when errors in registration request message ([#1370](https://github.com/ellanetworks/core/pull/1370))
+- Respond error message when invalid uplink NAS message ([#1371](https://github.com/ellanetworks/core/pull/1371))
+- Update active sessions on admin changes ([#1366](https://github.com/ellanetworks/core/pull/1366))
+- Revert full checksum compute ([#1373](https://github.com/ellanetworks/core/pull/1373))
+- N2 handover ([#1374](https://github.com/ellanetworks/core/pull/1374))
+- Remove unnecessary mobility registration update rejection ([#1378](https://github.com/ellanetworks/core/pull/1378))
+- Validate optional/extension header bytes are present ([#1377](https://github.com/ellanetworks/core/pull/1377))
+- Time-of-check Time-of-use bug in session management ([#1375](https://github.com/ellanetworks/core/pull/1375))
+- Send authentication reject on missing res\* in authentication response ([#1379](https://github.com/ellanetworks/core/pull/1379))
+- Panic on invalid n2 handover ([#1382](https://github.com/ellanetworks/core/pull/1382))
+- Reject UE registration when there is no allowed NSSAI ([#1381](https://github.com/ellanetworks/core/pull/1381))
+- Send UE ngap ID in error indication ([#1385](https://github.com/ellanetworks/core/pull/1385))
+- Set the veth xdp program n3_ifindex ([#1384](https://github.com/ellanetworks/core/pull/1384))
+- 3GPP-compliance and edge cases in SMF PDU session management ([#1389](https://github.com/ellanetworks/core/pull/1389))
+- Add SMF session timer support ([#1391](https://github.com/ellanetworks/core/pull/1391))
+- Send path switch request failure on duplicate ID ([#1393](https://github.com/ellanetworks/core/pull/1393))
+- Parse GTP-U header length from the extension-header chain ([#1397](https://github.com/ellanetworks/core/pull/1397))
