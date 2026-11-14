@@ -190,6 +190,10 @@ func ParseRanNodeRef(ref string) (GlobalRanNodeID, error) {
 			return GlobalRanNodeID{}, fmt.Errorf("no gNB ID is %d bits wide", bitLength)
 		}
 
+		if err := checkHexID(value, int(bitLength)); err != nil {
+			return GlobalRanNodeID{}, fmt.Errorf("gNB ID: %w", err)
+		}
+
 		out.GNbID = &GNbID{BitLength: int32(bitLength), GNBValue: value}
 
 		return out, nil
@@ -199,20 +203,76 @@ func ParseRanNodeRef(ref string) (GlobalRanNodeID, error) {
 		return GlobalRanNodeID{}, fmt.Errorf("only a gNB ID carries a bit length")
 	}
 
+	var err error
+
 	switch nodeType {
 	case RanNodeTypeNgENB:
+		err = checkPrefixedHexID(value, ngENBIDBits)
 		out.NgeNbID = value
 	case RanNodeTypeENB:
+		err = checkPrefixedHexID(value, eNBIDBits)
 		out.ENbID = value
 	case RanNodeTypeN3IWF:
+		err = checkHexID(value, n3IWFIDBits)
 		out.N3IwfID = value
 	case RanNodeTypeWAGF:
+		err = checkHexID(value, 4*len(value))
 		out.WAgfID = value
 	case RanNodeTypeTNGF:
+		err = checkHexID(value, 4*len(value))
 		out.TngfID = value
 	default:
 		return GlobalRanNodeID{}, fmt.Errorf("unknown RAN node type %q", nodeType)
 	}
 
+	if err != nil {
+		return GlobalRanNodeID{}, fmt.Errorf("%s ID: %w", nodeType, err)
+	}
+
 	return out, nil
+}
+
+const n3IWFIDBits = 16
+
+var (
+	eNBIDBits = map[string]int{
+		"MacroeNB-":  20,
+		"HomeeNB-":   28,
+		"SMacroeNB-": 18,
+		"LMacroeNB-": 21,
+	}
+	ngENBIDBits = map[string]int{
+		"MacroNGeNB-":  20,
+		"SMacroNGeNB-": 18,
+		"LMacroNGeNB-": 21,
+	}
+)
+
+func checkPrefixedHexID(value string, bitsByPrefix map[string]int) error {
+	for prefix, bits := range bitsByPrefix {
+		if hexID, ok := strings.CutPrefix(value, prefix); ok {
+			return checkHexID(hexID, bits)
+		}
+	}
+
+	return fmt.Errorf("%q has no known ID kind prefix", value)
+}
+
+func checkHexID(value string, bits int) error {
+	if bits <= 0 || len(value) != (bits+3)/4 {
+		return fmt.Errorf("%q is not %d lower-case hexadecimal digits", value, (bits+3)/4)
+	}
+
+	for _, r := range value {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return fmt.Errorf("%q is not %d lower-case hexadecimal digits", value, (bits+3)/4)
+		}
+	}
+
+	n, err := strconv.ParseUint(value, 16, 64)
+	if err != nil || n >= 1<<uint(bits) {
+		return fmt.Errorf("%q does not fit in %d bits", value, bits)
+	}
+
+	return nil
 }

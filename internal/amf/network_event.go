@@ -29,6 +29,10 @@ func (a *AMF) LogNetworkEvent(ctx context.Context, conn NGAPWriter, messageType 
 }
 
 func (a *AMF) LogSetupRequest(ctx context.Context, conn NGAPWriter, messageType NGAPProcedure, raw []byte, ref string) {
+	if conn != nil {
+		a.setSetupRef(conn, ref)
+	}
+
 	a.logNetworkEvent(ctx, conn, messageType, logger.DirectionInbound, raw, ref)
 }
 
@@ -42,7 +46,7 @@ func (a *AMF) logNetworkEvent(ctx context.Context, conn NGAPWriter, messageType 
 		return
 	}
 
-	name, connRef := a.radioIdentityByConn(conn)
+	name, connRef := a.radioIdentityByConn(conn, messageType)
 	if ref == "" {
 		ref = connRef
 	}

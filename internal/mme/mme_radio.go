@@ -40,6 +40,7 @@ type Radio struct {
 	// accept and replaced wholesale on an eNB Configuration Update (TS 36.413
 	// §8.7.3.2, §8.7.4). Guarded by MME.mu.
 	supportedTAIs []SupportedTAI
+	setupRef      string
 	logFields     atomic.Pointer[[]zap.Field]
 
 	advertisedCapacity      *uint8

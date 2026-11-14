@@ -93,7 +93,7 @@ This path returns the details of a specific radio, connected or offline, includi
 
 | Name  | Type   | Description |
 | ----- | ------ | ----------- |
-| `ref` | string | Radio identity, as returned in a radio's `ref` field: `{type}:{mcc}-{mnc}:{id}`, the id carrying `@{bitLength}` for a gNB. For example `gNB:001-01:00002a@24` or `eNB:001-01:MacroeNB-00008`. |
+| `ref` | string | Radio identity, as returned in a radio's `ref` field: `{type}:{mcc}-{mnc}:{id}`, the id in lower-case hexadecimal and carrying `@{bitLength}` for a gNB. For example `gNB:001-01:00002a@24` or `eNB:001-01:MacroeNB-00008`. |
 
 ### Sample Response
 
@@ -161,7 +161,7 @@ Requires the admin role.
 
 | Name  | Type   | Description |
 | ----- | ------ | ----------- |
-| `ref` | string | Radio identity, as returned in a radio's `ref` field: `{type}:{mcc}-{mnc}:{id}`, the id carrying `@{bitLength}` for a gNB. For example `gNB:001-01:00002a@24` or `eNB:001-01:MacroeNB-00008`. |
+| `ref` | string | Radio identity, as returned in a radio's `ref` field: `{type}:{mcc}-{mnc}:{id}`, the id in lower-case hexadecimal and carrying `@{bitLength}` for a gNB. For example `gNB:001-01:00002a@24` or `eNB:001-01:MacroeNB-00008`. |
 
 ### Response Codes
 

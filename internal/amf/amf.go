@@ -562,6 +562,7 @@ func (amf *AMF) RebindRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID) (bool,
 		return true, nil
 	} else if ok {
 		amf.reg.Unclaim(oldKey)
+		amf.lastSeen.rekey(oldKey, key)
 	}
 
 	radio.RanID = &newID

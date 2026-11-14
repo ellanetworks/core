@@ -19,17 +19,31 @@ func AddrString(a net.Addr) string {
 	return a.String()
 }
 
-func (m *MME) enbIdentityByConn(conn *sctp.SCTPConn) (string, string) {
+func (m *MME) enbIdentityByConn(conn *sctp.SCTPConn, messageType S1APProcedure) (string, string) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	if s, ok := m.reg.Radio(conn); ok {
-		ref, _ := s.IDKey()
-
-		return s.name, ref
+	s, ok := m.reg.Radio(conn)
+	if !ok {
+		return "", ""
 	}
 
-	return "", ""
+	if messageType == S1APProcedureS1SetupResponse || messageType == S1APProcedureS1SetupFailure {
+		return s.name, s.setupRef
+	}
+
+	ref, _ := s.IDKey()
+
+	return s.name, ref
+}
+
+func (m *MME) setSetupRef(conn *sctp.SCTPConn, ref string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if s, ok := m.reg.Radio(conn); ok {
+		s.setupRef = ref
+	}
 }
 
 // LogNetworkEvent records an S1AP message exchanged with an eNB so it appears in
@@ -39,6 +53,10 @@ func (m *MME) LogNetworkEvent(ctx context.Context, conn S1APWriter, messageType 
 }
 
 func (m *MME) LogSetupRequest(ctx context.Context, conn S1APWriter, messageType S1APProcedure, raw []byte, ref string) {
+	if sc, ok := conn.(*sctp.SCTPConn); ok && sc != nil {
+		m.setSetupRef(sc, ref)
+	}
+
 	m.logNetworkEvent(ctx, conn, messageType, logger.DirectionInbound, raw, ref)
 }
 
@@ -50,7 +68,7 @@ func (m *MME) logNetworkEvent(ctx context.Context, conn S1APWriter, messageType 
 		return
 	}
 
-	name, connRef := m.enbIdentityByConn(sc)
+	name, connRef := m.enbIdentityByConn(sc, messageType)
 	if ref == "" {
 		ref = connRef
 	}
