@@ -271,8 +271,6 @@ func provisionScaleSubscribers(ctx context.Context, t *testing.T) {
 	t.Logf("provisioned %d subscribers in %s (%.0f/s)", scaleSubscribers, elapsed.Round(time.Millisecond), float64(scaleSubscribers)/elapsed.Seconds())
 
 	t.Cleanup(func() {
-		c := scaleProvisioningClient(ctx, t)
-
 		var g errgroup.Group
 
 		g.SetLimit(scaleProvisionWorkers)
@@ -301,7 +299,17 @@ func scaleProvisioningClient(ctx context.Context, t *testing.T) *client.Client {
 		t.Fatalf("login: %v", err)
 	}
 
-	return c
+	tok, err := c.CreateMyAPIToken(ctx, &client.CreateAPITokenOptions{Name: "scale"})
+	if err != nil {
+		t.Fatalf("create API token: %v", err)
+	}
+
+	tc, err := client.New(&client.Config{BaseURL: APIAddress(), APIToken: tok.Token})
+	if err != nil {
+		t.Fatalf("ella token client: %v", err)
+	}
+
+	return tc
 }
 
 func addScaleRadioAddresses(ctx context.Context, t *testing.T, env *testerEnv) []string {
