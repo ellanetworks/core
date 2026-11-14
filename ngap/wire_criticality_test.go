@@ -69,6 +69,17 @@ func TestWireCriticality(t *testing.T) {
 			},
 		},
 		{
+			"NGSetupResponse §9.2.6.2 Extended AMF Name",
+			goldNGSetupResponseExtendedAMFName().encodeBody,
+			[]wireIE{
+				{IDAMFName, CriticalityReject},
+				{IDServedGUAMIList, CriticalityReject},
+				{IDRelativeAMFCapacity, CriticalityIgnore},
+				{IDPLMNSupportList, CriticalityReject},
+				{IDExtendedAMFName, CriticalityIgnore},
+			},
+		},
+		{
 			"NGSetupFailure §9.2.6.3",
 			(&NGSetupFailure{
 				Cause:                  Ptr(Cause{Group: CauseGroupMisc, Value: CauseMiscUnspecified}),

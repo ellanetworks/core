@@ -105,6 +105,7 @@ const (
 	IDPagingPriority                            ProtocolIEID = 151
 	IDGUMMEIList                                ProtocolIEID = 154
 	IDTrafficLoadReductionIndication            ProtocolIEID = 161
+	IDGWContextReleaseIndication                ProtocolIEID = 164
 	IDECGIListForRestart                        ProtocolIEID = 182
 	IDTAIListForRestart                         ProtocolIEID = 188
 	IDUserLocationInformation                   ProtocolIEID = 189

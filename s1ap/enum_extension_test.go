@@ -46,6 +46,10 @@ func TestEnumExtensionIsNotComprehended(t *testing.T) {
 			var v RRCEstablishmentCause
 			return v.UnmarshalPER(r, per.Aligned)
 		}, "a root establishment cause"},
+		{"GWContextReleaseIndication", gwContextReleaseIndicationRootCount, func(r *per.Reader) error {
+			var v GWContextReleaseIndication
+			return v.UnmarshalPER(r, per.Aligned)
+		}, "true"},
 		// HandoverType is absent deliberately: its first two extension additions
 		// are values TS 36.413 §9.2.1.13 assigns and Ella decodes.
 		// TestHandoverTypeInterSystemValues covers both those and the additions

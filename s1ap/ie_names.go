@@ -123,6 +123,7 @@ var protocolIENames = map[ProtocolIEID]string{
 	IDExtendedRepetitionPeriod:            "ExtendedRepetitionPeriod",
 	IDGUMMEIList:                          "GUMMEIList",
 	IDTrafficLoadReductionIndication:      "TrafficLoadReductionIndication",
+	IDGWContextReleaseIndication:          "GWContextReleaseIndication",
 	IDECGIListForRestart:                  "ECGIListForRestart",
 	IDTAIListForRestart:                   "TAIListForRestart",
 	IDEmergencyAreaIDListForRestart:       "EmergencyAreaIDListForRestart",

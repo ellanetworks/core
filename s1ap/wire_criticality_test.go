@@ -349,6 +349,21 @@ func TestWireCriticality(t *testing.T) {
 			},
 		},
 		{
+			"UEContextReleaseRequest §9.1.4.5 GW Context Release Indication",
+			(&UEContextReleaseRequest{
+				MMEUES1APID:                1,
+				ENBUES1APID:                2,
+				Cause:                      Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkX2HandoverTriggered}),
+				GWContextReleaseIndication: Ptr(GWContextReleaseIndicationTrue),
+			}).encodeBody,
+			[]wireIE{
+				{IDMMEUES1APID, CriticalityReject},
+				{IDENBUES1APID, CriticalityReject},
+				{IDCause, CriticalityIgnore},
+				{IDGWContextReleaseIndication, CriticalityReject},
+			},
+		},
+		{
 			"UEContextReleaseCommand §9.1.4.6",
 			(&UEContextReleaseCommand{
 				UES1APIDs: UES1APIDs{MMEUES1APID: 1, ENBUES1APID: 2, Pair: true},

@@ -163,3 +163,42 @@ func TestUEContextReleaseCommandExtensionAlternative(t *testing.T) {
 		t.Errorf("diagnostics = %+v, want one not-understood entry for UE-S1AP-IDs", ase.IEs)
 	}
 }
+
+func uEContextReleaseRequestGoldenCases() []newMessageCase {
+	x2 := Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkX2HandoverTriggered}
+
+	return []newMessageCase{
+		{
+			name: "UEContextReleaseRequestGWContextReleaseIndication",
+			msg: &UEContextReleaseRequest{
+				MMEUES1APID:                1,
+				ENBUES1APID:                2,
+				Cause:                      &x2,
+				GWContextReleaseIndication: Ptr(GWContextReleaseIndicationTrue),
+			},
+			parse:  func(b []byte) (any, error) { return ParseUEContextReleaseRequest(b) },
+			choice: isInitiating,
+			golden: "0012401a00000400000002000100080002000200024002046000a4000100",
+		},
+	}
+}
+
+func TestUEContextReleaseRequestGWContextReleaseIndicationExtensionRejects(t *testing.T) {
+	cause := Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkX2HandoverTriggered}
+
+	_, err := ParseUEContextReleaseRequest(container(t,
+		ieField{id: IDMMEUES1APID, crit: CriticalityReject, val: Ptr(MMEUES1APID(1))},
+		ieField{id: IDENBUES1APID, crit: CriticalityReject, val: Ptr(ENBUES1APID(2))},
+		ieField{id: IDCause, crit: CriticalityIgnore, val: &cause},
+		ieField{id: IDGWContextReleaseIndication, crit: CriticalityReject, raw: extensionEnum(t, gwContextReleaseIndicationRootCount, 0)},
+	))
+
+	var ase *AbstractSyntaxError
+	if !errors.As(err, &ase) {
+		t.Fatalf("err = %v, want an AbstractSyntaxError", err)
+	}
+
+	if len(ase.IEs) != 1 || ase.IEs[0].IEID != IDGWContextReleaseIndication || ase.IEs[0].TypeOfError != TypeOfErrorNotUnderstood {
+		t.Fatalf("IEs = %+v, want GWContextReleaseIndication not-understood", ase.IEs)
+	}
+}

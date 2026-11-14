@@ -69,6 +69,7 @@ func FuzzDecodeNoPanic(f *testing.F) {
 		_, _ = unmarshalPERValue[GlobalRANNodeID](data)
 		_, _ = unmarshalPERValue[SupportedTAList](data)
 		_, _ = unmarshalPERValue[ServedGUAMIList](data)
+		_, _ = unmarshalPERValue[UnavailableGUAMIList](data)
 		_, _ = unmarshalPERValue[PLMNSupportList](data)
 		_, _ = unmarshalPERValue[GUAMIList](data)
 		_, _ = unmarshalPERValue[GWContextReleaseIndication](data)

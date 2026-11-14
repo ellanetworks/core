@@ -177,6 +177,8 @@ func ieAdditionGoldenCases() []goldenRoundTrip {
 
 	out = append(out, amfConfigurationUpdateGoldenCases()...)
 	out = append(out, amfConfigurationUpdateAcknowledgeGoldenCases()...)
+	out = append(out, nGSetupResponseGoldenCases()...)
+	out = append(out, aMFStatusIndicationGoldenCases()...)
 	out = append(out, uETNLABindingReleaseRequestGoldenCases()...)
 	out = append(out, initialContextSetupRequestGoldenCases()...)
 	out = append(out, uEContextModificationRequestGoldenCases()...)

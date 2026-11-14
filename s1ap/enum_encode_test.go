@@ -23,6 +23,7 @@ func TestEnumOutsideRootIsNotEncoded(t *testing.T) {
 		{"TimeToWait", timeToWaitRootCount, func(v int64) per.Marshaler { return TimeToWait(v) }},
 		{"RRCEstablishmentCause", rrcEstablishmentCauseRootCount, func(v int64) per.Marshaler { return RRCEstablishmentCause(v) }},
 		{"UERetentionInformation", ueRetentionInformationRootCount, func(v int64) per.Marshaler { return UERetentionInformation(v) }},
+		{"GWContextReleaseIndication", gwContextReleaseIndicationRootCount, func(v int64) per.Marshaler { return GWContextReleaseIndication(v) }},
 
 		// HandoverType is absent deliberately: TS 36.413 §9.2.1.13 assigns two
 		// extension additions Ella encodes, so its bound is the assigned count

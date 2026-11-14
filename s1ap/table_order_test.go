@@ -70,7 +70,7 @@ func TestTableOrderMatchesASN1(t *testing.T) {
 		{"UEContextModificationFailure", tableIDs(uEContextModificationFailureIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDCause, IDCriticalityDiagnostics}},
 		{"UEContextReleaseCommand", tableIDs(uEContextReleaseCommandIEs), []ProtocolIEID{IDUES1APIDs, IDCause}},
 		{"UEContextReleaseComplete", tableIDs(uEContextReleaseCompleteIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDCriticalityDiagnostics, IDUserLocationInformation}},
-		{"UEContextReleaseRequest", tableIDs(uEContextReleaseRequestIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDCause}},
+		{"UEContextReleaseRequest", tableIDs(uEContextReleaseRequestIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDCause, IDGWContextReleaseIndication}},
 	}
 
 	for _, tt := range tests {

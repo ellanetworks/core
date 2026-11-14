@@ -58,7 +58,7 @@ func isInitiating(p PDU) bool { _, ok := p.(*InitiatingMessage); return ok }
 func isSuccessful(p PDU) bool { _, ok := p.(*SuccessfulOutcome); return ok }
 
 func newMessageCases() []newMessageCase {
-	return []newMessageCase{
+	return append([]newMessageCase{
 		{
 			name: "OverloadStart",
 			msg: &OverloadStart{
@@ -238,7 +238,7 @@ func newMessageCases() []newMessageCase {
 			parse:  func(b []byte) (any, error) { return ParseRerouteNASRequest(b) },
 			choice: isInitiating,
 		},
-	}
+	}, uEContextReleaseRequestGoldenCases()...)
 }
 
 func TestNewMessagesRoundTrip(t *testing.T) {
@@ -304,7 +304,8 @@ func TestNewMessagesWireCriticality(t *testing.T) {
 		"KillResponse":                {{IDMessageIdentifier, CriticalityReject}, {IDSerialNumber, CriticalityReject}, {IDBroadcastCancelledAreaList, CriticalityIgnore}},
 		"PWSRestartIndication":        {{IDECGIListForRestart, CriticalityReject}, {IDGlobalENBID, CriticalityReject}, {IDTAIListForRestart, CriticalityReject}, {IDEmergencyAreaIDListForRestart, CriticalityReject}},
 		"PWSFailureIndication":        {{IDPWSfailedECGIList, CriticalityReject}, {IDGlobalENBID, CriticalityReject}},
-		"RerouteNASRequest":           {{IDENBUES1APID, CriticalityReject}, {IDMMEUES1APID, CriticalityIgnore}, {IDS1Message, CriticalityReject}, {IDMMEGroupID, CriticalityReject}, {IDAdditionalGUTI, CriticalityIgnore}, {IDUEUsageType, CriticalityIgnore}},
+		"UEContextReleaseRequestGWContextReleaseIndication": {{IDMMEUES1APID, CriticalityReject}, {IDENBUES1APID, CriticalityReject}, {IDCause, CriticalityIgnore}, {IDGWContextReleaseIndication, CriticalityReject}},
+		"RerouteNASRequest": {{IDENBUES1APID, CriticalityReject}, {IDMMEUES1APID, CriticalityIgnore}, {IDS1Message, CriticalityReject}, {IDMMEGroupID, CriticalityReject}, {IDAdditionalGUTI, CriticalityIgnore}, {IDUEUsageType, CriticalityIgnore}},
 	}
 
 	for _, tc := range newMessageCases() {
