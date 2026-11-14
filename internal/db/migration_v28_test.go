@@ -56,3 +56,18 @@ func TestMigrationV28KeysRadioEventsByRef(t *testing.T) {
 		t.Fatalf("list at v28: total %d, err %v, want 2", total, err)
 	}
 }
+
+func TestMigrationV28GatesSHA256APITokens(t *testing.T) {
+	ctx := context.Background()
+	d := newDatabaseAtVersion(t, 27)
+
+	if d.APITokenSHA256Enabled(ctx) {
+		t.Fatal("SHA-256 API tokens enabled at v27, want bcrypt until v28")
+	}
+
+	migrateTestDatabase(t, d, 28)
+
+	if !d.APITokenSHA256Enabled(ctx) {
+		t.Fatal("SHA-256 API tokens disabled at v28")
+	}
+}

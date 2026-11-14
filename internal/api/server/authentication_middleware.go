@@ -5,6 +5,9 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -40,6 +43,16 @@ const (
 )
 
 func isAPIToken(tok string) bool { return strings.HasPrefix(tok, "ellacore_") }
+
+func apiTokenMatches(hash, secret string) bool {
+	if strings.HasPrefix(hash, "$2") {
+		return bcrypt.CompareHashAndPassword([]byte(hash), []byte(secret)) == nil
+	}
+
+	sum := sha256.Sum256([]byte(secret))
+
+	return subtle.ConstantTimeCompare([]byte(hash), []byte(hex.EncodeToString(sum[:]))) == 1
+}
 
 func parseAPIToken(presented string) (tokenID, secret string, ok bool) {
 	if !strings.HasPrefix(presented, "ellacore_") {
@@ -132,8 +145,7 @@ func authenticateRequest(r *http.Request, jwtSecret *JWTSecret, store *db.Databa
 			return "", "", 0, err
 		}
 
-		// CompareHashAndPassword uses constant time comparison, making it safer but slower
-		if err := bcrypt.CompareHashAndPassword([]byte(tok.TokenHash), []byte(token)); err != nil {
+		if !apiTokenMatches(tok.TokenHash, token) {
 			err := errors.New("invalid API token")
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "invalid API token")
