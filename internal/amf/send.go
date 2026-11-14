@@ -1244,7 +1244,7 @@ func (ueConn *UeConn) SendHandoverRequest(ctx context.Context, opts HandoverRequ
 
 	traceActivation, err := ueConn.handoverTraceActivation()
 	if err != nil {
-		return fmt.Errorf("could not build Trace Activation: %w", err)
+		ueConn.Log(ctx).Warn("could not build Trace Activation for the Handover Request", zap.Error(err))
 	}
 
 	pkt, err := handoverRequestBytes(ngap.AMFUENGAPID(ueConn.AmfUeNgapID), opts, allowed, guami, traceActivation)

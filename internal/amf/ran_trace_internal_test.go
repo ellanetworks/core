@@ -5,6 +5,7 @@ package amf
 
 import (
 	"context"
+	"net"
 	"net/netip"
 	"sync"
 	"testing"
@@ -32,6 +33,14 @@ func (c *traceCapture) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
 
 func (c *traceCapture) WriteMsgWait(_ context.Context, b []byte, info *sctp.SndRcvInfo) (int, error) {
 	return c.WriteMsg(b, info)
+}
+
+func (c *traceCapture) LocalAddr() net.Addr {
+	return &sctp.SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.ParseIP("127.0.0.1")}}, Port: 38412}
+}
+
+func (c *traceCapture) RemoteAddr() net.Addr {
+	return &sctp.SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.ParseIP("127.0.0.2")}}, Port: 38412}
 }
 
 func (c *traceCapture) traceStarts(t *testing.T) []*ngap.TraceStart {
@@ -70,7 +79,7 @@ func newTracedUE(t *testing.T) (*AMF, *tracing.TraceSessions, *UeContext, *UeCon
 	t.Helper()
 
 	a := New(nil, nil, nil)
-	sessions := tracing.NewTraceSessions(tracing.TraceConfig{TCEAddress: netip.MustParseAddr("10.0.0.1")}, func() int { return 3 })
+	sessions := tracing.NewTraceSessions(func() int { return 3 })
 	a.EnableRANTrace(sessions)
 
 	w := &traceCapture{}
@@ -118,7 +127,7 @@ func TestTraceStartCarriesSessionAndConnection(t *testing.T) {
 		t.Fatalf("interfaces %08b depth %d", ta.InterfacesToTrace, ta.TraceDepth)
 	}
 
-	if ip, _ := ta.TraceCollectionEntityIPAddress.IPs(); ip != netip.MustParseAddr("10.0.0.1") {
+	if ip, _ := ta.TraceCollectionEntityIPAddress.IPs(); ip != netip.MustParseAddr("127.0.0.1") {
 		t.Fatalf("TCE address %v", ip)
 	}
 
