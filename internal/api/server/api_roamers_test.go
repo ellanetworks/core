@@ -84,7 +84,7 @@ func TestListRoamers(t *testing.T) {
 		t.Fatalf("SetVisitorMSISDN: %s", err)
 	}
 
-	connectAPIRadio(env.AMF, "gnb-1")
+	radioRef := apiRadioRef(t, connectAPIRadio(env.AMF, "gnb-1"))
 
 	if code, resp, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{Name: "other-dn", IPv4Pool: "10.99.0.0/24", DNS: "8.8.8.8", MTU: 1400}); err != nil || code != http.StatusCreated {
 		t.Fatalf("create data network: code=%d err=%v (%+v)", code, err, resp)
@@ -106,7 +106,7 @@ func TestListRoamers(t *testing.T) {
 		"?partner=partner&search=2089": {imsis: []string{"208930000000001", "208940000000002"}, total: 2},
 		"?data_network=internet":       {imsis: []string{"208930000000001", "208940000000002"}, total: 2},
 		"?data_network=other-dn":       {imsis: []string{}, total: 0},
-		"?radio=gnb-1":                 {imsis: []string{}, total: 0},
+		"?radio=" + radioRef:           {imsis: []string{}, total: 0},
 	}
 
 	for query, want := range cases {
@@ -150,11 +150,12 @@ func TestListRoamers(t *testing.T) {
 		code    int
 		message string
 	}{
-		"?partner=unknown":      {http.StatusNotFound, "Roaming partner not found"},
-		"?radio=unknown":        {http.StatusNotFound, "Radio not found"},
-		"?data_network=unknown": {http.StatusNotFound, "Data Network not found"},
-		"?page=0":               {http.StatusBadRequest, "page must be >= 1"},
-		"?per_page=101":         {http.StatusBadRequest, "per_page must be between 1 and 100"},
+		"?partner=unknown":            {http.StatusNotFound, "Roaming partner not found"},
+		"?radio=gnb-1":                {http.StatusBadRequest, "Invalid radio"},
+		"?radio=gNB:001-01:00002a@24": {http.StatusNotFound, "Radio not found"},
+		"?data_network=unknown":       {http.StatusNotFound, "Data Network not found"},
+		"?page=0":                     {http.StatusBadRequest, "page must be >= 1"},
+		"?per_page=101":               {http.StatusBadRequest, "per_page must be between 1 and 100"},
 	}
 
 	for query, want := range errorCases {

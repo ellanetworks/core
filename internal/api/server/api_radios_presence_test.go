@@ -6,6 +6,7 @@ package server_test
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"net/http"
 	"path/filepath"
 	"slices"
@@ -38,12 +39,19 @@ func listRadiosQuery(url string, client *http.Client, token string, query string
 
 const testRadioBitLength = 24
 
-func radioRefFor(nodeType, id string) string {
+func testRadioHexID(name string, bits int) string {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(name))
+
+	return fmt.Sprintf("%0*x", (bits+3)/4, h.Sum32()&(1<<bits-1))
+}
+
+func radioRefFor(nodeType, name string) string {
 	if strings.EqualFold(nodeType, "gNB") {
-		return fmt.Sprintf("%s:001-01:%s@%d", nodeType, id, testRadioBitLength)
+		return fmt.Sprintf("%s:001-01:%s@%d", nodeType, testRadioHexID(name, testRadioBitLength), testRadioBitLength)
 	}
 
-	return fmt.Sprintf("%s:001-01:%s", nodeType, id)
+	return fmt.Sprintf("%s:001-01:MacroeNB-%s", nodeType, testRadioHexID(name, 20))
 }
 
 func getRadioDetail(url string, client *http.Client, token string, nodeType, id string) (int, *GetRadioResponse, error) {
@@ -55,7 +63,7 @@ func forgetRadio(url string, client *http.Client, token string, nodeType, id str
 }
 
 func connectAPIRadio(amfInstance *amf.AMF, name string) *amf.Radio {
-	return connectAPIRadioID(amfInstance, name, gnbRanNodeID("001", "01", name, testRadioBitLength))
+	return connectAPIRadioID(amfInstance, name, gnbRanNodeID("001", "01", testRadioHexID(name, testRadioBitLength), testRadioBitLength))
 }
 
 func connectAPIRadioID(amfInstance *amf.AMF, name string, ranID models.GlobalRanNodeID) *amf.Radio {
@@ -64,6 +72,17 @@ func connectAPIRadioID(amfInstance *amf.AMF, name string, ranID models.GlobalRan
 	amfInstance.IndexRadioForTest(new(sctp.SCTPConn), radio)
 
 	return radio
+}
+
+func apiRadioRef(t *testing.T, radio *amf.Radio) string {
+	t.Helper()
+
+	ref, ok := models.RanNodeIDKey(radio.RanID)
+	if !ok {
+		t.Fatalf("radio %+v has no ref", radio.RanID)
+	}
+
+	return ref
 }
 
 func gnbRanNodeID(mcc, mnc, value string, bitLength int32) models.GlobalRanNodeID {
@@ -148,7 +167,7 @@ func TestListRadiosReportsPresence(t *testing.T) {
 		t.Error("disconnected radio has an empty disconnected_at")
 	}
 
-	if offlineRadio.ID != "gnb-offline" {
+	if offlineRadio.ID != testRadioHexID("gnb-offline", testRadioBitLength) {
 		t.Errorf("disconnected radio id = %q, want its last known ID", offlineRadio.ID)
 	}
 }
@@ -224,10 +243,11 @@ func TestGetRadioReportsPresence(t *testing.T) {
 func TestSubscribersByOfflineRadio(t *testing.T) {
 	env, client, token := setupRadioPresenceTest(t)
 
-	env.AMF.DisconnectRadio(context.Background(), connectAPIRadio(env.AMF, "gnb-offline"))
+	radio := connectAPIRadio(env.AMF, "gnb-offline")
+	env.AMF.DisconnectRadio(context.Background(), radio)
 
 	req, err := http.NewRequestWithContext(context.Background(), "GET",
-		env.Server.URL+"/api/v1/subscribers?radio=gnb-offline", nil)
+		env.Server.URL+"/api/v1/subscribers?radio="+apiRadioRef(t, radio), nil)
 	if err != nil {
 		t.Fatalf("couldn't build request: %s", err)
 	}

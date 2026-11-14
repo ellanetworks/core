@@ -183,24 +183,27 @@ func (s liveStatus) of(imsi string) SubscriberStatus {
 	merged := mergeSystems(
 		systemView{
 			system: System5G, present: on5G, registered: amf5G.Registered, connected: amf5G.Connected,
-			lastSeenAt:    lastSeenAt(on5G, amf5G.LastSeenAt, s.amf5GLastSeen[imsi].At),
-			lastSeenRadio: s.amf5GLastSeen[imsi].RadioName,
+			lastSeenAt:       lastSeenAt(on5G, amf5G.LastSeenAt, s.amf5GLastSeen[imsi].At),
+			lastSeenRadio:    s.amf5GLastSeen[imsi].RadioName,
+			lastSeenRadioRef: s.amf5GLastSeen[imsi].RadioID,
 		},
 		systemView{
 			system: System4G, present: on4G, registered: mme4G.Registered, connected: mme4G.Connected,
-			lastSeenAt:    lastSeenAt(on4G, mme4G.LastSeenAt, s.mmeLastSeen[imsi].At),
-			lastSeenRadio: s.mmeLastSeen[imsi].RadioName,
+			lastSeenAt:       lastSeenAt(on4G, mme4G.LastSeenAt, s.mmeLastSeen[imsi].At),
+			lastSeenRadio:    s.mmeLastSeen[imsi].RadioName,
+			lastSeenRadioRef: s.mmeLastSeen[imsi].RadioID,
 		},
 	)
 
 	elsewhere := s.elsewhere[imsi]
 
 	status := SubscriberStatus{
-		Registered:      merged.Registered || len(elsewhere) > 0,
-		ConnectionState: connectionState(on5G || on4G, merged.Connected),
-		Systems:         withElsewhere(merged.Systems, elsewhere),
-		NumSessions:     mme4G.NumSessions + amf5G.NumSessions,
-		LastSeenRadio:   merged.LastSeenRadio,
+		Registered:       merged.Registered || len(elsewhere) > 0,
+		ConnectionState:  connectionState(on5G || on4G, merged.Connected),
+		Systems:          withElsewhere(merged.Systems, elsewhere),
+		NumSessions:      mme4G.NumSessions + amf5G.NumSessions,
+		LastSeenRadio:    merged.LastSeenRadio,
+		LastSeenRadioRef: merged.LastSeenRadioRef,
 	}
 
 	if !merged.LastSeenAt.IsZero() {
@@ -210,17 +213,17 @@ func (s liveStatus) of(imsi string) SubscriberStatus {
 	return status
 }
 
-func (s liveStatus) onRadio(radio string) map[string]struct{} {
+func (s liveStatus) onRadio(ref string) map[string]struct{} {
 	imsis := map[string]struct{}{}
 
 	for imsi := range s.amf5G {
-		if s.amf5GLastSeen[imsi].RadioName == radio {
+		if s.amf5GLastSeen[imsi].RadioID == ref {
 			imsis[imsi] = struct{}{}
 		}
 	}
 
 	for imsi := range s.mme4G {
-		if s.mmeLastSeen[imsi].RadioName == radio {
+		if s.mmeLastSeen[imsi].RadioID == ref {
 			imsis[imsi] = struct{}{}
 		}
 	}
@@ -293,12 +296,13 @@ func ListRoamers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme
 		dbPage, dbPerPage := page, perPage
 
 		if radioFilter != "" {
-			if !radioIsKnown(amfInstance, mmeInstance, radioFilter) {
-				writeError(ctx, w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio %q not found", radioFilter), logger.APILog)
+			ref, status, err := radioFilterRef(amfInstance, mmeInstance, radioFilter)
+			if err != nil {
+				writeError(ctx, w, status, radioFilterMessage(status), err, logger.APILog)
 				return
 			}
 
-			onRadio = live.onRadio(radioFilter)
+			onRadio = live.onRadio(ref)
 			dbPage, dbPerPage = 1, MaxNumSubscribers
 		}
 

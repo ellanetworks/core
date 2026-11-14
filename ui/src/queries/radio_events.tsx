@@ -14,6 +14,7 @@ export type APIRadioEvent = {
   message_type: string;
   direction: string;
   radio: string;
+  radio_ref: string;
   address: string;
   details?: string;
 };

@@ -21,7 +21,7 @@ This path returns the list of roamers, ordered by IMSI.
 | `page`         | query | int  | `1`     | `>= 1`      | 1-based page index.                                                  |
 | `per_page`     | query | int  | `25`    | `1…100`     | Number of items per page.                                            |
 | `partner`      | query | str  |         |             | Filter by roaming partner name.                                      |
-| `radio`        | query | str  |         |             | Filter by radio name.                                                |
+| `radio`        | query | str  |         |             | Filter by the `ref` of the last serving radio, e.g. `gNB:001-01:00002a@24`. |
 | `data_network` | query | str  |         |             | Filter by data network name, through the roaming partner's profile. |
 | `search`       | query | str  |         | ≤ 254 chars | Filter by IMSI or MSISDN substring.                                  |
 
@@ -51,7 +51,8 @@ This path returns the list of roamers, ordered by IMSI.
                     "systems": ["5G"],
                     "num_sessions": 1,
                     "last_seen_at": "2026-03-16T12:34:56Z",
-                    "last_seen_radio": "gNB-1"
+                    "last_seen_radio": "gNB-1",
+                    "last_seen_radio_ref": "gNB:001-01:00002a@24"
                 }
             }
         ],

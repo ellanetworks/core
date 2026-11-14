@@ -14,7 +14,6 @@ import RoamerDetail from "./pages/RoamerDetail";
 import RadiosList from "./pages/radios/RadiosList";
 import RadioEvents from "./pages/radios/RadioEvents";
 import RadioDetail from "./pages/RadioDetail";
-import RadioByName from "./pages/radios/RadioByName";
 import Profiles from "./pages/Profiles";
 import ProfileDetail from "./pages/ProfileDetail";
 import PolicyDetail from "./pages/PolicyDetail";
@@ -60,7 +59,6 @@ export default function AppRouter() {
         <Route path="subscribers/:imsi" element={<SubscriberDetail />} />
         <Route path="radios" element={<RadiosList />} />
         <Route path="radios/events" element={<RadioEvents />} />
-        <Route path="radios/by-name/:name" element={<RadioByName />} />
         <Route path="radios/:ref" element={<RadioDetail />} />
         <Route path="profiles" element={<Profiles />} />
         <Route path="profiles/:name" element={<ProfileDetail />} />
