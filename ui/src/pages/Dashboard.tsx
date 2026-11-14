@@ -37,7 +37,12 @@ import {
   listSubscribers,
   type ListSubscribersResponse,
 } from "@/queries/subscribers";
-import { listRadios, type ListRadiosResponse } from "@/queries/radios";
+import {
+  listRadios,
+  radioDisplayName,
+  radioPath,
+  type ListRadiosResponse,
+} from "@/queries/radios";
 import {
   listRadioEvents,
   type ListRadioEventsResponse,
@@ -617,9 +622,9 @@ const Dashboard = () => {
                           </TableCell>
 
                           <TableCell sx={{ whiteSpace: "nowrap" }}>
-                            {row.radio ? (
+                            {row.radio_ref ? (
                               <Link
-                                to={`/radios/by-name/${encodeURIComponent(row.radio)}`}
+                                to={`/radios/${radioPath(row.radio_ref)}`}
                                 style={{ textDecoration: "none" }}
                               >
                                 <Typography
@@ -630,12 +635,12 @@ const Dashboard = () => {
                                     "&:hover": { textDecoration: "underline" },
                                   }}
                                 >
-                                  {row.radio}
+                                  {radioDisplayName(row.radio, row.radio_ref)}
                                 </Typography>
                               </Link>
                             ) : (
                               <Typography variant="body2" color="textSecondary">
-                                —
+                                {row.radio || "—"}
                               </Typography>
                             )}
                           </TableCell>

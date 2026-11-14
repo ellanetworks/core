@@ -9,6 +9,7 @@ import (
 	"net"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/radioctx"
 	"github.com/ellanetworks/core/ngap"
@@ -246,7 +247,8 @@ func receiveNGSetup(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, m
 		amfInstance.UpdateRadioName(ran, *req.RANNodeName)
 	}
 
-	traceMessage(ctx, amfInstance, ran, msg, ngSetupRequestMessageType, span)
+	span.SetAttributes(attribute.String("ngap.message_type", string(ngSetupRequestMessageType)))
+	amfInstance.LogSetupRequest(ctx, ran.Conn, ngSetupRequestMessageType, msg, setupRequestRef(req, parseErr))
 
 	if parseErr != nil {
 		span.RecordError(parseErr)
@@ -269,6 +271,21 @@ func receiveNGSetup(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, m
 	}
 
 	HandleNGSetupRequest(ctx, amfInstance, ran, req)
+}
+
+func setupRequestRef(req *ngap.NGSetupRequest, parseErr error) string {
+	if parseErr != nil {
+		return ""
+	}
+
+	id, err := util.RANNodeIDToModels(req.GlobalRANNodeID)
+	if err != nil {
+		return ""
+	}
+
+	ref, _ := id.Ref()
+
+	return ref
 }
 
 // receiveNGReset parses and handles an NG RESET. A failed parse is answered

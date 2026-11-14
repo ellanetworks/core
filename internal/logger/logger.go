@@ -376,6 +376,7 @@ func LogNetworkEvent(
 	localAddress string,
 	remoteAddress string,
 	radioName string,
+	radioRef string,
 	rawBytes []byte,
 ) {
 	if messageType == "" {
@@ -411,6 +412,7 @@ func LogNetworkEvent(
 		zap.String("local_address", localAddress),
 		zap.String("remote_address", remoteAddress),
 		zap.String("radio_name", radioName),
+		zap.String("radio_ref", radioRef),
 	)
 
 	if dbInstance == nil {
@@ -426,6 +428,7 @@ func LogNetworkEvent(
 		LocalAddress:  localAddress,
 		RemoteAddress: remoteAddress,
 		RadioName:     radioName,
+		RadioRef:      radioRef,
 		Raw:           rawBytes,
 	})
 	if err != nil {

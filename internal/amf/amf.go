@@ -562,6 +562,7 @@ func (amf *AMF) RebindRanID(radio *Radio, ranNodeID ngap.GlobalRANNodeID) (bool,
 		return true, nil
 	} else if ok {
 		amf.reg.Unclaim(oldKey)
+		amf.lastSeen.rekey(oldKey, key)
 	}
 
 	radio.RanID = &newID
@@ -583,17 +584,6 @@ func (amf *AMF) ListRadios() []RadioInfo {
 	}
 
 	return out
-}
-
-func (amf *AMF) HasRadio(name string) bool {
-	amf.mu.Lock()
-	defer amf.mu.Unlock()
-
-	return amf.reg.Has(named(name))
-}
-
-func named(name string) func(*Radio) bool {
-	return func(r *Radio) bool { return r.name == name }
 }
 
 func identifiedBy(key string) func(*Radio) bool {

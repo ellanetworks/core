@@ -76,6 +76,18 @@ func (s *lastSeenStore) all() map[string]LastSeen {
 	return out
 }
 
+func (s *lastSeenStore) rekey(oldID, newID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for imsi, entry := range s.entries {
+		if entry.RadioID == oldID {
+			entry.RadioID = newID
+			s.entries[imsi] = entry
+		}
+	}
+}
+
 func (s *lastSeenStore) forget(imsi string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

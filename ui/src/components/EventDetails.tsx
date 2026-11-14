@@ -28,6 +28,7 @@ import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { NGAPMessageView } from "@/components/NGAPMessageRender";
 import ProtocolChip from "@/components/ProtocolChip";
+import { radioDisplayName, radioPath } from "@/queries/radios";
 
 function formatHexDump(base64: string): string {
   let bin: string;
@@ -69,6 +70,7 @@ export interface LogRow {
   timestamp: string;
   protocol: string;
   radio: string;
+  radioRef: string;
   address: string;
   messageType: string;
   direction: string;
@@ -303,22 +305,22 @@ export default function EventDetails({
             Radio
           </Typography>
           <Box>
-            {log?.radio ? (
+            {log?.radioRef ? (
               <Typography
                 variant="subtitle2"
                 component={RouterLink}
-                to={`/radios/by-name/${encodeURIComponent(log.radio)}`}
+                to={`/radios/${radioPath(log.radioRef)}`}
                 sx={{
                   color: "link",
                   textDecoration: "underline",
                   "&:hover": { textDecoration: "underline" },
                 }}
               >
-                {log.radio}
+                {radioDisplayName(log.radio, log.radioRef)}
               </Typography>
             ) : (
               <Typography variant="subtitle2" component="span">
-                {"\u2014"}
+                {log?.radio || "\u2014"}
               </Typography>
             )}
             {log?.address && (

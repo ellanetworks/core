@@ -43,12 +43,13 @@ type UpdateSubscriberParams struct {
 }
 
 type SubscriberStatus struct {
-	Registered      bool     `json:"registered"`
-	ConnectionState string   `json:"connection_state,omitempty"`
-	Systems         []string `json:"systems,omitempty"`
-	NumSessions     int      `json:"num_sessions"`
-	LastSeenAt      string   `json:"last_seen_at,omitempty"`
-	LastSeenRadio   string   `json:"last_seen_radio,omitempty"`
+	Registered       bool     `json:"registered"`
+	ConnectionState  string   `json:"connection_state,omitempty"`
+	Systems          []string `json:"systems,omitempty"`
+	NumSessions      int      `json:"num_sessions"`
+	LastSeenAt       string   `json:"last_seen_at,omitempty"`
+	LastSeenRadio    string   `json:"last_seen_radio,omitempty"`
+	LastSeenRadioRef string   `json:"last_seen_radio_ref,omitempty"`
 }
 
 type Subscriber struct {
@@ -78,6 +79,7 @@ type Registration struct {
 	Registered         bool          `json:"registered"`
 	ConnectionState    *string       `json:"connection_state"`
 	Radio              string        `json:"radio,omitempty"`
+	RadioRef           string        `json:"radio_ref,omitempty"`
 	LastSeenAt         string        `json:"last_seen_at,omitempty"`
 	Imei               string        `json:"imei,omitempty"`
 	CipheringAlgorithm string        `json:"ciphering_algorithm,omitempty"`
@@ -250,18 +252,42 @@ func isSequenceNumberValid(sequenceNumber string) bool {
 	return len(bytes) == 6
 }
 
-func radioIsKnown(amfInstance *amf.AMF, mmeInstance *mme.MME, name string) bool {
-	return amfInstance.HasRadio(name) || (mmeInstance != nil && mmeInstance.HasRadio(name))
+func radioFilterRef(amfInstance *amf.AMF, mmeInstance *mme.MME, raw string) (string, int, error) {
+	ranID, err := models.ParseRanNodeRef(raw)
+	if err != nil {
+		return "", http.StatusBadRequest, err
+	}
+
+	ref, ok := ranID.Ref()
+	if !ok {
+		return "", http.StatusBadRequest, fmt.Errorf("radio %q carries no node identity", raw)
+	}
+
+	var known bool
+
+	switch {
+	case ranID.ENbID == "":
+		_, known = amfInstance.FindRadioInfoByRanID(ranID)
+	case mmeInstance != nil:
+		_, known = mmeInstance.FindRadioInfoByRanID(ranID)
+	}
+
+	if !known {
+		return "", http.StatusNotFound, fmt.Errorf("radio %q not found", raw)
+	}
+
+	return ref, http.StatusOK, nil
 }
 
 // systemView is what one system — 4G or 5G — knows about a subscriber.
 type systemView struct {
-	system        string
-	present       bool
-	registered    bool
-	connected     bool
-	lastSeenAt    time.Time
-	lastSeenRadio string
+	system           string
+	present          bool
+	registered       bool
+	connected        bool
+	lastSeenAt       time.Time
+	lastSeenRadio    string
+	lastSeenRadioRef string
 }
 
 func (v systemView) newerThan(other systemView) bool {
@@ -269,11 +295,12 @@ func (v systemView) newerThan(other systemView) bool {
 }
 
 type mergedStatus struct {
-	Systems       []string
-	Registered    bool
-	Connected     bool
-	LastSeenAt    time.Time
-	LastSeenRadio string
+	Systems          []string
+	Registered       bool
+	Connected        bool
+	LastSeenAt       time.Time
+	LastSeenRadio    string
+	LastSeenRadioRef string
 }
 
 func mergeSystems(views ...systemView) mergedStatus {
@@ -306,7 +333,7 @@ func mergeSystems(views ...systemView) mergedStatus {
 		answering = retained
 	}
 
-	merged.LastSeenAt, merged.LastSeenRadio = answering.lastSeenAt, answering.lastSeenRadio
+	merged.LastSeenAt, merged.LastSeenRadio, merged.LastSeenRadioRef = answering.lastSeenAt, answering.lastSeenRadio, answering.lastSeenRadioRef
 
 	return merged
 }
@@ -361,13 +388,13 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance 
 		filters := &db.SubscriberFilters{}
 
 		if radioFilter != "" {
-			found := radioIsKnown(amfInstance, mmeInstance, radioFilter)
-			if !found {
-				writeError(r.Context(), w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio %q not found", radioFilter), logger.APILog)
+			ref, status, err := radioFilterRef(amfInstance, mmeInstance, radioFilter)
+			if err != nil {
+				writeError(r.Context(), w, status, radioFilterMessage(status), err, logger.APILog)
 				return
 			}
 
-			radioIMSIs := live.onRadio(radioFilter)
+			radioIMSIs := live.onRadio(ref)
 
 			filters.IMSIs = make([]string, 0, len(radioIMSIs))
 			for imsi := range radioIMSIs {
@@ -917,8 +944,9 @@ func registrationFrom5G(snap amf.UESnapshot, present bool, retained amf.LastSeen
 	}
 
 	reg := Registration{
-		System: System5G,
-		Radio:  retained.RadioName,
+		System:   System5G,
+		Radio:    retained.RadioName,
+		RadioRef: retained.RadioID,
 	}
 
 	at := retained.At
@@ -954,8 +982,9 @@ func registrationFrom4G(cs mme.ConnectedSubscriber, present bool, retained mme.L
 	}
 
 	reg := Registration{
-		System: System4G,
-		Radio:  retained.RadioName,
+		System:   System4G,
+		Radio:    retained.RadioName,
+		RadioRef: retained.RadioID,
 	}
 
 	at := retained.At
@@ -1129,4 +1158,12 @@ func DeregisterSubscriberIMS(dbInstance *db.Database, hssInstance IMSSubscribers
 
 		logger.LogAuditEvent(r.Context(), DeregisterIMSAction, email, getClientIP(r), "User cleared the IMS registration of subscriber: "+imsi)
 	})
+}
+
+func radioFilterMessage(status int) string {
+	if status == http.StatusNotFound {
+		return "Radio not found"
+	}
+
+	return "Invalid radio"
 }

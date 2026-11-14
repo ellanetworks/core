@@ -23,6 +23,7 @@ import type {
 import type { IMSSettings, IMSVoiceStatus } from "@/queries/integrations";
 import { formatRelativeTime } from "@/utils/formatters";
 import { IMS_DATA_NETWORK } from "@/utils/voice";
+import { radioDisplayName, radioPath } from "@/queries/radios";
 
 interface SubscriberConnectionCardProps {
   status: SubscriberDetailStatus;
@@ -345,7 +346,7 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
                 <Typography variant="body2">
                   {formatRelativeTime(status.last_seen_at)}
                 </Typography>
-                {status.last_seen_radio && (
+                {status.last_seen_radio_ref && (
                   <>
                     <Typography
                       variant="body2"
@@ -356,14 +357,17 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
                     <Typography
                       variant="body2"
                       component={RouterLink}
-                      to={`/radios/by-name/${encodeURIComponent(status.last_seen_radio)}`}
+                      to={`/radios/${radioPath(status.last_seen_radio_ref)}`}
                       sx={{
                         color: (theme) => theme.palette.link,
                         textDecoration: "underline",
                         "&:hover": { textDecoration: "underline" },
                       }}
                     >
-                      {status.last_seen_radio}
+                      {radioDisplayName(
+                        status.last_seen_radio,
+                        status.last_seen_radio_ref,
+                      )}
                     </Typography>
                   </>
                 )}

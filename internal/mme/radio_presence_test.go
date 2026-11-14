@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/sctp"
 )
 
@@ -65,8 +66,13 @@ func TestMMEDisconnectRadioRetainsItAsOffline(t *testing.T) {
 		t.Errorf("CountRadios() = %d, want 0: an offline eNB is not connected", m.CountRadios())
 	}
 
-	if !m.HasRadio("enb-a") {
-		t.Error("HasRadio did not report a retained offline eNB as known")
+	ranID, err := models.ParseRanNodeRef(listed.Ref)
+	if err != nil {
+		t.Fatalf("parse ref %q: %v", listed.Ref, err)
+	}
+
+	if _, ok := m.FindRadioInfoByRanID(ranID); !ok {
+		t.Error("FindRadioInfoByRanID did not report a retained offline eNB as known")
 	}
 }
 

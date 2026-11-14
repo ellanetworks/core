@@ -32,6 +32,7 @@ type Radio struct {
 	// half-written value. connectedAt is set once at construction. Guarded by amf.mu.
 	name           string
 	supportedTAIs  []SupportedTAI
+	setupRef       string
 	connectedAt    time.Time
 	disconnectedAt time.Time
 	lastSeen       atomic.Int64 // Unix nanoseconds; use LastSeenAt()/TouchLastSeen()
@@ -66,7 +67,8 @@ func (r *Radio) refreshLogLocked() {
 		fields = append(fields, logger.RadioName(r.name))
 	}
 
-	if id := radioIDOf(r); id != "" {
+	id := radioIDOf(r)
+	if id != "" {
 		fields = append(fields, logger.RadioID(id))
 	}
 
@@ -79,6 +81,7 @@ func (r *Radio) refreshLogLocked() {
 	for _, ueConn := range r.amf.conns {
 		if ueConn.Conn() == r.Conn {
 			ueConn.bindLogFields(fields)
+			ueConn.setRadio(id, r.name)
 		}
 	}
 }
@@ -160,16 +163,32 @@ func (a *AMF) radioFor(conn NGAPWriter) *Radio {
 	return radio
 }
 
-// radioNameByConn returns the node name for a connection, or "" when untracked.
-func (a *AMF) radioNameByConn(conn NGAPWriter) string {
+// radioIdentityByConn returns the node name and ref for a connection, or "" for
+// each one the radio has not given yet. An NG Setup outcome carries the ref of the
+// NG Setup Request it answers.
+func (a *AMF) radioIdentityByConn(conn NGAPWriter, messageType NGAPProcedure) (string, string) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
-	if r, ok := a.reg.Radio(conn); ok {
-		return r.name
+	r, ok := a.reg.Radio(conn)
+	if !ok {
+		return "", ""
 	}
 
-	return ""
+	if messageType == NGAPProcedureNGSetupResponse || messageType == NGAPProcedureNGSetupFailure {
+		return r.name, r.setupRef
+	}
+
+	return r.name, radioIDOf(r)
+}
+
+func (a *AMF) setSetupRef(conn NGAPWriter, ref string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if r, ok := a.reg.Radio(conn); ok {
+		r.setupRef = ref
+	}
 }
 
 // RadioInfo is a read-only snapshot of a connected radio, exposed for status/API so
