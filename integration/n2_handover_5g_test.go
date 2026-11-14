@@ -5,8 +5,6 @@ package integration_test
 
 import (
 	"context"
-	"io"
-	"net/http"
 	"os"
 	"testing"
 	"time"
@@ -147,12 +145,6 @@ func TestIntegration5GN2Handover(t *testing.T) {
 
 	for _, sr := range scenariosToRun {
 		t.Run(sr.name, func(t *testing.T) {
-			if sr.name == "gnb/n2_handover_indirect_forwarding" && os.Getenv("REPRO_RELOAD") != "" {
-				_ = setNATOnAllDataNetworks(ctx, coreClient, false)
-				time.Sleep(4 * time.Second)
-				_ = setNATOnAllDataNetworks(ctx, coreClient, true)
-			}
-
 			argv := []string{
 				"core-tester", "run", sr.name,
 				"--ella-core-n2-address", coreN2,
@@ -166,17 +158,6 @@ func TestIntegration5GN2Handover(t *testing.T) {
 
 			out, execErr := dc.Exec(ctx, testerContainer, argv, false, 3*time.Minute, nil)
 			if execErr != nil {
-				if resp, herr := http.Get(coreAPI + "/api/v1/metrics"); herr == nil {
-					b, _ := io.ReadAll(resp.Body)
-					_ = resp.Body.Close()
-					_ = os.WriteFile(os.Getenv("REPRO_DUMP")+"/metrics.txt", b, 0o644)
-				}
-
-				if coreContainer, cerr := dc.ResolveComposeContainer(ctx, "n2-handover", "ella-core"); cerr == nil {
-					n, _ := dc.Exec(ctx, coreContainer, []string{"ip", "-6", "neigh", "show"}, false, 10*time.Second, nil)
-					_ = os.WriteFile(os.Getenv("REPRO_DUMP")+"/neigh.txt", []byte(n), 0o644)
-				}
-
 				t.Fatalf("scenario %s failed: %v\n--- output ---\n%s", sr.name, execErr, out)
 			}
 
