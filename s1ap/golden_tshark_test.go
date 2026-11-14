@@ -30,7 +30,7 @@ func goldenTsharkVectors(t *testing.T) []tsharkVector {
 		b, err := hex.DecodeString(c.golden)
 		mustNil(t, err)
 
-		out = append(out, tsharkVector{name: c.name, b: b})
+		out = append(out, tsharkVector{name: c.name, b: b, extensionNotices: c.extensionNotices})
 	}
 
 	return append(out,

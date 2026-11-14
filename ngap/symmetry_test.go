@@ -40,8 +40,11 @@ var mandatedDeviations = map[string]string{
 	// NGAP lists are plain SEQUENCE OF Item; S1AP wraps its E-RAB list items
 	// in ProtocolIE-SingleContainer, which needs a list codec NGAP has no use
 	// for (TS 36.413 §9.1.3 vs TS 38.413 §9.3.1).
-	"s1ap only: func encodeSingleContainerList": "S1AP ProtocolIE-SingleContainer lists (TS 36.413 §9.1.3)",
-	"s1ap only: func decodeItemList":            "S1AP ProtocolIE-SingleContainer lists (TS 36.413 §9.1.3)",
+	"s1ap only: func encodeSingleContainerList":       "S1AP ProtocolIE-SingleContainer lists (TS 36.413 §9.1.3)",
+	"s1ap only: func decodeItemList":                  "S1AP ProtocolIE-SingleContainer lists (TS 36.413 §9.1.3)",
+	"s1ap only: type containerCrit":                   "S1AP E-RAB-IE-ContainerList elements carry their own criticality (TS 36.413 §9.3, E-RAB-IE-ContainerList)",
+	"s1ap only: type containerCritical":               "S1AP E-RAB-IE-ContainerList elements carry their own criticality (TS 36.413 §9.3, E-RAB-IE-ContainerList)",
+	"s1ap only: func (containerCrit) wireCriticality": "S1AP E-RAB-IE-ContainerList elements carry their own criticality (TS 36.413 §9.3, E-RAB-IE-ContainerList)",
 
 	// PATH SWITCH REQUEST FAILURE reports a mandatory released session list in
 	// NGAP (TS 38.413 §9.2.3.10) and a mandatory Cause with no list in S1AP
@@ -52,7 +55,9 @@ var mandatedDeviations = map[string]string{
 
 // ngapOnlyFiles' mirror, so a file added to one side and forgotten on the other
 // is caught whichever side it landed on.
-var s1apOnlyFiles = map[string]string{}
+var s1apOnlyFiles = map[string]string{
+	"erab_lists.go": "E-RAB-IE-ContainerList of ProtocolIE-SingleContainer per user-plane E-RAB list; NGAP lists are plain SEQUENCE OF (TS 36.413 §9.3, TS 38.413 §9.3)",
+}
 
 // S1AP files whose NGAP counterparts are not written yet — outstanding work,
 // not a mandated asymmetry. Entries are deleted as counterparts appear, so the

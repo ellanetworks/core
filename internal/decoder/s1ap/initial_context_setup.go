@@ -29,6 +29,9 @@ type ERABToBeSetup struct {
 	TransportLayerAddress string  `json:"transport_layer_address"`
 	GTPTEID               uint32  `json:"gtp_teid"`
 	NASPDU                *NASPDU `json:"nas_pdu,omitempty"` // absent on a reconnect ICS (no piggybacked NAS)
+	GBR                   *GBRQoS `json:"gbr_qos_information,omitempty"`
+	ERABQoSExtensions
+	ERABSetupExtensions
 }
 
 type ERABSetupItem struct {
@@ -72,6 +75,9 @@ func erabToBeSetup(it s1ap.ERABToBeSetupItemCtxtSUReq) ERABToBeSetup {
 		},
 		TransportLayerAddress: transportLayerAddress(it.TransportLayerAddress),
 		GTPTEID:               uint32(it.GTPTEID),
+		GBR:                   gbrQoS(it.QoS.GBR),
+		ERABQoSExtensions:     qosExtensions(it.QoS),
+		ERABSetupExtensions:   setupExtensions(it.CorrelationID, it.SIPTOCorrelationID, it.BearerType, it.EthernetType, it.SecurityIndication),
 	}
 
 	// A reconnect ICS (Service Request / active TAU) carries no piggybacked NAS;

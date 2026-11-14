@@ -46,6 +46,21 @@ func modeledIEsCorpus(t *testing.T) map[string][]byte {
 			ENBUES1APID:  s1ap.Ptr(s1ap.ENBUES1APID(2)),
 			MMEUES1APID2: s1ap.Ptr(s1ap.MMEUES1APID(3)),
 		}),
+		"path_switch_request_acknowledge_erab_to_be_switched_ul_list": mustMarshal(t, &s1ap.PathSwitchRequestAcknowledge{
+			MMEUES1APID:        s1ap.Ptr(s1ap.MMEUES1APID(1)),
+			ENBUES1APID:        s1ap.Ptr(s1ap.ENBUES1APID(2)),
+			ERABToBeSwitchedUL: s1ap.ERABToBeSwitchedULList{{ERABID: 5, TransportLayerAddress: s1ap.TransportLayerAddress{10, 0, 0, 9}, GTPTEID: 7}},
+		}),
+		"erab_modify_request_transport_information": mustMarshal(t, &s1ap.ERABModifyRequest{
+			MMEUES1APID: 1,
+			ENBUES1APID: 2,
+			ERABToBeModified: s1ap.ERABToBeModifiedListBearerModReq{{
+				ERABID:               5,
+				QoS:                  s1ap.ERABLevelQoSParameters{QCI: 9, ARP: s1ap.AllocationAndRetentionPriority{PriorityLevel: 15}},
+				NASPDU:               s1ap.NASPDU{0x07},
+				TransportInformation: &s1ap.TransportInformation{TransportLayerAddress: s1ap.TransportLayerAddress{10, 0, 0, 9}, ULGTPTEID: 7},
+			}},
+		}),
 		"path_switch_request_source_mme_gummei": mustMarshal(t, &s1ap.PathSwitchRequest{
 			ENBUES1APID:            2,
 			ERABToBeSwitchedDL:     []s1ap.ERABToBeSwitchedDLItem{{ERABID: 5, TransportLayerAddress: s1ap.TransportLayerAddress{10, 0, 0, 1}, GTPTEID: 1}},
@@ -146,5 +161,38 @@ func TestDecodeS1APMessage_UEContextReleaseRequestGWContextReleaseIndication(t *
 	last := ies[len(ies)-1]
 	if last.ID.Value != int64(s1ap.IDGWContextReleaseIndication) || last.Criticality.Value != int64(s1ap.CriticalityReject) || last.Value != true {
 		t.Fatalf("IEs = %+v, want GW Context Release Indication true last", ies)
+	}
+}
+
+func TestDecodeS1APMessage_TNLExtensions(t *testing.T) {
+	corpus := modeledIEsCorpus(t)
+
+	ack := DecodeS1APMessage(corpus["path_switch_request_acknowledge_erab_to_be_switched_ul_list"])
+
+	var ul []ERABToBeSwitchedUL
+
+	for _, e := range ack.Value.IEs {
+		if v, ok := e.Value.([]ERABToBeSwitchedUL); ok {
+			ul = v
+		}
+	}
+
+	if len(ul) != 1 || ul[0].ERABID != 5 || ul[0].TransportLayerAddress != "10.0.0.9" || ul[0].GTPTEID != 7 {
+		t.Fatalf("E-RAB To Be Switched UL List = %+v", ul)
+	}
+
+	mod := DecodeS1APMessage(corpus["erab_modify_request_transport_information"])
+
+	var erabs []ERABToBeModified
+
+	for _, e := range mod.Value.IEs {
+		if v, ok := e.Value.([]ERABToBeModified); ok {
+			erabs = v
+		}
+	}
+
+	if len(erabs) != 1 || erabs[0].TransportInformation == nil ||
+		*erabs[0].TransportInformation != (TransportInformation{TransportLayerAddress: "10.0.0.9", ULGTPTEID: 7}) {
+		t.Fatalf("E-RAB To Be Modified = %+v", erabs)
 	}
 }

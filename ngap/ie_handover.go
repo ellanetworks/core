@@ -355,10 +355,10 @@ type PDUSessionResourceListHORqd []PDUSessionResourceItemHORqd
 // handoverCommandTransfer, iE-Extensions OPTIONAL } (extensible). One entry per
 // session the target admitted.
 type PDUSessionResourceHandoverItem struct {
-	_            [0]struct{} `per:"extseq"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions *rawIEExtensions       `per:",optional"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // PDUSessionResourceHandoverList ::= SEQUENCE (SIZE(1..maxnoofPDUSessions)) OF
@@ -414,11 +414,11 @@ type SecurityContext struct {
 // is a PDUSessionResourceSetupRequestTransfer, the same one the setup procedure
 // carries.
 type PDUSessionResourceSetupItemHOReq struct {
-	_            [0]struct{} `per:"extseq"`
 	PDUSessionID PDUSessionID
 	SNSSAI       SNSSAI
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions *rawIEExtensions       `per:",optional"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // PDUSessionResourceSetupListHOReq ::= SEQUENCE (SIZE(1..maxnoofPDUSessions))
@@ -428,10 +428,10 @@ type PDUSessionResourceSetupListHOReq []PDUSessionResourceSetupItemHOReq
 // PDUSessionResourceAdmittedItem ::= SEQUENCE { pDUSessionID,
 // handoverRequestAcknowledgeTransfer, iE-Extensions OPTIONAL } (extensible).
 type PDUSessionResourceAdmittedItem struct {
-	_            [0]struct{} `per:"extseq"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions *rawIEExtensions       `per:",optional"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // PDUSessionResourceAdmittedList ::= SEQUENCE (SIZE(1..maxnoofPDUSessions)) OF
@@ -455,10 +455,10 @@ type PDUSessionResourceFailedToSetupListHOAck []PDUSessionResourceFailedToSetupI
 // PDUSessionResourceToBeSwitchedDLItem ::= SEQUENCE { pDUSessionID,
 // pathSwitchRequestTransfer, iE-Extensions OPTIONAL } (extensible).
 type PDUSessionResourceToBeSwitchedDLItem struct {
-	_            [0]struct{} `per:"extseq"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions *rawIEExtensions       `per:",optional"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // PDUSessionResourceToBeSwitchedDLList ::= SEQUENCE
@@ -481,10 +481,10 @@ type PDUSessionResourceFailedToSetupListPSReq []PDUSessionResourceFailedToSetupI
 // PDUSessionResourceSwitchedItem ::= SEQUENCE { pDUSessionID,
 // pathSwitchRequestAcknowledgeTransfer, iE-Extensions OPTIONAL } (extensible).
 type PDUSessionResourceSwitchedItem struct {
-	_            [0]struct{} `per:"extseq"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions *rawIEExtensions       `per:",optional"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // PDUSessionResourceSwitchedList ::= SEQUENCE (SIZE(1..maxnoofPDUSessions)) OF

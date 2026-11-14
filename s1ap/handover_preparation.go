@@ -144,7 +144,7 @@ type HandoverCommand struct {
 	ENBUES1APID                     ENBUES1APID
 	HandoverType                    HandoverType
 	NASSecurityParametersfromEUTRAN NASSecurityParametersfromEUTRAN
-	ERABSubjecttoDataForwarding     []ERABDataForwardingItem
+	ERABSubjecttoDataForwarding     ERABSubjecttoDataForwardingList
 	ERABToRelease                   []ERABItem
 	TargetToSource                  TransparentContainer
 	CriticalityDiagnostics          *CriticalityDiagnostics
@@ -199,7 +199,7 @@ var handoverCommandIEs = []ieSpec[HandoverCommand]{
 		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABSubjecttoDataForwarding, err = decodeItemList[ERABDataForwardingItem](per.NewReader(raw), enc, maxnoofERABs, IDERABDataForwardingItem)
+			m.ERABSubjecttoDataForwarding, err = decodeItemList[ERABDataForwardingItem](per.NewReader(raw), enc, maxnoofERABs, IDERABDataForwardingItem, CriticalityIgnore)
 
 			return err
 		},
@@ -218,7 +218,7 @@ var handoverCommandIEs = []ieSpec[HandoverCommand]{
 		decode: func(m *HandoverCommand, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABToRelease, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABItem)
+			m.ERABToRelease, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABItem, CriticalityIgnore)
 
 			return err
 		},

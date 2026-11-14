@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strings"
 
 	"golang.org/x/tools/go/packages"
 )
@@ -154,6 +155,10 @@ func (g *generator) collectReferencedStructs(scope *types.Scope) {
 			}
 
 			for i := 0; i < underlying.NumFields(); i++ {
+				if tag := structTagGet(underlying.Tag(i), "per"); tag == "-" || strings.Contains(tag, "exttable:") {
+					continue
+				}
+
 				ft := underlying.Field(i).Type()
 				if p, ok := ft.(*types.Pointer); ok {
 					ft = p.Elem()

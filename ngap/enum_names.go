@@ -189,3 +189,10 @@ var qosFlowMappingIndicationNames = map[QosFlowMappingIndication]string{
 }
 
 func (q QosFlowMappingIndication) Name() string { return qosFlowMappingIndicationNames[q] }
+
+var userPlaneFailureTypeNames = map[UserPlaneFailureType]string{
+	UserPlaneFailureTypeGTPUErrorIndicationReceived: "gtp-u-error-indication-received",
+	UserPlaneFailureTypeUPPathFailure:               "up-path-failure",
+}
+
+func (u UserPlaneFailureType) Name() string { return userPlaneFailureTypeNames[u] }

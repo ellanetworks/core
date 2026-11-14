@@ -51,10 +51,10 @@ type SD [3]byte
 // S-NSSAI ::= SEQUENCE { sST, sD OPTIONAL, iE-Extensions OPTIONAL }
 // (extensible) — TS 38.413 §9.3.1.24.
 type SNSSAI struct {
-	_   [0]struct{} `per:"extseq"`
-	SST SST
-	SD  *SD          `per:",optional"`
-	_   ieExtensions `per:",skip"`
+	SST          SST
+	SD           *SD                    `per:",optional"`
+	iEExtensions *rawIEExtensions       `per:",optional"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // SliceSupportItem ::= SEQUENCE { s-NSSAI, iE-Extensions OPTIONAL }

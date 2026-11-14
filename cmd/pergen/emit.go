@@ -54,6 +54,12 @@ func (g *generator) parseStruct(name string, named *types.Named, s *types.Struct
 			continue
 		}
 
+		if parsed.ExtTable != "" {
+			st.fields = append(st.fields, fieldInfo{name: s.Field(i).Name(), tag: parsed, extTable: parsed.ExtTable, fieldIdx: len(st.fields)})
+
+			continue
+		}
+
 		fi, err := g.classifyField(s.Field(i), rawTag)
 		if err != nil {
 			return nil, err
@@ -112,6 +118,7 @@ type fieldInfo struct {
 	isOptional bool
 	hasDefault bool
 	isSkip     bool
+	extTable   string
 	// noDeref marks an OPTIONAL field whose absence is a nil slice rather than
 	// a nil pointer, so the value is used without dereferencing.
 	noDeref bool

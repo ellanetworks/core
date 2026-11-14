@@ -11,11 +11,43 @@ import (
 // e-RABLevelQoSParameters, nAS-PDU, iE-Extensions OPTIONAL } (extensible).
 // The NAS-PDU carries the MODIFY EPS BEARER CONTEXT REQUEST (TS 36.413).
 type ERABToBeModifiedItemBearerModReq struct {
-	_      [0]struct{} `per:"extseq"`
-	ERABID ERABID
-	QoS    ERABLevelQoSParameters
-	NASPDU NASPDU
-	_      ieExtensions `per:",skip"`
+	ERABID               ERABID
+	QoS                  ERABLevelQoSParameters
+	NASPDU               NASPDU
+	TransportInformation *TransportInformation  `per:"-"`
+	iEExtensions         messageMeta            `per:",exttable:eRABToBeModifyItemBearerModReqExtIEs"`
+	extensions           per.ExtensionAdditions `per:",extraw"`
+	containerCrit        `per:"-"`
+}
+
+type TransportInformation struct {
+	TransportLayerAddress TransportLayerAddress
+	ULGTPTEID             GTPTEID
+	extensions            per.ExtensionAdditions `per:",extraw"`
+}
+
+var eRABToBeModifyItemBearerModReqExtIEs = []ieSpec[ERABToBeModifiedItemBearerModReq]{
+	{
+		id: IDTransportInformation, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *ERABToBeModifiedItemBearerModReq, raw []byte, enc per.Encoding) error {
+			var v TransportInformation
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.TransportInformation = &v
+
+			return nil
+		},
+		encode: func(m *ERABToBeModifiedItemBearerModReq) (per.Marshaler, bool) {
+			if m.TransportInformation == nil {
+				return nil, false
+			}
+
+			return m.TransportInformation, true
+		},
+	},
 }
 
 // ERABModifyItemBearerModRes ::= SEQUENCE { e-RAB-ID, iE-Extensions OPTIONAL }
@@ -31,7 +63,7 @@ type ERABModifyRequest struct {
 	MMEUES1APID               MMEUES1APID
 	ENBUES1APID               ENBUES1APID
 	UEAggregateMaximumBitRate *UEAggregateMaximumBitRate
-	ERABToBeModified          []ERABToBeModifiedItemBearerModReq
+	ERABToBeModified          ERABToBeModifiedListBearerModReq
 
 	messageMeta
 }
@@ -81,7 +113,7 @@ var eRABModifyRequestIEs = []ieSpec[ERABModifyRequest]{
 		decode: func(m *ERABModifyRequest, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABToBeModified, err = decodeItemList[ERABToBeModifiedItemBearerModReq](per.NewReader(raw), enc, maxnoofERABs, IDERABToBeModifiedItemBearerModReq)
+			m.ERABToBeModified, err = decodeItemList[ERABToBeModifiedItemBearerModReq](per.NewReader(raw), enc, maxnoofERABs, IDERABToBeModifiedItemBearerModReq, CriticalityReject)
 
 			return err
 		},
@@ -177,7 +209,7 @@ var eRABModifyResponseIEs = []ieSpec[ERABModifyResponse]{
 		decode: func(m *ERABModifyResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABModify, err = decodeItemList[ERABModifyItemBearerModRes](per.NewReader(raw), enc, maxnoofERABs, IDERABModifyItemBearerModRes)
+			m.ERABModify, err = decodeItemList[ERABModifyItemBearerModRes](per.NewReader(raw), enc, maxnoofERABs, IDERABModifyItemBearerModRes, CriticalityIgnore)
 
 			return err
 		},
@@ -196,7 +228,7 @@ var eRABModifyResponseIEs = []ieSpec[ERABModifyResponse]{
 		decode: func(m *ERABModifyResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABFailedToModify, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABItem)
+			m.ERABFailedToModify, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABItem, CriticalityIgnore)
 
 			return err
 		},

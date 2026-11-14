@@ -12,10 +12,19 @@ import (
 // ERABToBeModified is an E-RAB whose QoS the MME asks the eNB to change, with
 // the NAS message that tells the UE about it (TS 36.413 §9.1.3.3).
 type ERABToBeModified struct {
-	ERABID uint8  `json:"erab_id"`
-	QCI    uint8  `json:"qci"`
-	ARP    ARP    `json:"arp"`
-	NASPDU NASPDU `json:"nas_pdu"`
+	ERABID uint8   `json:"erab_id"`
+	QCI    uint8   `json:"qci"`
+	ARP    ARP     `json:"arp"`
+	NASPDU NASPDU  `json:"nas_pdu"`
+	GBR    *GBRQoS `json:"gbr_qos_information,omitempty"`
+	ERABQoSExtensions
+
+	TransportInformation *TransportInformation `json:"transport_information,omitempty"`
+}
+
+type TransportInformation struct {
+	TransportLayerAddress string `json:"transport_layer_address"`
+	ULGTPTEID             uint32 `json:"ul_gtp_teid"`
 }
 
 // ERABModifiedItem is an E-RAB the eNB confirms modified (TS 36.413 §9.1.3.4).
@@ -60,8 +69,17 @@ func buildERABModifyRequest(value []byte) (S1APMessageValue, string) {
 				PreemptionCapability:    uint8(it.QoS.ARP.PreemptionCapability),
 				PreemptionVulnerability: uint8(it.QoS.ARP.PreemptionVulnerability),
 			},
-			NASPDU: nasPDU(it.NASPDU),
+			NASPDU:            nasPDU(it.NASPDU),
+			GBR:               gbrQoS(it.QoS.GBR),
+			ERABQoSExtensions: qosExtensions(it.QoS),
 		})
+
+		if ti := it.TransportInformation; ti != nil {
+			erabs[len(erabs)-1].TransportInformation = &TransportInformation{
+				TransportLayerAddress: transportLayerAddress(ti.TransportLayerAddress),
+				ULGTPTEID:             uint32(ti.ULGTPTEID),
+			}
+		}
 	}
 
 	ies := []IE{

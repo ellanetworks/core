@@ -6,6 +6,7 @@ package smf_test
 import (
 	"bytes"
 	"context"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -254,7 +255,7 @@ func TestVoiceRuleCreatesAGBRQoSFlow(t *testing.T) {
 		PreemptionCapability:    libngap.PreemptionMayTrigger,
 		PreemptionVulnerability: libngap.PreemptionNotPreemptable,
 	}
-	if arp := item.QosFlowLevelQosParameters.AllocationAndRetentionPriority; arp != wantARP {
+	if arp := item.QosFlowLevelQosParameters.AllocationAndRetentionPriority; !reflect.DeepEqual(arp, wantARP) {
 		t.Fatalf("N2 ARP %+v, want the rule's %+v (TS 38.413 §9.3.1.19)", arp, wantARP)
 	}
 

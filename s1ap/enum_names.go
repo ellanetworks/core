@@ -156,3 +156,23 @@ var cellSizeNames = map[CellSize]string{
 }
 
 func (c CellSize) Name() string { return cellSizeNames[c] }
+
+var bearerTypeNames = map[BearerType]string{
+	BearerTypeNonIP: "non-IP",
+}
+
+func (b BearerType) Name() string { return bearerTypeNames[b] }
+
+var ethernetTypeNames = map[EthernetType]string{
+	EthernetTypeTrue: "true",
+}
+
+func (e EthernetType) Name() string { return ethernetTypeNames[e] }
+
+var integrityProtectionIndicationNames = map[IntegrityProtectionIndication]string{
+	IntegrityProtectionRequired:  "required",
+	IntegrityProtectionPreferred: "preferred",
+	IntegrityProtectionNotNeeded: "not-needed",
+}
+
+func (i IntegrityProtectionIndication) Name() string { return integrityProtectionIndicationNames[i] }

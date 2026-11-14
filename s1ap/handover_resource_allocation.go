@@ -13,7 +13,7 @@ type HandoverRequest struct {
 	HandoverType           HandoverType
 	Cause                  *Cause
 	UEAMBR                 UEAggregateMaximumBitRate
-	ERABToBeSetup          []ERABToBeSetupItemHOReq
+	ERABToBeSetup          ERABToBeSetupListHOReq
 	SourceToTarget         TransparentContainer
 	UESecurityCapabilities UESecurityCapabilities
 
@@ -87,7 +87,7 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABToBeSetup, err = decodeItemList[ERABToBeSetupItemHOReq](per.NewReader(raw), enc, maxnoofERABs, IDERABToBeSetupItemHOReq)
+			m.ERABToBeSetup, err = decodeItemList[ERABToBeSetupItemHOReq](per.NewReader(raw), enc, maxnoofERABs, IDERABToBeSetupItemHOReq, CriticalityReject)
 
 			return err
 		},
@@ -252,7 +252,7 @@ func ParseHandoverRequest(value []byte) (*HandoverRequest, error) {
 type HandoverRequestAcknowledge struct {
 	MMEUES1APID            *MMEUES1APID
 	ENBUES1APID            *ENBUES1APID
-	ERABAdmitted           []ERABAdmittedItem
+	ERABAdmitted           ERABAdmittedList
 	ERABFailedToSetup      []ERABItem
 	TargetToSource         TransparentContainer
 	CriticalityDiagnostics *CriticalityDiagnostics
@@ -308,7 +308,7 @@ var handoverRequestAcknowledgeIEs = []ieSpec[HandoverRequestAcknowledge]{
 		decode: func(m *HandoverRequestAcknowledge, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABAdmitted, err = decodeItemList[ERABAdmittedItem](per.NewReader(raw), enc, maxnoofERABs, IDERABAdmittedItem)
+			m.ERABAdmitted, err = decodeItemList[ERABAdmittedItem](per.NewReader(raw), enc, maxnoofERABs, IDERABAdmittedItem, CriticalityIgnore)
 
 			return err
 		},
@@ -327,7 +327,7 @@ var handoverRequestAcknowledgeIEs = []ieSpec[HandoverRequestAcknowledge]{
 		decode: func(m *HandoverRequestAcknowledge, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABFailedToSetup, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABFailedtoSetupItemHOReqAck)
+			m.ERABFailedToSetup, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABFailedtoSetupItemHOReqAck, CriticalityIgnore)
 
 			return err
 		},

@@ -520,85 +520,29 @@ func (f *ForbiddenInterRATs) UnmarshalPER(r *per.Reader, enc per.Encoding) error
 }
 
 func (e *ERABToBeSetupItemHOReqExtIEs) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	if e.DataForwardingNotPossible == nil {
-		return fmt.Errorf("s1ap: E-RABToBeSetupItemHOReq iE-Extensions carries no modeled extension")
+	ext := extensionFields(eRABToBeSetupItemHOReqExtIEs, e, &e.meta)
+	if len(ext) == 0 {
+		return fmt.Errorf("s1ap: E-RABToBeSetupItemHOReq iE-Extensions carries no extension")
 	}
 
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 1, maxProtocolExtensions, 1); err != nil {
-		return err
-	}
-
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, maxProtocolIEs, int64(IDDataForwardingNotPossible)); err != nil {
-		return err
-	}
-
-	if err := per.EncodeEnumerated(w, enc, criticalityRootCount, false, int64(CriticalityIgnore)); err != nil {
-		return err
-	}
-
-	v := *e.DataForwardingNotPossible
-
-	return per.EncodeOpenType(w, enc, per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-		return encodeRootEnumerated(w, enc, dataForwardingNotPossibleRootCount, int64(v), "DataForwardingNotPossible")
-	}))
+	return encodeExtensionContainer(w, enc, ext)
 }
 
 func (e *ERABToBeSetupItemHOReqExtIEs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	n, err := per.DecodeConstrainedWholeNumber(r, enc, 1, maxProtocolExtensions)
+	return decodeExtensionContainer(r, enc, eRABToBeSetupItemHOReqExtIEs, e, &e.meta)
+}
+
+func (d DataForwardingNotPossible) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return encodeRootEnumerated(w, enc, dataForwardingNotPossibleRootCount, int64(d), "DataForwardingNotPossible")
+}
+
+func (d *DataForwardingNotPossible) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	idx, err := decodeRootEnumerated(r, enc, dataForwardingNotPossibleRootCount, "DataForwardingNotPossible")
 	if err != nil {
 		return err
 	}
 
-	var rejected ProtocolIEID
-
-	comprehended := true
-
-	for range n {
-		id, err := per.DecodeConstrainedWholeNumber(r, enc, 0, maxProtocolIEs)
-		if err != nil {
-			return err
-		}
-
-		crit, err := per.DecodeEnumerated(r, enc, criticalityRootCount, false)
-		if err != nil {
-			return err
-		}
-
-		if ProtocolIEID(id) == IDDataForwardingNotPossible {
-			var v DataForwardingNotPossible
-
-			if err := per.DecodeOpenType(r, enc, per.UnmarshalerFunc(func(r *per.Reader, enc per.Encoding) error {
-				idx, err := decodeRootEnumerated(r, enc, dataForwardingNotPossibleRootCount, "DataForwardingNotPossible")
-				if err != nil {
-					return err
-				}
-
-				v = DataForwardingNotPossible(idx)
-
-				return nil
-			})); err != nil {
-				return err
-			}
-
-			e.DataForwardingNotPossible = &v
-
-			continue
-		}
-
-		if err := per.SkipOpenType(r, enc); err != nil {
-			return err
-		}
-
-		// §10.3.4.2, as for any unmodeled extension: reject stops the procedure,
-		// ignore and notify leave the enclosing IE deliverable.
-		if Criticality(crit) == CriticalityReject && comprehended {
-			comprehended, rejected = false, ProtocolIEID(id)
-		}
-	}
-
-	if !comprehended {
-		return &notComprehendedIE{ID: rejected, Crit: CriticalityReject, What: "iE-Extensions"}
-	}
+	*d = DataForwardingNotPossible(idx)
 
 	return nil
 }

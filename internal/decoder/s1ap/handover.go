@@ -78,11 +78,14 @@ type SecurityContext struct {
 }
 
 type ERABToBeSetupHO struct {
-	ERABID                uint8  `json:"erab_id"`
-	QCI                   uint8  `json:"qci"`
-	ARP                   ARP    `json:"arp"`
-	TransportLayerAddress string `json:"transport_layer_address"`
-	GTPTEID               uint32 `json:"gtp_teid"`
+	ERABID                uint8   `json:"erab_id"`
+	QCI                   uint8   `json:"qci"`
+	ARP                   ARP     `json:"arp"`
+	TransportLayerAddress string  `json:"transport_layer_address"`
+	GTPTEID               uint32  `json:"gtp_teid"`
+	GBR                   *GBRQoS `json:"gbr_qos_information,omitempty"`
+	ERABQoSExtensions
+	ERABSetupExtensions
 }
 
 type ERABAdmitted struct {
@@ -152,7 +155,7 @@ func buildHandoverRequest(value []byte) (S1APMessageValue, string) {
 
 	erabs := make([]ERABToBeSetupHO, 0, len(m.ERABToBeSetup))
 	for _, it := range m.ERABToBeSetup {
-		erabs = append(erabs, ERABToBeSetupHO{
+		e := ERABToBeSetupHO{
 			ERABID: uint8(it.ERABID),
 			QCI:    uint8(it.QoS.QCI),
 			ARP: ARP{
@@ -162,7 +165,20 @@ func buildHandoverRequest(value []byte) (S1APMessageValue, string) {
 			},
 			TransportLayerAddress: transportLayerAddress(it.TransportLayerAddress),
 			GTPTEID:               uint32(it.GTPTEID),
-		})
+			GBR:                   gbrQoS(it.QoS.GBR),
+			ERABQoSExtensions:     qosExtensions(it.QoS),
+		}
+
+		if x := it.Extensions; x != nil {
+			e.ERABSetupExtensions = setupExtensions(nil, nil, x.BearerType, x.EthernetType, x.SecurityIndication)
+
+			if x.DataForwardingNotPossible != nil {
+				notPossible := true
+				e.DataForwardingNotPossible = &notPossible
+			}
+		}
+
+		erabs = append(erabs, e)
 	}
 
 	ies := []IE{

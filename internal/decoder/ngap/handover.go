@@ -62,20 +62,41 @@ type HandoverRequiredTransferDecoded struct {
 // HandoverCommandTransferDecoded is the per-session forwarding plan the source
 // node is given (TS 38.413 §9.3.4.10).
 type HandoverCommandTransferDecoded struct {
-	DLForwardingUPTNLInformation *GTPTunnel                  `json:"dl_forwarding_up_tnl_information,omitempty"`
-	QosFlowToBeForwarded         []int64                     `json:"qos_flow_to_be_forwarded,omitempty"`
-	DataForwardingResponseDRB    []DataForwardingResponseDRB `json:"data_forwarding_response_drb,omitempty"`
+	DLForwardingUPTNLInformation           *GTPTunnel                   `json:"dl_forwarding_up_tnl_information,omitempty"`
+	QosFlowToBeForwarded                   []int64                      `json:"qos_flow_to_be_forwarded,omitempty"`
+	DataForwardingResponseDRB              []DataForwardingResponseDRB  `json:"data_forwarding_response_drb,omitempty"`
+	AdditionalDLForwardingUPTNLInformation []QosFlowPerTNLInformation   `json:"additional_dl_forwarding_up_tnl_information,omitempty"`
+	ULForwardingUPTNLInformation           *GTPTunnel                   `json:"ul_forwarding_up_tnl_information,omitempty"`
+	AdditionalULForwardingUPTNLInformation []GTPTunnel                  `json:"additional_ul_forwarding_up_tnl_information,omitempty"`
+	DataForwardingResponseERAB             []DataForwardingResponseERAB `json:"data_forwarding_response_erab,omitempty"`
+}
+
+type DataForwardingResponseERAB struct {
+	ERABID                       uint8     `json:"erab_id"`
+	DLForwardingUPTNLInformation GTPTunnel `json:"dl_forwarding_up_tnl_information"`
+}
+
+type AdditionalDLUPTNLInformationForHO struct {
+	AdditionalDLNGUUPTNLInformation          GTPTunnel                   `json:"additional_dl_ng_u_up_tnl_information"`
+	AdditionalQosFlowSetupResponse           []QosFlowWithDataForwarding `json:"additional_qos_flow_setup_response,omitempty"`
+	AdditionalDLForwardingUPTNLInformation   *GTPTunnel                  `json:"additional_dl_forwarding_up_tnl_information,omitempty"`
+	AdditionalRedundantDLNGUUPTNLInformation *GTPTunnel                  `json:"additional_redundant_dl_ng_u_up_tnl_information,omitempty"`
 }
 
 // HandoverRequestAcknowledgeTransferDecoded is what the target node reports per
 // admitted session (TS 38.413 §9.3.4.11).
 type HandoverRequestAcknowledgeTransferDecoded struct {
-	DLNGUUPTNLInformation        GTPTunnel                   `json:"dl_ng_u_up_tnl_information"`
-	DLForwardingUPTNLInformation *GTPTunnel                  `json:"dl_forwarding_up_tnl_information,omitempty"`
-	SecurityResult               *SecurityResult             `json:"security_result,omitempty"`
-	QosFlowSetupResponse         []QosFlowWithDataForwarding `json:"qos_flow_setup_response,omitempty"`
-	QosFlowFailedToSetup         []QosFlowWithCause          `json:"qos_flow_failed_to_setup,omitempty"`
-	DataForwardingResponseDRB    []DataForwardingResponseDRB `json:"data_forwarding_response_drb,omitempty"`
+	DLNGUUPTNLInformation                  GTPTunnel                           `json:"dl_ng_u_up_tnl_information"`
+	DLForwardingUPTNLInformation           *GTPTunnel                          `json:"dl_forwarding_up_tnl_information,omitempty"`
+	SecurityResult                         *SecurityResult                     `json:"security_result,omitempty"`
+	QosFlowSetupResponse                   []QosFlowWithDataForwarding         `json:"qos_flow_setup_response,omitempty"`
+	QosFlowFailedToSetup                   []QosFlowWithCause                  `json:"qos_flow_failed_to_setup,omitempty"`
+	DataForwardingResponseDRB              []DataForwardingResponseDRB         `json:"data_forwarding_response_drb,omitempty"`
+	AdditionalDLUPTNLInformationForHO      []AdditionalDLUPTNLInformationForHO `json:"additional_dl_up_tnl_information_for_ho,omitempty"`
+	ULForwardingUPTNLInformation           *GTPTunnel                          `json:"ul_forwarding_up_tnl_information,omitempty"`
+	AdditionalULForwardingUPTNLInformation []GTPTunnel                         `json:"additional_ul_forwarding_up_tnl_information,omitempty"`
+	DataForwardingResponseERAB             []DataForwardingResponseERAB        `json:"data_forwarding_response_erab,omitempty"`
+	RedundantDLNGUUPTNLInformation         *GTPTunnel                          `json:"redundant_dl_ng_u_up_tnl_information,omitempty"`
 }
 
 // HandoverResourceAllocationUnsuccessfulTransferDecoded says why the target node
@@ -157,6 +178,11 @@ func libHandoverCommandTransfer(raw ngap.TransferContainer) (any, error) {
 		out.QosFlowToBeForwarded = append(out.QosFlowToBeForwarded, int64(f.QosFlowIdentifier))
 	}
 
+	out.AdditionalDLForwardingUPTNLInformation = qosFlowPerTNLInformationList(t.AdditionalDLForwardingUPTNLInformation)
+	out.ULForwardingUPTNLInformation = optionalGTPTunnel(t.ULForwardingUPTNLInformation)
+	out.AdditionalULForwardingUPTNLInformation = gtpTunnelList(t.AdditionalULForwardingUPTNLInformation)
+	out.DataForwardingResponseERAB = dataForwardingResponseERABs(t.DataForwardingResponseERAB)
+
 	return out, nil
 }
 
@@ -182,17 +208,52 @@ func libHandoverRequestAcknowledgeTransfer(raw ngap.TransferContainer) (any, err
 		out.SecurityResult = &result
 	}
 
-	for _, f := range t.QosFlowSetupResponse {
+	out.QosFlowSetupResponse = qosFlowsWithDataForwarding(t.QosFlowSetupResponse)
+
+	for _, a := range t.AdditionalDLUPTNLInformationForHO {
+		out.AdditionalDLUPTNLInformationForHO = append(out.AdditionalDLUPTNLInformationForHO, AdditionalDLUPTNLInformationForHO{
+			AdditionalDLNGUUPTNLInformation:          libGTPTunnel(a.AdditionalDLNGUUPTNLInformation),
+			AdditionalQosFlowSetupResponse:           qosFlowsWithDataForwarding(a.AdditionalQosFlowSetupResponse),
+			AdditionalDLForwardingUPTNLInformation:   optionalGTPTunnel(a.AdditionalDLForwardingUPTNLInformation),
+			AdditionalRedundantDLNGUUPTNLInformation: optionalGTPTunnel(a.AdditionalRedundantDLNGUUPTNLInformation),
+		})
+	}
+
+	out.ULForwardingUPTNLInformation = optionalGTPTunnel(t.ULForwardingUPTNLInformation)
+	out.AdditionalULForwardingUPTNLInformation = gtpTunnelList(t.AdditionalULForwardingUPTNLInformation)
+	out.DataForwardingResponseERAB = dataForwardingResponseERABs(t.DataForwardingResponseERAB)
+	out.RedundantDLNGUUPTNLInformation = optionalGTPTunnel(t.RedundantDLNGUUPTNLInformation)
+
+	return out, nil
+}
+
+func qosFlowsWithDataForwarding(list ngap.QosFlowListWithDataForwarding) []QosFlowWithDataForwarding {
+	var out []QosFlowWithDataForwarding
+
+	for _, f := range list {
 		entry := QosFlowWithDataForwarding{QosFlowIdentifier: int64(f.QosFlowIdentifier)}
 		if f.DataForwardingAccepted != nil {
 			accepted := true
 			entry.DataForwardingAccepted = &accepted
 		}
 
-		out.QosFlowSetupResponse = append(out.QosFlowSetupResponse, entry)
+		out = append(out, entry)
 	}
 
-	return out, nil
+	return out
+}
+
+func dataForwardingResponseERABs(list ngap.DataForwardingResponseERABList) []DataForwardingResponseERAB {
+	var out []DataForwardingResponseERAB
+
+	for _, e := range list {
+		out = append(out, DataForwardingResponseERAB{
+			ERABID:                       uint8(e.ERABID),
+			DLForwardingUPTNLInformation: libGTPTunnel(e.DLForwardingUPTNLInformation),
+		})
+	}
+
+	return out
 }
 
 func libHandoverResourceAllocationUnsuccessfulTransfer(raw ngap.TransferContainer) (any, error) {

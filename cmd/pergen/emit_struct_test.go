@@ -142,3 +142,31 @@ func TestExtRawRejectsModeledAdditions(t *testing.T) {
 		t.Fatal("extraw combined with an extension addition accepted")
 	}
 }
+
+func TestEmitExtTable(t *testing.T) {
+	t.Parallel()
+
+	var g generator
+
+	root := []fieldInfo{{name: "iEExtensions", extTable: "tExtIEs"}}
+
+	g.emitMarshalExt("x", "T", root, nil, []int{0}, true, "ext")
+	g.emitUnmarshalExt("x", "T", root, nil, []int{0}, true, "ext")
+
+	out := g.buf.String()
+
+	for _, want := range []string{
+		"ext := extensionFields(tExtIEs, x, &x.iEExtensions)",
+		"w.WriteBit(len(ext) > 0)",
+		"if err := encodeExtensionContainer(w, enc, ext); err != nil",
+		"if err := decodeExtensionContainer(r, enc, tExtIEs, x, &x.iEExtensions); err != nil",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("generated code lacks %q:\n%s", want, out)
+		}
+	}
+
+	if _, err := parser.ParseFile(token.NewFileSet(), "", "package p\n"+out, 0); err != nil {
+		t.Fatalf("generated code does not parse: %v\n%s", err, out)
+	}
+}

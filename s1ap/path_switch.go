@@ -11,17 +11,25 @@ import (
 // gTP-TEID, iE-Extensions OPTIONAL } (extensible). The target eNB's S1-U
 // downlink endpoint the GTP tunnel is switched to.
 type ERABToBeSwitchedDLItem struct {
-	_                     [0]struct{} `per:"extseq"`
 	ERABID                ERABID
 	TransportLayerAddress TransportLayerAddress
 	GTPTEID               GTPTEID
-	_                     ieExtensions `per:",skip"`
+	SecurityIndication    *SecurityIndication    `per:"-"`
+	iEExtensions          messageMeta            `per:",exttable:eRABToBeSwitchedDLItemExtIEs"`
+	extensions            per.ExtensionAdditions `per:",extraw"`
+	containerCrit         `per:"-"`
+}
+
+var eRABToBeSwitchedDLItemExtIEs = []ieSpec[ERABToBeSwitchedDLItem]{
+	optionalExtension(IDSecurityIndication, CriticalityIgnore, func(m *ERABToBeSwitchedDLItem) **SecurityIndication {
+		return &m.SecurityIndication
+	}),
 }
 
 // TS 36.413 §9.1.5.8.
 type PathSwitchRequest struct {
 	ENBUES1APID            ENBUES1APID
-	ERABToBeSwitchedDL     []ERABToBeSwitchedDLItem
+	ERABToBeSwitchedDL     ERABToBeSwitchedDLList
 	SourceMMEUES1APID      MMEUES1APID
 	EUTRANCGI              *EUTRANCGI
 	TAI                    *TAI
@@ -44,7 +52,7 @@ var pathSwitchRequestIEs = []ieSpec[PathSwitchRequest]{
 		decode: func(m *PathSwitchRequest, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABToBeSwitchedDL, err = decodeItemList[ERABToBeSwitchedDLItem](per.NewReader(raw), enc, maxnoofERABs, IDERABToBeSwitchedDLItem)
+			m.ERABToBeSwitchedDL, err = decodeItemList[ERABToBeSwitchedDLItem](per.NewReader(raw), enc, maxnoofERABs, IDERABToBeSwitchedDLItem, CriticalityReject)
 
 			return err
 		},
@@ -176,6 +184,7 @@ type PathSwitchRequestAcknowledge struct {
 	MMEUES1APID               *MMEUES1APID
 	ENBUES1APID               *ENBUES1APID
 	UEAggregateMaximumBitRate *UEAggregateMaximumBitRate
+	ERABToBeSwitchedUL        ERABToBeSwitchedULList
 	SecurityContext           SecurityContext
 	MMEUES1APID2              *MMEUES1APID
 	UESecurityCapabilities    *UESecurityCapabilities
@@ -255,11 +264,24 @@ var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 		},
 	},
 	{
+		id: IDERABToBeSwitchedULList, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *PathSwitchRequestAcknowledge, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.ERABToBeSwitchedUL)
+		},
+		encode: func(m *PathSwitchRequestAcknowledge) (per.Marshaler, bool) {
+			if len(m.ERABToBeSwitchedUL) == 0 {
+				return nil, false
+			}
+
+			return m.ERABToBeSwitchedUL, true
+		},
+	},
+	{
 		id: IDERABToBeReleasedList, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *PathSwitchRequestAcknowledge, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABToBeReleased, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABItem)
+			m.ERABToBeReleased, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABItem, CriticalityIgnore)
 
 			return err
 		},

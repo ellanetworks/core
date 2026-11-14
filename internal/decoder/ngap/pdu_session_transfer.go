@@ -56,6 +56,8 @@ func libPDUSessionResourceSetupRequestTransfer(raw ngap.TransferContainer) (*PDU
 	}
 
 	out.SecurityIndication = securityIndication(t.SecurityIndication)
+	out.RedundantULNGUUPTNLInformation = optionalGTPTunnel(t.RedundantULNGUUPTNLInformation)
+	out.AdditionalRedundantULNGUUPTNLInformation = gtpTunnelList(t.AdditionalRedundantULNGUUPTNLInformation)
 
 	out.UnrecognizedIEs = unmodeledIEs(t.UnknownIEs())
 

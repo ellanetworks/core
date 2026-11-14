@@ -66,7 +66,11 @@ func encodeMessageBody[M any, PM interface {
 	message
 }](w *per.Writer, enc per.Encoding, procedure ProcedureCode, table []ieSpec[M], m PM,
 ) error {
-	w.WriteBit(false)
+	if m.meta().dropped {
+		return fmt.Errorf("ngap: %s: unknown IEs were dropped on decode", procedure)
+	}
+
+	w.WriteBit(m.meta().extensions.Present())
 
 	typed := make([]*ieField, len(table))
 
@@ -90,7 +94,11 @@ func encodeMessageBody[M any, PM interface {
 		typed[i] = &ieField{id: spec.id, crit: spec.crit, val: val}
 	}
 
-	return encodeIEContainer(w, enc, orderFields(table, typed, m.meta()))
+	if err := encodeIEContainer(w, enc, orderFields(table, typed, m.meta())); err != nil {
+		return err
+	}
+
+	return m.meta().extensions.MarshalPER(w, enc)
 }
 
 func orderFields[M any](table []ieSpec[M], typed []*ieField, meta *messageMeta) []ieField {
@@ -161,6 +169,14 @@ func parseMessageBody[M any, PM interface {
 	message
 }](procedure ProcedureCode, trigger TriggeringMessage, table []ieSpec[M], value []byte,
 ) (PM, error) {
+	return parseBoundedMessageBody[M, PM](procedure, trigger, table, value, maxPreservedIEs)
+}
+
+func parseBoundedMessageBody[M any, PM interface {
+	*M
+	message
+}](procedure ProcedureCode, trigger TriggeringMessage, table []ieSpec[M], value []byte, limit int,
+) (PM, error) {
 	r := per.NewReader(value)
 	enc := per.Aligned
 
@@ -174,8 +190,10 @@ func parseMessageBody[M any, PM interface {
 		return nil, &TransferSyntaxError{Procedure: procedure, Err: err}
 	}
 
+	var additions per.ExtensionAdditions
+
 	if extPresent {
-		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
+		if err := additions.UnmarshalPER(r, enc); err != nil {
 			return nil, &TransferSyntaxError{Procedure: procedure, Err: err}
 		}
 	}
@@ -192,6 +210,7 @@ func parseMessageBody[M any, PM interface {
 
 	m := PM(new(M))
 	meta := m.meta()
+	meta.extensions = additions
 	seen := make(map[ProtocolIEID]bool, len(table))
 	lastIdx := -1
 
@@ -224,7 +243,7 @@ func parseMessageBody[M any, PM interface {
 			}
 
 			meta.diagnostics.record(f.id, f.crit, TypeOfErrorNotUnderstood)
-			meta.preserve(f)
+			meta.preserveUpTo(f, limit)
 
 			continue
 		}

@@ -15,12 +15,12 @@ import (
 // (§9.3.4.1). The AMF neither builds nor reads it — the SMF does — so it is
 // carried opaquely.
 type PDUSessionResourceSetupItemCxtReq struct {
-	_            [0]struct{} `per:"extseq"`
 	PDUSessionID PDUSessionID
 	NASPDU       *NASPDU `per:",optional"`
 	SNSSAI       SNSSAI
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions *rawIEExtensions       `per:",optional"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // PDUSessionResourceSetupListCxtReq ::= SEQUENCE (SIZE(1..maxnoofPDUSessions))
@@ -32,10 +32,10 @@ type PDUSessionResourceSetupListCxtReq []PDUSessionResourceSetupItemCxtReq
 // (extensible). The transfer contains a PDUSessionResourceSetupResponseTransfer
 // (§9.3.4.2).
 type PDUSessionResourceSetupItemCxtRes struct {
-	_            [0]struct{} `per:"extseq"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions *rawIEExtensions       `per:",optional"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // PDUSessionResourceSetupListCxtRes ::= SEQUENCE (SIZE(1..maxnoofPDUSessions))

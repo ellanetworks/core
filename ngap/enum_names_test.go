@@ -39,6 +39,10 @@ func TestEnumNames(t *testing.T) {
 		{"UEContextRequested", UEContextRequested.Name(), "requested"},
 		{"UEContextRequest(9)", UEContextRequest(9).Name(), ""},
 
+		{"UserPlaneFailureTypeGTPUErrorIndicationReceived", UserPlaneFailureTypeGTPUErrorIndicationReceived.Name(), "gtp-u-error-indication-received"},
+		{"UserPlaneFailureTypeUPPathFailure", UserPlaneFailureTypeUPPathFailure.Name(), "up-path-failure"},
+		{"UserPlaneFailureType(9)", UserPlaneFailureType(9).Name(), ""},
+
 		{"GUAMITypeNative", GUAMITypeNative.Name(), "native"},
 		{"GUAMITypeMapped", GUAMITypeMapped.Name(), "mapped"},
 		{"GUAMIType(9)", GUAMIType(9).Name(), ""},

@@ -6,12 +6,20 @@ package s1ap
 import (
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/s1ap"
 )
 
 // ERABToBeSwitchedDL is an E-RAB whose downlink GTP endpoint the target eNB asks
 // the MME to switch to it (TS 36.413 §9.1.5.8).
 type ERABToBeSwitchedDL struct {
+	ERABID                        uint8            `json:"erab_id"`
+	TransportLayerAddress         string           `json:"transport_layer_address"`
+	GTPTEID                       uint32           `json:"gtp_teid"`
+	IntegrityProtectionIndication *utils.EnumField `json:"integrity_protection_indication,omitempty"`
+}
+
+type ERABToBeSwitchedUL struct {
 	ERABID                uint8  `json:"erab_id"`
 	TransportLayerAddress string `json:"transport_layer_address"`
 	GTPTEID               uint32 `json:"gtp_teid"`
@@ -29,6 +37,8 @@ func buildPathSwitchRequest(value []byte) (S1APMessageValue, string) {
 			ERABID:                uint8(it.ERABID),
 			TransportLayerAddress: transportLayerAddress(it.TransportLayerAddress),
 			GTPTEID:               uint32(it.GTPTEID),
+
+			IntegrityProtectionIndication: integrityProtectionIndication(it.SecurityIndication),
 		})
 	}
 
@@ -80,6 +90,19 @@ func buildPathSwitchRequestAcknowledge(value []byte) (S1APMessageValue, string) 
 
 	if ambr := m.UEAggregateMaximumBitRate; ambr != nil {
 		ies = append(ies, ie(s1ap.IDUEAggregateMaximumBitrate, s1ap.CriticalityIgnore, AMBR{DL: uint64(ambr.DL), UL: uint64(ambr.UL)}))
+	}
+
+	if len(m.ERABToBeSwitchedUL) > 0 {
+		switched := make([]ERABToBeSwitchedUL, 0, len(m.ERABToBeSwitchedUL))
+		for _, it := range m.ERABToBeSwitchedUL {
+			switched = append(switched, ERABToBeSwitchedUL{
+				ERABID:                uint8(it.ERABID),
+				TransportLayerAddress: transportLayerAddress(it.TransportLayerAddress),
+				GTPTEID:               uint32(it.GTPTEID),
+			})
+		}
+
+		ies = append(ies, ie(s1ap.IDERABToBeSwitchedULList, s1ap.CriticalityIgnore, switched))
 	}
 
 	if len(m.ERABToBeReleased) > 0 {

@@ -4,6 +4,7 @@
 package s1ap
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
@@ -29,7 +30,7 @@ func TestAllocationAndRetentionPriorityRoundTrip(t *testing.T) {
 			t.Fatalf("level %d: %v", level, err)
 		}
 
-		if out != in {
+		if !reflect.DeepEqual(out, in) {
 			t.Fatalf("level %d: round trip %+v, want %+v", level, out, in)
 		}
 	}
@@ -55,7 +56,7 @@ func TestGBRQosInformationRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out != in {
+	if !reflect.DeepEqual(out, in) {
 		t.Fatalf("round trip %+v, want %+v", out, in)
 	}
 }

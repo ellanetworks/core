@@ -87,8 +87,20 @@ func TestTableOrderMatchesASN1(t *testing.T) {
 
 		// The §9.3.4 transfer containers reuse the ProtocolIE-Container shape, so
 		// their rows are ordered by the same rule.
-		{"PDUSessionResourceSetupRequestTransfer", tableIDs(pDUSessionResourceSetupRequestTransferIEs), []ProtocolIEID{IDPDUSessionAggregateMaximumBitRate, IDULNGUUPTNLInformation, IDAdditionalULNGUUPTNLInformation, IDDataForwardingNotPossible, IDPDUSessionType, IDSecurityIndication, IDNetworkInstance, IDQosFlowSetupRequestList, IDDirectForwardingPathAvailability}},
-		{"PDUSessionResourceModifyRequestTransfer", tableIDs(pDUSessionResourceModifyRequestTransferIEs), []ProtocolIEID{IDPDUSessionAggregateMaximumBitRate, IDULNGUUPTNLModifyList, IDNetworkInstance, IDQosFlowAddOrModifyRequestList, IDQosFlowToReleaseList, IDAdditionalULNGUUPTNLInformation}},
+		{"PDUSessionResourceSetupRequestTransfer", tableIDs(pDUSessionResourceSetupRequestTransferIEs), []ProtocolIEID{IDPDUSessionAggregateMaximumBitRate, IDULNGUUPTNLInformation, IDAdditionalULNGUUPTNLInformation, IDDataForwardingNotPossible, IDPDUSessionType, IDSecurityIndication, IDNetworkInstance, IDQosFlowSetupRequestList, IDDirectForwardingPathAvailability, IDRedundantULNGUUPTNLInformation, IDAdditionalRedundantULNGUUPTNLInformation}},
+		{"PDUSessionResourceModifyRequestTransfer", tableIDs(pDUSessionResourceModifyRequestTransferIEs), []ProtocolIEID{IDPDUSessionAggregateMaximumBitRate, IDULNGUUPTNLModifyList, IDNetworkInstance, IDQosFlowAddOrModifyRequestList, IDQosFlowToReleaseList, IDAdditionalULNGUUPTNLInformation, IDAdditionalRedundantULNGUUPTNLInformation, IDRedundantULNGUUPTNLInformation, IDUserPlaneFailureIndication}},
+		{"PDUSessionResourceSetupResponseTransfer extensions", tableIDs(pDUSessionResourceSetupResponseTransferExtIEs), []ProtocolIEID{IDRedundantDLQosFlowPerTNLInformation, IDAdditionalRedundantDLQosFlowPerTNLInformation}},
+		{"PDUSessionResourceModifyResponseTransfer extensions", tableIDs(pDUSessionResourceModifyResponseTransferExtIEs), []ProtocolIEID{IDAdditionalNGUUPTNLInformation, IDRedundantDLNGUUPTNLInformation, IDRedundantULNGUUPTNLInformation, IDAdditionalRedundantDLQosFlowPerTNLInformation, IDAdditionalRedundantNGUUPTNLInformation}},
+		{"PDUSessionResourceModifyIndicationTransfer extensions", tableIDs(pDUSessionResourceModifyIndicationTransferExtIEs), []ProtocolIEID{IDRedundantDLQosFlowPerTNLInformation, IDAdditionalRedundantDLQosFlowPerTNLInformation}},
+		{"PDUSessionResourceModifyConfirmTransfer extensions", tableIDs(pDUSessionResourceModifyConfirmTransferExtIEs), []ProtocolIEID{IDRedundantULNGUUPTNLInformation, IDAdditionalRedundantNGUUPTNLInformation}},
+		{"PathSwitchRequestTransfer extensions", tableIDs(pathSwitchRequestTransferExtIEs), []ProtocolIEID{IDAdditionalDLQosFlowPerTNLInformation, IDRedundantDLNGUUPTNLInformation, IDRedundantDLNGUTNLInformationReused, IDAdditionalRedundantDLQosFlowPerTNLInformation}},
+		{"PathSwitchRequestAcknowledgeTransfer extensions", tableIDs(pathSwitchRequestAcknowledgeTransferExtIEs), []ProtocolIEID{IDAdditionalNGUUPTNLInformation, IDRedundantULNGUUPTNLInformation, IDAdditionalRedundantNGUUPTNLInformation}},
+		{"HandoverRequestAcknowledgeTransfer extensions", tableIDs(handoverRequestAcknowledgeTransferExtIEs), []ProtocolIEID{IDAdditionalDLUPTNLInformationForHOList, IDULForwardingUPTNLInformation, IDAdditionalULForwardingUPTNLInformation, IDDataForwardingResponseERABList, IDRedundantDLNGUUPTNLInformation}},
+		{"HandoverCommandTransfer extensions", tableIDs(handoverCommandTransferExtIEs), []ProtocolIEID{IDAdditionalDLForwardingUPTNLInformation, IDULForwardingUPTNLInformation, IDAdditionalULForwardingUPTNLInformation, IDDataForwardingResponseERABList}},
+		{"UL-NGU-UP-TNLModifyItem extensions", tableIDs(uLNGUUPTNLModifyItemExtIEs), []ProtocolIEID{IDRedundantULNGUUPTNLInformation, IDRedundantDLNGUUPTNLInformation}},
+		{"AdditionalDLUPTNLInformationForHOItem extensions", tableIDs(additionalDLUPTNLInformationForHOItemExtIEs), []ProtocolIEID{IDAdditionalRedundantDLNGUUPTNLInformation}},
+		{"QosFlowAddOrModifyRequestItem extensions", tableIDs(qosFlowAddOrModifyRequestItemExtIEs), []ProtocolIEID{IDULNGUUPTNLInformation}},
+		{"QosFlowAddOrModifyResponseItem extensions", tableIDs(qosFlowAddOrModifyResponseItemExtIEs), []ProtocolIEID{IDDLNGUUPTNLInformation}},
 	}
 
 	for _, tt := range tests {

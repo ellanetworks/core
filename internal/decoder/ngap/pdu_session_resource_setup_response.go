@@ -24,8 +24,12 @@ type QosFlowFailedToSetupItem struct {
 }
 
 type PDUSessionResourceSetupResponseTransferDecoded struct {
-	DLQosFlowPerTNLInformation DLQosFlowPerTNLInformation `json:"dl_qos_flow_per_tnl_information"`
-	QosFlowFailedToSetupList   []QosFlowFailedToSetupItem `json:"qos_flow_failed_to_setup_list,omitempty"`
+	DLQosFlowPerTNLInformation                    DLQosFlowPerTNLInformation `json:"dl_qos_flow_per_tnl_information"`
+	AdditionalDLQosFlowPerTNLInformation          []QosFlowPerTNLInformation `json:"additional_dl_qos_flow_per_tnl_information,omitempty"`
+	SecurityResult                                *SecurityResult            `json:"security_result,omitempty"`
+	QosFlowFailedToSetupList                      []QosFlowFailedToSetupItem `json:"qos_flow_failed_to_setup_list,omitempty"`
+	RedundantDLQosFlowPerTNLInformation           *QosFlowPerTNLInformation  `json:"redundant_dl_qos_flow_per_tnl_information,omitempty"`
+	AdditionalRedundantDLQosFlowPerTNLInformation []QosFlowPerTNLInformation `json:"additional_redundant_dl_qos_flow_per_tnl_information,omitempty"`
 }
 
 type PDUSessionResourceSetupUnsuccessfulTransferDecoded struct {
@@ -138,6 +142,20 @@ func libSetupResponseTransfer(t *ngap.PDUSessionResourceSetupResponseTransfer) *
 		})
 	}
 
+	out.AdditionalDLQosFlowPerTNLInformation = qosFlowPerTNLInformationList(t.AdditionalDLQosFlowPerTNLInformation)
+
+	if t.SecurityResult != nil {
+		result := securityResult(*t.SecurityResult)
+		out.SecurityResult = &result
+	}
+
+	if t.RedundantDLQosFlowPerTNLInformation != nil {
+		q := qosFlowPerTNLInformation(*t.RedundantDLQosFlowPerTNLInformation)
+		out.RedundantDLQosFlowPerTNLInformation = &q
+	}
+
+	out.AdditionalRedundantDLQosFlowPerTNLInformation = qosFlowPerTNLInformationList(t.AdditionalRedundantDLQosFlowPerTNLInformation)
+
 	return out
 }
 
@@ -148,4 +166,37 @@ func libGTPTunnel(u ngap.UPTransportLayerInformation) GTPTunnel {
 		GTPTEID:               uint32(u.GTPTunnel.GTPTEID),
 		TransportLayerAddress: transportLayerAddressToString(u.GTPTunnel.TransportLayerAddress),
 	}
+}
+
+func optionalGTPTunnel(u *ngap.UPTransportLayerInformation) *GTPTunnel {
+	if u == nil {
+		return nil
+	}
+
+	tunnel := libGTPTunnel(*u)
+
+	return &tunnel
+}
+
+func gtpTunnelList(list ngap.UPTransportLayerInformationList) []GTPTunnel {
+	var out []GTPTunnel
+
+	for _, item := range list {
+		out = append(out, libGTPTunnel(item.NGUUPTNLInformation))
+	}
+
+	return out
+}
+
+func gtpTunnelPairs(list ngap.UPTransportLayerInformationPairList) []ULNGUUPTNLModify {
+	var out []ULNGUUPTNLModify
+
+	for _, p := range list {
+		out = append(out, ULNGUUPTNLModify{
+			ULNGUUPTNLInformation: libGTPTunnel(p.ULNGUUPTNLInformation),
+			DLNGUUPTNLInformation: libGTPTunnel(p.DLNGUUPTNLInformation),
+		})
+	}
+
+	return out
 }

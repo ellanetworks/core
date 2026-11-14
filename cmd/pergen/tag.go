@@ -47,8 +47,9 @@ type FieldTag struct {
 	ExtAdd int
 	// ExtSeq marks the parent type extensible ("...") with no extension
 	// additions; it sits on a placeholder field that carries no encoding.
-	ExtSeq bool
-	ExtRaw bool
+	ExtSeq   bool
+	ExtRaw   bool
+	ExtTable string
 
 	EnumExtValues    int64
 	HasEnumExtValues bool
@@ -152,7 +153,7 @@ func looksLikeOption(token string) bool {
 	if i := strings.IndexByte(token, ':'); i > 0 {
 		key := strings.TrimSpace(token[:i])
 		switch key {
-		case "range", "size", "default", "choice", "tag", "extadd", "extvalues":
+		case "range", "size", "default", "choice", "tag", "extadd", "extvalues", "exttable":
 			return true
 		}
 		// Unknown "key:value" is claimed here so parseOption reports an error
@@ -229,6 +230,14 @@ func parseOption(t *FieldTag, opt string) error {
 		}
 
 		t.ExtAdd = n
+
+		return nil
+	case "exttable":
+		if value == "" {
+			return errors.New("exttable: empty table")
+		}
+
+		t.ExtTable = value
 
 		return nil
 	case "extvalues":

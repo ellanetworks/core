@@ -6,6 +6,7 @@ package ngap
 import (
 	"encoding/hex"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
@@ -44,7 +45,7 @@ func TestAllocationAndRetentionPriorityGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out != in {
+	if !reflect.DeepEqual(out, in) {
 		t.Fatalf("round trip %+v, want %+v", out, in)
 	}
 }
@@ -208,7 +209,7 @@ func TestDynamic5QIRoundTrip(t *testing.T) {
 	}
 
 	if out.PriorityLevelQos != in.PriorityLevelQos || out.PacketDelayBudget != in.PacketDelayBudget ||
-		out.PacketErrorRate != in.PacketErrorRate || *out.FiveQI != fiveQI ||
+		!reflect.DeepEqual(out.PacketErrorRate, in.PacketErrorRate) || *out.FiveQI != fiveQI ||
 		*out.DelayCritical != delayCritical || *out.AveragingWindow != avg ||
 		*out.MaximumDataBurstVolume != mdbv {
 		t.Fatalf("round trip %+v, want %+v", out, in)

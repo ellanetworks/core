@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -32,7 +33,7 @@ func TestBearerARP(t *testing.T) {
 			s1ap.AllocationAndRetentionPriority{PriorityLevel: 12, PreemptionCapability: s1ap.PreemptionShallNotTrigger, PreemptionVulnerability: s1ap.PreemptionPreemptable},
 		},
 	} {
-		if got := BearerARP(tc.arp); got != tc.want {
+		if got := BearerARP(tc.arp); !reflect.DeepEqual(got, tc.want) {
 			t.Errorf("BearerARP(%+v) = %+v, want %+v", tc.arp, got, tc.want)
 		}
 	}

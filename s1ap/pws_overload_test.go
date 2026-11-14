@@ -52,6 +52,8 @@ type newMessageCase struct {
 	parse  func([]byte) (any, error)
 	choice func(PDU) bool
 	golden string
+
+	extensionNotices int
 }
 
 func isInitiating(p PDU) bool { _, ok := p.(*InitiatingMessage); return ok }
@@ -244,6 +246,7 @@ func newMessageCases() []newMessageCase {
 		initialContextSetupRequestGoldenCases(),
 		handoverRequestGoldenCases(),
 		pathSwitchRequestAcknowledgeGoldenCases(),
+		tnlGoldenCases(),
 		transparentContainerGoldenCases(),
 	)...)
 }
@@ -311,11 +314,13 @@ func TestNewMessagesWireCriticality(t *testing.T) {
 		"KillResponse":                {{IDMessageIdentifier, CriticalityReject}, {IDSerialNumber, CriticalityReject}, {IDBroadcastCancelledAreaList, CriticalityIgnore}},
 		"PWSRestartIndication":        {{IDECGIListForRestart, CriticalityReject}, {IDGlobalENBID, CriticalityReject}, {IDTAIListForRestart, CriticalityReject}, {IDEmergencyAreaIDListForRestart, CriticalityReject}},
 		"PWSFailureIndication":        {{IDPWSfailedECGIList, CriticalityReject}, {IDGlobalENBID, CriticalityReject}},
-		"UEContextReleaseRequestGWContextReleaseIndication": {{IDMMEUES1APID, CriticalityReject}, {IDENBUES1APID, CriticalityReject}, {IDCause, CriticalityIgnore}, {IDGWContextReleaseIndication, CriticalityReject}},
-		"InitialContextSetupRequestGUMMEIMMEUES1APID2":      {{IDMMEUES1APID, CriticalityReject}, {IDENBUES1APID, CriticalityReject}, {IDUEAggregateMaximumBitrate, CriticalityReject}, {IDERABToBeSetupListCtxtSUReq, CriticalityReject}, {IDUESecurityCapabilities, CriticalityReject}, {IDSecurityKey, CriticalityReject}, {IDGUMMEI, CriticalityIgnore}, {IDMMEUES1APID2, CriticalityIgnore}},
-		"HandoverRequestGUMMEIMMEUES1APID2":                 {{IDMMEUES1APID, CriticalityReject}, {IDHandoverType, CriticalityReject}, {IDCause, CriticalityIgnore}, {IDUEAggregateMaximumBitrate, CriticalityReject}, {IDERABToBeSetupListHOReq, CriticalityReject}, {IDSourceToTargetTransparentContainer, CriticalityReject}, {IDUESecurityCapabilities, CriticalityReject}, {IDSecurityContext, CriticalityReject}, {IDGUMMEI, CriticalityIgnore}, {IDMMEUES1APID2, CriticalityIgnore}},
-		"PathSwitchRequestAcknowledgeMMEUES1APID2":          {{IDMMEUES1APID, CriticalityIgnore}, {IDENBUES1APID, CriticalityIgnore}, {IDSecurityContext, CriticalityReject}, {IDMMEUES1APID2, CriticalityIgnore}},
-		"RerouteNASRequest":                                 {{IDENBUES1APID, CriticalityReject}, {IDMMEUES1APID, CriticalityIgnore}, {IDS1Message, CriticalityReject}, {IDMMEGroupID, CriticalityReject}, {IDAdditionalGUTI, CriticalityIgnore}, {IDUEUsageType, CriticalityIgnore}},
+		"UEContextReleaseRequestGWContextReleaseIndication":  {{IDMMEUES1APID, CriticalityReject}, {IDENBUES1APID, CriticalityReject}, {IDCause, CriticalityIgnore}, {IDGWContextReleaseIndication, CriticalityReject}},
+		"InitialContextSetupRequestGUMMEIMMEUES1APID2":       {{IDMMEUES1APID, CriticalityReject}, {IDENBUES1APID, CriticalityReject}, {IDUEAggregateMaximumBitrate, CriticalityReject}, {IDERABToBeSetupListCtxtSUReq, CriticalityReject}, {IDUESecurityCapabilities, CriticalityReject}, {IDSecurityKey, CriticalityReject}, {IDGUMMEI, CriticalityIgnore}, {IDMMEUES1APID2, CriticalityIgnore}},
+		"HandoverRequestGUMMEIMMEUES1APID2":                  {{IDMMEUES1APID, CriticalityReject}, {IDHandoverType, CriticalityReject}, {IDCause, CriticalityIgnore}, {IDUEAggregateMaximumBitrate, CriticalityReject}, {IDERABToBeSetupListHOReq, CriticalityReject}, {IDSourceToTargetTransparentContainer, CriticalityReject}, {IDUESecurityCapabilities, CriticalityReject}, {IDSecurityContext, CriticalityReject}, {IDGUMMEI, CriticalityIgnore}, {IDMMEUES1APID2, CriticalityIgnore}},
+		"PathSwitchRequestAcknowledgeMMEUES1APID2":           {{IDMMEUES1APID, CriticalityIgnore}, {IDENBUES1APID, CriticalityIgnore}, {IDSecurityContext, CriticalityReject}, {IDMMEUES1APID2, CriticalityIgnore}},
+		"PathSwitchRequestAcknowledgeERABToBeSwitchedULList": {{IDMMEUES1APID, CriticalityIgnore}, {IDENBUES1APID, CriticalityIgnore}, {IDERABToBeSwitchedULList, CriticalityIgnore}, {IDSecurityContext, CriticalityReject}},
+		"ERABModifyRequestTransportInformation":              {{IDMMEUES1APID, CriticalityReject}, {IDENBUES1APID, CriticalityReject}, {IDERABToBeModifiedListBearerModReq, CriticalityReject}},
+		"RerouteNASRequest":                                  {{IDENBUES1APID, CriticalityReject}, {IDMMEUES1APID, CriticalityIgnore}, {IDS1Message, CriticalityReject}, {IDMMEGroupID, CriticalityReject}, {IDAdditionalGUTI, CriticalityIgnore}, {IDUEUsageType, CriticalityIgnore}},
 	}
 
 	for _, tc := range newMessageCases() {

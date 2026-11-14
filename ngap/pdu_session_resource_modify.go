@@ -11,11 +11,18 @@ import (
 // OPTIONAL, pDUSessionResourceModifyRequestTransfer, iE-Extensions OPTIONAL }
 // (extensible).
 type PDUSessionResourceModifyItemModReq struct {
-	_            [0]struct{} `per:"extseq"`
 	PDUSessionID PDUSessionID
 	NASPDU       *NASPDU `per:",optional"`
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	SNSSAI       *SNSSAI                `per:"-"`
+	iEExtensions messageMeta            `per:",exttable:pDUSessionResourceModifyItemModReqExtIEs"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+}
+
+var pDUSessionResourceModifyItemModReqExtIEs = []ieSpec[PDUSessionResourceModifyItemModReq]{
+	optionalExtension(IDSNSSAI, CriticalityReject, func(m *PDUSessionResourceModifyItemModReq) **SNSSAI {
+		return &m.SNSSAI
+	}),
 }
 
 // PDUSessionResourceModifyListModReq ::= SEQUENCE
@@ -26,10 +33,10 @@ type PDUSessionResourceModifyListModReq []PDUSessionResourceModifyItemModReq
 // pDUSessionResourceModifyResponseTransfer, iE-Extensions OPTIONAL }
 // (extensible).
 type PDUSessionResourceModifyItemModRes struct {
-	_            [0]struct{} `per:"extseq"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions *rawIEExtensions       `per:",optional"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // PDUSessionResourceModifyListModRes ::= SEQUENCE
@@ -268,12 +275,15 @@ func ParsePDUSessionResourceModifyResponse(value []byte) (*PDUSessionResourceMod
 // what changes. SecurityIndication is ignore criticality here where the setup
 // request transfer marks it reject, so it is left to the unknown-IE path.
 type PDUSessionResourceModifyRequestTransfer struct {
-	PDUSessionAggregateMaximumBitRate *PDUSessionAggregateMaximumBitRate
-	ULNGUUPTNLModify                  ULNGUUPTNLModifyList
-	NetworkInstance                   *NetworkInstance
-	QosFlowAddOrModifyRequest         QosFlowAddOrModifyRequestList
-	QosFlowToRelease                  QosFlowListWithCause
-	AdditionalULNGUUPTNLInformation   UPTransportLayerInformationList
+	PDUSessionAggregateMaximumBitRate        *PDUSessionAggregateMaximumBitRate
+	ULNGUUPTNLModify                         ULNGUUPTNLModifyList
+	NetworkInstance                          *NetworkInstance
+	QosFlowAddOrModifyRequest                QosFlowAddOrModifyRequestList
+	QosFlowToRelease                         QosFlowListWithCause
+	AdditionalULNGUUPTNLInformation          UPTransportLayerInformationList
+	AdditionalRedundantULNGUUPTNLInformation UPTransportLayerInformationList
+	RedundantULNGUUPTNLInformation           *UPTransportLayerInformation
+	UserPlaneFailureIndication               *UserPlaneFailureIndication
 
 	messageMeta
 }
@@ -373,6 +383,15 @@ var pDUSessionResourceModifyRequestTransferIEs = []ieSpec[PDUSessionResourceModi
 			return m.AdditionalULNGUUPTNLInformation, true
 		},
 	},
+	listExtension(IDAdditionalRedundantULNGUUPTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) *UPTransportLayerInformationList {
+		return &m.AdditionalRedundantULNGUUPTNLInformation
+	}),
+	optionalExtension(IDRedundantULNGUUPTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) **UPTransportLayerInformation {
+		return &m.RedundantULNGUUPTNLInformation
+	}),
+	optionalExtension(IDUserPlaneFailureIndication, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) **UserPlaneFailureIndication {
+		return &m.UserPlaneFailureIndication
+	}),
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.
@@ -391,16 +410,23 @@ func (t *PDUSessionResourceModifyRequestTransfer) Marshal() (TransferContainer, 
 // ParsePDUSessionResourceModifyRequestTransfer decodes the transfer the SMF
 // sends for a session the NG-RAN node is to modify.
 func ParsePDUSessionResourceModifyRequestTransfer(b TransferContainer) (*PDUSessionResourceModifyRequestTransfer, error) {
-	return parseMessageBody[PDUSessionResourceModifyRequestTransfer](ProcPDUSessionResourceModify, TriggeringInitiatingMessage, pDUSessionResourceModifyRequestTransferIEs, b)
+	return parseBoundedMessageBody[PDUSessionResourceModifyRequestTransfer](ProcPDUSessionResourceModify, TriggeringInitiatingMessage, pDUSessionResourceModifyRequestTransferIEs, b, maxProtocolIEs)
 }
 
 // QosFlowAddOrModifyResponseItem ::= SEQUENCE { qosFlowIdentifier,
 // iE-Extensions OPTIONAL } (extensible), an inline type of the TS 38.413
 // §9.3.4.4 table.
 type QosFlowAddOrModifyResponseItem struct {
-	_                 [0]struct{} `per:"extseq"`
-	QosFlowIdentifier QosFlowIdentifier
-	_                 ieExtensions `per:",skip"`
+	QosFlowIdentifier     QosFlowIdentifier
+	DLNGUUPTNLInformation *UPTransportLayerInformation `per:"-"`
+	iEExtensions          messageMeta                  `per:",exttable:qosFlowAddOrModifyResponseItemExtIEs"`
+	extensions            per.ExtensionAdditions       `per:",extraw"`
+}
+
+var qosFlowAddOrModifyResponseItemExtIEs = []ieSpec[QosFlowAddOrModifyResponseItem]{
+	optionalExtension(IDDLNGUUPTNLInformation, CriticalityIgnore, func(m *QosFlowAddOrModifyResponseItem) **UPTransportLayerInformation {
+		return &m.DLNGUUPTNLInformation
+	}),
 }
 
 // QosFlowAddOrModifyResponseList ::= SEQUENCE (SIZE(1..maxnoofQosFlows)) OF
@@ -414,13 +440,36 @@ type QosFlowAddOrModifyResponseList []QosFlowAddOrModifyResponseItem
 // (extensible) — TS 38.413 §9.3.4.4. Every field is optional: an NG-RAN node
 // that accepted a modification without changing a tunnel sends it empty.
 type PDUSessionResourceModifyResponseTransfer struct {
-	_                                    [0]struct{}                    `per:"extseq"`
-	DLNGUUPTNLInformation                *UPTransportLayerInformation   `per:",optional"`
-	ULNGUUPTNLInformation                *UPTransportLayerInformation   `per:",optional"`
-	QosFlowAddOrModifyResponse           QosFlowAddOrModifyResponseList `per:",optional"`
-	AdditionalDLQosFlowPerTNLInformation QosFlowPerTNLInformationList   `per:",optional"`
-	QosFlowFailedToAddOrModify           QosFlowListWithCause           `per:",optional"`
-	_                                    ieExtensions                   `per:",skip"`
+	DLNGUUPTNLInformation                         *UPTransportLayerInformation        `per:",optional"`
+	ULNGUUPTNLInformation                         *UPTransportLayerInformation        `per:",optional"`
+	QosFlowAddOrModifyResponse                    QosFlowAddOrModifyResponseList      `per:",optional"`
+	AdditionalDLQosFlowPerTNLInformation          QosFlowPerTNLInformationList        `per:",optional"`
+	QosFlowFailedToAddOrModify                    QosFlowListWithCause                `per:",optional"`
+	AdditionalNGUUPTNLInformation                 UPTransportLayerInformationPairList `per:"-"`
+	RedundantDLNGUUPTNLInformation                *UPTransportLayerInformation        `per:"-"`
+	RedundantULNGUUPTNLInformation                *UPTransportLayerInformation        `per:"-"`
+	AdditionalRedundantDLQosFlowPerTNLInformation QosFlowPerTNLInformationList        `per:"-"`
+	AdditionalRedundantNGUUPTNLInformation        UPTransportLayerInformationPairList `per:"-"`
+	iEExtensions                                  messageMeta                         `per:",exttable:pDUSessionResourceModifyResponseTransferExtIEs"`
+	extensions                                    per.ExtensionAdditions              `per:",extraw"`
+}
+
+var pDUSessionResourceModifyResponseTransferExtIEs = []ieSpec[PDUSessionResourceModifyResponseTransfer]{
+	listExtension(IDAdditionalNGUUPTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceModifyResponseTransfer) *UPTransportLayerInformationPairList {
+		return &m.AdditionalNGUUPTNLInformation
+	}),
+	optionalExtension(IDRedundantDLNGUUPTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceModifyResponseTransfer) **UPTransportLayerInformation {
+		return &m.RedundantDLNGUUPTNLInformation
+	}),
+	optionalExtension(IDRedundantULNGUUPTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceModifyResponseTransfer) **UPTransportLayerInformation {
+		return &m.RedundantULNGUUPTNLInformation
+	}),
+	listExtension(IDAdditionalRedundantDLQosFlowPerTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceModifyResponseTransfer) *QosFlowPerTNLInformationList {
+		return &m.AdditionalRedundantDLQosFlowPerTNLInformation
+	}),
+	listExtension(IDAdditionalRedundantNGUUPTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceModifyResponseTransfer) *UPTransportLayerInformationPairList {
+		return &m.AdditionalRedundantNGUUPTNLInformation
+	}),
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"time"
 
@@ -211,7 +212,7 @@ func (m *mcpttENB) checkVoice(b *s1enb.DedicatedBearer) error {
 		return fmt.Errorf("UE %s MCPTT speech E-RAB has no guaranteed bit rate: %+v", m.u.ue.IMSI, b.QoS.GBR)
 	case !ok || rates.GuaranteedDownlinkKbps == 0 || rates.GuaranteedUplinkKbps == 0:
 		return fmt.Errorf("UE %s MCPTT speech EPS QoS has no guaranteed bit rate", m.u.ue.IMSI)
-	case b.QoS.ARP != m.arp:
+	case !reflect.DeepEqual(b.QoS.ARP, m.arp):
 		return fmt.Errorf("UE %s MCPTT speech E-RAB ARP %+v for %s, want %+v (TS 29.214 Annex A.13.2)", m.u.ue.IMSI, b.QoS.ARP, m.priority, m.arp)
 	case b.TFT.Operation != eps.TFTCreate || len(b.TFT.Filters) == 0:
 		return fmt.Errorf("UE %s MCPTT speech bearer TFT %+v, want new packet filters", m.u.ue.IMSI, b.TFT)
@@ -243,7 +244,7 @@ func (m *mcpttENB) awaitUpgrade(b mcpttBearers) error {
 			return fmt.Errorf("UE %s E-RAB %d modified twice for the upgrade to %s", m.u.ue.IMSI, item.ERABID, mcpttUpgradePriority)
 		case item.QoS.QCI != b.dedicated()[i].QoS.QCI:
 			return fmt.Errorf("UE %s E-RAB %d modified to QCI %d, want its QCI %d kept", m.u.ue.IMSI, item.ERABID, item.QoS.QCI, b.dedicated()[i].QoS.QCI)
-		case item.QoS.ARP != want:
+		case !reflect.DeepEqual(item.QoS.ARP, want):
 			return fmt.Errorf("UE %s QCI %d E-RAB %d ARP %+v after the upgrade to %s, want %+v (TS 29.214 Annex A.13.2)", m.u.ue.IMSI, item.QoS.QCI, item.ERABID, item.QoS.ARP, mcpttUpgradePriority, want)
 		case item.QoS.GBR == nil:
 			return fmt.Errorf("UE %s MCPTT speech E-RAB %d lost its GBR QoS Information in the upgrade", m.u.ue.IMSI, item.ERABID)

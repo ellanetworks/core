@@ -109,7 +109,7 @@ func (l ERABInformationList) MarshalPER(w *per.Writer, enc per.Encoding) error {
 }
 
 func (l *ERABInformationList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	items, err := decodeItemList[ERABInformationListItem](r, enc, maxnoofERABs, IDERABInformationListItem)
+	items, err := decodeItemList[ERABInformationListItem](r, enc, maxnoofERABs, IDERABInformationListItem, CriticalityIgnore)
 	if err != nil {
 		return err
 	}

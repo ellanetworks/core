@@ -356,3 +356,20 @@ func TestParseTagExtRaw(t *testing.T) {
 		t.Fatalf("ParseTag(\",extraw\") = %+v", tag)
 	}
 }
+
+func TestParseTagExtTable(t *testing.T) {
+	t.Parallel()
+
+	tag, err := ParseTag(",exttable:fooExtIEs")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if tag.ExtTable != "fooExtIEs" {
+		t.Fatalf("ExtTable = %q", tag.ExtTable)
+	}
+
+	if _, err := ParseTag(",exttable:"); err == nil {
+		t.Fatal("empty exttable accepted")
+	}
+}

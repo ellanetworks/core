@@ -12,12 +12,12 @@ import (
 // iE-Extensions OPTIONAL } (extensible). Its own ASN.1 type, so it stays
 // distinct from the identically shaped CxtReq item.
 type PDUSessionResourceSetupItemSUReq struct {
-	_            [0]struct{} `per:"extseq"`
 	PDUSessionID PDUSessionID
 	NASPDU       *NASPDU `per:",optional"`
 	SNSSAI       SNSSAI
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions *rawIEExtensions       `per:",optional"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // PDUSessionResourceSetupListSUReq ::= SEQUENCE (SIZE(1..maxnoofPDUSessions))
@@ -28,10 +28,10 @@ type PDUSessionResourceSetupListSUReq []PDUSessionResourceSetupItemSUReq
 // pDUSessionResourceSetupResponseTransfer, iE-Extensions OPTIONAL }
 // (extensible).
 type PDUSessionResourceSetupItemSURes struct {
-	_            [0]struct{} `per:"extseq"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions *rawIEExtensions       `per:",optional"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // PDUSessionResourceSetupListSURes ::= SEQUENCE (SIZE(1..maxnoofPDUSessions))
@@ -377,15 +377,17 @@ func (d *DataForwardingNotPossible) UnmarshalPER(r *per.Reader, enc per.Encoding
 // it carries per-IE criticality and reuses the message-body engine. The SMF
 // builds it; the NG-RAN node consumes it.
 type PDUSessionResourceSetupRequestTransfer struct {
-	PDUSessionAggregateMaximumBitRate *PDUSessionAggregateMaximumBitRate
-	ULNGUUPTNLInformation             UPTransportLayerInformation
-	AdditionalULNGUUPTNLInformation   UPTransportLayerInformationList
-	DataForwardingNotPossible         *DataForwardingNotPossible
-	PDUSessionType                    PDUSessionType
-	SecurityIndication                *SecurityIndication
-	NetworkInstance                   *NetworkInstance
-	QosFlowSetupRequest               QosFlowSetupRequestList
-	DirectForwardingPathAvailability  *DirectForwardingPathAvailability
+	PDUSessionAggregateMaximumBitRate        *PDUSessionAggregateMaximumBitRate
+	ULNGUUPTNLInformation                    UPTransportLayerInformation
+	AdditionalULNGUUPTNLInformation          UPTransportLayerInformationList
+	DataForwardingNotPossible                *DataForwardingNotPossible
+	PDUSessionType                           PDUSessionType
+	SecurityIndication                       *SecurityIndication
+	NetworkInstance                          *NetworkInstance
+	QosFlowSetupRequest                      QosFlowSetupRequestList
+	DirectForwardingPathAvailability         *DirectForwardingPathAvailability
+	RedundantULNGUUPTNLInformation           *UPTransportLayerInformation
+	AdditionalRedundantULNGUUPTNLInformation UPTransportLayerInformationList
 
 	messageMeta
 }
@@ -540,6 +542,12 @@ var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetup
 			return m.DirectForwardingPathAvailability, true
 		},
 	},
+	optionalExtension(IDRedundantULNGUUPTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceSetupRequestTransfer) **UPTransportLayerInformation {
+		return &m.RedundantULNGUUPTNLInformation
+	}),
+	listExtension(IDAdditionalRedundantULNGUUPTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceSetupRequestTransfer) *UPTransportLayerInformationList {
+		return &m.AdditionalRedundantULNGUUPTNLInformation
+	}),
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.
@@ -559,7 +567,7 @@ func (t *PDUSessionResourceSetupRequestTransfer) Marshal() (TransferContainer, e
 // sends for a session the NG-RAN node is to set up. Errors carry the enclosing
 // procedure, which is what the AMF reports in Criticality Diagnostics.
 func ParsePDUSessionResourceSetupRequestTransfer(b TransferContainer) (*PDUSessionResourceSetupRequestTransfer, error) {
-	return parseMessageBody[PDUSessionResourceSetupRequestTransfer](ProcPDUSessionResourceSetup, TriggeringInitiatingMessage, pDUSessionResourceSetupRequestTransferIEs, b)
+	return parseBoundedMessageBody[PDUSessionResourceSetupRequestTransfer](ProcPDUSessionResourceSetup, TriggeringInitiatingMessage, pDUSessionResourceSetupRequestTransferIEs, b, maxProtocolIEs)
 }
 
 // PDUSessionResourceSetupResponseTransfer ::= SEQUENCE {
@@ -568,12 +576,23 @@ func ParsePDUSessionResourceSetupRequestTransfer(b TransferContainer) (*PDUSessi
 // OPTIONAL } (extensible) — TS 38.413 §9.3.4.2. A plain SEQUENCE, unlike the
 // request transfer. The NG-RAN node builds it; the SMF consumes it.
 type PDUSessionResourceSetupResponseTransfer struct {
-	_                                    [0]struct{} `per:"extseq"`
-	DLQosFlowPerTNLInformation           QosFlowPerTNLInformation
-	AdditionalDLQosFlowPerTNLInformation QosFlowPerTNLInformationList `per:",optional"`
-	SecurityResult                       *SecurityResult              `per:",optional"`
-	QosFlowFailedToSetup                 QosFlowListWithCause         `per:",optional"`
-	_                                    ieExtensions                 `per:",skip"`
+	DLQosFlowPerTNLInformation                    QosFlowPerTNLInformation
+	AdditionalDLQosFlowPerTNLInformation          QosFlowPerTNLInformationList `per:",optional"`
+	SecurityResult                                *SecurityResult              `per:",optional"`
+	QosFlowFailedToSetup                          QosFlowListWithCause         `per:",optional"`
+	RedundantDLQosFlowPerTNLInformation           *QosFlowPerTNLInformation    `per:"-"`
+	AdditionalRedundantDLQosFlowPerTNLInformation QosFlowPerTNLInformationList `per:"-"`
+	iEExtensions                                  messageMeta                  `per:",exttable:pDUSessionResourceSetupResponseTransferExtIEs"`
+	extensions                                    per.ExtensionAdditions       `per:",extraw"`
+}
+
+var pDUSessionResourceSetupResponseTransferExtIEs = []ieSpec[PDUSessionResourceSetupResponseTransfer]{
+	optionalExtension(IDRedundantDLQosFlowPerTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceSetupResponseTransfer) **QosFlowPerTNLInformation {
+		return &m.RedundantDLQosFlowPerTNLInformation
+	}),
+	listExtension(IDAdditionalRedundantDLQosFlowPerTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceSetupResponseTransfer) *QosFlowPerTNLInformationList {
+		return &m.AdditionalRedundantDLQosFlowPerTNLInformation
+	}),
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.

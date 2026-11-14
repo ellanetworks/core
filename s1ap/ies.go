@@ -47,6 +47,8 @@ type messageMeta struct {
 	unknownIEs  []rawIE
 	wire        []wireSlot
 	diagnostics Diagnostics
+	extensions  per.ExtensionAdditions
+	dropped     bool
 }
 
 type wireSlot struct {
@@ -57,8 +59,13 @@ type wireSlot struct {
 
 // Bounded: a peer chooses both the count and the size of what we would retain.
 func (u *messageMeta) preserve(f rawIE) {
-	if len(u.unknownIEs) >= maxPreservedIEs {
+	u.preserveUpTo(f, maxPreservedIEs)
+}
+
+func (u *messageMeta) preserveUpTo(f rawIE, limit int) {
+	if len(u.unknownIEs) >= limit {
 		u.diagnostics.Truncated = true
+		u.dropped = true
 
 		return
 	}
@@ -134,6 +141,16 @@ const maxnoofERABs = 256
 // coincidental.
 //
 //nolint:unparam
+type containerCrit struct {
+	crit *Criticality
+}
+
+func (c *containerCrit) wireCriticality() *containerCrit { return c }
+
+type containerCritical interface {
+	wireCriticality() *containerCrit
+}
+
 func encodeSingleContainerList[T any](w *per.Writer, enc per.Encoding, ub int64, id ProtocolIEID, crit Criticality, items []T) error {
 	if len(items) < 1 || int64(len(items)) > ub {
 		return fmt.Errorf("s1ap: single-container list length %d outside [1, %d]", len(items), ub)
@@ -149,7 +166,12 @@ func encodeSingleContainerList[T any](w *per.Writer, enc per.Encoding, ub int64,
 				return fmt.Errorf("s1ap: %T does not implement per.Marshaler", items[i])
 			}
 
-			if err := encodeContainerField(w, enc, ieField{id: id, crit: crit, val: m}); err != nil {
+			c := crit
+			if h, ok := any(&items[i]).(containerCritical); ok && h.wireCriticality().crit != nil {
+				c = *h.wireCriticality().crit
+			}
+
+			if err := encodeContainerField(w, enc, ieField{id: id, crit: c, val: m}); err != nil {
 				return err
 			}
 		}
@@ -163,7 +185,7 @@ func encodeSingleContainerList[T any](w *per.Writer, enc per.Encoding, ub int64,
 // Each item is its own open type, so each gets a fresh reader.
 //
 //nolint:unparam
-func decodeItemList[T any](r *per.Reader, enc per.Encoding, ub int64, itemID ProtocolIEID) ([]T, error) {
+func decodeItemList[T any](r *per.Reader, enc per.Encoding, ub int64, itemID ProtocolIEID, crit Criticality) ([]T, error) {
 	var items []T
 
 	err := per.DecodeLength(r, enc, 1, ub, true, func(count int64) error {
@@ -177,7 +199,8 @@ func decodeItemList[T any](r *per.Reader, enc per.Encoding, ub int64, itemID Pro
 				return fmt.Errorf("s1ap: list item %d has IE id %d, want %d", i, id, itemID)
 			}
 
-			if _, err := per.DecodeEnumerated(r, enc, criticalityRootCount, false); err != nil {
+			c, err := per.DecodeEnumerated(r, enc, criticalityRootCount, false)
+			if err != nil {
 				return err
 			}
 
@@ -195,6 +218,11 @@ func decodeItemList[T any](r *per.Reader, enc per.Encoding, ub int64, itemID Pro
 
 			if err := u.UnmarshalPER(per.NewReader(val), enc); err != nil {
 				return err
+			}
+
+			if h, ok := any(&item).(containerCritical); ok && Criticality(c) != crit {
+				wire := Criticality(c)
+				h.wireCriticality().crit = &wire
 			}
 
 			items = append(items, item)
@@ -240,6 +268,10 @@ func decodeIEContainer(r *per.Reader, enc per.Encoding) ([]rawIE, error) {
 		val, err := per.DecodeOpenTypeBytes(r, enc)
 		if err != nil {
 			return nil, fmt.Errorf("s1ap: IE %d value: %w", i, err)
+		}
+
+		if len(val) == 0 {
+			return nil, fmt.Errorf("s1ap: IE %d has an empty open type", i)
 		}
 
 		fields = append(fields, rawIE{id: ProtocolIEID(id), crit: Criticality(crit), value: val})

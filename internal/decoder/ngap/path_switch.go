@@ -34,17 +34,24 @@ type UserPlaneSecurityInformation struct {
 // PathSwitchRequestTransferDecoded is the per-session transfer the target node
 // sends to move the downlink tunnel to itself (TS 38.413 §9.3.4.8).
 type PathSwitchRequestTransferDecoded struct {
-	DLNGUUPTNLInformation        GTPTunnel                     `json:"dl_ng_u_up_tnl_information"`
-	DLNGUTNLInformationReused    *bool                         `json:"dl_ng_u_tnl_information_reused,omitempty"`
-	UserPlaneSecurityInformation *UserPlaneSecurityInformation `json:"user_plane_security_information,omitempty"`
-	QosFlowAccepted              []int64                       `json:"qos_flow_accepted,omitempty"`
+	DLNGUUPTNLInformation                         GTPTunnel                     `json:"dl_ng_u_up_tnl_information"`
+	DLNGUTNLInformationReused                     *bool                         `json:"dl_ng_u_tnl_information_reused,omitempty"`
+	UserPlaneSecurityInformation                  *UserPlaneSecurityInformation `json:"user_plane_security_information,omitempty"`
+	QosFlowAccepted                               []int64                       `json:"qos_flow_accepted,omitempty"`
+	AdditionalDLQosFlowPerTNLInformation          []QosFlowPerTNLInformation    `json:"additional_dl_qos_flow_per_tnl_information,omitempty"`
+	RedundantDLNGUUPTNLInformation                *GTPTunnel                    `json:"redundant_dl_ng_u_up_tnl_information,omitempty"`
+	RedundantDLNGUTNLInformationReused            *bool                         `json:"redundant_dl_ng_u_tnl_information_reused,omitempty"`
+	AdditionalRedundantDLQosFlowPerTNLInformation []QosFlowPerTNLInformation    `json:"additional_redundant_dl_qos_flow_per_tnl_information,omitempty"`
 }
 
 // PathSwitchRequestAcknowledgeTransferDecoded is the transfer the AMF returns per
 // switched session (TS 38.413 §9.3.4.9).
 type PathSwitchRequestAcknowledgeTransferDecoded struct {
-	ULNGUUPTNLInformation *GTPTunnel          `json:"ul_ng_u_up_tnl_information,omitempty"`
-	SecurityIndication    *SecurityIndication `json:"security_indication,omitempty"`
+	ULNGUUPTNLInformation                  *GTPTunnel          `json:"ul_ng_u_up_tnl_information,omitempty"`
+	SecurityIndication                     *SecurityIndication `json:"security_indication,omitempty"`
+	AdditionalNGUUPTNLInformation          []ULNGUUPTNLModify  `json:"additional_ng_u_up_tnl_information,omitempty"`
+	RedundantULNGUUPTNLInformation         *GTPTunnel          `json:"redundant_ul_ng_u_up_tnl_information,omitempty"`
+	AdditionalRedundantNGUUPTNLInformation []ULNGUUPTNLModify  `json:"additional_redundant_ng_u_up_tnl_information,omitempty"`
 }
 
 // CauseTransferDecoded is a transfer carrying only a cause, as the failed and
@@ -98,6 +105,16 @@ func libPathSwitchRequestTransfer(raw ngap.TransferContainer) (*PathSwitchReques
 		out.QosFlowAccepted = append(out.QosFlowAccepted, int64(flow.QosFlowIdentifier))
 	}
 
+	out.AdditionalDLQosFlowPerTNLInformation = qosFlowPerTNLInformationList(t.AdditionalDLQosFlowPerTNLInformation)
+	out.RedundantDLNGUUPTNLInformation = optionalGTPTunnel(t.RedundantDLNGUUPTNLInformation)
+
+	if t.RedundantDLNGUTNLInformationReused != nil {
+		reused := *t.RedundantDLNGUTNLInformationReused == ngap.DLNGUTNLInformationReusedTrue
+		out.RedundantDLNGUTNLInformationReused = &reused
+	}
+
+	out.AdditionalRedundantDLQosFlowPerTNLInformation = qosFlowPerTNLInformationList(t.AdditionalRedundantDLQosFlowPerTNLInformation)
+
 	return out, nil
 }
 
@@ -113,6 +130,10 @@ func libPathSwitchRequestAcknowledgeTransfer(raw ngap.TransferContainer) (*PathS
 		tunnel := libGTPTunnel(*t.ULNGUUPTNLInformation)
 		out.ULNGUUPTNLInformation = &tunnel
 	}
+
+	out.AdditionalNGUUPTNLInformation = gtpTunnelPairs(t.AdditionalNGUUPTNLInformation)
+	out.RedundantULNGUUPTNLInformation = optionalGTPTunnel(t.RedundantULNGUUPTNLInformation)
+	out.AdditionalRedundantNGUUPTNLInformation = gtpTunnelPairs(t.AdditionalRedundantNGUUPTNLInformation)
 
 	return out, nil
 }

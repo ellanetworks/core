@@ -373,12 +373,13 @@ type HandoverRestrictionList struct {
 // gTP-TEID, e-RABlevelQosParameters, iE-Extensions OPTIONAL } (extensible)
 // (TS 36.413).
 type ERABToBeSetupItemHOReq struct {
-	_                     [0]struct{} `per:"extseq"`
 	ERABID                ERABID
 	TransportLayerAddress TransportLayerAddress
 	GTPTEID               GTPTEID
 	QoS                   ERABLevelQoSParameters
 	Extensions            *ERABToBeSetupItemHOReqExtIEs `per:",optional"`
+	extensions            per.ExtensionAdditions        `per:",extraw"`
+	containerCrit         `per:"-"`
 }
 
 // DataForwardingNotPossible ::= ENUMERATED { data-forwarding-not-possible,
@@ -392,10 +393,47 @@ const (
 )
 
 // ERABToBeSetupItemHOReqExtIEs is the ProtocolExtensionContainer of
-// ERABToBeSetupItemHOReq. Of the extensions TS 36.413 defines for it, only
-// id-Data-Forwarding-Not-Possible (143, criticality ignore) is modeled.
+// ERABToBeSetupItemHOReq.
 type ERABToBeSetupItemHOReqExtIEs struct {
 	DataForwardingNotPossible *DataForwardingNotPossible
+	BearerType                *BearerType
+	EthernetType              *EthernetType
+	SecurityIndication        *SecurityIndication
+
+	meta messageMeta
+}
+
+var eRABToBeSetupItemHOReqExtIEs = []ieSpec[ERABToBeSetupItemHOReqExtIEs]{
+	{
+		id: IDDataForwardingNotPossible, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *ERABToBeSetupItemHOReqExtIEs, raw []byte, enc per.Encoding) error {
+			var v DataForwardingNotPossible
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.DataForwardingNotPossible = &v
+
+			return nil
+		},
+		encode: func(m *ERABToBeSetupItemHOReqExtIEs) (per.Marshaler, bool) {
+			if m.DataForwardingNotPossible == nil {
+				return nil, false
+			}
+
+			return m.DataForwardingNotPossible, true
+		},
+	},
+	optionalExtension(IDBearerType, CriticalityReject, func(m *ERABToBeSetupItemHOReqExtIEs) **BearerType {
+		return &m.BearerType
+	}),
+	optionalExtension(IDEthernetType, CriticalityIgnore, func(m *ERABToBeSetupItemHOReqExtIEs) **EthernetType {
+		return &m.EthernetType
+	}),
+	optionalExtension(IDSecurityIndication, CriticalityReject, func(m *ERABToBeSetupItemHOReqExtIEs) **SecurityIndication {
+		return &m.SecurityIndication
+	}),
 }
 
 // ERABAdmittedItem ::= SEQUENCE { e-RAB-ID, transportLayerAddress, gTP-TEID,
@@ -403,15 +441,16 @@ type ERABToBeSetupItemHOReqExtIEs struct {
 // OPTIONAL, uL-GTP-TEID OPTIONAL, iE-Extensions OPTIONAL } (extensible)
 // (TS 36.413).
 type ERABAdmittedItem struct {
-	_                     [0]struct{} `per:"extseq"`
 	ERABID                ERABID
 	TransportLayerAddress TransportLayerAddress
 	GTPTEID               GTPTEID
-	DLTransportLayerAddr  TransportLayerAddress `per:",optional"`
-	DLGTPTEID             *GTPTEID              `per:",optional"`
-	ULTransportLayerAddr  TransportLayerAddress `per:",optional"`
-	ULGTPTEID             *GTPTEID              `per:",optional"`
-	_                     ieExtensions          `per:",skip"`
+	DLTransportLayerAddr  TransportLayerAddress  `per:",optional"`
+	DLGTPTEID             *GTPTEID               `per:",optional"`
+	ULTransportLayerAddr  TransportLayerAddress  `per:",optional"`
+	ULGTPTEID             *GTPTEID               `per:",optional"`
+	iEExtensions          *rawIEExtensions       `per:",optional"`
+	extensions            per.ExtensionAdditions `per:",extraw"`
+	containerCrit         `per:"-"`
 }
 
 // E-RABDataForwardingItem ::= SEQUENCE { e-RAB-ID, dL-transportLayerAddress
@@ -420,11 +459,12 @@ type ERABAdmittedItem struct {
 // counterpart is not an IE of the message body: NGAP carries the same tunnels
 // inside the per-session HandoverCommandTransfer.
 type ERABDataForwardingItem struct {
-	_                    [0]struct{} `per:"extseq"`
 	ERABID               ERABID
-	DLTransportLayerAddr TransportLayerAddress `per:",optional"`
-	DLGTPTEID            *GTPTEID              `per:",optional"`
-	ULTransportLayerAddr TransportLayerAddress `per:",optional"`
-	ULGTPTEID            *GTPTEID              `per:",optional"`
-	_                    ieExtensions          `per:",skip"`
+	DLTransportLayerAddr TransportLayerAddress  `per:",optional"`
+	DLGTPTEID            *GTPTEID               `per:",optional"`
+	ULTransportLayerAddr TransportLayerAddress  `per:",optional"`
+	ULGTPTEID            *GTPTEID               `per:",optional"`
+	iEExtensions         *rawIEExtensions       `per:",optional"`
+	extensions           per.ExtensionAdditions `per:",extraw"`
+	containerCrit        `per:"-"`
 }

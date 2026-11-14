@@ -227,10 +227,10 @@ const (
 // INTEGER (0..9, ...), iE-Extensions OPTIONAL } (extensible) — the rate is
 // scalar × 10^-exponent.
 type PacketErrorRate struct {
-	_        [0]struct{} `per:"extseq"`
-	Scalar   PERDigit
-	Exponent PERDigit
-	_        ieExtensions `per:",skip"`
+	Scalar       PERDigit
+	Exponent     PERDigit
+	iEExtensions *rawIEExtensions       `per:",optional"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // PERDigit is the shared INTEGER (0..9, ...) of both PacketErrorRate fields.
@@ -255,12 +255,12 @@ func (d *PERDigit) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 // averagingWindow OPTIONAL, maximumDataBurstVolume OPTIONAL, iE-Extensions
 // OPTIONAL } (extensible) — TS 38.413 §9.3.1.28.
 type NonDynamic5QIDescriptor struct {
-	_                      [0]struct{} `per:"extseq"`
 	FiveQI                 FiveQI
 	PriorityLevelQos       *PriorityLevelQos       `per:",optional"`
 	AveragingWindow        *AveragingWindow        `per:",optional"`
 	MaximumDataBurstVolume *MaximumDataBurstVolume `per:",optional"`
-	_                      ieExtensions            `per:",skip"`
+	iEExtensions           *rawIEExtensions        `per:",optional"`
+	extensions             per.ExtensionAdditions  `per:",extraw"`
 }
 
 // Dynamic5QIDescriptor ::= SEQUENCE { priorityLevelQos, packetDelayBudget,
@@ -270,7 +270,6 @@ type NonDynamic5QIDescriptor struct {
 // averagingWindow on the flow being GBR, and maximumDataBurstVolume on
 // delayCritical being "delay critical".
 type Dynamic5QIDescriptor struct {
-	_                      [0]struct{} `per:"extseq"`
 	PriorityLevelQos       PriorityLevelQos
 	PacketDelayBudget      PacketDelayBudget
 	PacketErrorRate        PacketErrorRate
@@ -278,7 +277,8 @@ type Dynamic5QIDescriptor struct {
 	DelayCritical          *DelayCritical          `per:"ENUMERATED,range:0..1,...,optional"`
 	AveragingWindow        *AveragingWindow        `per:",optional"`
 	MaximumDataBurstVolume *MaximumDataBurstVolume `per:",optional"`
-	_                      ieExtensions            `per:",skip"`
+	iEExtensions           *rawIEExtensions        `per:",optional"`
+	extensions             per.ExtensionAdditions  `per:",extraw"`
 }
 
 // QosCharacteristicsKind selects the QosCharacteristics CHOICE alternative.
@@ -346,24 +346,24 @@ func (q *QosCharacteristics) UnmarshalPER(r *per.Reader, enc per.Encoding) error
 // E-RABLevelQoSParameters is the counterpart: a QCI where this has a
 // QosCharacteristics CHOICE, and no reflective/additional fields.
 type QosFlowLevelQosParameters struct {
-	_                              [0]struct{} `per:"extseq"`
 	QosCharacteristics             QosCharacteristics
 	AllocationAndRetentionPriority AllocationAndRetentionPriority
 	GBRQosInformation              *GBRQosInformation            `per:",optional"`
 	ReflectiveQosAttribute         *ReflectiveQosAttribute       `per:"ENUMERATED,range:0..0,...,optional"`
 	AdditionalQosFlowInformation   *AdditionalQosFlowInformation `per:"ENUMERATED,range:0..0,...,optional"`
-	_                              ieExtensions                  `per:",skip"`
+	iEExtensions                   *rawIEExtensions              `per:",optional"`
+	extensions                     per.ExtensionAdditions        `per:",extraw"`
 }
 
 // AllocationAndRetentionPriority ::= SEQUENCE { priorityLevelARP,
 // pre-emptionCapability, pre-emptionVulnerability, iE-Extensions OPTIONAL }
 // (extensible) — TS 38.413 §9.3.1.19.
 type AllocationAndRetentionPriority struct {
-	_                       [0]struct{} `per:"extseq"`
 	PriorityLevelARP        PriorityLevelARP
 	PreemptionCapability    PreemptionCapability    `per:"ENUMERATED,range:0..1,..."`
 	PreemptionVulnerability PreemptionVulnerability `per:"ENUMERATED,range:0..1,..."`
-	_                       ieExtensions            `per:",skip"`
+	iEExtensions            *rawIEExtensions        `per:",optional"`
+	extensions              per.ExtensionAdditions  `per:",extraw"`
 }
 
 // GBR-QosInformation ::= SEQUENCE { four BitRates, notificationControl
@@ -374,15 +374,15 @@ type AllocationAndRetentionPriority struct {
 // an optional extension on E-RABLevelQoSParameters, and is non-extensible
 // there where NGAP's PacketLossRate is extensible.
 type GBRQosInformation struct {
-	_                       [0]struct{} `per:"extseq"`
 	MaximumFlowBitRateDL    BitRate
 	MaximumFlowBitRateUL    BitRate
 	GuaranteedFlowBitRateDL BitRate
 	GuaranteedFlowBitRateUL BitRate
-	NotificationControl     *NotificationControl `per:"ENUMERATED,range:0..0,...,optional"`
-	MaximumPacketLossRateDL *PacketLossRate      `per:",optional"`
-	MaximumPacketLossRateUL *PacketLossRate      `per:",optional"`
-	_                       ieExtensions         `per:",skip"`
+	NotificationControl     *NotificationControl   `per:"ENUMERATED,range:0..0,...,optional"`
+	MaximumPacketLossRateDL *PacketLossRate        `per:",optional"`
+	MaximumPacketLossRateUL *PacketLossRate        `per:",optional"`
+	iEExtensions            *rawIEExtensions       `per:",optional"`
+	extensions              per.ExtensionAdditions `per:",extraw"`
 }
 
 // QosFlowIdentifier ::= INTEGER (0..63, ...) — TS 38.413 §9.3.1.51.
@@ -438,11 +438,11 @@ const (
 // qosFlowLevelQosParameters, e-RAB-ID OPTIONAL, iE-Extensions OPTIONAL }
 // (extensible).
 type QosFlowSetupRequestItem struct {
-	_                         [0]struct{} `per:"extseq"`
 	QosFlowIdentifier         QosFlowIdentifier
 	QosFlowLevelQosParameters QosFlowLevelQosParameters
-	ERABID                    *ERABID      `per:",optional"`
-	_                         ieExtensions `per:",skip"`
+	ERABID                    *ERABID                `per:",optional"`
+	iEExtensions              *rawIEExtensions       `per:",optional"`
+	extensions                per.ExtensionAdditions `per:",extraw"`
 }
 
 // QosFlowSetupRequestList ::= SEQUENCE (SIZE(1..maxnoofQosFlows)) OF
@@ -452,10 +452,10 @@ type QosFlowSetupRequestList []QosFlowSetupRequestItem
 // QosFlowWithCauseItem ::= SEQUENCE { qosFlowIdentifier, cause, iE-Extensions
 // OPTIONAL } (extensible).
 type QosFlowWithCauseItem struct {
-	_                 [0]struct{} `per:"extseq"`
 	QosFlowIdentifier QosFlowIdentifier
 	Cause             Cause
-	_                 ieExtensions `per:",skip"`
+	iEExtensions      *rawIEExtensions       `per:",optional"`
+	extensions        per.ExtensionAdditions `per:",extraw"`
 }
 
 // QosFlowListWithCause ::= SEQUENCE (SIZE(1..maxnoofQosFlows)) OF
@@ -478,9 +478,9 @@ type AssociatedQosFlowList []AssociatedQosFlowItem
 // QosFlowModifyConfirmItem ::= SEQUENCE { qosFlowIdentifier, iE-Extensions
 // OPTIONAL } (extensible).
 type QosFlowModifyConfirmItem struct {
-	_                 [0]struct{} `per:"extseq"`
 	QosFlowIdentifier QosFlowIdentifier
-	_                 ieExtensions `per:",skip"`
+	iEExtensions      *rawIEExtensions       `per:",optional"`
+	extensions        per.ExtensionAdditions `per:",extraw"`
 }
 
 // QosFlowModifyConfirmList ::= SEQUENCE (SIZE(1..maxnoofQosFlows)) OF
@@ -493,11 +493,18 @@ type QosFlowModifyConfirmList []QosFlowModifyConfirmItem
 // QosFlowSetupRequestItem has them mandatory: a modify may touch only the
 // E-RAB mapping.
 type QosFlowAddOrModifyRequestItem struct {
-	_                         [0]struct{} `per:"extseq"`
 	QosFlowIdentifier         QosFlowIdentifier
-	QosFlowLevelQosParameters *QosFlowLevelQosParameters `per:",optional"`
-	ERABID                    *ERABID                    `per:",optional"`
-	_                         ieExtensions               `per:",skip"`
+	QosFlowLevelQosParameters *QosFlowLevelQosParameters   `per:",optional"`
+	ERABID                    *ERABID                      `per:",optional"`
+	ULNGUUPTNLInformation     *UPTransportLayerInformation `per:"-"`
+	iEExtensions              messageMeta                  `per:",exttable:qosFlowAddOrModifyRequestItemExtIEs"`
+	extensions                per.ExtensionAdditions       `per:",extraw"`
+}
+
+var qosFlowAddOrModifyRequestItemExtIEs = []ieSpec[QosFlowAddOrModifyRequestItem]{
+	optionalExtension(IDULNGUUPTNLInformation, CriticalityIgnore, func(m *QosFlowAddOrModifyRequestItem) **UPTransportLayerInformation {
+		return &m.ULNGUUPTNLInformation
+	}),
 }
 
 // QosFlowAddOrModifyRequestList ::= SEQUENCE (SIZE(1..maxnoofQosFlows)) OF
@@ -531,9 +538,9 @@ func (d *DataForwardingAccepted) UnmarshalPER(r *per.Reader, enc per.Encoding) e
 // QosFlowAcceptedItem ::= SEQUENCE { qosFlowIdentifier, iE-Extensions OPTIONAL
 // } (extensible).
 type QosFlowAcceptedItem struct {
-	_                 [0]struct{} `per:"extseq"`
 	QosFlowIdentifier QosFlowIdentifier
-	_                 ieExtensions `per:",skip"`
+	iEExtensions      *rawIEExtensions       `per:",optional"`
+	extensions        per.ExtensionAdditions `per:",extraw"`
 }
 
 // QosFlowAcceptedList ::= SEQUENCE (SIZE(1..maxnoofQosFlows)) OF
@@ -543,9 +550,9 @@ type QosFlowAcceptedList []QosFlowAcceptedItem
 // QosFlowToBeForwardedItem ::= SEQUENCE { qosFlowIdentifier, iE-Extensions
 // OPTIONAL } (extensible).
 type QosFlowToBeForwardedItem struct {
-	_                 [0]struct{} `per:"extseq"`
 	QosFlowIdentifier QosFlowIdentifier
-	_                 ieExtensions `per:",skip"`
+	iEExtensions      *rawIEExtensions       `per:",optional"`
+	extensions        per.ExtensionAdditions `per:",extraw"`
 }
 
 // QosFlowToBeForwardedList ::= SEQUENCE (SIZE(1..maxnoofQosFlows)) OF
@@ -555,10 +562,10 @@ type QosFlowToBeForwardedList []QosFlowToBeForwardedItem
 // QosFlowItemWithDataForwarding ::= SEQUENCE { qosFlowIdentifier,
 // dataForwardingAccepted OPTIONAL, iE-Extensions OPTIONAL } (extensible).
 type QosFlowItemWithDataForwarding struct {
-	_                      [0]struct{} `per:"extseq"`
 	QosFlowIdentifier      QosFlowIdentifier
 	DataForwardingAccepted *DataForwardingAccepted `per:"ENUMERATED,range:0..0,...,optional"`
-	_                      ieExtensions            `per:",skip"`
+	iEExtensions           *rawIEExtensions        `per:",optional"`
+	extensions             per.ExtensionAdditions  `per:",extraw"`
 }
 
 // QosFlowListWithDataForwarding ::= SEQUENCE (SIZE(1..maxnoofQosFlows)) OF
@@ -569,18 +576,18 @@ type QosFlowListWithDataForwarding []QosFlowItemWithDataForwarding
 // associatedQosFlowList, iE-Extensions OPTIONAL } (extensible) — TS 38.413
 // §9.3.2.8.
 type QosFlowPerTNLInformation struct {
-	_                           [0]struct{} `per:"extseq"`
 	UPTransportLayerInformation UPTransportLayerInformation
 	AssociatedQosFlowList       AssociatedQosFlowList
-	_                           ieExtensions `per:",skip"`
+	iEExtensions                *rawIEExtensions       `per:",optional"`
+	extensions                  per.ExtensionAdditions `per:",extraw"`
 }
 
 // QosFlowPerTNLInformationItem ::= SEQUENCE { qosFlowPerTNLInformation,
 // iE-Extensions OPTIONAL } (extensible).
 type QosFlowPerTNLInformationItem struct {
-	_                        [0]struct{} `per:"extseq"`
 	QosFlowPerTNLInformation QosFlowPerTNLInformation
-	_                        ieExtensions `per:",skip"`
+	iEExtensions             *rawIEExtensions       `per:",optional"`
+	extensions               per.ExtensionAdditions `per:",extraw"`
 }
 
 // QosFlowPerTNLInformationList ::= SEQUENCE
@@ -641,10 +648,10 @@ func (n *NetworkInstance) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 // OPTIONAL } (extensible) — TS 38.413 §9.3.1.102. Session-level, where
 // UEAggregateMaximumBitRate is UE-level; S1AP has only the UE-level form.
 type PDUSessionAggregateMaximumBitRate struct {
-	_  [0]struct{} `per:"extseq"`
-	DL BitRate
-	UL BitRate
-	_  ieExtensions `per:",skip"`
+	DL           BitRate
+	UL           BitRate
+	iEExtensions *rawIEExtensions       `per:",optional"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // IntegrityProtectionIndication ::= ENUMERATED { required, preferred,
@@ -716,11 +723,11 @@ const (
 // and a decoder accepts whatever arrives. TS 36.413 §9.2.1.163 defines the
 // same IE carrying the integrity indication alone.
 type SecurityIndication struct {
-	_                                   [0]struct{}                         `per:"extseq"`
 	IntegrityProtectionIndication       IntegrityProtectionIndication       `per:"ENUMERATED,range:0..2,..."`
 	ConfidentialityProtectionIndication ConfidentialityProtectionIndication `per:"ENUMERATED,range:0..2,..."`
 	MaximumIntegrityProtectedDataRateUL *MaximumIntegrityProtectedDataRate  `per:"ENUMERATED,range:0..1,...,optional"`
-	_                                   ieExtensions                        `per:",skip"`
+	iEExtensions                        *rawIEExtensions                    `per:",optional"`
+	extensions                          per.ExtensionAdditions              `per:",extraw"`
 }
 
 // SecurityResult ::= SEQUENCE { integrityProtectionResult,
@@ -728,10 +735,10 @@ type SecurityIndication struct {
 // 38.413 §9.3.1.59. TS 36.413 §9.2.1.164 defines the same IE carrying the
 // integrity result alone.
 type SecurityResult struct {
-	_                               [0]struct{}                     `per:"extseq"`
 	IntegrityProtectionResult       IntegrityProtectionResult       `per:"ENUMERATED,range:0..1,..."`
 	ConfidentialityProtectionResult ConfidentialityProtectionResult `per:"ENUMERATED,range:0..1,..."`
-	_                               ieExtensions                    `per:",skip"`
+	iEExtensions                    *rawIEExtensions                `per:",optional"`
+	extensions                      per.ExtensionAdditions          `per:",extraw"`
 }
 
 // Name returns the value's name in TS 38.413 §9.3.1.27, or the empty string for

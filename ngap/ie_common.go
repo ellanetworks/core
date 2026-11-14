@@ -97,10 +97,10 @@ func (t *GTPTEID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 // GTPTunnel ::= SEQUENCE { transportLayerAddress, gTP-TEID, iE-Extensions
 // OPTIONAL } (extensible) — TS 38.413 §9.3.2.2.
 type GTPTunnel struct {
-	_                     [0]struct{} `per:"extseq"`
 	TransportLayerAddress TransportLayerAddress
 	GTPTEID               GTPTEID
-	_                     ieExtensions `per:",skip"`
+	iEExtensions          *rawIEExtensions       `per:",optional"`
+	extensions            per.ExtensionAdditions `per:",extraw"`
 }
 
 // UPTransportLayerInformation CHOICE alternatives. The CHOICE is not
@@ -143,9 +143,9 @@ func (u *UPTransportLayerInformation) UnmarshalPER(r *per.Reader, enc per.Encodi
 // UPTransportLayerInformationItem ::= SEQUENCE { nGU-UP-TNLInformation,
 // iE-Extensions OPTIONAL } (extensible).
 type UPTransportLayerInformationItem struct {
-	_                   [0]struct{} `per:"extseq"`
 	NGUUPTNLInformation UPTransportLayerInformation
-	_                   ieExtensions `per:",skip"`
+	iEExtensions        *rawIEExtensions       `per:",optional"`
+	extensions          per.ExtensionAdditions `per:",extraw"`
 }
 
 // UPTransportLayerInformationList ::= SEQUENCE
@@ -157,10 +157,10 @@ type UPTransportLayerInformationList []UPTransportLayerInformationItem
 // UPTransportLayerInformationPairItem ::= SEQUENCE { uL-NGU-UP-TNLInformation,
 // dL-NGU-UP-TNLInformation, iE-Extensions OPTIONAL } (extensible).
 type UPTransportLayerInformationPairItem struct {
-	_                     [0]struct{} `per:"extseq"`
 	ULNGUUPTNLInformation UPTransportLayerInformation
 	DLNGUUPTNLInformation UPTransportLayerInformation
-	_                     ieExtensions `per:",skip"`
+	iEExtensions          *rawIEExtensions       `per:",optional"`
+	extensions            per.ExtensionAdditions `per:",extraw"`
 }
 
 // UPTransportLayerInformationPairList ::= SEQUENCE
@@ -173,10 +173,21 @@ type UPTransportLayerInformationPairList []UPTransportLayerInformationPairItem
 // identical to UPTransportLayerInformationPairItem but a distinct ASN.1 type,
 // and its list is bounded by maxnoofMultiConnectivity rather than one less.
 type ULNGUUPTNLModifyItem struct {
-	_                     [0]struct{} `per:"extseq"`
-	ULNGUUPTNLInformation UPTransportLayerInformation
-	DLNGUUPTNLInformation UPTransportLayerInformation
-	_                     ieExtensions `per:",skip"`
+	ULNGUUPTNLInformation          UPTransportLayerInformation
+	DLNGUUPTNLInformation          UPTransportLayerInformation
+	RedundantULNGUUPTNLInformation *UPTransportLayerInformation `per:"-"`
+	RedundantDLNGUUPTNLInformation *UPTransportLayerInformation `per:"-"`
+	iEExtensions                   messageMeta                  `per:",exttable:uLNGUUPTNLModifyItemExtIEs"`
+	extensions                     per.ExtensionAdditions       `per:",extraw"`
+}
+
+var uLNGUUPTNLModifyItemExtIEs = []ieSpec[ULNGUUPTNLModifyItem]{
+	optionalExtension(IDRedundantULNGUUPTNLInformation, CriticalityIgnore, func(m *ULNGUUPTNLModifyItem) **UPTransportLayerInformation {
+		return &m.RedundantULNGUUPTNLInformation
+	}),
+	optionalExtension(IDRedundantDLNGUUPTNLInformation, CriticalityIgnore, func(m *ULNGUUPTNLModifyItem) **UPTransportLayerInformation {
+		return &m.RedundantDLNGUUPTNLInformation
+	}),
 }
 
 // ULNGUUPTNLModifyList ::= SEQUENCE (SIZE(1..maxnoofMultiConnectivity)) OF
@@ -205,16 +216,104 @@ func (d *DRBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 // dLForwardingUP-TNLInformation OPTIONAL, uLForwardingUP-TNLInformation
 // OPTIONAL, iE-Extensions OPTIONAL } (extensible).
 type DataForwardingResponseDRBItem struct {
-	_                            [0]struct{} `per:"extseq"`
 	DRBID                        DRBID
 	DLForwardingUPTNLInformation *UPTransportLayerInformation `per:",optional"`
 	ULForwardingUPTNLInformation *UPTransportLayerInformation `per:",optional"`
-	_                            ieExtensions                 `per:",skip"`
+	iEExtensions                 *rawIEExtensions             `per:",optional"`
+	extensions                   per.ExtensionAdditions       `per:",extraw"`
 }
 
 // DataForwardingResponseDRBList ::= SEQUENCE (SIZE(1..maxnoofDRBs)) OF
 // DataForwardingResponseDRBItem.
 type DataForwardingResponseDRBList []DataForwardingResponseDRBItem
+
+type DataForwardingResponseERABListItem struct {
+	ERABID                       ERABID
+	DLForwardingUPTNLInformation UPTransportLayerInformation
+	iEExtensions                 *rawIEExtensions       `per:",optional"`
+	extensions                   per.ExtensionAdditions `per:",extraw"`
+}
+
+type DataForwardingResponseERABList []DataForwardingResponseERABListItem
+
+func (l DataForwardingResponseERABList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofERABs, []DataForwardingResponseERABListItem(l))
+}
+
+func (l *DataForwardingResponseERABList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[DataForwardingResponseERABListItem](r, enc, 1, maxnoofERABs)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+type AdditionalDLUPTNLInformationForHOItem struct {
+	AdditionalDLNGUUPTNLInformation          UPTransportLayerInformation
+	AdditionalQosFlowSetupResponse           QosFlowListWithDataForwarding
+	AdditionalDLForwardingUPTNLInformation   *UPTransportLayerInformation `per:",optional"`
+	AdditionalRedundantDLNGUUPTNLInformation *UPTransportLayerInformation `per:"-"`
+	iEExtensions                             messageMeta                  `per:",exttable:additionalDLUPTNLInformationForHOItemExtIEs"`
+	extensions                               per.ExtensionAdditions       `per:",extraw"`
+}
+
+var additionalDLUPTNLInformationForHOItemExtIEs = []ieSpec[AdditionalDLUPTNLInformationForHOItem]{
+	optionalExtension(IDAdditionalRedundantDLNGUUPTNLInformation, CriticalityIgnore, func(m *AdditionalDLUPTNLInformationForHOItem) **UPTransportLayerInformation {
+		return &m.AdditionalRedundantDLNGUUPTNLInformation
+	}),
+}
+
+type AdditionalDLUPTNLInformationForHOList []AdditionalDLUPTNLInformationForHOItem
+
+func (l AdditionalDLUPTNLInformationForHOList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofMultiConnectivityMinusOne, []AdditionalDLUPTNLInformationForHOItem(l))
+}
+
+func (l *AdditionalDLUPTNLInformationForHOList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[AdditionalDLUPTNLInformationForHOItem](r, enc, 1, maxnoofMultiConnectivityMinusOne)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+type UserPlaneFailureType uint8
+
+const (
+	UserPlaneFailureTypeGTPUErrorIndicationReceived UserPlaneFailureType = iota
+	UserPlaneFailureTypeUPPathFailure
+
+	userPlaneFailureTypeRootCount = 2
+)
+
+func (u UserPlaneFailureType) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return encodeRootEnumerated(w, enc, userPlaneFailureTypeRootCount, int64(u), "UserPlaneFailureType")
+}
+
+func (u *UserPlaneFailureType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	idx, err := decodeRootEnumerated(r, enc, userPlaneFailureTypeRootCount, "UserPlaneFailureType")
+	if err != nil {
+		return err
+	}
+
+	*u = UserPlaneFailureType(idx)
+
+	return nil
+}
+
+type UserPlaneFailureIndication struct {
+	UserPlaneFailureType  UserPlaneFailureType
+	ULNGUUPTNLInformation UPTransportLayerInformation
+	DLNGUUPTNLInformation UPTransportLayerInformation
+	iEExtensions          *rawIEExtensions       `per:",optional"`
+	extensions            per.ExtensionAdditions `per:",extraw"`
+}
 
 // encodeExtensibleInt encodes an INTEGER whose constraint carries an extension
 // marker but defines no extension additions: X.691 §13.1 spends one bit, then

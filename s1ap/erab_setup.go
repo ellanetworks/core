@@ -12,13 +12,37 @@ import (
 // (extensible). The NAS-PDU is mandatory: it carries the ACTIVATE DEFAULT EPS
 // BEARER CONTEXT REQUEST for an additional PDN connection.
 type ERABToBeSetupItemBearerSUReq struct {
-	_                     [0]struct{} `per:"extseq"`
 	ERABID                ERABID
 	QoS                   ERABLevelQoSParameters
 	TransportLayerAddress TransportLayerAddress
 	GTPTEID               GTPTEID
 	NASPDU                NASPDU
-	_                     ieExtensions `per:",skip"`
+	CorrelationID         *CorrelationID         `per:"-"`
+	SIPTOCorrelationID    *CorrelationID         `per:"-"`
+	BearerType            *BearerType            `per:"-"`
+	EthernetType          *EthernetType          `per:"-"`
+	SecurityIndication    *SecurityIndication    `per:"-"`
+	iEExtensions          messageMeta            `per:",exttable:eRABToBeSetupItemBearerSUReqExtIEs"`
+	extensions            per.ExtensionAdditions `per:",extraw"`
+	containerCrit         `per:"-"`
+}
+
+var eRABToBeSetupItemBearerSUReqExtIEs = []ieSpec[ERABToBeSetupItemBearerSUReq]{
+	optionalExtension(IDCorrelationID, CriticalityIgnore, func(m *ERABToBeSetupItemBearerSUReq) **CorrelationID {
+		return &m.CorrelationID
+	}),
+	optionalExtension(IDSIPTOCorrelationID, CriticalityIgnore, func(m *ERABToBeSetupItemBearerSUReq) **CorrelationID {
+		return &m.SIPTOCorrelationID
+	}),
+	optionalExtension(IDBearerType, CriticalityReject, func(m *ERABToBeSetupItemBearerSUReq) **BearerType {
+		return &m.BearerType
+	}),
+	optionalExtension(IDEthernetType, CriticalityIgnore, func(m *ERABToBeSetupItemBearerSUReq) **EthernetType {
+		return &m.EthernetType
+	}),
+	optionalExtension(IDSecurityIndication, CriticalityReject, func(m *ERABToBeSetupItemBearerSUReq) **SecurityIndication {
+		return &m.SecurityIndication
+	}),
 }
 
 // ERABSetupItemBearerSURes ::= SEQUENCE { e-RAB-ID, transportLayerAddress,
@@ -30,7 +54,7 @@ type ERABSetupRequest struct {
 	MMEUES1APID               MMEUES1APID
 	ENBUES1APID               ENBUES1APID
 	UEAggregateMaximumBitRate *UEAggregateMaximumBitRate
-	ERABToBeSetup             []ERABToBeSetupItemBearerSUReq
+	ERABToBeSetup             ERABToBeSetupListBearerSUReq
 
 	messageMeta
 }
@@ -80,7 +104,7 @@ var eRABSetupRequestIEs = []ieSpec[ERABSetupRequest]{
 		decode: func(m *ERABSetupRequest, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABToBeSetup, err = decodeItemList[ERABToBeSetupItemBearerSUReq](per.NewReader(raw), enc, maxnoofERABs, IDERABToBeSetupItemBearerSUReq)
+			m.ERABToBeSetup, err = decodeItemList[ERABToBeSetupItemBearerSUReq](per.NewReader(raw), enc, maxnoofERABs, IDERABToBeSetupItemBearerSUReq, CriticalityReject)
 
 			return err
 		},
@@ -120,7 +144,7 @@ func ParseERABSetupRequest(value []byte) (*ERABSetupRequest, error) {
 type ERABSetupResponse struct {
 	MMEUES1APID             *MMEUES1APID
 	ENBUES1APID             *ENBUES1APID
-	ERABSetup               []ERABSetupItemBearerSURes
+	ERABSetup               ERABSetupListBearerSURes
 	ERABFailedToSetup       []ERABItem
 	CriticalityDiagnostics  *CriticalityDiagnostics
 	UserLocationInformation *UserLocationInformation
@@ -176,7 +200,7 @@ var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
 		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABSetup, err = decodeItemList[ERABSetupItemBearerSURes](per.NewReader(raw), enc, maxnoofERABs, IDERABSetupItemBearerSURes)
+			m.ERABSetup, err = decodeItemList[ERABSetupItemBearerSURes](per.NewReader(raw), enc, maxnoofERABs, IDERABSetupItemBearerSURes, CriticalityIgnore)
 
 			return err
 		},
@@ -195,7 +219,7 @@ var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
 		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABFailedToSetup, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABItem)
+			m.ERABFailedToSetup, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABItem, CriticalityIgnore)
 
 			return err
 		},

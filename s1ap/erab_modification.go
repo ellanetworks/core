@@ -10,19 +10,20 @@ import (
 // ERABToBeModifiedItemBearerModInd ::= SEQUENCE { e-RAB-ID, transportLayerAddress,
 // dL-GTP-TEID, iE-Extensions OPTIONAL } (extensible) (TS 36.413 §9.2.1.31).
 type ERABToBeModifiedItemBearerModInd struct {
-	_                     [0]struct{} `per:"extseq"`
 	ERABID                ERABID
 	TransportLayerAddress TransportLayerAddress
 	DLGTPTEID             GTPTEID
-	_                     ieExtensions `per:",skip"`
+	iEExtensions          *rawIEExtensions       `per:",optional"`
+	extensions            per.ExtensionAdditions `per:",extraw"`
+	containerCrit         `per:"-"`
 }
 
 // TS 36.413 §9.1.3.8.
 type ERABModificationIndication struct {
 	MMEUES1APID             MMEUES1APID
 	ENBUES1APID             ENBUES1APID
-	ToBeModified            []ERABToBeModifiedItemBearerModInd
-	NotToBeModified         []ERABToBeModifiedItemBearerModInd
+	ToBeModified            ERABToBeModifiedListBearerModInd
+	NotToBeModified         ERABNotToBeModifiedListBearerModInd
 	UserLocationInformation *UserLocationInformation
 
 	messageMeta
@@ -48,7 +49,7 @@ var eRABModificationIndicationIEs = []ieSpec[ERABModificationIndication]{
 		decode: func(m *ERABModificationIndication, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ToBeModified, err = decodeItemList[ERABToBeModifiedItemBearerModInd](per.NewReader(raw), enc, maxnoofERABs, IDERABToBeModifiedItemBearerModInd)
+			m.ToBeModified, err = decodeItemList[ERABToBeModifiedItemBearerModInd](per.NewReader(raw), enc, maxnoofERABs, IDERABToBeModifiedItemBearerModInd, CriticalityReject)
 
 			return err
 		},
@@ -63,7 +64,7 @@ var eRABModificationIndicationIEs = []ieSpec[ERABModificationIndication]{
 		decode: func(m *ERABModificationIndication, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.NotToBeModified, err = decodeItemList[ERABToBeModifiedItemBearerModInd](per.NewReader(raw), enc, maxnoofERABs, IDERABNotToBeModifiedItemBearerModInd)
+			m.NotToBeModified, err = decodeItemList[ERABToBeModifiedItemBearerModInd](per.NewReader(raw), enc, maxnoofERABs, IDERABNotToBeModifiedItemBearerModInd, CriticalityReject)
 
 			return err
 		},
@@ -190,7 +191,7 @@ var erabModificationConfirmIEs = []ieSpec[ERABModificationConfirm]{
 	{
 		id: IDERABModifyListBearerModConf, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *ERABModificationConfirm, raw []byte, enc per.Encoding) error {
-			items, err := decodeItemList[erabModifyItemBearerModConf](per.NewReader(raw), enc, maxnoofERABs, IDERABModifyItemBearerModConf)
+			items, err := decodeItemList[erabModifyItemBearerModConf](per.NewReader(raw), enc, maxnoofERABs, IDERABModifyItemBearerModConf, CriticalityIgnore)
 			if err != nil {
 				return err
 			}
@@ -222,7 +223,7 @@ var erabModificationConfirmIEs = []ieSpec[ERABModificationConfirm]{
 		decode: func(m *ERABModificationConfirm, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.FailedToModify, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABItem)
+			m.FailedToModify, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABItem, CriticalityIgnore)
 
 			return err
 		},
@@ -241,7 +242,7 @@ var erabModificationConfirmIEs = []ieSpec[ERABModificationConfirm]{
 		decode: func(m *ERABModificationConfirm, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ToBeReleased, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABItem)
+			m.ToBeReleased, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABItem, CriticalityIgnore)
 
 			return err
 		},

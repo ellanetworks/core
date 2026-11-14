@@ -41,7 +41,7 @@ func (g *generator) emitStruct(name string, s *structType) error {
 	var optionalIdx []int
 
 	for i, fi := range rootFields {
-		if fi.isOptional || fi.hasDefault || fi.isSkip {
+		if fi.isOptional || fi.hasDefault || fi.isSkip || fi.extTable != "" {
 			optionalIdx = append(optionalIdx, i)
 		}
 	}
@@ -67,6 +67,12 @@ func (g *generator) emitMarshalExt(recv, typeName string, rootFields, extFields 
 	r := &g.buf
 	fmt.Fprintf(r, "func (%s *%s) MarshalPER(w *per.Writer, enc per.Encoding) error {\n", recv, typeName)
 
+	for _, fi := range rootFields {
+		if fi.extTable != "" {
+			fmt.Fprintf(r, "\text := extensionFields(%s, %s, &%s.%s)\n", fi.extTable, recv, recv, fi.name)
+		}
+	}
+
 	// Extension bit (X.691 §19.1): set when any extension addition is present.
 	if extensible {
 		if extRaw != "" {
@@ -84,6 +90,8 @@ func (g *generator) emitMarshalExt(recv, typeName string, rootFields, extFields 
 		expr := recv + "." + fi.name
 
 		switch {
+		case fi.extTable != "":
+			fmt.Fprintf(r, "\tw.WriteBit(len(ext) > 0)\n")
 		case fi.isSkip:
 			fmt.Fprintf(r, "\tw.WriteBit(false)\n")
 		case fi.isOptional:
@@ -97,7 +105,11 @@ func (g *generator) emitMarshalExt(recv, typeName string, rootFields, extFields 
 		fi := rootFields[i]
 
 		expr := recv + "." + fi.name
-		if fi.isSkip {
+		if fi.extTable != "" {
+			fmt.Fprintf(r, "\tif len(ext) > 0 {\n")
+			fmt.Fprintf(r, "\t\tif err := encodeExtensionContainer(w, enc, ext); err != nil {\n\t\t\treturn err\n\t\t}\n")
+			fmt.Fprintf(r, "\t}\n")
+		} else if fi.isSkip {
 			continue
 		} else if fi.isOptional {
 			valExpr := "(*" + expr + ")"
@@ -323,7 +335,11 @@ func (g *generator) emitUnmarshalExt(recv, typeName string, rootFields, extField
 		fi := rootFields[i]
 
 		expr := recv + "." + fi.name
-		if fi.isSkip {
+		if fi.extTable != "" {
+			fmt.Fprintf(r, "\tif %s {\n", preambleVar(fi))
+			fmt.Fprintf(r, "\t\tif err := decodeExtensionContainer(r, enc, %s, %s, &%s); err != nil {\n\t\t\treturn err\n\t\t}\n", fi.extTable, recv, expr)
+			fmt.Fprintf(r, "\t}\n")
+		} else if fi.isSkip {
 			fmt.Fprintf(r, "\tif %s {\n", preambleVar(fi))
 			fmt.Fprintf(r, "\t\tvar v %s\n", fi.typeStr)
 			g.emitFieldUnmarshal(r, "v", fi, 1)

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"net/netip"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -743,7 +744,7 @@ func TestNonGBRBearerSignalsNoBitRates_TS36413_9_2_1_15(t *testing.T) {
 	qos := DedicatedERABQoS(&info)
 	want := s1ap.AllocationAndRetentionPriority{PriorityLevel: 3, PreemptionCapability: s1ap.PreemptionMayTrigger, PreemptionVulnerability: s1ap.PreemptionPreemptable}
 
-	if qos.QCI != 69 || qos.GBR != nil || qos.ARP != want {
+	if qos.QCI != 69 || qos.GBR != nil || !reflect.DeepEqual(qos.ARP, want) {
 		t.Fatalf("E-RAB QoS %+v, want QCI 69 at ARP %+v without GBR QoS Information", qos, want)
 	}
 

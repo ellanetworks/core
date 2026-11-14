@@ -67,21 +67,40 @@ func (d *DLNGUTNLInformationReused) UnmarshalPER(r *per.Reader, enc per.Encoding
 // §9.3.1.60. Both fields are mandatory: the NG-RAN node reports what it applied
 // alongside what it was asked for.
 type UserPlaneSecurityInformation struct {
-	_                  [0]struct{} `per:"extseq"`
 	SecurityResult     SecurityResult
 	SecurityIndication SecurityIndication
-	_                  ieExtensions `per:",skip"`
+	iEExtensions       *rawIEExtensions       `per:",optional"`
+	extensions         per.ExtensionAdditions `per:",extraw"`
 }
 
 // HandoverCommandTransfer ::= SEQUENCE { dLForwardingUP-TNLInformation
 // OPTIONAL, qosFlowToBeForwardedList OPTIONAL, dataForwardingResponseDRBList
 // OPTIONAL, iE-Extensions OPTIONAL } (extensible) — TS 38.413 §9.3.4.10.
 type HandoverCommandTransfer struct {
-	_                            [0]struct{}                   `per:"extseq"`
-	DLForwardingUPTNLInformation *UPTransportLayerInformation  `per:",optional"`
-	QosFlowToBeForwarded         QosFlowToBeForwardedList      `per:",optional"`
-	DataForwardingResponseDRB    DataForwardingResponseDRBList `per:",optional"`
-	_                            ieExtensions                  `per:",skip"`
+	DLForwardingUPTNLInformation           *UPTransportLayerInformation    `per:",optional"`
+	QosFlowToBeForwarded                   QosFlowToBeForwardedList        `per:",optional"`
+	DataForwardingResponseDRB              DataForwardingResponseDRBList   `per:",optional"`
+	AdditionalDLForwardingUPTNLInformation QosFlowPerTNLInformationList    `per:"-"`
+	ULForwardingUPTNLInformation           *UPTransportLayerInformation    `per:"-"`
+	AdditionalULForwardingUPTNLInformation UPTransportLayerInformationList `per:"-"`
+	DataForwardingResponseERAB             DataForwardingResponseERABList  `per:"-"`
+	iEExtensions                           messageMeta                     `per:",exttable:handoverCommandTransferExtIEs"`
+	extensions                             per.ExtensionAdditions          `per:",extraw"`
+}
+
+var handoverCommandTransferExtIEs = []ieSpec[HandoverCommandTransfer]{
+	listExtension(IDAdditionalDLForwardingUPTNLInformation, CriticalityIgnore, func(m *HandoverCommandTransfer) *QosFlowPerTNLInformationList {
+		return &m.AdditionalDLForwardingUPTNLInformation
+	}),
+	optionalExtension(IDULForwardingUPTNLInformation, CriticalityReject, func(m *HandoverCommandTransfer) **UPTransportLayerInformation {
+		return &m.ULForwardingUPTNLInformation
+	}),
+	listExtension(IDAdditionalULForwardingUPTNLInformation, CriticalityReject, func(m *HandoverCommandTransfer) *UPTransportLayerInformationList {
+		return &m.AdditionalULForwardingUPTNLInformation
+	}),
+	listExtension(IDDataForwardingResponseERABList, CriticalityIgnore, func(m *HandoverCommandTransfer) *DataForwardingResponseERABList {
+		return &m.DataForwardingResponseERAB
+	}),
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.
@@ -148,14 +167,37 @@ func ParseHandoverPreparationUnsuccessfulTransfer(b TransferContainer) (*Handove
 // dataForwardingResponseDRBList OPTIONAL, iE-Extensions OPTIONAL }
 // (extensible) — TS 38.413 §9.3.4.11.
 type HandoverRequestAcknowledgeTransfer struct {
-	_                            [0]struct{} `per:"extseq"`
-	DLNGUUPTNLInformation        UPTransportLayerInformation
-	DLForwardingUPTNLInformation *UPTransportLayerInformation `per:",optional"`
-	SecurityResult               *SecurityResult              `per:",optional"`
-	QosFlowSetupResponse         QosFlowListWithDataForwarding
-	QosFlowFailedToSetup         QosFlowListWithCause          `per:",optional"`
-	DataForwardingResponseDRB    DataForwardingResponseDRBList `per:",optional"`
-	_                            ieExtensions                  `per:",skip"`
+	DLNGUUPTNLInformation                  UPTransportLayerInformation
+	DLForwardingUPTNLInformation           *UPTransportLayerInformation `per:",optional"`
+	SecurityResult                         *SecurityResult              `per:",optional"`
+	QosFlowSetupResponse                   QosFlowListWithDataForwarding
+	QosFlowFailedToSetup                   QosFlowListWithCause                  `per:",optional"`
+	DataForwardingResponseDRB              DataForwardingResponseDRBList         `per:",optional"`
+	AdditionalDLUPTNLInformationForHO      AdditionalDLUPTNLInformationForHOList `per:"-"`
+	ULForwardingUPTNLInformation           *UPTransportLayerInformation          `per:"-"`
+	AdditionalULForwardingUPTNLInformation UPTransportLayerInformationList       `per:"-"`
+	DataForwardingResponseERAB             DataForwardingResponseERABList        `per:"-"`
+	RedundantDLNGUUPTNLInformation         *UPTransportLayerInformation          `per:"-"`
+	iEExtensions                           messageMeta                           `per:",exttable:handoverRequestAcknowledgeTransferExtIEs"`
+	extensions                             per.ExtensionAdditions                `per:",extraw"`
+}
+
+var handoverRequestAcknowledgeTransferExtIEs = []ieSpec[HandoverRequestAcknowledgeTransfer]{
+	listExtension(IDAdditionalDLUPTNLInformationForHOList, CriticalityIgnore, func(m *HandoverRequestAcknowledgeTransfer) *AdditionalDLUPTNLInformationForHOList {
+		return &m.AdditionalDLUPTNLInformationForHO
+	}),
+	optionalExtension(IDULForwardingUPTNLInformation, CriticalityReject, func(m *HandoverRequestAcknowledgeTransfer) **UPTransportLayerInformation {
+		return &m.ULForwardingUPTNLInformation
+	}),
+	listExtension(IDAdditionalULForwardingUPTNLInformation, CriticalityReject, func(m *HandoverRequestAcknowledgeTransfer) *UPTransportLayerInformationList {
+		return &m.AdditionalULForwardingUPTNLInformation
+	}),
+	listExtension(IDDataForwardingResponseERABList, CriticalityIgnore, func(m *HandoverRequestAcknowledgeTransfer) *DataForwardingResponseERABList {
+		return &m.DataForwardingResponseERAB
+	}),
+	optionalExtension(IDRedundantDLNGUUPTNLInformation, CriticalityIgnore, func(m *HandoverRequestAcknowledgeTransfer) **UPTransportLayerInformation {
+		return &m.RedundantDLNGUUPTNLInformation
+	}),
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.
@@ -256,12 +298,31 @@ func ParseHandoverRequiredTransfer(b TransferContainer) (*HandoverRequiredTransf
 // qosFlowAcceptedList, iE-Extensions OPTIONAL } (extensible) — TS 38.413
 // §9.3.4.8.
 type PathSwitchRequestTransfer struct {
-	_                            [0]struct{} `per:"extseq"`
-	DLNGUUPTNLInformation        UPTransportLayerInformation
-	DLNGUTNLInformationReused    *DLNGUTNLInformationReused    `per:"ENUMERATED,range:0..0,...,optional"`
-	UserPlaneSecurityInformation *UserPlaneSecurityInformation `per:",optional"`
-	QosFlowAccepted              QosFlowAcceptedList
-	_                            ieExtensions `per:",skip"`
+	DLNGUUPTNLInformation                         UPTransportLayerInformation
+	DLNGUTNLInformationReused                     *DLNGUTNLInformationReused    `per:"ENUMERATED,range:0..0,...,optional"`
+	UserPlaneSecurityInformation                  *UserPlaneSecurityInformation `per:",optional"`
+	QosFlowAccepted                               QosFlowAcceptedList
+	AdditionalDLQosFlowPerTNLInformation          QosFlowPerTNLInformationList `per:"-"`
+	RedundantDLNGUUPTNLInformation                *UPTransportLayerInformation `per:"-"`
+	RedundantDLNGUTNLInformationReused            *DLNGUTNLInformationReused   `per:"-"`
+	AdditionalRedundantDLQosFlowPerTNLInformation QosFlowPerTNLInformationList `per:"-"`
+	iEExtensions                                  messageMeta                  `per:",exttable:pathSwitchRequestTransferExtIEs"`
+	extensions                                    per.ExtensionAdditions       `per:",extraw"`
+}
+
+var pathSwitchRequestTransferExtIEs = []ieSpec[PathSwitchRequestTransfer]{
+	listExtension(IDAdditionalDLQosFlowPerTNLInformation, CriticalityIgnore, func(m *PathSwitchRequestTransfer) *QosFlowPerTNLInformationList {
+		return &m.AdditionalDLQosFlowPerTNLInformation
+	}),
+	optionalExtension(IDRedundantDLNGUUPTNLInformation, CriticalityIgnore, func(m *PathSwitchRequestTransfer) **UPTransportLayerInformation {
+		return &m.RedundantDLNGUUPTNLInformation
+	}),
+	optionalExtension(IDRedundantDLNGUTNLInformationReused, CriticalityIgnore, func(m *PathSwitchRequestTransfer) **DLNGUTNLInformationReused {
+		return &m.RedundantDLNGUTNLInformationReused
+	}),
+	listExtension(IDAdditionalRedundantDLQosFlowPerTNLInformation, CriticalityIgnore, func(m *PathSwitchRequestTransfer) *QosFlowPerTNLInformationList {
+		return &m.AdditionalRedundantDLQosFlowPerTNLInformation
+	}),
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.
@@ -293,10 +354,25 @@ func ParsePathSwitchRequestTransfer(b TransferContainer) (*PathSwitchRequestTran
 // OPTIONAL, securityIndication OPTIONAL, iE-Extensions OPTIONAL }
 // (extensible) — TS 38.413 §9.3.4.9.
 type PathSwitchRequestAcknowledgeTransfer struct {
-	_                     [0]struct{}                  `per:"extseq"`
-	ULNGUUPTNLInformation *UPTransportLayerInformation `per:",optional"`
-	SecurityIndication    *SecurityIndication          `per:",optional"`
-	_                     ieExtensions                 `per:",skip"`
+	ULNGUUPTNLInformation                  *UPTransportLayerInformation        `per:",optional"`
+	SecurityIndication                     *SecurityIndication                 `per:",optional"`
+	AdditionalNGUUPTNLInformation          UPTransportLayerInformationPairList `per:"-"`
+	RedundantULNGUUPTNLInformation         *UPTransportLayerInformation        `per:"-"`
+	AdditionalRedundantNGUUPTNLInformation UPTransportLayerInformationPairList `per:"-"`
+	iEExtensions                           messageMeta                         `per:",exttable:pathSwitchRequestAcknowledgeTransferExtIEs"`
+	extensions                             per.ExtensionAdditions              `per:",extraw"`
+}
+
+var pathSwitchRequestAcknowledgeTransferExtIEs = []ieSpec[PathSwitchRequestAcknowledgeTransfer]{
+	listExtension(IDAdditionalNGUUPTNLInformation, CriticalityIgnore, func(m *PathSwitchRequestAcknowledgeTransfer) *UPTransportLayerInformationPairList {
+		return &m.AdditionalNGUUPTNLInformation
+	}),
+	optionalExtension(IDRedundantULNGUUPTNLInformation, CriticalityIgnore, func(m *PathSwitchRequestAcknowledgeTransfer) **UPTransportLayerInformation {
+		return &m.RedundantULNGUUPTNLInformation
+	}),
+	listExtension(IDAdditionalRedundantNGUUPTNLInformation, CriticalityIgnore, func(m *PathSwitchRequestAcknowledgeTransfer) *UPTransportLayerInformationPairList {
+		return &m.AdditionalRedundantNGUUPTNLInformation
+	}),
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.

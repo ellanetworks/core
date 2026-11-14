@@ -6,6 +6,7 @@ package s1ap
 import (
 	"bytes"
 	"errors"
+	"reflect"
 	"testing"
 )
 
@@ -126,7 +127,7 @@ func TestInitialContextSetupRoundTrips(t *testing.T) {
 
 		gi, go_ := in.ERABToBeSetup[0], out.ERABToBeSetup[0]
 		if gi.ERABID != go_.ERABID || gi.GTPTEID != go_.GTPTEID || gi.QoS.QCI != go_.QoS.QCI ||
-			gi.QoS.ARP != go_.QoS.ARP || !bytes.Equal(gi.TransportLayerAddress, go_.TransportLayerAddress) ||
+			!reflect.DeepEqual(gi.QoS.ARP, go_.QoS.ARP) || !bytes.Equal(gi.TransportLayerAddress, go_.TransportLayerAddress) ||
 			!bytes.Equal(gi.NASPDU, go_.NASPDU) {
 			t.Fatalf("E-RAB item mismatch:\n  in  %+v\n  out %+v", gi, go_)
 		}

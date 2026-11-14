@@ -11,10 +11,10 @@ import (
 // pDUSessionResourceModifyIndicationTransfer, iE-Extensions OPTIONAL }
 // (extensible).
 type PDUSessionResourceModifyItemModInd struct {
-	_            [0]struct{} `per:"extseq"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions *rawIEExtensions       `per:",optional"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // PDUSessionResourceModifyListModInd ::= SEQUENCE
@@ -25,10 +25,10 @@ type PDUSessionResourceModifyListModInd []PDUSessionResourceModifyItemModInd
 // pDUSessionResourceModifyConfirmTransfer, iE-Extensions OPTIONAL }
 // (extensible).
 type PDUSessionResourceModifyItemModCfm struct {
-	_            [0]struct{} `per:"extseq"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions *rawIEExtensions       `per:",optional"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // PDUSessionResourceModifyListModCfm ::= SEQUENCE
@@ -301,10 +301,21 @@ func ParsePDUSessionResourceModifyConfirm(value []byte) (*PDUSessionResourceModi
 // iE-Extensions OPTIONAL } (extensible) — TS 38.413 §9.3.4.6. The NG-RAN node
 // builds it; the SMF consumes it.
 type PDUSessionResourceModifyIndicationTransfer struct {
-	_                                    [0]struct{} `per:"extseq"`
-	DLQosFlowPerTNLInformation           QosFlowPerTNLInformation
-	AdditionalDLQosFlowPerTNLInformation QosFlowPerTNLInformationList `per:",optional"`
-	_                                    ieExtensions                 `per:",skip"`
+	DLQosFlowPerTNLInformation                    QosFlowPerTNLInformation
+	AdditionalDLQosFlowPerTNLInformation          QosFlowPerTNLInformationList `per:",optional"`
+	RedundantDLQosFlowPerTNLInformation           *QosFlowPerTNLInformation    `per:"-"`
+	AdditionalRedundantDLQosFlowPerTNLInformation QosFlowPerTNLInformationList `per:"-"`
+	iEExtensions                                  messageMeta                  `per:",exttable:pDUSessionResourceModifyIndicationTransferExtIEs"`
+	extensions                                    per.ExtensionAdditions       `per:",extraw"`
+}
+
+var pDUSessionResourceModifyIndicationTransferExtIEs = []ieSpec[PDUSessionResourceModifyIndicationTransfer]{
+	optionalExtension(IDRedundantDLQosFlowPerTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceModifyIndicationTransfer) **QosFlowPerTNLInformation {
+		return &m.RedundantDLQosFlowPerTNLInformation
+	}),
+	listExtension(IDAdditionalRedundantDLQosFlowPerTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceModifyIndicationTransfer) *QosFlowPerTNLInformationList {
+		return &m.AdditionalRedundantDLQosFlowPerTNLInformation
+	}),
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.
@@ -338,12 +349,23 @@ func ParsePDUSessionResourceModifyIndicationTransfer(b TransferContainer) (*PDUS
 // iE-Extensions OPTIONAL } (extensible) — TS 38.413 §9.3.4.7. The SMF builds
 // it; the NG-RAN node consumes it.
 type PDUSessionResourceModifyConfirmTransfer struct {
-	_                             [0]struct{} `per:"extseq"`
-	QosFlowModifyConfirm          QosFlowModifyConfirmList
-	ULNGUUPTNLInformation         UPTransportLayerInformation
-	AdditionalNGUUPTNLInformation UPTransportLayerInformationPairList `per:",optional"`
-	QosFlowFailedToModify         QosFlowListWithCause                `per:",optional"`
-	_                             ieExtensions                        `per:",skip"`
+	QosFlowModifyConfirm                   QosFlowModifyConfirmList
+	ULNGUUPTNLInformation                  UPTransportLayerInformation
+	AdditionalNGUUPTNLInformation          UPTransportLayerInformationPairList `per:",optional"`
+	QosFlowFailedToModify                  QosFlowListWithCause                `per:",optional"`
+	RedundantULNGUUPTNLInformation         *UPTransportLayerInformation        `per:"-"`
+	AdditionalRedundantNGUUPTNLInformation UPTransportLayerInformationPairList `per:"-"`
+	iEExtensions                           messageMeta                         `per:",exttable:pDUSessionResourceModifyConfirmTransferExtIEs"`
+	extensions                             per.ExtensionAdditions              `per:",extraw"`
+}
+
+var pDUSessionResourceModifyConfirmTransferExtIEs = []ieSpec[PDUSessionResourceModifyConfirmTransfer]{
+	optionalExtension(IDRedundantULNGUUPTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceModifyConfirmTransfer) **UPTransportLayerInformation {
+		return &m.RedundantULNGUUPTNLInformation
+	}),
+	listExtension(IDAdditionalRedundantNGUUPTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceModifyConfirmTransfer) *UPTransportLayerInformationPairList {
+		return &m.AdditionalRedundantNGUUPTNLInformation
+	}),
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.

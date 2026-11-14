@@ -70,6 +70,7 @@ const (
 	IDUEAssociatedLogicalS1ConnectionItem       ProtocolIEID = 91
 	IDResetType                                 ProtocolIEID = 92
 	IDUEAssociatedLogicalS1ConnectionListResAck ProtocolIEID = 93
+	IDERABToBeSwitchedULItem                    ProtocolIEID = 94
 	IDERABToBeSwitchedULList                    ProtocolIEID = 95
 	IDSTMSI                                     ProtocolIEID = 96
 	IDRequestType                               ProtocolIEID = 98
@@ -106,11 +107,14 @@ const (
 	IDRoutingID                                 ProtocolIEID = 148
 	IDPagingPriority                            ProtocolIEID = 151
 	IDGUMMEIList                                ProtocolIEID = 154
+	IDCorrelationID                             ProtocolIEID = 156
 	IDSourceMMEGUMMEI                           ProtocolIEID = 157
 	IDMMEUES1APID2                              ProtocolIEID = 158
 	IDTrafficLoadReductionIndication            ProtocolIEID = 161
 	IDGWContextReleaseIndication                ProtocolIEID = 164
 	IDECGIListForRestart                        ProtocolIEID = 182
+	IDSIPTOCorrelationID                        ProtocolIEID = 183
+	IDTransportInformation                      ProtocolIEID = 185
 	IDTAIListForRestart                         ProtocolIEID = 188
 	IDUserLocationInformation                   ProtocolIEID = 189
 	IDEmergencyAreaIDListForRestart             ProtocolIEID = 190
@@ -130,5 +134,14 @@ const (
 	IDS1Message                                 ProtocolIEID = 225
 	IDUERetentionInformation                    ProtocolIEID = 228
 	IDUEUsageType                               ProtocolIEID = 230
+	IDBearerType                                ProtocolIEID = 233
+	IDExtendedERABMaximumBitrateDL              ProtocolIEID = 255
+	IDExtendedERABMaximumBitrateUL              ProtocolIEID = 256
+	IDExtendedERABGuaranteedBitrateDL           ProtocolIEID = 257
+	IDExtendedERABGuaranteedBitrateUL           ProtocolIEID = 258
+	IDDownlinkPacketLossRate                    ProtocolIEID = 273
+	IDUplinkPacketLossRate                      ProtocolIEID = 274
 	IDWarningAreaCoordinates                    ProtocolIEID = 286
+	IDEthernetType                              ProtocolIEID = 305
+	IDSecurityIndication                        ProtocolIEID = 332
 )

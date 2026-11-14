@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"time"
 
@@ -178,7 +179,7 @@ func mcpttHandoverSteps(ctx context.Context, r *imsCallRANs, p *imsParty, as *sc
 		return hangUp(fmt.Errorf("handover to EPS: %w", err))
 	}
 
-	if qos := h.qos[mcpttQCI]; qos.ARP != mcpttNormalARP {
+	if qos := h.qos[mcpttQCI]; !reflect.DeepEqual(qos.ARP, mcpttNormalARP) {
 		return hangUp(fmt.Errorf("the QCI %d E-RAB of the Handover Request has ARP %+v for %s, want the call's %+v kept (TS 23.502 §4.11.1.2.1 step 2, TS 29.214 Annex A.13.2)", mcpttQCI, qos.ARP, mcpttNormalPriority, mcpttNormalARP))
 	}
 

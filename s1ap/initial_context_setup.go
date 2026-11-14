@@ -12,7 +12,7 @@ type InitialContextSetupRequest struct {
 	MMEUES1APID               MMEUES1APID
 	ENBUES1APID               ENBUES1APID
 	UEAggregateMaximumBitRate UEAggregateMaximumBitRate
-	ERABToBeSetup             []ERABToBeSetupItemCtxtSUReq
+	ERABToBeSetup             ERABToBeSetupListCtxtSUReq
 	UESecurityCapabilities    UESecurityCapabilities
 	SecurityKey               SecurityKey
 	UERadioCapability         UERadioCapability
@@ -49,7 +49,7 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABToBeSetup, err = decodeItemList[ERABToBeSetupItemCtxtSUReq](per.NewReader(raw), enc, maxnoofERABs, IDERABToBeSetupItemCtxtSUReq)
+			m.ERABToBeSetup, err = decodeItemList[ERABToBeSetupItemCtxtSUReq](per.NewReader(raw), enc, maxnoofERABs, IDERABToBeSetupItemCtxtSUReq, CriticalityReject)
 
 			return err
 		},
@@ -158,7 +158,7 @@ func ParseInitialContextSetupRequest(value []byte) (*InitialContextSetupRequest,
 type InitialContextSetupResponse struct {
 	MMEUES1APID            *MMEUES1APID
 	ENBUES1APID            *ENBUES1APID
-	ERABSetup              []ERABSetupItemCtxtSURes
+	ERABSetup              ERABSetupListCtxtSURes
 	ERABFailedToSetup      []ERABItem
 	CriticalityDiagnostics *CriticalityDiagnostics
 
@@ -213,7 +213,7 @@ var initialContextSetupResponseIEs = []ieSpec[InitialContextSetupResponse]{
 		decode: func(m *InitialContextSetupResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABSetup, err = decodeItemList[ERABSetupItemCtxtSURes](per.NewReader(raw), enc, maxnoofERABs, IDERABSetupItemCtxtSURes)
+			m.ERABSetup, err = decodeItemList[ERABSetupItemCtxtSURes](per.NewReader(raw), enc, maxnoofERABs, IDERABSetupItemCtxtSURes, CriticalityIgnore)
 
 			return err
 		},
@@ -232,7 +232,7 @@ var initialContextSetupResponseIEs = []ieSpec[InitialContextSetupResponse]{
 		decode: func(m *InitialContextSetupResponse, raw []byte, enc per.Encoding) error {
 			var err error
 
-			m.ERABFailedToSetup, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABItem)
+			m.ERABFailedToSetup, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABItem, CriticalityIgnore)
 
 			return err
 		},

@@ -47,6 +47,8 @@ type messageMeta struct {
 	unknownIEs  []rawIE
 	wire        []wireSlot
 	diagnostics Diagnostics
+	extensions  per.ExtensionAdditions
+	dropped     bool
 }
 
 type wireSlot struct {
@@ -57,8 +59,13 @@ type wireSlot struct {
 
 // Bounded: a peer chooses both the count and the size of what we would retain.
 func (u *messageMeta) preserve(f rawIE) {
-	if len(u.unknownIEs) >= maxPreservedIEs {
+	u.preserveUpTo(f, maxPreservedIEs)
+}
+
+func (u *messageMeta) preserveUpTo(f rawIE, limit int) {
+	if len(u.unknownIEs) >= limit {
 		u.diagnostics.Truncated = true
+		u.dropped = true
 
 		return
 	}
@@ -180,6 +187,10 @@ func decodeIEContainer(r *per.Reader, enc per.Encoding) ([]rawIE, error) {
 		val, err := per.DecodeOpenTypeBytes(r, enc)
 		if err != nil {
 			return nil, fmt.Errorf("ngap: IE %d value: %w", i, err)
+		}
+
+		if len(val) == 0 {
+			return nil, fmt.Errorf("ngap: IE %d has an empty open type", i)
 		}
 
 		fields = append(fields, rawIE{id: ProtocolIEID(id), crit: Criticality(crit), value: val})
