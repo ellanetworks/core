@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
@@ -238,7 +239,12 @@ func newMessageCases() []newMessageCase {
 			parse:  func(b []byte) (any, error) { return ParseRerouteNASRequest(b) },
 			choice: isInitiating,
 		},
-	}, uEContextReleaseRequestGoldenCases()...)
+	}, slices.Concat(
+		uEContextReleaseRequestGoldenCases(),
+		initialContextSetupRequestGoldenCases(),
+		handoverRequestGoldenCases(),
+		pathSwitchRequestAcknowledgeGoldenCases(),
+	)...)
 }
 
 func TestNewMessagesRoundTrip(t *testing.T) {
@@ -305,7 +311,10 @@ func TestNewMessagesWireCriticality(t *testing.T) {
 		"PWSRestartIndication":        {{IDECGIListForRestart, CriticalityReject}, {IDGlobalENBID, CriticalityReject}, {IDTAIListForRestart, CriticalityReject}, {IDEmergencyAreaIDListForRestart, CriticalityReject}},
 		"PWSFailureIndication":        {{IDPWSfailedECGIList, CriticalityReject}, {IDGlobalENBID, CriticalityReject}},
 		"UEContextReleaseRequestGWContextReleaseIndication": {{IDMMEUES1APID, CriticalityReject}, {IDENBUES1APID, CriticalityReject}, {IDCause, CriticalityIgnore}, {IDGWContextReleaseIndication, CriticalityReject}},
-		"RerouteNASRequest": {{IDENBUES1APID, CriticalityReject}, {IDMMEUES1APID, CriticalityIgnore}, {IDS1Message, CriticalityReject}, {IDMMEGroupID, CriticalityReject}, {IDAdditionalGUTI, CriticalityIgnore}, {IDUEUsageType, CriticalityIgnore}},
+		"InitialContextSetupRequestGUMMEIMMEUES1APID2":      {{IDMMEUES1APID, CriticalityReject}, {IDENBUES1APID, CriticalityReject}, {IDUEAggregateMaximumBitrate, CriticalityReject}, {IDERABToBeSetupListCtxtSUReq, CriticalityReject}, {IDUESecurityCapabilities, CriticalityReject}, {IDSecurityKey, CriticalityReject}, {IDGUMMEI, CriticalityIgnore}, {IDMMEUES1APID2, CriticalityIgnore}},
+		"HandoverRequestGUMMEIMMEUES1APID2":                 {{IDMMEUES1APID, CriticalityReject}, {IDHandoverType, CriticalityReject}, {IDCause, CriticalityIgnore}, {IDUEAggregateMaximumBitrate, CriticalityReject}, {IDERABToBeSetupListHOReq, CriticalityReject}, {IDSourceToTargetTransparentContainer, CriticalityReject}, {IDUESecurityCapabilities, CriticalityReject}, {IDSecurityContext, CriticalityReject}, {IDGUMMEI, CriticalityIgnore}, {IDMMEUES1APID2, CriticalityIgnore}},
+		"PathSwitchRequestAcknowledgeMMEUES1APID2":          {{IDMMEUES1APID, CriticalityIgnore}, {IDENBUES1APID, CriticalityIgnore}, {IDSecurityContext, CriticalityReject}, {IDMMEUES1APID2, CriticalityIgnore}},
+		"RerouteNASRequest":                                 {{IDENBUES1APID, CriticalityReject}, {IDMMEUES1APID, CriticalityIgnore}, {IDS1Message, CriticalityReject}, {IDMMEGroupID, CriticalityReject}, {IDAdditionalGUTI, CriticalityIgnore}, {IDUEUsageType, CriticalityIgnore}},
 	}
 
 	for _, tc := range newMessageCases() {

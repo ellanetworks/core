@@ -4,6 +4,7 @@
 package s1ap
 
 import (
+	"encoding/hex"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
@@ -17,9 +18,23 @@ func FuzzDecodeNoPanic(f *testing.F) {
 	f.Add([]byte{0x00, 0x11, 0x00, 0x02, 0x00, 0x00})
 	f.Add([]byte{0x20, 0x0a, 0x00, 0x00})
 
+	for _, c := range newMessageCases() {
+		if c.golden == "" {
+			continue
+		}
+
+		b, err := hex.DecodeString(c.golden)
+		if err != nil {
+			f.Fatal(err)
+		}
+
+		f.Add(b)
+	}
+
 	f.Fuzz(func(t *testing.T, data []byte) {
 		_, _ = unmarshalPERValue[Cause](data)
 		_, _ = unmarshalPERValue[CriticalityDiagnostics](data)
+		_, _ = unmarshalPERValue[GUMMEI](data)
 
 		pdu, err := Unmarshal(data)
 		if err != nil {

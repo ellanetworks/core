@@ -122,6 +122,7 @@ var protocolIENames = map[ProtocolIEID]string{
 	IDConcurrentWarningMessageIndicator:   "ConcurrentWarningMessageIndicator",
 	IDExtendedRepetitionPeriod:            "ExtendedRepetitionPeriod",
 	IDGUMMEIList:                          "GUMMEIList",
+	IDMMEUES1APID2:                        "MME-UE-S1AP-ID-2",
 	IDTrafficLoadReductionIndication:      "TrafficLoadReductionIndication",
 	IDGWContextReleaseIndication:          "GWContextReleaseIndication",
 	IDECGIListForRestart:                  "ECGIListForRestart",

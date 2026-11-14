@@ -27,6 +27,8 @@ type HandoverRequest struct {
 	// C-iffromUTRANGERAN: present exactly when Handover Type is UTRANtoLTE or
 	// GERANtoLTE (§9.1.5.4).
 	NASSecurityParameterstoEUTRAN NASSecurityParameterstoEUTRAN
+	GUMMEI                        *GUMMEI
+	MMEUES1APID2                  *MMEUES1APID
 
 	messageMeta
 }
@@ -176,6 +178,48 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 			}
 
 			return m.NASSecurityParameterstoEUTRAN, true
+		},
+	},
+	{
+		id: IDGUMMEI, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
+			var v GUMMEI
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.GUMMEI = &v
+
+			return nil
+		},
+		encode: func(m *HandoverRequest) (per.Marshaler, bool) {
+			if m.GUMMEI == nil {
+				return nil, false
+			}
+
+			return m.GUMMEI, true
+		},
+	},
+	{
+		id: IDMMEUES1APID2, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
+			var v MMEUES1APID
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.MMEUES1APID2 = &v
+
+			return nil
+		},
+		encode: func(m *HandoverRequest) (per.Marshaler, bool) {
+			if m.MMEUES1APID2 == nil {
+				return nil, false
+			}
+
+			return m.MMEUES1APID2, true
 		},
 	},
 }
