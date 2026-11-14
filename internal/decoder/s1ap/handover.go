@@ -198,6 +198,14 @@ func buildHandoverRequest(value []byte) (S1APMessageValue, string) {
 		ies = append(ies, ie(s1ap.IDNASSecurityParameterstoEUTRAN, s1ap.CriticalityReject, hex.EncodeToString(m.NASSecurityParameterstoEUTRAN)))
 	}
 
+	if m.GUMMEI != nil {
+		ies = append(ies, ie(s1ap.IDGUMMEI, s1ap.CriticalityIgnore, gummei(*m.GUMMEI)))
+	}
+
+	if m.MMEUES1APID2 != nil {
+		ies = append(ies, ie(s1ap.IDMMEUES1APID2, s1ap.CriticalityIgnore, uint32(*m.MMEUES1APID2)))
+	}
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, fmt.Sprintf("Handover Request (MME-UE %d, %d E-RAB)", m.MMEUES1APID, len(m.ERABToBeSetup))

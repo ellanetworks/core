@@ -193,3 +193,20 @@ func TestPathSwitchRequestFailureRoundTrip(t *testing.T) {
 		t.Fatalf("failure = %+v, want %+v", out, in)
 	}
 }
+
+func pathSwitchRequestAcknowledgeGoldenCases() []newMessageCase {
+	return []newMessageCase{
+		{
+			name: "PathSwitchRequestAcknowledgeMMEUES1APID2",
+			msg: &PathSwitchRequestAcknowledge{
+				MMEUES1APID:     Ptr(MMEUES1APID(1)),
+				ENBUES1APID:     Ptr(ENBUES1APID(2)),
+				SecurityContext: SecurityContext{NextHopChainingCount: 3},
+				MMEUES1APID2:    Ptr(MMEUES1APID(3)),
+			},
+			parse:  func(b []byte) (any, error) { return ParsePathSwitchRequestAcknowledge(b) },
+			choice: isSuccessful,
+			golden: "2003003a00000400004002000100084002000200280021180000000000000000000000000000000000000000000000000000000000000000009e40020003",
+		},
+	}
+}

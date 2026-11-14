@@ -41,6 +41,47 @@ const goldenHandoverRequest = "000d00809700000a000a00020001001d000100000f4002040
 	"00000000000000000000000000490027000005002021000003008b000a01f0c0a80101000000010086000100008800" +
 	"07000100000900000000000200010065000302aabb001c00070002f839010040"
 
+func goldHandoverRequest(t *testing.T) *HandoverRequest {
+	t.Helper()
+
+	return &HandoverRequest{
+		AMFUENGAPID: 1, HandoverType: HandoverTypeIntra5GS,
+		Cause:                     &Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkHandoverDesirableForRadio},
+		UEAggregateMaximumBitRate: UEAggregateMaximumBitRate{DL: 1000000000, UL: 1000000000},
+		UESecurityCapabilities:    UESecurityCapabilities{NREncryptionAlgorithms: 0x8000, NRIntegrityProtectionAlgorithms: 0x8000},
+		SecurityContext:           SecurityContext{NextHopChainingCount: 1},
+		PDUSessionResourceSetupListHOReq: PDUSessionResourceSetupListHOReq{{
+			PDUSessionID: 5, SNSSAI: SNSSAI{SST: 1}, Transfer: handoverSetupTransfer(t),
+		}},
+		AllowedNSSAI:                       AllowedNSSAI{{SNSSAI: SNSSAI{SST: 1}}},
+		SourceToTargetTransparentContainer: SourceToTargetTransparentContainer{0xaa, 0xbb},
+		GUAMI:                              GUAMI{PLMNIdentity: PLMNIdentity{0x02, 0xf8, 0x39}, AMFRegionID: 1, AMFSetID: 1},
+	}
+}
+
+func handoverRequestWireCases(t *testing.T) []wireCase {
+	t.Helper()
+
+	m := goldHandoverRequest(t)
+	m.AMFUENGAPID2 = Ptr(AMFUENGAPID(0xffffffffff))
+
+	return []wireCase{{
+		name:  "HandoverRequestAMFUENGAPID2AfterUnmodeledIE",
+		pdu:   insertRawIEs(t, marshalT(t, m), 10, rawRedirectionVoiceFallback()),
+		parse: func(v []byte) (any, error) { return ParseHandoverRequest(v) },
+
+		notTshark: "the Source to Target Transparent Container is opaque test octets that tshark dissects as NR RRC",
+		check: func(t *testing.T, a any) {
+			t.Helper()
+
+			m := a.(*HandoverRequest)
+			if deref(m.AMFUENGAPID2) != 0xffffffffff || len(m.UnknownIEs()) != 1 {
+				t.Fatalf("AMF UE NGAP ID 2 = %v, unknown IEs %+v", m.AMFUENGAPID2, m.UnknownIEs())
+			}
+		},
+	}}
+}
+
 func TestHandoverRequestGolden(t *testing.T) {
 	in := HandoverRequest{
 		AMFUENGAPID: 1, HandoverType: HandoverTypeIntra5GS,

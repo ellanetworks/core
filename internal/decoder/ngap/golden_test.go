@@ -539,6 +539,11 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		},
 	})
 
+	corpus["ue_tnla_binding_release_request"] = mustMarshal(t, &lib.UETNLABindingReleaseRequest{
+		AMFUENGAPID: 1,
+		RANUENGAPID: 2,
+	})
+
 	corpus["location_report_full"] = mustMarshal(t, &lib.LocationReport{
 		AMFUENGAPID: 1,
 		RANUENGAPID: 2,
@@ -584,6 +589,10 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 	corpus["uplink_non_ue_associated_nrppa_transport"] = mustMarshal(t, &lib.UplinkNonUEAssociatedNRPPaTransport{
 		RoutingID: lib.RoutingID{0x03}, NRPPaPDU: nrppaPDU,
 	})
+
+	for name, b := range pwsOverloadCorpus(t) {
+		corpus[name] = b
+	}
 
 	return corpus
 }
@@ -645,7 +654,7 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			lib.ProcUplinkNASTransport, lib.ProcInitialContextSetup,
 			lib.ProcPDUSessionResourceSetup, lib.ProcUEContextReleaseRequest,
 			lib.ProcUEContextRelease, lib.ProcUEContextModification, lib.ProcPDUSessionResourceRelease,
-			lib.ProcUERadioCapabilityInfoIndication, lib.ProcAMFStatusIndication,
+			lib.ProcUERadioCapabilityInfoIndication, lib.ProcUETNLABindingRelease, lib.ProcAMFStatusIndication,
 			lib.ProcPaging, lib.ProcDownlinkUEAssociatedNRPPaTransport,
 			lib.ProcUplinkUEAssociatedNRPPaTransport,
 			lib.ProcDownlinkNonUEAssociatedNRPPaTransport,
@@ -658,6 +667,9 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			lib.ProcUplinkRANStatusTransfer, lib.ProcDownlinkRANStatusTransfer,
 			lib.ProcHandoverPreparation, lib.ProcHandoverResourceAllocation,
 			lib.ProcHandoverNotification, lib.ProcHandoverCancel,
+			lib.ProcOverloadStart, lib.ProcOverloadStop, lib.ProcWriteReplaceWarning,
+			lib.ProcPWSCancel, lib.ProcPWSRestartIndication, lib.ProcPWSFailureIndication,
+			lib.ProcRerouteNASRequest,
 		},
 		"SuccessfulOutcome": {
 			lib.ProcNGSetup, lib.ProcInitialContextSetup, lib.ProcPDUSessionResourceSetup,
@@ -666,6 +678,7 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			lib.ProcPDUSessionResourceModify, lib.ProcPDUSessionResourceModifyIndication,
 			lib.ProcRANConfigurationUpdate, lib.ProcHandoverPreparation,
 			lib.ProcHandoverResourceAllocation, lib.ProcHandoverCancel,
+			lib.ProcWriteReplaceWarning, lib.ProcPWSCancel,
 		},
 		"UnsuccessfulOutcome": {
 			lib.ProcNGSetup, lib.ProcInitialContextSetup, lib.ProcUEContextModification, lib.ProcPathSwitchRequest, lib.ProcRANConfigurationUpdate,

@@ -181,6 +181,10 @@ func buildInitialContextSetupRequest(value []byte) NGAPMessageValue {
 		ie(ngap.IDSecurityKey, ngap.CriticalityReject, hex.EncodeToString(m.SecurityKey[:])),
 	)
 
+	if m.TraceActivation != nil {
+		ies = append(ies, ie(ngap.IDTraceActivation, ngap.CriticalityIgnore, traceActivation(*m.TraceActivation)))
+	}
+
 	if m.NASPDU != nil {
 		ies = append(ies, ie(ngap.IDNASPDU, ngap.CriticalityIgnore, libNASPDU(*m.NASPDU)))
 	}
@@ -192,6 +196,10 @@ func buildInitialContextSetupRequest(value []byte) NGAPMessageValue {
 	if m.UERadioCapabilityForPaging != nil {
 		ies = append(ies, ie(ngap.IDUERadioCapabilityForPaging, ngap.CriticalityIgnore,
 			ueRadioCapabilityForPaging(*m.UERadioCapabilityForPaging)))
+	}
+
+	if m.AMFUENGAPID2 != nil {
+		ies = append(ies, ie(ngap.IDAMFUENGAPID2, ngap.CriticalityIgnore, int64(*m.AMFUENGAPID2)))
 	}
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}

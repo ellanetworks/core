@@ -18,6 +18,7 @@ type structType struct {
 	fields []fieldInfo
 	// extSeq marks the type extensible ("...") with no extension additions.
 	extSeq bool
+	extRaw string
 }
 
 // parseStruct classifies each field for emission. Fields tagged `per:"-"` or
@@ -40,6 +41,16 @@ func (g *generator) parseStruct(name string, named *types.Named, s *types.Struct
 
 		if parsed.ExtSeq {
 			st.extSeq = true
+			continue
+		}
+
+		if parsed.ExtRaw {
+			if st.extRaw != "" {
+				return nil, fmt.Errorf("%s: more than one extraw field", name)
+			}
+
+			st.extRaw = s.Field(i).Name()
+
 			continue
 		}
 

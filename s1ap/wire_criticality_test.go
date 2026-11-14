@@ -71,6 +71,44 @@ func TestWireCriticality(t *testing.T) {
 			},
 		},
 		{
+			"HandoverRequest §9.1.5.4 GUMMEI and MME UE S1AP ID 2",
+			(&HandoverRequest{
+				Cause:          new(Cause),
+				SourceToTarget: TransparentContainer{0x00},
+				ERABToBeSetup:  []ERABToBeSetupItemHOReq{{ERABID: 1, TransportLayerAddress: goldTLA(), GTPTEID: 1, QoS: goldQoS()}},
+				GUMMEI:         Ptr(goldGUMMEI()),
+				MMEUES1APID2:   Ptr(MMEUES1APID(3)),
+			}).encodeBody,
+			[]wireIE{
+				{IDMMEUES1APID, CriticalityReject},
+				{IDHandoverType, CriticalityReject},
+				{IDCause, CriticalityIgnore},
+				{IDUEAggregateMaximumBitrate, CriticalityReject},
+				{IDERABToBeSetupListHOReq, CriticalityReject},
+				{IDSourceToTargetTransparentContainer, CriticalityReject},
+				{IDUESecurityCapabilities, CriticalityReject},
+				{IDSecurityContext, CriticalityReject},
+				{IDGUMMEI, CriticalityIgnore},
+				{IDMMEUES1APID2, CriticalityIgnore},
+			},
+		},
+		{
+			"PathSwitchRequestAcknowledge §9.1.5.9 MME UE S1AP ID 2",
+			(&PathSwitchRequestAcknowledge{
+				MMEUES1APID:            Ptr(MMEUES1APID(1)),
+				ENBUES1APID:            Ptr(ENBUES1APID(2)),
+				MMEUES1APID2:           Ptr(MMEUES1APID(3)),
+				UESecurityCapabilities: &UESecurityCapabilities{},
+			}).encodeBody,
+			[]wireIE{
+				{IDMMEUES1APID, CriticalityIgnore},
+				{IDENBUES1APID, CriticalityIgnore},
+				{IDSecurityContext, CriticalityReject},
+				{IDMMEUES1APID2, CriticalityIgnore},
+				{IDUESecurityCapabilities, CriticalityIgnore},
+			},
+		},
+		{
 			"PathSwitchRequestFailure §9.1.5.10",
 			(&PathSwitchRequestFailure{
 				MMEUES1APID: Ptr(MMEUES1APID(1)), ENBUES1APID: Ptr(ENBUES1APID(2)), Cause: cause,
@@ -263,6 +301,28 @@ func TestWireCriticality(t *testing.T) {
 			},
 		},
 		{
+			"InitialContextSetupRequest §9.1.4.1 GUMMEI and MME UE S1AP ID 2",
+			(&InitialContextSetupRequest{
+				MMEUES1APID:       1,
+				ENBUES1APID:       2,
+				ERABToBeSetup:     []ERABToBeSetupItemCtxtSUReq{{ERABID: 1, QoS: goldQoS(), TransportLayerAddress: goldTLA(), GTPTEID: 1}},
+				UERadioCapability: UERadioCapability{0x01},
+				GUMMEI:            Ptr(goldGUMMEI()),
+				MMEUES1APID2:      Ptr(MMEUES1APID(3)),
+			}).encodeBody,
+			[]wireIE{
+				{IDMMEUES1APID, CriticalityReject},
+				{IDENBUES1APID, CriticalityReject},
+				{IDUEAggregateMaximumBitrate, CriticalityReject},
+				{IDERABToBeSetupListCtxtSUReq, CriticalityReject},
+				{IDUESecurityCapabilities, CriticalityReject},
+				{IDSecurityKey, CriticalityReject},
+				{IDUERadioCapability, CriticalityIgnore},
+				{IDGUMMEI, CriticalityIgnore},
+				{IDMMEUES1APID2, CriticalityIgnore},
+			},
+		},
+		{
 			"InitialContextSetupResponse §9.1.4.3",
 			(&InitialContextSetupResponse{
 				MMEUES1APID:            Ptr(MMEUES1APID(1)),
@@ -346,6 +406,21 @@ func TestWireCriticality(t *testing.T) {
 				{IDMMEUES1APID, CriticalityReject},
 				{IDENBUES1APID, CriticalityReject},
 				{IDCause, CriticalityIgnore},
+			},
+		},
+		{
+			"UEContextReleaseRequest §9.1.4.5 GW Context Release Indication",
+			(&UEContextReleaseRequest{
+				MMEUES1APID:                1,
+				ENBUES1APID:                2,
+				Cause:                      Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkX2HandoverTriggered}),
+				GWContextReleaseIndication: Ptr(GWContextReleaseIndicationTrue),
+			}).encodeBody,
+			[]wireIE{
+				{IDMMEUES1APID, CriticalityReject},
+				{IDENBUES1APID, CriticalityReject},
+				{IDCause, CriticalityIgnore},
+				{IDGWContextReleaseIndication, CriticalityReject},
 			},
 		},
 		{

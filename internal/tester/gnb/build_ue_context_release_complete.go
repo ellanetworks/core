@@ -15,6 +15,8 @@ type UEContextReleaseCompleteOpts struct {
 	PDUSessionIDs [16]bool
 	Mcc           string
 	Mnc           string
+	SelectedMcc   string
+	SelectedMnc   string
 	GnbID         string
 	Tac           string
 }
@@ -32,7 +34,7 @@ func BuildUEContextReleaseComplete(opts *UEContextReleaseCompleteOpts) ([]byte, 
 		}
 	}
 
-	uli, err := userLocation(opts.Mcc, opts.Mnc, opts.GnbID, opts.Tac)
+	uli, err := userLocation(opts.Mcc, opts.Mnc, opts.SelectedMcc, opts.SelectedMnc, opts.GnbID, opts.Tac)
 	if err != nil {
 		return nil, err
 	}

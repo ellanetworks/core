@@ -24,6 +24,10 @@ func buildUEContextReleaseRequest(value []byte) (S1APMessageValue, string) {
 		ies = append(ies, ie(s1ap.IDCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
 	}
 
+	if m.GWContextReleaseIndication != nil {
+		ies = append(ies, ie(s1ap.IDGWContextReleaseIndication, s1ap.CriticalityReject, true))
+	}
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, fmt.Sprintf("UE Context Release Request (MME-UE %d, eNB-UE %d)", m.MMEUES1APID, m.ENBUES1APID)

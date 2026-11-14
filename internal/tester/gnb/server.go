@@ -110,6 +110,7 @@ type GnodeB struct {
 	SST               int32
 	SD                string
 	Slices            []SliceOpt // Additional slices beyond SST/SD
+	AdditionalPLMNs   []BroadcastPLMN
 	TAC               string
 	DNN               string
 	Name              string
@@ -161,6 +162,8 @@ type GnodeB struct {
 	n2Shutdown  bool
 	n2Change    chan struct{} // closed on every active-peer transition
 	n2SetupOpts NGSetupRequestOpts
+
+	selectedPLMNs map[int64]BroadcastPLMN
 }
 
 type n2Peer struct {
@@ -624,10 +627,11 @@ type StartOpts struct {
 	SST   int32
 	SD    string
 	// Slices lists additional slices beyond SST/SD advertised in NG Setup.
-	Slices []SliceOpt
-	DNN    string
-	TAC    string
-	Name   string
+	Slices          []SliceOpt
+	AdditionalPLMNs []BroadcastPLMN
+	DNN             string
+	TAC             string
+	Name            string
 	// Ordered Ella Core N2 endpoints: the gNB uses the first as primary and
 	// falls through to the next on failure.
 	CoreN2Addresses []string
@@ -695,6 +699,7 @@ func Start(opts *StartOpts) (*GnodeB, error) {
 		SST:               opts.SST,
 		SD:                opts.SD,
 		Slices:            opts.Slices,
+		AdditionalPLMNs:   opts.AdditionalPLMNs,
 		DNN:               opts.DNN,
 		TAC:               opts.TAC,
 		Name:              opts.Name,
@@ -717,6 +722,8 @@ func Start(opts *StartOpts) (*GnodeB, error) {
 			Tac:    opts.TAC,
 			Name:   opts.Name,
 			Slices: opts.Slices,
+
+			AdditionalPLMNs: opts.AdditionalPLMNs,
 		},
 	}
 	g.cond = sync.NewCond(&g.mu)
@@ -1198,7 +1205,11 @@ func (g *GnodeB) Close() {
 }
 
 func (g *GnodeB) SendUplinkNAS(nasPDU []byte, amfUENGAPID int64, ranUENGAPID int64) error {
+	selMcc, selMnc := g.explicitPLMN(ranUENGAPID)
+
 	err := g.SendUplinkNASTransport(&UplinkNasTransportOpts{
+		SelectedMcc: selMcc,
+		SelectedMnc: selMnc,
 		AMFUeNgapID: amfUENGAPID,
 		RANUeNgapID: ranUENGAPID,
 		Mcc:         g.MCC,
@@ -1222,7 +1233,11 @@ func (g *GnodeB) SendUplinkNAS(nasPDU []byte, amfUENGAPID int64, ranUENGAPID int
 }
 
 func (g *GnodeB) SendInitialUEMessage(nasPDU []byte, ranUENGAPID int64, guti5G []byte, cause ngap.RRCEstablishmentCause) error {
+	selMcc, selMnc := g.explicitPLMN(ranUENGAPID)
+
 	opts := &InitialUEMessageOpts{
+		SelectedMcc:           selMcc,
+		SelectedMnc:           selMnc,
 		Mcc:                   g.MCC,
 		Mnc:                   g.MNC,
 		GnbID:                 g.GnbID,

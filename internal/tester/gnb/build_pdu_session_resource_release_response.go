@@ -15,6 +15,8 @@ type PDUSessionResourceReleaseResponseOpts struct {
 	PDUSessionIDs []int64
 	Mcc           string
 	Mnc           string
+	SelectedMcc   string
+	SelectedMnc   string
 	GnbID         string
 	Tac           string
 }
@@ -27,7 +29,7 @@ func BuildPDUSessionResourceReleaseResponse(opts *PDUSessionResourceReleaseRespo
 		return nil, fmt.Errorf("PDUSessionResourceReleaseResponseOpts is nil")
 	}
 
-	uli, err := userLocation(opts.Mcc, opts.Mnc, opts.GnbID, opts.Tac)
+	uli, err := userLocation(opts.Mcc, opts.Mnc, opts.SelectedMcc, opts.SelectedMnc, opts.GnbID, opts.Tac)
 	if err != nil {
 		return nil, err
 	}

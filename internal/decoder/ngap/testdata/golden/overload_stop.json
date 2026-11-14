@@ -1,0 +1,17 @@
+{
+  "summary": "OverloadStop",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 23,
+    "label": "OverloadStop",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {}
+}

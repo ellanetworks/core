@@ -188,7 +188,7 @@ func (e *ENB) SendHandoverNotify(enbUEID, mmeUEID int64) error {
 		MMEUES1APID: s1ap.MMEUES1APID(mmeUEID),
 		ENBUES1APID: s1ap.ENBUES1APID(enbUEID),
 		EUTRANCGI:   s1ap.Ptr(e.eutranCGI()),
-		TAI:         s1ap.Ptr(e.tai()),
+		TAI:         s1ap.Ptr(e.taiFor(enbUEID)),
 	}
 
 	b, err := notify.Marshal()

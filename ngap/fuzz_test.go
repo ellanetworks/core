@@ -45,13 +45,41 @@ func FuzzDecodeNoPanic(f *testing.F) {
 		f.Add(b)
 	}
 
+	for _, c := range ieAdditionGoldenCases() {
+		b, err := hex.DecodeString(c.golden)
+		if err != nil {
+			f.Fatal(err)
+		}
+
+		f.Add(b)
+	}
+
+	for _, c := range pwsCases() {
+		b, err := hex.DecodeString(c.golden)
+		if err != nil {
+			f.Fatal(err)
+		}
+
+		f.Add(b)
+	}
+
 	f.Fuzz(func(t *testing.T, data []byte) {
 		_, _ = unmarshalPERValue[Cause](data)
 		_, _ = unmarshalPERValue[CriticalityDiagnostics](data)
 		_, _ = unmarshalPERValue[GlobalRANNodeID](data)
 		_, _ = unmarshalPERValue[SupportedTAList](data)
 		_, _ = unmarshalPERValue[ServedGUAMIList](data)
+		_, _ = unmarshalPERValue[UnavailableGUAMIList](data)
 		_, _ = unmarshalPERValue[PLMNSupportList](data)
+		_, _ = unmarshalPERValue[GUAMIList](data)
+		_, _ = unmarshalPERValue[GWContextReleaseIndication](data)
+		_, _ = unmarshalPERValue[ExtendedAMFName](data)
+		_, _ = unmarshalPERValue[AMFTNLAssociationToAddList](data)
+		_, _ = unmarshalPERValue[AMFTNLAssociationToRemoveList](data)
+		_, _ = unmarshalPERValue[AMFTNLAssociationToUpdateList](data)
+		_, _ = unmarshalPERValue[CPTransportLayerInformation](data)
+		_, _ = unmarshalPERValue[RequestedNSSAI](data)
+		_, _ = unmarshalPERValue[GUAMIType](data)
 		_, _ = unmarshalPERValue[FiveGSTMSI](data)
 		_, _ = unmarshalPERValue[ResetType](data)
 		_, _ = unmarshalPERValue[UserLocationInformation](data)

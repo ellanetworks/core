@@ -111,7 +111,7 @@ func (e *ENB) CombinedTrackingAreaUpdate(ue *UE, guti *eps.EPSMobileIdentity, st
 		return nil, fmt.Errorf("s1enb: tracking area update requires the UE's GUTI")
 	}
 
-	enbUEID := e.AllocateENBUEID()
+	enbUEID := e.AllocateENBUEIDFor(ue)
 
 	tau, err := ue.buildTrackingAreaUpdateRequestWithBearerStatus(eps.EPSUpdateTypeCombinedTALA, false, guti, status)
 	if err != nil {

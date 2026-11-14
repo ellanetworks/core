@@ -129,7 +129,7 @@ func (e *ENB) serviceRequest(ue *UE, guti *eps.EPSMobileIdentity, answeringPage 
 		return nil, fmt.Errorf("s1enb: service request requires the UE's GUTI")
 	}
 
-	enbUEID := e.AllocateENBUEID()
+	enbUEID := e.AllocateENBUEIDFor(ue)
 
 	sr, err := ue.buildServiceRequest()
 	if err != nil {
@@ -201,7 +201,7 @@ func (e *ENB) PeriodicTrackingAreaUpdate(ue *UE, guti *eps.EPSMobileIdentity, ti
 		return fmt.Errorf("s1enb: tracking area update requires the UE's GUTI")
 	}
 
-	enbUEID := e.AllocateENBUEID()
+	enbUEID := e.AllocateENBUEIDFor(ue)
 
 	tau, err := ue.buildTrackingAreaUpdateRequest(eps.EPSUpdateTypePeriodic, false, guti)
 	if err != nil {
@@ -240,7 +240,7 @@ func (e *ENB) TrackingAreaUpdateWithBearerStatus(ue *UE, guti *eps.EPSMobileIden
 		return nil, fmt.Errorf("s1enb: tracking area update requires the UE's GUTI")
 	}
 
-	enbUEID := e.AllocateENBUEID()
+	enbUEID := e.AllocateENBUEIDFor(ue)
 
 	tau, err := ue.buildTrackingAreaUpdateRequestWithBearerStatus(eps.EPSUpdateTypeTA, false, guti, status)
 	if err != nil {

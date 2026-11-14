@@ -437,3 +437,26 @@ func TestHandoverRequestCarriesRestrictionList(t *testing.T) {
 		t.Fatalf("restriction list = %+v, want none", out.HandoverRestrictionList)
 	}
 }
+
+func handoverRequestGoldenCases() []newMessageCase {
+	return []newMessageCase{
+		{
+			name: "HandoverRequestGUMMEIMMEUES1APID2",
+			msg: &HandoverRequest{
+				MMEUES1APID:            1,
+				HandoverType:           HandoverTypeIntraLTE,
+				Cause:                  Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 16}),
+				UEAMBR:                 UEAggregateMaximumBitRate{DL: 1_000_000, UL: 500_000},
+				ERABToBeSetup:          []ERABToBeSetupItemHOReq{{ERABID: 5, TransportLayerAddress: goldTLA(), GTPTEID: 1, QoS: goldQoS()}},
+				SourceToTarget:         TransparentContainer{0x00, 0x01, 0x80, 0x00, 0x00, 0xf1, 0x10, 0x00, 0x00, 0x10, 0x10, 0x00, 0x00, 0xf1, 0x10, 0x00, 0x00, 0x10, 0x20, 0x80, 0x00, 0x0a},
+				UESecurityCapabilities: UESecurityCapabilities{EncryptionAlgorithms: 0x8000, IntegrityProtectionAlgorithms: 0xc000},
+				SecurityContext:        SecurityContext{NextHopChainingCount: 3},
+				GUMMEI:                 Ptr(goldGUMMEI()),
+				MMEUES1APID2:           Ptr(MMEUES1APID(3)),
+			},
+			parse:  func(b []byte) (any, error) { return ParseHandoverRequest(b) },
+			choice: isInitiating,
+			golden: "000100809000000a000000020001000100010000024002020000420008100f42404007a1200035001200001b000d0a1f0a0000010000000100090400680017160001800000f110000010100000f1100000102080000a006b000510000c000000280021180000000000000000000000000000000000000000000000000000000000000000004b40070000f110800102009e40020003",
+		},
+	}
+}

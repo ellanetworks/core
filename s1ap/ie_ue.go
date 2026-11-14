@@ -300,3 +300,26 @@ func (c *RRCEstablishmentCause) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 
 	return nil
 }
+
+type GWContextReleaseIndication uint8
+
+const (
+	GWContextReleaseIndicationTrue GWContextReleaseIndication = iota
+
+	gwContextReleaseIndicationRootCount = 1
+)
+
+func (g GWContextReleaseIndication) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return encodeRootEnumerated(w, enc, gwContextReleaseIndicationRootCount, int64(g), "GWContextReleaseIndication")
+}
+
+func (g *GWContextReleaseIndication) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	idx, err := decodeRootEnumerated(r, enc, gwContextReleaseIndicationRootCount, "GWContextReleaseIndication")
+	if err != nil {
+		return err
+	}
+
+	*g = GWContextReleaseIndication(idx)
+
+	return nil
+}

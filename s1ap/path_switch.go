@@ -155,6 +155,7 @@ type PathSwitchRequestAcknowledge struct {
 	ENBUES1APID               *ENBUES1APID
 	UEAggregateMaximumBitRate *UEAggregateMaximumBitRate
 	SecurityContext           SecurityContext
+	MMEUES1APID2              *MMEUES1APID
 	UESecurityCapabilities    *UESecurityCapabilities
 	// E-RABs the MME failed to switch the UP path for, whose data radio bearers
 	// the eNB releases (§8.4.4.2).
@@ -256,6 +257,27 @@ var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 			return perIEDecode(raw, &m.SecurityContext)
 		},
 		encode: func(m *PathSwitchRequestAcknowledge) (per.Marshaler, bool) { return &m.SecurityContext, true },
+	},
+	{
+		id: IDMMEUES1APID2, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *PathSwitchRequestAcknowledge, raw []byte, enc per.Encoding) error {
+			var v MMEUES1APID
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.MMEUES1APID2 = &v
+
+			return nil
+		},
+		encode: func(m *PathSwitchRequestAcknowledge) (per.Marshaler, bool) {
+			if m.MMEUES1APID2 == nil {
+				return nil, false
+			}
+
+			return m.MMEUES1APID2, true
+		},
 	},
 	{
 		id: IDUESecurityCapabilities, presence: presenceOptional, crit: CriticalityIgnore,

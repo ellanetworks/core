@@ -213,3 +213,27 @@ func TestInitialContextSetupRequestMissingRejectIE(t *testing.T) {
 		}
 	}
 }
+
+func goldGUMMEI() GUMMEI {
+	return GUMMEI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, MMEGroupID: MMEGroupID{0x80, 0x01}, MMECode: 0x02}
+}
+
+func initialContextSetupRequestGoldenCases() []newMessageCase {
+	return []newMessageCase{
+		{
+			name: "InitialContextSetupRequestGUMMEIMMEUES1APID2",
+			msg: &InitialContextSetupRequest{
+				MMEUES1APID:               1,
+				ENBUES1APID:               2,
+				UEAggregateMaximumBitRate: UEAggregateMaximumBitRate{DL: 1_000_000, UL: 500_000},
+				ERABToBeSetup:             []ERABToBeSetupItemCtxtSUReq{{ERABID: 5, QoS: goldQoS(), TransportLayerAddress: goldTLA(), GTPTEID: 1}},
+				UESecurityCapabilities:    UESecurityCapabilities{EncryptionAlgorithms: 0x8000, IntegrityProtectionAlgorithms: 0xc000},
+				GUMMEI:                    Ptr(goldGUMMEI()),
+				MMEUES1APID2:              Ptr(MMEUES1APID(3)),
+			},
+			parse:  func(b []byte) (any, error) { return ParseInitialContextSetupRequest(b) },
+			choice: isInitiating,
+			golden: "0009007000000800000002000100080002000200420008100f42404007a12000180013000034000e050009040f800a00000100000001006b000510000c0000004900200000000000000000000000000000000000000000000000000000000000000000004b40070000f110800102009e40020003",
+		},
+	}
+}

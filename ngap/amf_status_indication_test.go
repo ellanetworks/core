@@ -5,6 +5,8 @@ package ngap
 
 import (
 	"bytes"
+	"errors"
+	"reflect"
 	"testing"
 )
 
@@ -134,5 +136,87 @@ func TestAMFStatusIndicationGUAMIListBounds(t *testing.T) {
 
 	if _, err := (&AMFStatusIndication{UnavailableGUAMIList: over}).Marshal(); err == nil {
 		t.Fatalf("encoded %d GUAMIs, want a bound error", len(over))
+	}
+}
+
+func goldAMFStatusIndicationExtendedBackupAMFName() *AMFStatusIndication {
+	return &AMFStatusIndication{UnavailableGUAMIList: UnavailableGUAMIList{{
+		GUAMI:                        goldGUAMI(),
+		TimerApproachForGUAMIRemoval: Ptr(TimerApproachApplyTimer),
+		BackupAMFName:                Ptr(Name("backup-amf")),
+		ExtendedBackupAMFName: &ExtendedAMFName{
+			AMFNameVisibleString: Ptr(AMFNameVisibleString("backup-amf-extended")),
+			AMFNameUTF8String:    Ptr(AMFNameUTF8String("backup-amf-ü")),
+		},
+	}}}
+}
+
+func aMFStatusIndicationGoldenCases() []goldenRoundTrip {
+	return []goldenRoundTrip{
+		{
+			"AMFStatusIndicationExtendedBackupAMFName",
+			goldAMFStatusIndicationExtendedBackupAMFName(),
+			func(v []byte) (any, error) { return ParseAMFStatusIndication(v) },
+			"000140440000010078003d007000f110cafe0002406261636b75702d616d66000001ba402360906261636b75702d616d662d657874656e6465640d6261636b75702d616d662dc3bc",
+		},
+	}
+}
+
+func TestAMFStatusIndicationExtendedBackupAMFNameGolden(t *testing.T) {
+	for _, c := range aMFStatusIndicationGoldenCases() {
+		t.Run(c.name, func(t *testing.T) { checkGoldenRoundTrip(t, c) })
+	}
+}
+
+func TestUnavailableGUAMIItemUnknownExtensionKeepsItsPosition(t *testing.T) {
+	item := goldAMFStatusIndicationExtendedBackupAMFName().UnavailableGUAMIList[0]
+	item.iEExtensions = messageMeta{
+		unknownIEs: []rawIE{{id: 9999, crit: CriticalityIgnore, value: []byte{0x5a}}},
+		wire: []wireSlot{
+			{id: 9999, crit: CriticalityIgnore, unknown: 0},
+			{id: IDExtendedBackupAMFName, crit: CriticalityIgnore, unknown: -1},
+		},
+	}
+
+	pdu := marshalT(t, &AMFStatusIndication{UnavailableGUAMIList: UnavailableGUAMIList{item}})
+
+	p, err := Unmarshal(pdu)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := ParseAMFStatusIndication(p.value())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := out.UnavailableGUAMIList[0]
+	if got.ExtendedBackupAMFName == nil || len(got.iEExtensions.unknownIEs) != 1 {
+		t.Fatalf("decoded %+v", got)
+	}
+
+	if !reflect.DeepEqual(got.iEExtensions.wire, item.iEExtensions.wire) {
+		t.Fatalf("wire order %+v, want %+v", got.iEExtensions.wire, item.iEExtensions.wire)
+	}
+
+	if re := marshalT(t, out); !bytes.Equal(re, pdu) {
+		t.Fatalf("re-encoded\n got  %x\n want %x", re, pdu)
+	}
+}
+
+func TestUnavailableGUAMIItemUnknownRejectExtensionRejectsProcedure(t *testing.T) {
+	item := UnavailableGUAMIItem{GUAMI: goldGUAMI()}
+	item.iEExtensions = messageMeta{unknownIEs: []rawIE{{id: 9999, crit: CriticalityReject, value: []byte{0x5a}}}}
+
+	p, err := Unmarshal(marshalT(t, &AMFStatusIndication{UnavailableGUAMIList: UnavailableGUAMIList{item}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = ParseAMFStatusIndication(p.value())
+
+	var ase *AbstractSyntaxError
+	if !errors.As(err, &ase) || len(ase.IEs) != 1 || ase.IEs[0].IEID != 9999 {
+		t.Fatalf("err = %v, want the unknown reject extension reported", err)
 	}
 }

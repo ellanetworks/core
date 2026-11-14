@@ -45,7 +45,14 @@ type RawIE struct {
 // abstract syntax errors that did not stop delivery.
 type messageMeta struct {
 	unknownIEs  []rawIE
+	wire        []wireSlot
 	diagnostics Diagnostics
+}
+
+type wireSlot struct {
+	id      ProtocolIEID
+	crit    Criticality
+	unknown int
 }
 
 // Bounded: a peer chooses both the count and the size of what we would retain.
@@ -57,6 +64,7 @@ func (u *messageMeta) preserve(f rawIE) {
 	}
 
 	u.unknownIEs = append(u.unknownIEs, f)
+	u.wire = append(u.wire, wireSlot{id: f.id, crit: f.crit, unknown: len(u.unknownIEs) - 1})
 }
 
 // The abstract syntax errors §10.3.4.2 and §10.3.5 let the receiver carry on

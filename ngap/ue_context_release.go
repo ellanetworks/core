@@ -24,6 +24,9 @@ type UENGAPIDs struct {
 	AMFUENGAPID AMFUENGAPID
 	RANUENGAPID RANUENGAPID
 	Pair        bool
+
+	pairIEExtensions *rawIEExtensions
+	pairExtensions   per.ExtensionAdditions
 }
 
 func (u UENGAPIDs) MarshalPER(w *per.Writer, enc per.Encoding) error {
@@ -41,14 +44,24 @@ func (u UENGAPIDs) MarshalPER(w *per.Writer, enc per.Encoding) error {
 
 	// UE-NGAP-ID-pair ::= SEQUENCE { aMF-UE-NGAP-ID, rAN-UE-NGAP-ID,
 	// iE-Extensions OPTIONAL } (extensible).
-	w.WriteBit(false)
-	w.WriteBit(false)
+	w.WriteBit(u.pairExtensions.Present())
+	w.WriteBit(u.pairIEExtensions != nil)
 
 	if err := u.AMFUENGAPID.MarshalPER(w, enc); err != nil {
 		return err
 	}
 
-	return u.RANUENGAPID.MarshalPER(w, enc)
+	if err := u.RANUENGAPID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+
+	if u.pairIEExtensions != nil {
+		if err := u.pairIEExtensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+
+	return u.pairExtensions.MarshalPER(w, enc)
 }
 
 func (u *UENGAPIDs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
@@ -79,11 +92,24 @@ func (u *UENGAPIDs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 			return err
 		}
 
-		if err := skipSequenceExtensionsPER(r, enc, extContainer, extBit); err != nil {
-			return err
+		var ieExt *rawIEExtensions
+
+		if extContainer {
+			ieExt = &rawIEExtensions{}
+			if err := ieExt.UnmarshalPER(r, enc); err != nil {
+				return err
+			}
 		}
 
-		*u = UENGAPIDs{AMFUENGAPID: amf, RANUENGAPID: ran, Pair: true}
+		var ext per.ExtensionAdditions
+
+		if extBit {
+			if err := ext.UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+		}
+
+		*u = UENGAPIDs{AMFUENGAPID: amf, RANUENGAPID: ran, Pair: true, pairIEExtensions: ieExt, pairExtensions: ext}
 
 		return nil
 	case ueNGAPIDsChoiceExtensions:
@@ -331,10 +357,11 @@ func ParseUEContextReleaseComplete(value []byte) (*UEContextReleaseComplete, err
 
 // TS 38.413 §9.2.2.4.
 type UEContextReleaseRequest struct {
-	AMFUENGAPID            AMFUENGAPID
-	RANUENGAPID            RANUENGAPID
-	PDUSessionResourceList PDUSessionResourceListCxtRelReq
-	Cause                  *Cause
+	AMFUENGAPID                AMFUENGAPID
+	RANUENGAPID                RANUENGAPID
+	PDUSessionResourceList     PDUSessionResourceListCxtRelReq
+	Cause                      *Cause
+	GWContextReleaseIndication *GWContextReleaseIndication
 
 	messageMeta
 }
@@ -386,6 +413,27 @@ var uEContextReleaseRequestIEs = []ieSpec[UEContextReleaseRequest]{
 			}
 
 			return m.Cause, true
+		},
+	},
+	{
+		id: IDGWContextReleaseIndication, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *UEContextReleaseRequest, raw []byte, enc per.Encoding) error {
+			var v GWContextReleaseIndication
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.GWContextReleaseIndication = &v
+
+			return nil
+		},
+		encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) {
+			if m.GWContextReleaseIndication == nil {
+				return nil, false
+			}
+
+			return m.GWContextReleaseIndication, true
 		},
 	},
 }

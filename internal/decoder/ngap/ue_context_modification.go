@@ -28,6 +28,10 @@ func buildUEContextModificationRequest(value []byte) NGAPMessageValue {
 		}))
 	}
 
+	if m.NewAMFUENGAPID != nil {
+		ies = append(ies, ie(ngap.IDNewAMFUENGAPID, ngap.CriticalityReject, int64(*m.NewAMFUENGAPID)))
+	}
+
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }
 

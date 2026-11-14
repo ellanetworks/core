@@ -21,6 +21,8 @@ type PathSwitchRequestOpts struct {
 	UESecurityCapabilities ngap.UESecurityCapabilities
 	Mcc                    string
 	Mnc                    string
+	SelectedMcc            string
+	SelectedMnc            string
 	Tac                    string
 	GnbID                  string
 }
@@ -29,7 +31,7 @@ type PathSwitchRequestOpts struct {
 // which the target NG-RAN node sends after an Xn handover to move the downlink
 // tunnels of every session it took over.
 func BuildPathSwitchRequest(opts *PathSwitchRequestOpts) ([]byte, error) {
-	uli, err := userLocation(opts.Mcc, opts.Mnc, opts.GnbID, opts.Tac)
+	uli, err := userLocation(opts.Mcc, opts.Mnc, opts.SelectedMcc, opts.SelectedMnc, opts.GnbID, opts.Tac)
 	if err != nil {
 		return nil, err
 	}

@@ -273,3 +273,48 @@ func TestUEContextReleaseCommandChoiceExtension(t *testing.T) {
 		t.Errorf("diagnostics = %+v, want one not-understood entry for UE-NGAP-IDs", ase.IEs)
 	}
 }
+
+func uEContextReleaseRequestGoldenCases() []goldenRoundTrip {
+	inactivity := Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUserInactivity}
+
+	return []goldenRoundTrip{
+		{
+			"UEContextReleaseRequestGWContextReleaseIndication",
+			&UEContextReleaseRequest{
+				AMFUENGAPID:                1,
+				RANUENGAPID:                2,
+				PDUSessionResourceList:     PDUSessionResourceListCxtRelReq{{PDUSessionID: 5}},
+				Cause:                      &inactivity,
+				GWContextReleaseIndication: Ptr(GWContextReleaseIndicationTrue),
+			},
+			func(v []byte) (any, error) { return ParseUEContextReleaseRequest(v) },
+			"002a4021000005000a0002000100550002000200850003000005000f4002050001c4000100",
+		},
+	}
+}
+
+func TestUEContextReleaseRequestGWContextReleaseIndicationGolden(t *testing.T) {
+	for _, c := range uEContextReleaseRequestGoldenCases() {
+		t.Run(c.name, func(t *testing.T) { checkGoldenRoundTrip(t, c) })
+	}
+}
+
+func TestUEContextReleaseRequestGWContextReleaseIndicationExtensionRejects(t *testing.T) {
+	cause := Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUserInactivity}
+
+	_, err := ParseUEContextReleaseRequest(container(t,
+		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, val: Ptr(AMFUENGAPID(1))},
+		ieField{id: IDRANUENGAPID, crit: CriticalityReject, val: Ptr(RANUENGAPID(2))},
+		ieField{id: IDCause, crit: CriticalityIgnore, val: &cause},
+		ieField{id: IDGWContextReleaseIndication, crit: CriticalityReject, raw: extensionEnum(t, gwContextReleaseIndicationRootCount, 0)},
+	))
+
+	var ase *AbstractSyntaxError
+	if !errors.As(err, &ase) {
+		t.Fatalf("err = %v, want an AbstractSyntaxError", err)
+	}
+
+	if len(ase.IEs) != 1 || ase.IEs[0].IEID != IDGWContextReleaseIndication || ase.IEs[0].TypeOfError != TypeOfErrorNotUnderstood {
+		t.Fatalf("IEs = %+v, want GW-Context-Release-Indication not-understood", ase.IEs)
+	}
+}

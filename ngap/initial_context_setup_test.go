@@ -5,6 +5,7 @@ package ngap
 
 import (
 	"errors"
+	"slices"
 	"testing"
 )
 
@@ -275,5 +276,78 @@ func TestInitialContextSetupRequestMissingRejectIE(t *testing.T) {
 			ase.IEs[0].TypeOfError != TypeOfErrorMissing {
 			t.Errorf("diagnostics = %+v, want one missing entry for the AllowedNSSAI", ase.IEs)
 		}
+	}
+}
+
+func goldInitialContextSetupRequestTraceActivation() *InitialContextSetupRequest {
+	ta := goldenTraceActivation()
+
+	return &InitialContextSetupRequest{
+		AMFUENGAPID:            1,
+		RANUENGAPID:            2,
+		GUAMI:                  goldContextGUAMI(),
+		AllowedNSSAI:           AllowedNSSAI{{SNSSAI: SNSSAI{SST: 1, SD: &SD{0x01, 0x02, 0x03}}}},
+		UESecurityCapabilities: goldUESecurityCapabilities(),
+		SecurityKey:            goldSecurityKey(),
+		TraceActivation:        &ta,
+	}
+}
+
+func initialContextSetupRequestGoldenCases() []goldenRoundTrip {
+	return []goldenRoundTrip{
+		{
+			"InitialContextSetupRequestTraceActivation",
+			goldInitialContextSetupRequestTraceActivation(),
+			func(v []byte) (any, error) { return ParseInitialContextSetupRequest(v) },
+			"000e0068000007000a00020001005500020002001c00070000f11001004000000005020101020300770009100004000100004000005e0020000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f006c40100002f8390a0b0c1234f800f80a000001",
+		},
+	}
+}
+
+func TestInitialContextSetupRequestTraceActivationGolden(t *testing.T) {
+	for _, c := range initialContextSetupRequestGoldenCases() {
+		t.Run(c.name, func(t *testing.T) { checkGoldenRoundTrip(t, c) })
+	}
+}
+
+func initialContextSetupRequestWireCases(t *testing.T) []wireCase {
+	t.Helper()
+
+	m := goldInitialContextSetupRequestTraceActivation()
+	m.AMFUENGAPID2 = Ptr(AMFUENGAPID(0x0102030405))
+
+	return []wireCase{{
+		name:  "InitialContextSetupRequestAMFUENGAPID2AfterUnmodeledIEs",
+		pdu:   insertRawIEs(t, marshalT(t, m), 7, rawMaskedIMEISV(), rawRedirectionVoiceFallback()),
+		parse: func(v []byte) (any, error) { return ParseInitialContextSetupRequest(v) },
+		check: func(t *testing.T, a any) {
+			t.Helper()
+
+			m := a.(*InitialContextSetupRequest)
+			if deref(m.AMFUENGAPID2) != 0x0102030405 || len(m.UnknownIEs()) != 2 {
+				t.Fatalf("AMF UE NGAP ID 2 = %v, unknown IEs %+v", m.AMFUENGAPID2, m.UnknownIEs())
+			}
+		},
+	}}
+}
+
+func TestInitialContextSetupRequestAMFUENGAPID2SetAfterParseFollowsUnmodeledIEs(t *testing.T) {
+	pdu := insertRawIEs(t, marshalT(t, goldInitialContextSetupRequestTraceActivation()), 7, rawMaskedIMEISV(), rawRedirectionVoiceFallback())
+
+	p, err := Unmarshal(pdu)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := ParseInitialContextSetupRequest(p.value())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m.AMFUENGAPID2 = Ptr(AMFUENGAPID(7))
+
+	ids := wireIDs(t, m.encodeBody)
+	if want := []ProtocolIEID{IDTraceActivation, IDMaskedIMEISV, IDRedirectionVoiceFallback, IDAMFUENGAPID2}; !slices.Equal(ids[len(ids)-4:], want) {
+		t.Fatalf("IE order %v, want it to end %v", ids, want)
 	}
 }

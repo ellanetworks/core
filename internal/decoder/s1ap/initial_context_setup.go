@@ -111,6 +111,14 @@ func buildInitialContextSetupRequest(value []byte) (S1APMessageValue, string) {
 		ies = append(ies, ie(s1ap.IDUERadioCapability, s1ap.CriticalityIgnore, rrc.DescribeS1AP(m.UERadioCapability)))
 	}
 
+	if m.GUMMEI != nil {
+		ies = append(ies, ie(s1ap.IDGUMMEI, s1ap.CriticalityIgnore, gummei(*m.GUMMEI)))
+	}
+
+	if m.MMEUES1APID2 != nil {
+		ies = append(ies, ie(s1ap.IDMMEUES1APID2, s1ap.CriticalityIgnore, uint32(*m.MMEUES1APID2)))
+	}
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, fmt.Sprintf("Initial Context Setup Request (MME-UE %d, eNB-UE %d, %d E-RAB)", m.MMEUES1APID, m.ENBUES1APID, len(m.ERABToBeSetup))

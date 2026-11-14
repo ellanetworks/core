@@ -218,6 +218,7 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 			{ERABID: 6, Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}},
 		},
 		SecurityContext:        s1ap.SecurityContext{NextHopChainingCount: 3, NextHopParameter: s1ap.SecurityKey{0x01, 0x02, 0x03}},
+		MMEUES1APID2:           s1ap.Ptr(s1ap.MMEUES1APID(5)),
 		UESecurityCapabilities: s1ap.Ptr(s1ap.UESecurityCapabilities{EncryptionAlgorithms: 0xe000, IntegrityProtectionAlgorithms: 0xe000}),
 	})
 
@@ -363,6 +364,8 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		},
 		SecurityContext:               s1ap.SecurityContext{NextHopChainingCount: 1},
 		NASSecurityParameterstoEUTRAN: s1ap.NASSecurityParameterstoEUTRAN{0x0a, 0x0b},
+		GUMMEI:                        &s1ap.GUMMEI{PLMNIdentity: testPLMN, MMEGroupID: s1ap.MMEGroupID{0x80, 0x01}, MMECode: 0x02},
+		MMEUES1APID2:                  s1ap.Ptr(s1ap.MMEUES1APID(8)),
 	})
 
 	corpus["handover_request_acknowledge_full"] = mustMarshal(t, &s1ap.HandoverRequestAcknowledge{
@@ -444,6 +447,8 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		LPPaPDU:     lppaPDU,
 	})
 
+	addPWSOverloadCorpus(t, corpus)
+
 	return corpus
 }
 
@@ -514,6 +519,9 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			s1ap.ProcENBConfigurationUpdate, s1ap.ProcENBConfigurationTransfer,
 			s1ap.ProcMMEConfigurationTransfer, s1ap.ProcLocationReport,
 			s1ap.ProcDownlinkNonUEAssociatedLPPaTransport, s1ap.ProcUplinkNonUEAssociatedLPPaTransport,
+			s1ap.ProcWriteReplaceWarning, s1ap.ProcKill, s1ap.ProcPWSRestartIndication,
+			s1ap.ProcPWSFailureIndication, s1ap.ProcOverloadStart, s1ap.ProcOverloadStop,
+			s1ap.ProcRerouteNASRequest,
 		},
 		"SuccessfulOutcome": {
 			s1ap.ProcS1Setup, s1ap.ProcInitialContextSetup, s1ap.ProcUEContextRelease, s1ap.ProcUEContextModification,
@@ -522,6 +530,7 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			s1ap.ProcReset, s1ap.ProcPathSwitchRequest,
 			s1ap.ProcERABModify, s1ap.ProcERABModificationIndication,
 			s1ap.ProcENBConfigurationUpdate,
+			s1ap.ProcWriteReplaceWarning, s1ap.ProcKill,
 		},
 		"UnsuccessfulOutcome": {
 			s1ap.ProcS1Setup, s1ap.ProcInitialContextSetup, s1ap.ProcUEContextModification,

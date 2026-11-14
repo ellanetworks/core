@@ -128,6 +128,8 @@ var ngapOnlyFiles = map[string]string{
 	"amf_status_indication_test.go":       "tests for amf_status_indication.go",
 	"not_comprehended_test.go":            "§10.3.1 case 6 reached through choice-Extensions, which only NGAP has (TS 38.413 §9.3)",
 	"symmetry_test.go":                    "this file: the checker lives on one side",
+	"ue_tnla_binding_release.go":          "TS 36.413 defines no UE TNLA binding and so no procedure to release one (TS 38.413 §8.13.1)",
+	"ue_tnla_binding_release_test.go":     "tests for ue_tnla_binding_release.go",
 }
 
 // A type on both sides must live in the same-named file, so the two can be read

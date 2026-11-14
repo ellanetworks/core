@@ -117,6 +117,21 @@
       {
         "id": {
           "type": "enum",
+          "value": 158,
+          "label": "MME-UE-S1AP-ID-2",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 5
+      },
+      {
+        "id": {
+          "type": "enum",
           "value": 107,
           "label": "UESecurityCapabilities",
           "unknown": false

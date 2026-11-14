@@ -35,7 +35,15 @@ var nASNonDeliveryIndicationIEs = []ieSpec[NASNonDeliveryIndication]{
 	{
 		id: IDNASPDU, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *NASNonDeliveryIndication, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.NASPDU)
+			if err := perIEDecode(raw, &m.NASPDU); err != nil {
+				return err
+			}
+
+			if m.NASPDU == nil {
+				m.NASPDU = NASPDU{}
+			}
+
+			return nil
 		},
 		encode: func(m *NASNonDeliveryIndication) (per.Marshaler, bool) {
 			if m.NASPDU == nil {

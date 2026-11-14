@@ -753,3 +753,40 @@ func unmarshalSeqOf[T any](r *per.Reader, enc per.Encoding, lb, ub int64) ([]T, 
 func perIEDecode(b []byte, u per.Unmarshaler) error {
 	return u.UnmarshalPER(per.NewReader(b), per.Aligned)
 }
+
+type rawIEExtensions struct {
+	data  []byte
+	nbits int
+}
+
+func (e *rawIEExtensions) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	if enc == per.Aligned {
+		w.AlignToByte()
+	}
+
+	w.WriteBitString(e.data, e.nbits)
+
+	return nil
+}
+
+func (e *rawIEExtensions) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	if enc == per.Aligned {
+		r.AlignToByte()
+	}
+
+	start := r.Offset()
+
+	var c ieExtensions
+	if err := c.UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+
+	data, nbits, err := r.Since(start)
+	if err != nil {
+		return err
+	}
+
+	e.data, e.nbits = data, nbits
+
+	return nil
+}

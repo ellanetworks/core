@@ -248,6 +248,43 @@
           "unknown": false
         },
         "value": "0a0b"
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 75,
+          "label": "GUMMEI-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "plmn_id": {
+            "mcc": "001",
+            "mnc": "01"
+          },
+          "mme_group_id": 32769,
+          "mme_code": 2
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 158,
+          "label": "MME-UE-S1AP-ID-2",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 8
       }
     ]
   }

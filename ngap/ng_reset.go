@@ -29,10 +29,10 @@ const resetAllRootCount = 1
 // TS 38.413 §9.3.3.25. Both identities are optional; an item may carry either
 // or both.
 type UEAssociatedLogicalNGConnectionItem struct {
-	_           [0]struct{}  `per:"extseq"`
-	AMFUENGAPID *AMFUENGAPID `per:",optional"`
-	RANUENGAPID *RANUENGAPID `per:",optional"`
-	_           ieExtensions `per:",skip"`
+	AMFUENGAPID  *AMFUENGAPID           `per:",optional"`
+	RANUENGAPID  *RANUENGAPID           `per:",optional"`
+	iEExtensions *rawIEExtensions       `per:",optional"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // UEAssociatedLogicalNGConnectionList ::= SEQUENCE (SIZE(1..

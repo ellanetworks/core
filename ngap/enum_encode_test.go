@@ -23,6 +23,10 @@ func TestEnumOutsideRootIsNotEncoded(t *testing.T) {
 		{"TimeToWait", timeToWaitRootCount, func(v int64) per.Marshaler { return TimeToWait(v) }},
 		{"RRCEstablishmentCause", rrcEstablishmentCauseRootCount, func(v int64) per.Marshaler { return RRCEstablishmentCause(v) }},
 		{"UEContextRequest", ueContextRequestRootCount, func(v int64) per.Marshaler { return UEContextRequest(v) }},
+		{"GWContextReleaseIndication", gwContextReleaseIndicationRootCount, func(v int64) per.Marshaler { return GWContextReleaseIndication(v) }},
+		{"GUAMIType", guamiTypeRootCount, func(v int64) per.Marshaler { return GUAMIType(v) }},
+		{"TNLAssociationUsage", tnlAssociationUsageRootCount, func(v int64) per.Marshaler { return TNLAssociationUsage(v) }},
+		{"OnboardingSupport", onboardingSupportRootCount, func(v int64) per.Marshaler { return OnboardingSupport(v) }},
 		{"UERetentionInformation", ueRetentionInformationRootCount, func(v int64) per.Marshaler { return UERetentionInformation(v) }},
 		{"TimerApproachForGUAMIRemoval", timerApproachForGUAMIRemovalRootCount, func(v int64) per.Marshaler { return TimerApproachForGUAMIRemoval(v) }},
 	}

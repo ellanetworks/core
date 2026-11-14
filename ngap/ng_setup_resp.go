@@ -15,6 +15,7 @@ type NGSetupResponse struct {
 	PLMNSupportList        PLMNSupportList
 	CriticalityDiagnostics *CriticalityDiagnostics
 	UERetentionInformation *UERetentionInformation
+	ExtendedAMFName        *ExtendedAMFName
 
 	messageMeta
 }
@@ -115,6 +116,27 @@ var nGSetupResponseIEs = []ieSpec[NGSetupResponse]{
 			}
 
 			return m.UERetentionInformation, true
+		},
+	},
+	{
+		id: IDExtendedAMFName, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *NGSetupResponse, raw []byte, enc per.Encoding) error {
+			var v ExtendedAMFName
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.ExtendedAMFName = &v
+
+			return nil
+		},
+		encode: func(m *NGSetupResponse) (per.Marshaler, bool) {
+			if m.ExtendedAMFName == nil {
+				return nil, false
+			}
+
+			return m.ExtendedAMFName, true
 		},
 	},
 }

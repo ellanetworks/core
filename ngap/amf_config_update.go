@@ -11,6 +11,12 @@ type AMFConfigurationUpdate struct {
 	AMFName             *string
 	ServedGUAMIList     ServedGUAMIList
 	RelativeAMFCapacity *uint8
+	PLMNSupportList     PLMNSupportList
+
+	AMFTNLAssociationToAddList    AMFTNLAssociationToAddList
+	AMFTNLAssociationToRemoveList AMFTNLAssociationToRemoveList
+	AMFTNLAssociationToUpdateList AMFTNLAssociationToUpdateList
+	ExtendedAMFName               *ExtendedAMFName
 
 	messageMeta
 }
@@ -74,6 +80,79 @@ var aMFConfigurationUpdateIEs = []ieSpec[AMFConfigurationUpdate]{
 			}), true
 		},
 	},
+	{
+		id: IDPLMNSupportList, presence: presenceOptional, crit: CriticalityReject,
+		decode: func(m *AMFConfigurationUpdate, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.PLMNSupportList)
+		},
+		encode: func(m *AMFConfigurationUpdate) (per.Marshaler, bool) {
+			if len(m.PLMNSupportList) == 0 {
+				return nil, false
+			}
+
+			return m.PLMNSupportList, true
+		},
+	},
+	{
+		id: IDAMFTNLAssociationToAddList, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *AMFConfigurationUpdate, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.AMFTNLAssociationToAddList)
+		},
+		encode: func(m *AMFConfigurationUpdate) (per.Marshaler, bool) {
+			if len(m.AMFTNLAssociationToAddList) == 0 {
+				return nil, false
+			}
+
+			return m.AMFTNLAssociationToAddList, true
+		},
+	},
+	{
+		id: IDAMFTNLAssociationToRemoveList, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *AMFConfigurationUpdate, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.AMFTNLAssociationToRemoveList)
+		},
+		encode: func(m *AMFConfigurationUpdate) (per.Marshaler, bool) {
+			if len(m.AMFTNLAssociationToRemoveList) == 0 {
+				return nil, false
+			}
+
+			return m.AMFTNLAssociationToRemoveList, true
+		},
+	},
+	{
+		id: IDAMFTNLAssociationToUpdateList, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *AMFConfigurationUpdate, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.AMFTNLAssociationToUpdateList)
+		},
+		encode: func(m *AMFConfigurationUpdate) (per.Marshaler, bool) {
+			if len(m.AMFTNLAssociationToUpdateList) == 0 {
+				return nil, false
+			}
+
+			return m.AMFTNLAssociationToUpdateList, true
+		},
+	},
+	{
+		id: IDExtendedAMFName, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *AMFConfigurationUpdate, raw []byte, enc per.Encoding) error {
+			var v ExtendedAMFName
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.ExtendedAMFName = &v
+
+			return nil
+		},
+		encode: func(m *AMFConfigurationUpdate) (per.Marshaler, bool) {
+			if m.ExtendedAMFName == nil {
+				return nil, false
+			}
+
+			return m.ExtendedAMFName, true
+		},
+	},
 }
 
 func (m *AMFConfigurationUpdate) encodeBody(w *per.Writer, enc per.Encoding) error {
@@ -101,12 +180,40 @@ func ParseAMFConfigurationUpdate(value []byte) (*AMFConfigurationUpdate, error) 
 }
 
 type AMFConfigurationUpdateAcknowledge struct {
-	CriticalityDiagnostics *CriticalityDiagnostics
+	AMFTNLAssociationSetupList         AMFTNLAssociationSetupList
+	AMFTNLAssociationFailedToSetupList TNLAssociationList
+	CriticalityDiagnostics             *CriticalityDiagnostics
 
 	messageMeta
 }
 
 var aMFConfigurationUpdateAcknowledgeIEs = []ieSpec[AMFConfigurationUpdateAcknowledge]{
+	{
+		id: IDAMFTNLAssociationSetupList, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *AMFConfigurationUpdateAcknowledge, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.AMFTNLAssociationSetupList)
+		},
+		encode: func(m *AMFConfigurationUpdateAcknowledge) (per.Marshaler, bool) {
+			if len(m.AMFTNLAssociationSetupList) == 0 {
+				return nil, false
+			}
+
+			return m.AMFTNLAssociationSetupList, true
+		},
+	},
+	{
+		id: IDAMFTNLAssociationFailedToSetupList, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *AMFConfigurationUpdateAcknowledge, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.AMFTNLAssociationFailedToSetupList)
+		},
+		encode: func(m *AMFConfigurationUpdateAcknowledge) (per.Marshaler, bool) {
+			if len(m.AMFTNLAssociationFailedToSetupList) == 0 {
+				return nil, false
+			}
+
+			return m.AMFTNLAssociationFailedToSetupList, true
+		},
+	},
 	{
 		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
 		decode: func(m *AMFConfigurationUpdateAcknowledge, raw []byte, enc per.Encoding) error {

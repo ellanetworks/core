@@ -117,3 +117,21 @@ func (r *Reader) ReadOctets(n int) ([]byte, error) {
 
 	return out, nil
 }
+
+func (r *Reader) Offset() int { return r.pos*8 + int(r.bit) }
+
+func (r *Reader) Since(start int) ([]byte, int, error) {
+	end := r.Offset()
+	if start < 0 || start > end {
+		return nil, 0, ErrOverflow
+	}
+
+	sub := &Reader{buf: r.buf, pos: start / 8, bit: uint8(start % 8)}
+
+	b, err := sub.ReadBitString(end - start)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return b, end - start, nil
+}

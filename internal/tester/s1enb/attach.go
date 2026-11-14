@@ -71,7 +71,7 @@ func (e *ENB) ReattachWithGUTI(ue *UE, guti *eps.EPSMobileIdentity, staleENBUEID
 		return nil, err
 	}
 
-	enbUEID := e.AllocateENBUEID()
+	enbUEID := e.AllocateENBUEIDFor(ue)
 
 	if err := e.SendInitialUEMessage(enbUEID, attachReq); err != nil {
 		return nil, err
@@ -224,7 +224,7 @@ func (e *ENB) awaitAttachAccept(ue *UE, enbUEID int64, identityRequested bool, t
 }
 
 func (e *ENB) attachUntilSecured(ue *UE, timeout time.Duration) (enbUEID int64, identityRequested bool, err error) {
-	enbUEID = e.AllocateENBUEID()
+	enbUEID = e.AllocateENBUEIDFor(ue)
 
 	attachReq, err := ue.buildAttachRequest()
 	if err != nil {

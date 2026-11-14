@@ -84,6 +84,10 @@ func buildPathSwitchRequestAcknowledge(value []byte) (S1APMessageValue, string) 
 
 	ies = append(ies, ie(s1ap.IDSecurityContext, s1ap.CriticalityReject, securityContext(m.SecurityContext)))
 
+	if m.MMEUES1APID2 != nil {
+		ies = append(ies, ie(s1ap.IDMMEUES1APID2, s1ap.CriticalityIgnore, uint32(*m.MMEUES1APID2)))
+	}
+
 	if m.UESecurityCapabilities != nil {
 		ies = append(ies, ie(s1ap.IDUESecurityCapabilities, s1ap.CriticalityIgnore, UESecurityCapabilities{
 			EncryptionAlgorithms:          securityAlgorithms(m.UESecurityCapabilities.EncryptionAlgorithms, "EEA"),
