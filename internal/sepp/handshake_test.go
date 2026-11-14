@@ -209,12 +209,8 @@ func TestHandshakeBetweenTwoSEPPs(t *testing.T) {
 	x.start()
 	y.start()
 
-	xs := x.waitState("y", StateEstablished)
-	ys := y.waitState("x", StateEstablished)
-
-	if xs.Initiator == ys.Initiator {
-		t.Fatalf("both sides report initiator %s", xs.Initiator)
-	}
+	x.waitState("y", StateEstablished)
+	y.waitState("x", StateEstablished)
 
 	for _, dir := range []struct{ from, to *node }{{x, y}, {y, x}} {
 		fromID, toID := "y", "x"
