@@ -3,6 +3,33 @@
 
 package ngap
 
+import "github.com/ellanetworks/core/per"
+
+const maxnoofRequestedSNSSAIs = 8
+
+type RequestedNSSAIItem struct {
+	SNSSAI       SNSSAI
+	iEExtensions *rawIEExtensions       `per:",optional"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+}
+
+type RequestedNSSAI []RequestedNSSAIItem
+
+func (l RequestedNSSAI) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofRequestedSNSSAIs, []RequestedNSSAIItem(l))
+}
+
+func (l *RequestedNSSAI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[RequestedNSSAIItem](r, enc, 1, maxnoofRequestedSNSSAIs)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
 // TS 38.413, NGAP-Constants.
 const (
 	maxnoofSliceItems     = 1024

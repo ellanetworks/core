@@ -176,6 +176,21 @@ const (
 // PortNumber ::= OCTET STRING (SIZE(2)).
 type PortNumber uint16
 
+func (p PortNumber) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeOctetString(w, enc, 2, 2, true, true, false, []byte{byte(p >> 8), byte(p)})
+}
+
+func (p *PortNumber) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 2, 2, true, true, false)
+	if err != nil {
+		return err
+	}
+
+	*p = PortNumber(uint16(b[0])<<8 | uint16(b[1]))
+
+	return nil
+}
+
 // TimeStamp ::= OCTET STRING (SIZE(4)) — TS 38.413 §9.3.1.75. No S1AP
 // counterpart: the S1AP User Location Information carries no timestamp.
 type TimeStamp [4]byte

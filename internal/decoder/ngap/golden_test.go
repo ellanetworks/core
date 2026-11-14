@@ -539,6 +539,11 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		},
 	})
 
+	corpus["ue_tnla_binding_release_request"] = mustMarshal(t, &lib.UETNLABindingReleaseRequest{
+		AMFUENGAPID: 1,
+		RANUENGAPID: 2,
+	})
+
 	corpus["location_report_full"] = mustMarshal(t, &lib.LocationReport{
 		AMFUENGAPID: 1,
 		RANUENGAPID: 2,
@@ -649,7 +654,7 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			lib.ProcUplinkNASTransport, lib.ProcInitialContextSetup,
 			lib.ProcPDUSessionResourceSetup, lib.ProcUEContextReleaseRequest,
 			lib.ProcUEContextRelease, lib.ProcUEContextModification, lib.ProcPDUSessionResourceRelease,
-			lib.ProcUERadioCapabilityInfoIndication, lib.ProcAMFStatusIndication,
+			lib.ProcUERadioCapabilityInfoIndication, lib.ProcUETNLABindingRelease, lib.ProcAMFStatusIndication,
 			lib.ProcPaging, lib.ProcDownlinkUEAssociatedNRPPaTransport,
 			lib.ProcUplinkUEAssociatedNRPPaTransport,
 			lib.ProcDownlinkNonUEAssociatedNRPPaTransport,

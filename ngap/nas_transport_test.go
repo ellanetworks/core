@@ -6,6 +6,7 @@ package ngap
 import (
 	"bytes"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
@@ -578,5 +579,60 @@ func TestInitialUEMessageAllowedNSSAI(t *testing.T) {
 
 	if want := mustHex(t, goldenInitialUEMessageNSSAI); !bytes.Equal(got, want) {
 		t.Fatalf("re-encode mismatch:\n  got  %x\n  want %x", got, want)
+	}
+}
+
+func goldRegistrationRequestNAS() NASPDU {
+	return NASPDU{
+		0x7e, 0x00, 0x41, 0x79, 0x00, 0x0b, 0xf2, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x2e, 0x02, 0xf0, 0xf0, 0x17, 0x07, 0xf0, 0xf0, 0xc0, 0x40, 0x01, 0x80, 0x30,
+	}
+}
+
+func goldInitialUEMessageFemto() *InitialUEMessage {
+	return &InitialUEMessage{
+		RANUENGAPID:             1,
+		NASPDU:                  goldRegistrationRequestNAS(),
+		UserLocationInformation: goldInitialULI(),
+		RRCEstablishmentCause:   Ptr(RRCCauseMOSignalling),
+		GUAMI:                   &GUAMI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, AMFRegionID: 0xca, AMFSetID: 0x3f8, AMFPointer: 0x01},
+		GUAMIType:               Ptr(GUAMITypeMapped),
+		RequestedNSSAI: RequestedNSSAI{
+			{SNSSAI: SNSSAI{SST: 1}},
+			{SNSSAI: SNSSAI{SST: 2, SD: &SD{0x00, 0x00, 0x01}}},
+		},
+	}
+}
+
+func initialUEMessageWireCases(t *testing.T) []wireCase {
+	t.Helper()
+
+	return []wireCase{
+		{
+			name:  "InitialUEMessageGUAMITypeRequestedNSSAI",
+			pdu:   marshalT(t, goldInitialUEMessageFemto()),
+			parse: func(v []byte) (any, error) { return ParseInitialUEMessage(v) },
+			check: func(t *testing.T, a any) {
+				t.Helper()
+
+				if !reflect.DeepEqual(a, goldInitialUEMessageFemto()) {
+					t.Fatalf("decoded %+v", a)
+				}
+			},
+		},
+		{
+			name: "InitialUEMessageGUAMIAfterSelectedPLMNIdentity",
+			pdu: insertRawIEs(t, marshalT(t, goldInitialUEMessageFemto()), 4,
+				ieField{id: IDSelectedPLMNIdentity, crit: CriticalityIgnore, raw: []byte{0x00, 0xf1, 0x10}}),
+			parse: func(v []byte) (any, error) { return ParseInitialUEMessage(v) },
+			check: func(t *testing.T, a any) {
+				t.Helper()
+
+				m := a.(*InitialUEMessage)
+				if m.GUAMI == nil || deref(m.GUAMIType) != GUAMITypeMapped || len(m.RequestedNSSAI) != 2 || len(m.UnknownIEs()) != 1 {
+					t.Fatalf("decoded %+v", m)
+				}
+			},
+		},
 	}
 }

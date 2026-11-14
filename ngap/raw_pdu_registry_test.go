@@ -564,6 +564,14 @@ var typedCodecs = map[typedKey]func([]byte) (typedMessage, error){
 
 		return m, nil
 	},
+	{TriggeringInitiatingMessage, ProcUETNLABindingRelease}: func(v []byte) (typedMessage, error) {
+		m, err := ParseUETNLABindingReleaseRequest(v)
+		if err != nil {
+			return nil, err
+		}
+
+		return m, nil
+	},
 }
 
 func sampleMessages() []typedMessage {

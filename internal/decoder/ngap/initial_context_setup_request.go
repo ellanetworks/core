@@ -198,6 +198,10 @@ func buildInitialContextSetupRequest(value []byte) NGAPMessageValue {
 			ueRadioCapabilityForPaging(*m.UERadioCapabilityForPaging)))
 	}
 
+	if m.AMFUENGAPID2 != nil {
+		ies = append(ies, ie(ngap.IDAMFUENGAPID2, ngap.CriticalityIgnore, int64(*m.AMFUENGAPID2)))
+	}
+
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }
 

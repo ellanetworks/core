@@ -152,3 +152,18 @@ var cancelAllWarningMessagesNames = map[CancelAllWarningMessages]string{
 }
 
 func (c CancelAllWarningMessages) Name() string { return cancelAllWarningMessagesNames[c] }
+
+var guamiTypeNames = map[GUAMIType]string{
+	GUAMITypeNative: "native",
+	GUAMITypeMapped: "mapped",
+}
+
+func (g GUAMIType) Name() string { return guamiTypeNames[g] }
+
+var tnlAssociationUsageNames = map[TNLAssociationUsage]string{
+	TNLAssociationUsageUE:    "ue",
+	TNLAssociationUsageNonUE: "non-ue",
+	TNLAssociationUsageBoth:  "both",
+}
+
+func (u TNLAssociationUsage) Name() string { return tnlAssociationUsageNames[u] }

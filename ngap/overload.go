@@ -123,9 +123,9 @@ func (l *OverloadStartNSSAIList) UnmarshalPER(r *per.Reader, enc per.Encoding) e
 const maxnoofGUAMIs = 1024
 
 type GUAMIListItem struct {
-	_     [0]struct{} `per:"extseq"`
-	GUAMI GUAMI
-	_     ieExtensions `per:",skip"`
+	GUAMI        GUAMI
+	iEExtensions *rawIEExtensions       `per:",optional"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 type GUAMIList []GUAMIListItem

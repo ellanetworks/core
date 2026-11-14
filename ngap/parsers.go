@@ -32,6 +32,7 @@ var messageParsers = []messageParser{
 	{"ParseInitialContextSetupResponse", func(v []byte) error { _, err := ParseInitialContextSetupResponse(v); return err }},
 	{"ParseInitialContextSetupFailure", func(v []byte) error { _, err := ParseInitialContextSetupFailure(v); return err }},
 	{"ParseUERadioCapabilityInfoIndication", func(v []byte) error { _, err := ParseUERadioCapabilityInfoIndication(v); return err }},
+	{"ParseUETNLABindingReleaseRequest", func(v []byte) error { _, err := ParseUETNLABindingReleaseRequest(v); return err }},
 	{"ParsePDUSessionResourceSetupRequest", func(v []byte) error { _, err := ParsePDUSessionResourceSetupRequest(v); return err }},
 	{"ParsePDUSessionResourceSetupResponse", func(v []byte) error { _, err := ParsePDUSessionResourceSetupResponse(v); return err }},
 	{"ParsePDUSessionResourceReleaseCommand", func(v []byte) error { _, err := ParsePDUSessionResourceReleaseCommand(v); return err }},

@@ -538,6 +538,10 @@ func buildHandoverRequest(value []byte) NGAPMessageValue {
 
 	ies = append(ies, ie(ngap.IDGUAMI, ngap.CriticalityReject, guami(m.GUAMI)))
 
+	if m.AMFUENGAPID2 != nil {
+		ies = append(ies, ie(ngap.IDAMFUENGAPID2, ngap.CriticalityIgnore, int64(*m.AMFUENGAPID2)))
+	}
+
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }
 

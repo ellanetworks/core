@@ -86,6 +86,7 @@ type InitialContextSetupRequest struct {
 	UERadioCapability          UERadioCapability
 	NASPDU                     *NASPDU
 	UERadioCapabilityForPaging *UERadioCapabilityForPaging
+	AMFUENGAPID2               *AMFUENGAPID
 
 	messageMeta
 }
@@ -250,6 +251,27 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 			}
 
 			return m.UERadioCapabilityForPaging, true
+		},
+	},
+	{
+		id: IDAMFUENGAPID2, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
+			var v AMFUENGAPID
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.AMFUENGAPID2 = &v
+
+			return nil
+		},
+		encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) {
+			if m.AMFUENGAPID2 == nil {
+				return nil, false
+			}
+
+			return m.AMFUENGAPID2, true
 		},
 	},
 }

@@ -6,6 +6,201 @@ package ngap
 
 import "github.com/ellanetworks/core/per"
 
+func (aMFTNLAssociationSetupItem *AMFTNLAssociationSetupItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(aMFTNLAssociationSetupItem.extensions.Present())
+	w.WriteBit(aMFTNLAssociationSetupItem.iEExtensions != nil)
+	if err := aMFTNLAssociationSetupItem.AMFTNLAssociationAddress.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if aMFTNLAssociationSetupItem.iEExtensions != nil {
+		if err := (*aMFTNLAssociationSetupItem.iEExtensions).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if aMFTNLAssociationSetupItem.extensions.Present() {
+		if err := aMFTNLAssociationSetupItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (aMFTNLAssociationSetupItem *AMFTNLAssociationSetupItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&aMFTNLAssociationSetupItem.AMFTNLAssociationAddress).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		var v rawIEExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		aMFTNLAssociationSetupItem.iEExtensions = &v
+	}
+	if extBit {
+		if err := aMFTNLAssociationSetupItem.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (aMFTNLAssociationToAddItem *AMFTNLAssociationToAddItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(aMFTNLAssociationToAddItem.extensions.Present())
+	w.WriteBit(aMFTNLAssociationToAddItem.TNLAssociationUsage != nil)
+	w.WriteBit(aMFTNLAssociationToAddItem.iEExtensions != nil)
+	if err := aMFTNLAssociationToAddItem.AMFTNLAssociationAddress.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if aMFTNLAssociationToAddItem.TNLAssociationUsage != nil {
+		if err := (*aMFTNLAssociationToAddItem.TNLAssociationUsage).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if err := aMFTNLAssociationToAddItem.TNLAddressWeightFactor.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if aMFTNLAssociationToAddItem.iEExtensions != nil {
+		if err := (*aMFTNLAssociationToAddItem.iEExtensions).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if aMFTNLAssociationToAddItem.extensions.Present() {
+		if err := aMFTNLAssociationToAddItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (aMFTNLAssociationToAddItem *AMFTNLAssociationToAddItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_TNLAssociationUsage, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&aMFTNLAssociationToAddItem.AMFTNLAssociationAddress).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_TNLAssociationUsage {
+		var v TNLAssociationUsage
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		aMFTNLAssociationToAddItem.TNLAssociationUsage = &v
+	}
+	if err := (&aMFTNLAssociationToAddItem.TNLAddressWeightFactor).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		var v rawIEExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		aMFTNLAssociationToAddItem.iEExtensions = &v
+	}
+	if extBit {
+		if err := aMFTNLAssociationToAddItem.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (aMFTNLAssociationToUpdateItem *AMFTNLAssociationToUpdateItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(aMFTNLAssociationToUpdateItem.extensions.Present())
+	w.WriteBit(aMFTNLAssociationToUpdateItem.TNLAssociationUsage != nil)
+	w.WriteBit(aMFTNLAssociationToUpdateItem.TNLAddressWeightFactor != nil)
+	w.WriteBit(aMFTNLAssociationToUpdateItem.iEExtensions != nil)
+	if err := aMFTNLAssociationToUpdateItem.AMFTNLAssociationAddress.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if aMFTNLAssociationToUpdateItem.TNLAssociationUsage != nil {
+		if err := (*aMFTNLAssociationToUpdateItem.TNLAssociationUsage).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if aMFTNLAssociationToUpdateItem.TNLAddressWeightFactor != nil {
+		if err := (*aMFTNLAssociationToUpdateItem.TNLAddressWeightFactor).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if aMFTNLAssociationToUpdateItem.iEExtensions != nil {
+		if err := (*aMFTNLAssociationToUpdateItem.iEExtensions).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if aMFTNLAssociationToUpdateItem.extensions.Present() {
+		if err := aMFTNLAssociationToUpdateItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (aMFTNLAssociationToUpdateItem *AMFTNLAssociationToUpdateItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_TNLAssociationUsage, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_TNLAddressWeightFactor, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&aMFTNLAssociationToUpdateItem.AMFTNLAssociationAddress).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_TNLAssociationUsage {
+		var v TNLAssociationUsage
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		aMFTNLAssociationToUpdateItem.TNLAssociationUsage = &v
+	}
+	if p_TNLAddressWeightFactor {
+		var v TNLAddressWeightFactor
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		aMFTNLAssociationToUpdateItem.TNLAddressWeightFactor = &v
+	}
+	if p_iEExtensions {
+		var v rawIEExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		aMFTNLAssociationToUpdateItem.iEExtensions = &v
+	}
+	if extBit {
+		if err := aMFTNLAssociationToUpdateItem.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (allocationAndRetentionPriority *AllocationAndRetentionPriority) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(false)
@@ -1695,6 +1890,117 @@ func (emergencyAreaIDCancelledNRItem *EmergencyAreaIDCancelledNRItem) UnmarshalP
 	return nil
 }
 
+func (endpointIPAddressAndPort *EndpointIPAddressAndPort) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(endpointIPAddressAndPort.iEExtensions != nil)
+	if err := endpointIPAddressAndPort.EndpointIPAddress.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := endpointIPAddressAndPort.PortNumber.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if endpointIPAddressAndPort.iEExtensions != nil {
+		if err := (*endpointIPAddressAndPort.iEExtensions).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (endpointIPAddressAndPort *EndpointIPAddressAndPort) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&endpointIPAddressAndPort.EndpointIPAddress).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&endpointIPAddressAndPort.PortNumber).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		var v rawIEExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		endpointIPAddressAndPort.iEExtensions = &v
+	}
+	return nil
+}
+
+func (extendedAMFName *ExtendedAMFName) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(extendedAMFName.extensions.Present())
+	w.WriteBit(extendedAMFName.AMFNameVisibleString != nil)
+	w.WriteBit(extendedAMFName.AMFNameUTF8String != nil)
+	w.WriteBit(extendedAMFName.iEExtensions != nil)
+	if extendedAMFName.AMFNameVisibleString != nil {
+		if err := (*extendedAMFName.AMFNameVisibleString).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if extendedAMFName.AMFNameUTF8String != nil {
+		if err := (*extendedAMFName.AMFNameUTF8String).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if extendedAMFName.iEExtensions != nil {
+		if err := (*extendedAMFName.iEExtensions).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if extendedAMFName.extensions.Present() {
+		if err := extendedAMFName.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (extendedAMFName *ExtendedAMFName) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_AMFNameVisibleString, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_AMFNameUTF8String, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if p_AMFNameVisibleString {
+		var v AMFNameVisibleString
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		extendedAMFName.AMFNameVisibleString = &v
+	}
+	if p_AMFNameUTF8String {
+		var v AMFNameUTF8String
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		extendedAMFName.AMFNameUTF8String = &v
+	}
+	if p_iEExtensions {
+		var v rawIEExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		extendedAMFName.iEExtensions = &v
+	}
+	if extBit {
+		if err := extendedAMFName.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (fiveGSTMSI *FiveGSTMSI) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(false)
@@ -2079,10 +2385,20 @@ func (gUAMI *GUAMI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 }
 
 func (gUAMIListItem *GUAMIListItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	w.WriteBit(gUAMIListItem.extensions.Present())
+	w.WriteBit(gUAMIListItem.iEExtensions != nil)
 	if err := gUAMIListItem.GUAMI.MarshalPER(w, enc); err != nil {
 		return err
+	}
+	if gUAMIListItem.iEExtensions != nil {
+		if err := (*gUAMIListItem.iEExtensions).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if gUAMIListItem.extensions.Present() {
+		if err := gUAMIListItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -2092,41 +2408,23 @@ func (gUAMIListItem *GUAMIListItem) UnmarshalPER(r *per.Reader, enc per.Encoding
 	if err != nil {
 		return err
 	}
-	p_f1, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
 	if err := (&gUAMIListItem.GUAMI).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f1 {
-		var v ieExtensions
+	if p_iEExtensions {
+		var v rawIEExtensions
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-		_ = v
+		gUAMIListItem.iEExtensions = &v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := gUAMIListItem.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
@@ -5711,66 +6009,6 @@ func (pDUSessionResourceToReleaseItemRelCmd *PDUSessionResourceToReleaseItemRelC
 	return nil
 }
 
-func (pLMNSupportItem *PLMNSupportItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
-	if err := pLMNSupportItem.PLMNIdentity.MarshalPER(w, enc); err != nil {
-		return err
-	}
-	if err := pLMNSupportItem.SliceSupportList.MarshalPER(w, enc); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (pLMNSupportItem *PLMNSupportItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	extBit, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-	p_f2, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-	if err := (&pLMNSupportItem.PLMNIdentity).UnmarshalPER(r, enc); err != nil {
-		return err
-	}
-	if err := (&pLMNSupportItem.SliceSupportList).UnmarshalPER(r, enc); err != nil {
-		return err
-	}
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-		_ = v
-	}
-	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
-			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
 func (packetErrorRate *PacketErrorRate) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(false)
@@ -7032,6 +7270,52 @@ func (rATRestrictionsItem *RATRestrictionsItem) UnmarshalPER(r *per.Reader, enc 
 	return nil
 }
 
+func (requestedNSSAIItem *RequestedNSSAIItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(requestedNSSAIItem.extensions.Present())
+	w.WriteBit(requestedNSSAIItem.iEExtensions != nil)
+	if err := requestedNSSAIItem.SNSSAI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if requestedNSSAIItem.iEExtensions != nil {
+		if err := (*requestedNSSAIItem.iEExtensions).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if requestedNSSAIItem.extensions.Present() {
+		if err := requestedNSSAIItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (requestedNSSAIItem *RequestedNSSAIItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&requestedNSSAIItem.SNSSAI).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		var v rawIEExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		requestedNSSAIItem.iEExtensions = &v
+	}
+	if extBit {
+		if err := requestedNSSAIItem.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (sNSSAI *SNSSAI) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(sNSSAI.SD != nil)
@@ -7279,77 +7563,6 @@ func (securityResult *SecurityResult) UnmarshalPER(r *per.Reader, enc per.Encodi
 		return err
 	}
 	securityResult.ConfidentialityProtectionResult = ConfidentialityProtectionResult(e1)
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-		_ = v
-	}
-	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
-			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func (servedGUAMIItem *ServedGUAMIItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(servedGUAMIItem.BackupAMFName != nil)
-	w.WriteBit(false)
-	if err := servedGUAMIItem.GUAMI.MarshalPER(w, enc); err != nil {
-		return err
-	}
-	if servedGUAMIItem.BackupAMFName != nil {
-		if err := (*servedGUAMIItem.BackupAMFName).MarshalPER(w, enc); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (servedGUAMIItem *ServedGUAMIItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	extBit, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-	p_BackupAMFName, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-	p_f2, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-	if err := (&servedGUAMIItem.GUAMI).UnmarshalPER(r, enc); err != nil {
-		return err
-	}
-	if p_BackupAMFName {
-		var v Name
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-		servedGUAMIItem.BackupAMFName = &v
-	}
 	if p_f2 {
 		var v ieExtensions
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
@@ -8109,6 +8322,58 @@ func (tAICancelledNRItem *TAICancelledNRItem) UnmarshalPER(r *per.Reader, enc pe
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+func (tNLAssociationItem *TNLAssociationItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(tNLAssociationItem.extensions.Present())
+	w.WriteBit(tNLAssociationItem.iEExtensions != nil)
+	if err := tNLAssociationItem.TNLAssociationAddress.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := tNLAssociationItem.Cause.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if tNLAssociationItem.iEExtensions != nil {
+		if err := (*tNLAssociationItem.iEExtensions).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if tNLAssociationItem.extensions.Present() {
+		if err := tNLAssociationItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (tNLAssociationItem *TNLAssociationItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&tNLAssociationItem.TNLAssociationAddress).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&tNLAssociationItem.Cause).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		var v rawIEExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		tNLAssociationItem.iEExtensions = &v
+	}
+	if extBit {
+		if err := tNLAssociationItem.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
 		}
 	}
 	return nil

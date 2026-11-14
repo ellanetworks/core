@@ -40,10 +40,68 @@ func modeledIEsCorpus(t *testing.T) map[string][]byte {
 				TraceCollectionEntityIPAddress: lib.TransportLayerAddress{10, 0, 0, 1},
 			},
 		}),
+		"amf_configuration_update_tnl_and_extended_name": mustMarshal(t, &lib.AMFConfigurationUpdate{
+			AMFTNLAssociationToAddList: lib.AMFTNLAssociationToAddList{{
+				AMFTNLAssociationAddress: lib.CPTransportLayerInformation{EndpointIPAddressAndPort: &lib.EndpointIPAddressAndPort{
+					EndpointIPAddress: lib.TransportLayerAddress{10, 0, 0, 3}, PortNumber: 38412,
+				}},
+				TNLAssociationUsage:    lib.Ptr(lib.TNLAssociationUsageBoth),
+				TNLAddressWeightFactor: 1,
+			}},
+			AMFTNLAssociationToRemoveList: lib.AMFTNLAssociationToRemoveList{{
+				AMFTNLAssociationAddress:                 lib.CPTransportLayerInformation{EndpointIPAddress: lib.TransportLayerAddress{10, 0, 0, 4}},
+				TNLAssociationTransportLayerAddressNGRAN: &lib.CPTransportLayerInformation{EndpointIPAddress: lib.TransportLayerAddress{10, 0, 1, 4}},
+			}},
+			AMFTNLAssociationToUpdateList: lib.AMFTNLAssociationToUpdateList{{
+				AMFTNLAssociationAddress: lib.CPTransportLayerInformation{EndpointIPAddress: lib.TransportLayerAddress{10, 0, 0, 2}},
+			}},
+			ExtendedAMFName: &lib.ExtendedAMFName{AMFNameUTF8String: lib.Ptr(lib.AMFNameUTF8String("ella"))},
+		}),
+		"initial_context_setup_request_amf_ue_ngap_id_2": mustMarshal(t, &lib.InitialContextSetupRequest{
+			AMFUENGAPID:  1,
+			RANUENGAPID:  2,
+			GUAMI:        guamis[0].GUAMI,
+			AllowedNSSAI: lib.AllowedNSSAI{{SNSSAI: lib.SNSSAI{SST: 1}}},
+			SecurityKey:  key,
+			AMFUENGAPID2: lib.Ptr(lib.AMFUENGAPID(9)),
+		}),
+		"path_switch_request_acknowledge_amf_ue_ngap_id_2": mustMarshal(t, &lib.PathSwitchRequestAcknowledge{
+			AMFUENGAPID:                    lib.Ptr(lib.AMFUENGAPID(1)),
+			RANUENGAPID:                    lib.Ptr(lib.RANUENGAPID(2)),
+			PDUSessionResourceSwitchedList: lib.PDUSessionResourceSwitchedList{{PDUSessionID: 5, Transfer: lib.TransferContainer{0x00}}},
+			AllowedNSSAI:                   lib.AllowedNSSAI{{SNSSAI: lib.SNSSAI{SST: 1}}},
+			AMFUENGAPID2:                   lib.Ptr(lib.AMFUENGAPID(9)),
+		}),
+		"initial_ue_message_guami_type_requested_nssai": mustMarshal(t, &lib.InitialUEMessage{
+			RANUENGAPID:             1,
+			NASPDU:                  lib.NASPDU{0x7e, 0x00},
+			UserLocationInformation: lib.UserLocationInformation{Kind: lib.UserLocationNR, PLMNIdentity: testPLMN, TAI: testTAI},
+			RRCEstablishmentCause:   lib.Ptr(lib.RRCCauseMOSignalling),
+			GUAMI:                   &guamis[0].GUAMI,
+			GUAMIType:               lib.Ptr(lib.GUAMITypeMapped),
+			RequestedNSSAI:          lib.RequestedNSSAI{{SNSSAI: lib.SNSSAI{SST: 1}}},
+		}),
 		"ue_context_modification_request_new_amf_ue_ngap_id": mustMarshal(t, &lib.UEContextModificationRequest{
 			AMFUENGAPID:    1,
 			RANUENGAPID:    2,
 			NewAMFUENGAPID: lib.Ptr(lib.AMFUENGAPID(3)),
+		}),
+		"amf_configuration_update_acknowledge_tnl_lists": mustMarshal(t, &lib.AMFConfigurationUpdateAcknowledge{
+			AMFTNLAssociationSetupList: lib.AMFTNLAssociationSetupList{{
+				AMFTNLAssociationAddress: lib.CPTransportLayerInformation{EndpointIPAddress: lib.TransportLayerAddress{10, 0, 0, 2}},
+			}},
+			AMFTNLAssociationFailedToSetupList: lib.TNLAssociationList{{
+				TNLAssociationAddress: lib.CPTransportLayerInformation{EndpointIPAddress: lib.TransportLayerAddress{10, 0, 0, 5}},
+				Cause:                 lib.Cause{Group: lib.CauseGroupTransport, Value: lib.CauseTransportResourceUnavailable},
+			}},
+		}),
+		"amf_configuration_update_served_guami_extensions": mustMarshal(t, &lib.AMFConfigurationUpdate{
+			ServedGUAMIList: lib.ServedGUAMIList{{
+				GUAMI:                 guamis[0].GUAMI,
+				BackupAMFName:         lib.Ptr(lib.Name("backup")),
+				GUAMIType:             lib.Ptr(lib.GUAMITypeMapped),
+				ExtendedBackupAMFName: &lib.ExtendedAMFName{AMFNameVisibleString: lib.Ptr(lib.AMFNameVisibleString("backup-extended"))},
+			}},
 		}),
 		"ue_context_release_request_gw_context_release_indication": mustMarshal(t, &lib.UEContextReleaseRequest{
 			AMFUENGAPID:                1,
@@ -86,5 +144,49 @@ func TestDecodeNGAPMessage_OverloadStopGUAMIList(t *testing.T) {
 	list, ok := msg.Value.IEs[0].Value.([]Guami)
 	if !ok || len(list) != 1 || list[0].AMFRegionID == "" {
 		t.Fatalf("GUAMI List = %+v", msg.Value.IEs[0].Value)
+	}
+}
+
+func TestDecodeNGAPMessage_AMFConfigurationUpdateAcknowledgeTNLLists(t *testing.T) {
+	msg := DecodeNGAPMessage(modeledIEsCorpus(t)["amf_configuration_update_acknowledge_tnl_lists"])
+
+	if len(msg.Value.IEs) != 2 {
+		t.Fatalf("IEs = %+v, want the setup and failed-to-setup lists", msg.Value.IEs)
+	}
+
+	setup, ok := msg.Value.IEs[0].Value.([]AMFTNLAssociation)
+	if !ok || msg.Value.IEs[0].ID.Value != int64(lib.IDAMFTNLAssociationSetupList) || len(setup) != 1 || setup[0].Address != "10.0.0.2" {
+		t.Fatalf("setup list = %+v", msg.Value.IEs[0])
+	}
+
+	failed, ok := msg.Value.IEs[1].Value.([]TNLAssociation)
+	if !ok || msg.Value.IEs[1].ID.Value != int64(lib.IDAMFTNLAssociationFailedToSetupList) || len(failed) != 1 || failed[0].Address != "10.0.0.5" {
+		t.Fatalf("failed list = %+v", msg.Value.IEs[1])
+	}
+
+	if failed[0].Cause != cause(lib.Cause{Group: lib.CauseGroupTransport, Value: lib.CauseTransportResourceUnavailable}) {
+		t.Fatalf("cause = %+v", failed[0].Cause)
+	}
+}
+
+func TestDecodeNGAPMessage_ServedGUAMIExtensions(t *testing.T) {
+	msg := DecodeNGAPMessage(modeledIEsCorpus(t)["amf_configuration_update_served_guami_extensions"])
+
+	list, ok := msg.Value.IEs[0].Value.([]ServedGUAMI)
+	if !ok || len(list) != 1 {
+		t.Fatalf("Served GUAMI List = %+v", msg.Value.IEs[0].Value)
+	}
+
+	got := list[0]
+	if got.AMFRegionID == "" || got.BackupAMFName == nil || *got.BackupAMFName != "backup" {
+		t.Fatalf("served GUAMI = %+v", got)
+	}
+
+	if got.GUAMIType == nil || got.GUAMIType.Value != int64(lib.GUAMITypeMapped) {
+		t.Fatalf("GUAMI Type = %+v", got.GUAMIType)
+	}
+
+	if got.ExtendedBackupAMFName == nil || got.ExtendedBackupAMFName.VisibleString == nil || *got.ExtendedBackupAMFName.VisibleString != "backup-extended" {
+		t.Fatalf("Extended Backup AMF Name = %+v", got.ExtendedBackupAMFName)
 	}
 }

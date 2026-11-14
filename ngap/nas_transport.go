@@ -26,6 +26,9 @@ type InitialUEMessage struct {
 	AMFSetID         *AMFSetID
 	UEContextRequest *UEContextRequest
 	AllowedNSSAI     AllowedNSSAI
+	GUAMI            *GUAMI
+	GUAMIType        *GUAMIType
+	RequestedNSSAI   RequestedNSSAI
 
 	messageMeta
 }
@@ -155,6 +158,61 @@ var initialUEMessageIEs = []ieSpec[InitialUEMessage]{
 			}
 
 			return m.AllowedNSSAI, true
+		},
+	},
+	{
+		id: IDGUAMI, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
+			var v GUAMI
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.GUAMI = &v
+
+			return nil
+		},
+		encode: func(m *InitialUEMessage) (per.Marshaler, bool) {
+			if m.GUAMI == nil {
+				return nil, false
+			}
+
+			return m.GUAMI, true
+		},
+	},
+	{
+		id: IDGUAMIType, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
+			var v GUAMIType
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.GUAMIType = &v
+
+			return nil
+		},
+		encode: func(m *InitialUEMessage) (per.Marshaler, bool) {
+			if m.GUAMIType == nil {
+				return nil, false
+			}
+
+			return m.GUAMIType, true
+		},
+	},
+	{
+		id: IDRequestedNSSAI, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *InitialUEMessage, raw []byte, enc per.Encoding) error {
+			return perIEDecode(raw, &m.RequestedNSSAI)
+		},
+		encode: func(m *InitialUEMessage) (per.Marshaler, bool) {
+			if len(m.RequestedNSSAI) == 0 {
+				return nil, false
+			}
+
+			return m.RequestedNSSAI, true
 		},
 	},
 }

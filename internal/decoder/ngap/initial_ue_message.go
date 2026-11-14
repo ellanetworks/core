@@ -102,6 +102,23 @@ func buildInitialUEMessage(value []byte) NGAPMessageValue {
 		ies = append(ies, ie(ngap.IDAllowedNSSAI, ngap.CriticalityReject, slices))
 	}
 
+	if m.GUAMI != nil {
+		ies = append(ies, ie(ngap.IDGUAMI, ngap.CriticalityIgnore, guami(*m.GUAMI)))
+	}
+
+	if m.GUAMIType != nil {
+		ies = append(ies, ie(ngap.IDGUAMIType, ngap.CriticalityIgnore, utils.NamedEnum(uint8(*m.GUAMIType), m.GUAMIType.Name())))
+	}
+
+	if len(m.RequestedNSSAI) > 0 {
+		slices := make([]SNSSAI, 0, len(m.RequestedNSSAI))
+		for _, item := range m.RequestedNSSAI {
+			slices = append(slices, buildSNSSAIValue(item.SNSSAI))
+		}
+
+		ies = append(ies, ie(ngap.IDRequestedNSSAI, ngap.CriticalityIgnore, slices))
+	}
+
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }
 

@@ -52,11 +52,11 @@ func buildRANConfigurationUpdate(value []byte) NGAPMessageValue {
 
 		for _, it := range m.NGRANTNLAssociationToRemoveList {
 			entry := NGRANTNLAssociationToRemove{
-				TNLAssociationTransportLayerAddress: transportLayerAddressToString(it.TNLAssociationTransportLayerAddress.EndpointIPAddress),
+				TNLAssociationTransportLayerAddress: cpTransportLayerAddress(it.TNLAssociationTransportLayerAddress),
 			}
 
 			if amf := it.TNLAssociationTransportLayerAddressAMF; amf != nil {
-				addr := transportLayerAddressToString(amf.EndpointIPAddress)
+				addr := cpTransportLayerAddress(*amf)
 				entry.TNLAssociationTransportLayerAddressAMF = &addr
 			}
 

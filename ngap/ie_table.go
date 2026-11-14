@@ -68,9 +68,9 @@ func encodeMessageBody[M any, PM interface {
 ) error {
 	w.WriteBit(false)
 
-	fields := make([]ieField, 0, len(table))
+	typed := make([]*ieField, len(table))
 
-	for _, spec := range table {
+	for i, spec := range table {
 		val, ok := spec.encode((*M)(m))
 		required := spec.required((*M)(m))
 
@@ -87,14 +87,71 @@ func encodeMessageBody[M any, PM interface {
 			return fmt.Errorf("ngap: %s: conditional IE %s is set but its condition does not hold", procedure, spec.id)
 		}
 
-		fields = append(fields, ieField{id: spec.id, crit: spec.crit, val: val})
+		typed[i] = &ieField{id: spec.id, crit: spec.crit, val: val}
 	}
 
-	for _, e := range m.meta().unknownIEs {
-		fields = append(fields, e.field())
+	return encodeIEContainer(w, enc, orderFields(table, typed, m.meta()))
+}
+
+func orderFields[M any](table []ieSpec[M], typed []*ieField, meta *messageMeta) []ieField {
+	fields := make([]ieField, 0, len(table)+len(meta.unknownIEs))
+
+	if meta.wire == nil {
+		for _, f := range typed {
+			if f != nil {
+				fields = append(fields, *f)
+			}
+		}
+
+		for _, e := range meta.unknownIEs {
+			fields = append(fields, e.field())
+		}
+
+		return fields
 	}
 
-	return encodeIEContainer(w, enc, fields)
+	onWire := make([]bool, len(table))
+
+	for _, s := range meta.wire {
+		if idx, _, ok := lookupIESpec(table, s.id); ok && s.unknown < 0 {
+			onWire[idx] = true
+		}
+	}
+
+	next := 0
+
+	flush := func(upto int) {
+		for ; next < upto; next++ {
+			if typed[next] != nil && !onWire[next] {
+				fields = append(fields, *typed[next])
+			}
+		}
+	}
+
+	for _, s := range meta.wire {
+		if s.unknown >= 0 {
+			fields = append(fields, meta.unknownIEs[s.unknown].field())
+
+			continue
+		}
+
+		idx, _, ok := lookupIESpec(table, s.id)
+		if !ok {
+			continue
+		}
+
+		flush(idx)
+
+		if f := typed[idx]; f != nil {
+			fields = append(fields, ieField{id: f.id, crit: s.crit, val: f.val})
+		}
+
+		next = idx + 1
+	}
+
+	flush(len(table))
+
+	return fields
 }
 
 // Applies the abstract syntax error handling of TS 38.413 §10.3.4.2, §10.3.5 and
@@ -212,6 +269,12 @@ func parseMessageBody[M any, PM interface {
 		}
 
 		seen[f.id] = true
+
+		meta.wire = append(meta.wire, wireSlot{id: f.id, crit: f.crit, unknown: -1})
+	}
+
+	if wireMatchesTable(table, meta.wire) {
+		meta.wire = nil
 	}
 
 	if len(notUnderstood) > 0 {
@@ -256,6 +319,20 @@ func parseMessageBody[M any, PM interface {
 	}
 
 	return m, nil
+}
+
+func wireMatchesTable[M any](table []ieSpec[M], wire []wireSlot) bool {
+	for _, s := range wire {
+		if s.unknown >= 0 {
+			return false
+		}
+
+		if _, spec, ok := lookupIESpec(table, s.id); !ok || spec.crit != s.crit {
+			return false
+		}
+	}
+
+	return true
 }
 
 func lookupIESpec[M any](table []ieSpec[M], id ProtocolIEID) (int, ieSpec[M], bool) {

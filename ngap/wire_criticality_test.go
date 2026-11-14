@@ -417,6 +417,69 @@ func TestWireCriticality(t *testing.T) {
 			},
 		},
 		{
+			"AMFConfigurationUpdate §9.2.6.7 TNL lists and Extended AMF Name",
+			goldAMFConfigurationUpdateRelay().encodeBody,
+			[]wireIE{
+				{IDAMFName, CriticalityReject},
+				{IDServedGUAMIList, CriticalityReject},
+				{IDRelativeAMFCapacity, CriticalityIgnore},
+				{IDPLMNSupportList, CriticalityReject},
+				{IDAMFTNLAssociationToAddList, CriticalityIgnore},
+				{IDAMFTNLAssociationToRemoveList, CriticalityIgnore},
+				{IDAMFTNLAssociationToUpdateList, CriticalityIgnore},
+				{IDExtendedAMFName, CriticalityIgnore},
+			},
+		},
+		{
+			"AMFConfigurationUpdateAcknowledge §9.2.6.8 TNL lists",
+			goldAMFConfigurationUpdateAcknowledgeTNL().encodeBody,
+			[]wireIE{
+				{IDAMFTNLAssociationSetupList, CriticalityIgnore},
+				{IDAMFTNLAssociationFailedToSetupList, CriticalityIgnore},
+				{IDCriticalityDiagnostics, CriticalityIgnore},
+			},
+		},
+		{
+			"UETNLABindingReleaseRequest §9.2.12.1",
+			goldUETNLABindingReleaseRequest().encodeBody,
+			[]wireIE{
+				{IDAMFUENGAPID, CriticalityReject},
+				{IDRANUENGAPID, CriticalityReject},
+			},
+		},
+		{
+			"InitialUEMessage §9.2.5.1 GUAMI, GUAMI Type, Requested NSSAI",
+			goldInitialUEMessageFemto().encodeBody,
+			[]wireIE{
+				{IDRANUENGAPID, CriticalityReject},
+				{IDNASPDU, CriticalityReject},
+				{IDUserLocationInformation, CriticalityReject},
+				{IDRRCEstablishmentCause, CriticalityIgnore},
+				{IDGUAMI, CriticalityIgnore},
+				{IDGUAMIType, CriticalityIgnore},
+				{IDRequestedNSSAI, CriticalityIgnore},
+			},
+		},
+		{
+			"InitialContextSetupRequest §9.2.2.1 AMF UE NGAP ID 2",
+			(&InitialContextSetupRequest{
+				AMFUENGAPID: 1, RANUENGAPID: 2, GUAMI: goldContextGUAMI(),
+				AllowedNSSAI:           AllowedNSSAI{{SNSSAI: SNSSAI{SST: 1}}},
+				UESecurityCapabilities: goldUESecurityCapabilities(),
+				SecurityKey:            goldSecurityKey(),
+				AMFUENGAPID2:           Ptr(AMFUENGAPID(3)),
+			}).encodeBody,
+			[]wireIE{
+				{IDAMFUENGAPID, CriticalityReject},
+				{IDRANUENGAPID, CriticalityReject},
+				{IDGUAMI, CriticalityReject},
+				{IDAllowedNSSAI, CriticalityReject},
+				{IDUESecurityCapabilities, CriticalityReject},
+				{IDSecurityKey, CriticalityReject},
+				{IDAMFUENGAPID2, CriticalityIgnore},
+			},
+		},
+		{
 			"AMFConfigurationUpdate §9.2.6.7 PLMN Support List",
 			goldAMFConfigurationUpdatePLMNSupport().encodeBody,
 			[]wireIE{

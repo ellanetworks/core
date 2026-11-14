@@ -154,10 +154,32 @@ func guami(g ngap.GUAMI) Guami {
 	}
 }
 
-func buildServedGUAMIList(list ngap.ServedGUAMIList) []Guami {
-	out := make([]Guami, len(list))
+type ServedGUAMI struct {
+	Guami
+	BackupAMFName         *string          `json:"backup_amf_name,omitempty"`
+	GUAMIType             *utils.EnumField `json:"guami_type,omitempty"`
+	ExtendedBackupAMFName *ExtendedAMFName `json:"extended_backup_amf_name,omitempty"`
+}
+
+func buildServedGUAMIList(list ngap.ServedGUAMIList) []ServedGUAMI {
+	out := make([]ServedGUAMI, len(list))
 	for i, item := range list {
-		out[i] = guami(item.GUAMI)
+		out[i] = ServedGUAMI{Guami: guami(item.GUAMI)}
+
+		if item.BackupAMFName != nil {
+			name := string(*item.BackupAMFName)
+			out[i].BackupAMFName = &name
+		}
+
+		if item.GUAMIType != nil {
+			t := utils.NamedEnum(uint8(*item.GUAMIType), item.GUAMIType.Name())
+			out[i].GUAMIType = &t
+		}
+
+		if item.ExtendedBackupAMFName != nil {
+			name := extendedAMFName(*item.ExtendedBackupAMFName)
+			out[i].ExtendedBackupAMFName = &name
+		}
 	}
 
 	return out
@@ -171,8 +193,15 @@ func buildPLMNSupportList(list ngap.PLMNSupportList) []PLMN {
 	out := make([]PLMN, len(list))
 	for i, item := range list {
 		out[i] = PLMN{
-			PLMNID:           plmnIDToDecoder(item.PLMNIdentity),
-			SliceSupportList: buildSliceSupportList(item.SliceSupportList),
+			PLMNID:                   plmnIDToDecoder(item.PLMNIdentity),
+			SliceSupportList:         buildSliceSupportList(item.SliceSupportList),
+			ExtendedSliceSupportList: buildSliceSupportList(ngap.SliceSupportList(item.ExtendedSliceSupportList)),
+			OnboardingSupport:        item.OnboardingSupport != nil,
+		}
+
+		if item.NPNSupport != nil {
+			nid := bitsHex(uint64(item.NPNSupport.SNPN), 44)
+			out[i].NPNSupportNID = &nid
 		}
 	}
 

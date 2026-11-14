@@ -244,8 +244,81 @@ func setTypedField(m typedMessage, field string, v reflect.Value) bool {
 	return true
 }
 
+func withEnvelopeOf(t *testing.T, re []byte, orig PDU) []byte {
+	t.Helper()
+
+	pdu, err := Unmarshal(re)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	switch p := pdu.(type) {
+	case *InitiatingMessage:
+		p.Criticality = orig.criticality()
+	case *SuccessfulOutcome:
+		p.Criticality = orig.criticality()
+	case *UnsuccessfulOutcome:
+		p.Criticality = orig.criticality()
+	}
+
+	b, err := Marshal(pdu)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return b
+}
+
+func TestTypedCodecReencodesCorpusExactly(t *testing.T) {
+	var exact, envelope, refused int
+
+	for _, c := range loadCorpus(t) {
+		pdu, err := Unmarshal(c.b)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		codec, ok := typedCodecs[typedKey{TriggeringMessage(pdu.choiceIndex()), pdu.procedureCode()}]
+		if !ok {
+			continue
+		}
+
+		msg, err := codec(pdu.value())
+		if err != nil {
+			refused++
+
+			continue
+		}
+
+		re, err := msg.Marshal()
+		if err != nil {
+			t.Errorf("%s: %T: %v", c.source, msg, err)
+
+			continue
+		}
+
+		if !bytes.Equal(withEnvelopeOf(t, re, pdu), c.b) {
+			t.Errorf("%s: %T does not re-encode byte for byte\n got  % x\n want % x", c.source, msg, re, c.b)
+
+			continue
+		}
+
+		if !bytes.Equal(re, c.b) {
+			envelope++
+		}
+
+		exact++
+	}
+
+	t.Logf("%d re-encoded byte for byte (%d of them under a procedure criticality other than the wire's), %d refused", exact, envelope, refused)
+
+	if exact < 20 {
+		t.Fatalf("only %d corpus PDUs re-encoded", exact)
+	}
+}
+
 func TestRawPDUSpliceMatchesTypedCodec(t *testing.T) {
-	var compared, notExact, refused, unmodeled int
+	var compared, refused, unmodeled int
 
 	for _, c := range loadCorpus(t) {
 		pdu, err := Unmarshal(c.b)
@@ -277,8 +350,8 @@ func TestRawPDUSpliceMatchesTypedCodec(t *testing.T) {
 				}
 
 				re, err := msg.Marshal()
-				if err != nil || !bytes.Equal(re, c.b) {
-					notExact++
+				if err != nil || !bytes.Equal(withEnvelopeOf(t, re, pdu), c.b) {
+					t.Errorf("%s: %T does not re-encode byte for byte (%v)", c.source, msg, err)
 					break
 				}
 
@@ -292,6 +365,8 @@ func TestRawPDUSpliceMatchesTypedCodec(t *testing.T) {
 					t.Errorf("%s: typed marshal: %v", c.source, err)
 					break
 				}
+
+				want = withEnvelopeOf(t, want, pdu)
 
 				p, err := ParseRawPDU(c.b)
 				if err != nil {
@@ -316,7 +391,7 @@ func TestRawPDUSpliceMatchesTypedCodec(t *testing.T) {
 		}
 	}
 
-	t.Logf("compared %d splices with the typed codec; typed codec skipped: %d not re-encoded byte-exactly, %d refused, %d unmodeled", compared, notExact, refused, unmodeled)
+	t.Logf("compared %d splices with the typed codec; typed codec skipped: %d refused, %d unmodeled", compared, refused, unmodeled)
 
 	if compared < 20 {
 		t.Fatalf("only %d comparisons", compared)

@@ -288,3 +288,34 @@ func TestPathSwitchSessionsAbsent(t *testing.T) {
 		t.Fatalf("PathSwitchSessions = %+v, want nil", got)
 	}
 }
+
+func pathSwitchRequestAcknowledgeWireCases(t *testing.T) []wireCase {
+	t.Helper()
+
+	transfer, err := (&PathSwitchRequestAcknowledgeTransfer{}).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m := &PathSwitchRequestAcknowledge{
+		AMFUENGAPID: Ptr(AMFUENGAPID(1)), RANUENGAPID: Ptr(RANUENGAPID(2)),
+		SecurityContext:                SecurityContext{NextHopChainingCount: 1},
+		PDUSessionResourceSwitchedList: PDUSessionResourceSwitchedList{{PDUSessionID: 5, Transfer: transfer}},
+		AllowedNSSAI:                   AllowedNSSAI{{SNSSAI: SNSSAI{SST: 1}}},
+		AMFUENGAPID2:                   Ptr(AMFUENGAPID(0x0102030405)),
+	}
+
+	return []wireCase{{
+		name:  "PathSwitchRequestAcknowledgeAMFUENGAPID2AfterUnmodeledIE",
+		pdu:   insertRawIEs(t, marshalT(t, m), 5, rawRedirectionVoiceFallback()),
+		parse: func(v []byte) (any, error) { return ParsePathSwitchRequestAcknowledge(v) },
+		check: func(t *testing.T, a any) {
+			t.Helper()
+
+			m := a.(*PathSwitchRequestAcknowledge)
+			if deref(m.AMFUENGAPID2) != 0x0102030405 || len(m.UnknownIEs()) != 1 {
+				t.Fatalf("AMF UE NGAP ID 2 = %v, unknown IEs %+v", m.AMFUENGAPID2, m.UnknownIEs())
+			}
+		},
+	}}
+}

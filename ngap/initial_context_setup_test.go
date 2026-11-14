@@ -5,6 +5,7 @@ package ngap
 
 import (
 	"errors"
+	"slices"
 	"testing"
 )
 
@@ -306,5 +307,47 @@ func initialContextSetupRequestGoldenCases() []goldenRoundTrip {
 func TestInitialContextSetupRequestTraceActivationGolden(t *testing.T) {
 	for _, c := range initialContextSetupRequestGoldenCases() {
 		t.Run(c.name, func(t *testing.T) { checkGoldenRoundTrip(t, c) })
+	}
+}
+
+func initialContextSetupRequestWireCases(t *testing.T) []wireCase {
+	t.Helper()
+
+	m := goldInitialContextSetupRequestTraceActivation()
+	m.AMFUENGAPID2 = Ptr(AMFUENGAPID(0x0102030405))
+
+	return []wireCase{{
+		name:  "InitialContextSetupRequestAMFUENGAPID2AfterUnmodeledIEs",
+		pdu:   insertRawIEs(t, marshalT(t, m), 7, rawMaskedIMEISV(), rawRedirectionVoiceFallback()),
+		parse: func(v []byte) (any, error) { return ParseInitialContextSetupRequest(v) },
+		check: func(t *testing.T, a any) {
+			t.Helper()
+
+			m := a.(*InitialContextSetupRequest)
+			if deref(m.AMFUENGAPID2) != 0x0102030405 || len(m.UnknownIEs()) != 2 {
+				t.Fatalf("AMF UE NGAP ID 2 = %v, unknown IEs %+v", m.AMFUENGAPID2, m.UnknownIEs())
+			}
+		},
+	}}
+}
+
+func TestInitialContextSetupRequestAMFUENGAPID2SetAfterParseFollowsUnmodeledIEs(t *testing.T) {
+	pdu := insertRawIEs(t, marshalT(t, goldInitialContextSetupRequestTraceActivation()), 7, rawMaskedIMEISV(), rawRedirectionVoiceFallback())
+
+	p, err := Unmarshal(pdu)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := ParseInitialContextSetupRequest(p.value())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m.AMFUENGAPID2 = Ptr(AMFUENGAPID(7))
+
+	ids := wireIDs(t, m.encodeBody)
+	if want := []ProtocolIEID{IDTraceActivation, IDMaskedIMEISV, IDRedirectionVoiceFallback, IDAMFUENGAPID2}; !slices.Equal(ids[len(ids)-4:], want) {
+		t.Fatalf("IE order %v, want it to end %v", ids, want)
 	}
 }

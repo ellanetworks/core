@@ -35,6 +35,47 @@ func (n *Name) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
+type AMFNameVisibleString string
+
+func (n AMFNameVisibleString) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeKnownMultiplierString(w, enc, per.CharVisibleString, 1, nameMaxLen, true, true, true, string(n))
+}
+
+func (n *AMFNameVisibleString) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	s, err := per.DecodeKnownMultiplierString(r, enc, per.CharVisibleString, 1, nameMaxLen, true, true, true)
+	if err != nil {
+		return err
+	}
+
+	*n = AMFNameVisibleString(s)
+
+	return nil
+}
+
+type AMFNameUTF8String string
+
+func (n AMFNameUTF8String) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeString(w, enc, []byte(n))
+}
+
+func (n *AMFNameUTF8String) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeString(r, enc)
+	if err != nil {
+		return err
+	}
+
+	*n = AMFNameUTF8String(b)
+
+	return nil
+}
+
+type ExtendedAMFName struct {
+	AMFNameVisibleString *AMFNameVisibleString  `per:",optional"`
+	AMFNameUTF8String    *AMFNameUTF8String     `per:",optional"`
+	iEExtensions         *rawIEExtensions       `per:",optional"`
+	extensions           per.ExtensionAdditions `per:",extraw"`
+}
+
 // GTP-TEID ::= OCTET STRING (SIZE(4)).
 type GTPTEID uint32
 

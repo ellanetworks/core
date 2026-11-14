@@ -147,6 +147,7 @@ type PathSwitchRequestAcknowledge struct {
 	PDUSessionResourceReleased PDUSessionResourceReleasedListPSAck
 	AllowedNSSAI               AllowedNSSAI
 	CriticalityDiagnostics     *CriticalityDiagnostics
+	AMFUENGAPID2               *AMFUENGAPID
 
 	messageMeta
 }
@@ -280,6 +281,27 @@ var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 			}
 
 			return m.CriticalityDiagnostics, true
+		},
+	},
+	{
+		id: IDAMFUENGAPID2, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *PathSwitchRequestAcknowledge, raw []byte, enc per.Encoding) error {
+			var v AMFUENGAPID
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.AMFUENGAPID2 = &v
+
+			return nil
+		},
+		encode: func(m *PathSwitchRequestAcknowledge) (per.Marshaler, bool) {
+			if m.AMFUENGAPID2 == nil {
+				return nil, false
+			}
+
+			return m.AMFUENGAPID2, true
 		},
 	},
 }

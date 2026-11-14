@@ -94,8 +94,11 @@ type CriticalityDiagnosticsIE struct {
 }
 
 type PLMN struct {
-	PLMNID           PLMNID   `json:"plmn_id"`
-	SliceSupportList []SNSSAI `json:"slice_support_list,omitempty"`
+	PLMNID                   PLMNID   `json:"plmn_id"`
+	SliceSupportList         []SNSSAI `json:"slice_support_list,omitempty"`
+	NPNSupportNID            *string  `json:"npn_support_nid,omitempty"`
+	ExtendedSliceSupportList []SNSSAI `json:"extended_slice_support_list,omitempty"`
+	OnboardingSupport        bool     `json:"onboarding_support,omitempty"`
 }
 
 // ranNodeIDHex renders a RAN node identifier as the hex digits its bit length

@@ -4,12 +4,15 @@
 package ngap
 
 import (
+	"bytes"
 	"encoding/hex"
 	"os/exec"
 	"reflect"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/ellanetworks/core/per"
 )
 
 type goldenRoundTrip struct {
@@ -50,10 +53,131 @@ func checkGoldenRoundTrip(t *testing.T, c goldenRoundTrip) {
 	}
 }
 
+type wireCase struct {
+	name  string
+	pdu   []byte
+	parse func([]byte) (any, error)
+	check func(t *testing.T, m any)
+
+	notTshark string
+}
+
+func insertRawIEs(t *testing.T, pdu []byte, at int, extra ...ieField) []byte {
+	t.Helper()
+
+	p, err := Unmarshal(pdu)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	r := per.NewReader(p.value())
+	if _, err := r.ReadBit(); err != nil {
+		t.Fatal(err)
+	}
+
+	raw, err := decodeIEContainer(r, per.Aligned)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fields := make([]ieField, 0, len(raw)+len(extra))
+	for _, f := range raw[:at] {
+		fields = append(fields, f.field())
+	}
+
+	fields = append(fields, extra...)
+	for _, f := range raw[at:] {
+		fields = append(fields, f.field())
+	}
+
+	value := container(t, fields...)
+
+	switch m := p.(type) {
+	case *InitiatingMessage:
+		m.Value = value
+	case *SuccessfulOutcome:
+		m.Value = value
+	case *UnsuccessfulOutcome:
+		m.Value = value
+	}
+
+	b, err := Marshal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return b
+}
+
+func checkWireCase(t *testing.T, c wireCase) {
+	t.Helper()
+
+	pdu, err := Unmarshal(c.pdu)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m, err := c.parse(pdu.value())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	c.check(t, m)
+
+	re, err := m.(interface{ Marshal() ([]byte, error) }).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(re, c.pdu) {
+		t.Fatalf("re-encoded\n got  %x\n want %x", re, c.pdu)
+	}
+}
+
+func rawMaskedIMEISV() ieField {
+	return ieField{id: IDMaskedIMEISV, crit: CriticalityIgnore, raw: []byte{0x86, 0x65, 0x07, 0x04, 0x00, 0xff, 0xff, 0x01}}
+}
+
+func rawRedirectionVoiceFallback() ieField {
+	return ieField{id: IDRedirectionVoiceFallback, crit: CriticalityIgnore, raw: []byte{0x00}}
+}
+
+func marshalT(t *testing.T, m interface{ Marshal() ([]byte, error) }) []byte {
+	t.Helper()
+
+	b, err := m.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return b
+}
+
+func relayWireCases(t *testing.T) []wireCase {
+	t.Helper()
+
+	var out []wireCase
+
+	out = append(out, initialContextSetupRequestWireCases(t)...)
+	out = append(out, handoverRequestWireCases(t)...)
+	out = append(out, pathSwitchRequestAcknowledgeWireCases(t)...)
+	out = append(out, initialUEMessageWireCases(t)...)
+
+	return append(out, amfConfigurationUpdateWireCases(t)...)
+}
+
+func TestRelayWireCasesReencodeExactly(t *testing.T) {
+	for _, c := range relayWireCases(t) {
+		t.Run(c.name, func(t *testing.T) { checkWireCase(t, c) })
+	}
+}
+
 func ieAdditionGoldenCases() []goldenRoundTrip {
 	var out []goldenRoundTrip
 
 	out = append(out, amfConfigurationUpdateGoldenCases()...)
+	out = append(out, amfConfigurationUpdateAcknowledgeGoldenCases()...)
+	out = append(out, uETNLABindingReleaseRequestGoldenCases()...)
 	out = append(out, initialContextSetupRequestGoldenCases()...)
 	out = append(out, uEContextModificationRequestGoldenCases()...)
 
@@ -80,6 +204,12 @@ func goldenTsharkVectors(t *testing.T) []tsharkVector {
 
 	for _, c := range ieAdditionGoldenCases() {
 		out = append(out, tsharkVector{name: c.name, b: mustHex(t, c.golden)})
+	}
+
+	for _, c := range relayWireCases(t) {
+		if c.notTshark == "" {
+			out = append(out, tsharkVector{name: c.name, b: c.pdu})
+		}
 	}
 
 	return append(out,

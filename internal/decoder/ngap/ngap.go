@@ -144,6 +144,8 @@ func buildInitiatingMessage(m *ngap.InitiatingMessage) NGAPMessageValue {
 		return buildPDUSessionResourceReleaseCommand(m.Value)
 	case ngap.ProcUERadioCapabilityInfoIndication:
 		return buildUERadioCapabilityInfoIndication(m.Value)
+	case ngap.ProcUETNLABindingRelease:
+		return buildUETNLABindingReleaseRequest(m.Value)
 	case ngap.ProcAMFStatusIndication:
 		return buildAMFStatusIndication(m.Value)
 	case ngap.ProcPaging:

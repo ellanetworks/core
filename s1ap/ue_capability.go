@@ -37,7 +37,15 @@ var uECapabilityInfoIndicationIEs = []ieSpec[UECapabilityInfoIndication]{
 	{
 		id: IDUERadioCapability, presence: presenceMandatory, crit: CriticalityIgnore,
 		decode: func(m *UECapabilityInfoIndication, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.UERadioCapability)
+			if err := perIEDecode(raw, &m.UERadioCapability); err != nil {
+				return err
+			}
+
+			if m.UERadioCapability == nil {
+				m.UERadioCapability = []byte{}
+			}
+
+			return nil
 		},
 		encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) {
 			if m.UERadioCapability == nil {
