@@ -141,3 +141,18 @@ var reportAreaNames = map[ReportArea]string{
 }
 
 func (r ReportArea) Name() string { return reportAreaNames[r] }
+
+var dlForwardingNames = map[DLForwarding]string{
+	DLForwardingProposed: "dL-Forwarding-proposed",
+}
+
+func (d DLForwarding) Name() string { return dlForwardingNames[d] }
+
+var cellSizeNames = map[CellSize]string{
+	CellSizeVerySmall: "verysmall",
+	CellSizeSmall:     "small",
+	CellSizeMedium:    "medium",
+	CellSizeLarge:     "large",
+}
+
+func (c CellSize) Name() string { return cellSizeNames[c] }

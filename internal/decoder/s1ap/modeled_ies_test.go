@@ -46,6 +46,15 @@ func modeledIEsCorpus(t *testing.T) map[string][]byte {
 			ENBUES1APID:  s1ap.Ptr(s1ap.ENBUES1APID(2)),
 			MMEUES1APID2: s1ap.Ptr(s1ap.MMEUES1APID(3)),
 		}),
+		"path_switch_request_source_mme_gummei": mustMarshal(t, &s1ap.PathSwitchRequest{
+			ENBUES1APID:            2,
+			ERABToBeSwitchedDL:     []s1ap.ERABToBeSwitchedDLItem{{ERABID: 5, TransportLayerAddress: s1ap.TransportLayerAddress{10, 0, 0, 1}, GTPTEID: 1}},
+			SourceMMEUES1APID:      1,
+			EUTRANCGI:              &s1ap.EUTRANCGI{PLMNIdentity: testPLMN, CellID: 1},
+			TAI:                    &s1ap.TAI{PLMNIdentity: testPLMN, TAC: 1},
+			UESecurityCapabilities: &s1ap.UESecurityCapabilities{},
+			SourceMMEGUMMEI:        &gummeiID,
+		}),
 		"ue_context_release_request_gw_context_release_indication": mustMarshal(t, &s1ap.UEContextReleaseRequest{
 			MMEUES1APID:                1,
 			ENBUES1APID:                2,
@@ -115,6 +124,19 @@ func TestDecodeS1APMessage_GUMMEIAndMMEUES1APID2(t *testing.T) {
 				t.Fatalf("MME UE S1AP ID 2 IE = %+v", id2)
 			}
 		})
+	}
+}
+
+func TestDecodeS1APMessage_PathSwitchRequestSourceMMEGUMMEI(t *testing.T) {
+	ies := DecodeS1APMessage(modeledIEsCorpus(t)["path_switch_request_source_mme_gummei"]).Value.IEs
+
+	last := ies[len(ies)-1]
+	if last.ID.Value != int64(s1ap.IDSourceMMEGUMMEI) || last.Criticality.Value != int64(s1ap.CriticalityIgnore) {
+		t.Fatalf("IEs = %+v, want SourceMME-GUMMEI last", ies)
+	}
+
+	if v, ok := last.Value.(GUMMEI); !ok || v != gummei(s1ap.GUMMEI{PLMNIdentity: testPLMN, MMEGroupID: s1ap.MMEGroupID{0x80, 0x01}, MMECode: 0x02}) {
+		t.Fatalf("SourceMME-GUMMEI = %#v", last.Value)
 	}
 }
 

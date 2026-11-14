@@ -317,7 +317,7 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 			SelectedTAI: testTAI,
 		}},
 		DirectForwardingPathAvailability: s1ap.Ptr(s1ap.DirectForwardingPathAvailable),
-		SourceToTarget:                   s1ap.TransparentContainer{0xab, 0xcd},
+		SourceToTarget:                   testSourceeNBContainer(t),
 	})
 
 	corpus["handover_command_full"] = mustMarshal(t, &s1ap.HandoverCommand{
@@ -353,7 +353,7 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 			GTPTEID:               0x99,
 			QoS:                   s1ap.ERABLevelQoSParameters{QCI: 9, ARP: s1ap.AllocationAndRetentionPriority{PriorityLevel: 15}},
 		}},
-		SourceToTarget:         s1ap.TransparentContainer{0xab},
+		SourceToTarget:         testSourceeNBContainer(t),
 		UESecurityCapabilities: s1ap.UESecurityCapabilities{EncryptionAlgorithms: 0xc000, IntegrityProtectionAlgorithms: 0xc000},
 		HandoverRestrictionList: &s1ap.HandoverRestrictionList{
 			ServingPLMN:        testPLMN,

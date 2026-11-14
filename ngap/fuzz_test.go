@@ -63,6 +63,8 @@ func FuzzDecodeNoPanic(f *testing.F) {
 		f.Add(b)
 	}
 
+	f.Add(mustHexBytes(goldenSourceNGRANContainer))
+
 	f.Fuzz(func(t *testing.T, data []byte) {
 		_, _ = unmarshalPERValue[Cause](data)
 		_, _ = unmarshalPERValue[CriticalityDiagnostics](data)

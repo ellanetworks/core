@@ -60,6 +60,7 @@ const (
 	IDSecurityKey                               ProtocolIEID = 73
 	IDUERadioCapability                         ProtocolIEID = 74
 	IDGUMMEI                                    ProtocolIEID = 75
+	IDERABInformationListItem                   ProtocolIEID = 78
 	IDDirectForwardingPathAvailability          ProtocolIEID = 79
 	IDUEIdentityIndexValue                      ProtocolIEID = 80
 	IDEUTRANTraceID                             ProtocolIEID = 86
@@ -69,6 +70,7 @@ const (
 	IDUEAssociatedLogicalS1ConnectionItem       ProtocolIEID = 91
 	IDResetType                                 ProtocolIEID = 92
 	IDUEAssociatedLogicalS1ConnectionListResAck ProtocolIEID = 93
+	IDERABToBeSwitchedULList                    ProtocolIEID = 95
 	IDSTMSI                                     ProtocolIEID = 96
 	IDRequestType                               ProtocolIEID = 98
 	IDUES1APIDs                                 ProtocolIEID = 99
@@ -104,6 +106,7 @@ const (
 	IDRoutingID                                 ProtocolIEID = 148
 	IDPagingPriority                            ProtocolIEID = 151
 	IDGUMMEIList                                ProtocolIEID = 154
+	IDSourceMMEGUMMEI                           ProtocolIEID = 157
 	IDMMEUES1APID2                              ProtocolIEID = 158
 	IDTrafficLoadReductionIndication            ProtocolIEID = 161
 	IDGWContextReleaseIndication                ProtocolIEID = 164

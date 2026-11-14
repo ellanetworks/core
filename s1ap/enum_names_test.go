@@ -45,6 +45,11 @@ func TestEnumNames(t *testing.T) {
 		{"PagingPriority(99)", PagingPriority(99).Name(), ""},
 
 		{"DirectForwardingPathAvailable", DirectForwardingPathAvailable.Name(), "directPathAvailable"},
+		{"DLForwardingProposed", DLForwardingProposed.Name(), "dL-Forwarding-proposed"},
+		{"DLForwarding(9)", DLForwarding(9).Name(), ""},
+		{"CellSizeVerySmall", CellSizeVerySmall.Name(), "verysmall"},
+		{"CellSizeLarge", CellSizeLarge.Name(), "large"},
+		{"CellSize(9)", CellSize(9).Name(), ""},
 		{"DirectForwardingPathAvailability(9)", DirectForwardingPathAvailability(9).Name(), ""},
 
 		{"UERetentionUesRetained", UERetentionUesRetained.Name(), "ues-retained"},

@@ -31,10 +31,16 @@ func FuzzDecodeNoPanic(f *testing.F) {
 		f.Add(b)
 	}
 
+	f.Add(mustHexBytes(goldenSourceeNBContainer))
+
 	f.Fuzz(func(t *testing.T, data []byte) {
 		_, _ = unmarshalPERValue[Cause](data)
 		_, _ = unmarshalPERValue[CriticalityDiagnostics](data)
 		_, _ = unmarshalPERValue[GUMMEI](data)
+
+		for _, tp := range transferParsers {
+			_ = tp.Parse(data)
+		}
 
 		pdu, err := Unmarshal(data)
 		if err != nil {

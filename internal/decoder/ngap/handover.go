@@ -390,7 +390,7 @@ func buildHandoverRequired(value []byte) NGAPMessageValue {
 
 	ies = append(ies,
 		ie(ngap.IDPDUSessionResourceListHORqd, ngap.CriticalityReject, sessions),
-		ie(ngap.IDSourceToTargetTransparentContainer, ngap.CriticalityReject, hex.EncodeToString(m.SourceToTargetTransparentContainer)),
+		ie(ngap.IDSourceToTargetTransparentContainer, ngap.CriticalityReject, sourceToTargetTransparentContainer(m.SourceToTargetTransparentContainer, m.HandoverType == ngap.HandoverTypeIntra5GS)),
 	)
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
@@ -530,7 +530,7 @@ func buildHandoverRequest(value []byte) NGAPMessageValue {
 		ies = append(ies, ie(ngap.IDTraceActivation, ngap.CriticalityIgnore, traceActivation(*m.TraceActivation)))
 	}
 
-	ies = append(ies, ie(ngap.IDSourceToTargetTransparentContainer, ngap.CriticalityReject, hex.EncodeToString(m.SourceToTargetTransparentContainer)))
+	ies = append(ies, ie(ngap.IDSourceToTargetTransparentContainer, ngap.CriticalityReject, sourceToTargetTransparentContainer(m.SourceToTargetTransparentContainer, true)))
 
 	if m.MobilityRestrictionList != nil {
 		ies = append(ies, ie(ngap.IDMobilityRestrictionList, ngap.CriticalityIgnore, mobilityRestrictionList(*m.MobilityRestrictionList)))
@@ -540,6 +540,10 @@ func buildHandoverRequest(value []byte) NGAPMessageValue {
 
 	if m.AMFUENGAPID2 != nil {
 		ies = append(ies, ie(ngap.IDAMFUENGAPID2, ngap.CriticalityIgnore, int64(*m.AMFUENGAPID2)))
+	}
+
+	if m.TargetRANNodeID != nil {
+		ies = append(ies, ie(ngap.IDTargetRANNodeID, ngap.CriticalityIgnore, buildGlobalRANNodeID(*m.TargetRANNodeID)))
 	}
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}

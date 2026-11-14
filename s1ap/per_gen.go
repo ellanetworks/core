@@ -378,6 +378,52 @@ func (cellIDCancelledItem *CellIDCancelledItem) UnmarshalPER(r *per.Reader, enc 
 	return nil
 }
 
+func (cellType *CellType) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(cellType.extensions.Present())
+	w.WriteBit(cellType.iEExtensions != nil)
+	if err := cellType.CellSize.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if cellType.iEExtensions != nil {
+		if err := (*cellType.iEExtensions).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if cellType.extensions.Present() {
+		if err := cellType.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (cellType *CellType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&cellType.CellSize).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		var v transparentIEExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		cellType.iEExtensions = &v
+	}
+	if extBit {
+		if err := cellType.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (completedCellInEAIItem *CompletedCellInEAIItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(false)
@@ -801,6 +847,69 @@ func (eRABDataForwardingItem *ERABDataForwardingItem) UnmarshalPER(r *per.Reader
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+func (eRABInformationListItem *ERABInformationListItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(eRABInformationListItem.extensions.Present())
+	w.WriteBit(eRABInformationListItem.DLForwarding != nil)
+	w.WriteBit(eRABInformationListItem.iEExtensions != nil)
+	if err := eRABInformationListItem.ERABID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if eRABInformationListItem.DLForwarding != nil {
+		if err := (*eRABInformationListItem.DLForwarding).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if eRABInformationListItem.iEExtensions != nil {
+		if err := (*eRABInformationListItem.iEExtensions).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if eRABInformationListItem.extensions.Present() {
+		if err := eRABInformationListItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (eRABInformationListItem *ERABInformationListItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_DLForwarding, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&eRABInformationListItem.ERABID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_DLForwarding {
+		var v DLForwarding
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		eRABInformationListItem.DLForwarding = &v
+	}
+	if p_iEExtensions {
+		var v transparentIEExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		eRABInformationListItem.iEExtensions = &v
+	}
+	if extBit {
+		if err := eRABInformationListItem.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -2325,6 +2434,64 @@ func (handoverRestrictionList *HandoverRestrictionList) UnmarshalPER(r *per.Read
 	return nil
 }
 
+func (lastVisitedEUTRANCellInformation *LastVisitedEUTRANCellInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(lastVisitedEUTRANCellInformation.extensions.Present())
+	w.WriteBit(lastVisitedEUTRANCellInformation.iEExtensions != nil)
+	if err := lastVisitedEUTRANCellInformation.GlobalCellID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := lastVisitedEUTRANCellInformation.CellType.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := lastVisitedEUTRANCellInformation.TimeUEStayedInCell.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if lastVisitedEUTRANCellInformation.iEExtensions != nil {
+		if err := (*lastVisitedEUTRANCellInformation.iEExtensions).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if lastVisitedEUTRANCellInformation.extensions.Present() {
+		if err := lastVisitedEUTRANCellInformation.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (lastVisitedEUTRANCellInformation *LastVisitedEUTRANCellInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&lastVisitedEUTRANCellInformation.GlobalCellID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&lastVisitedEUTRANCellInformation.CellType).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&lastVisitedEUTRANCellInformation.TimeUEStayedInCell).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		var v transparentIEExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		lastVisitedEUTRANCellInformation.iEExtensions = &v
+	}
+	if extBit {
+		if err := lastVisitedEUTRANCellInformation.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (ngENB *NgENB) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(false)
@@ -2686,6 +2853,96 @@ func (servedGUMMEIsItem *ServedGUMMEIsItem) UnmarshalPER(r *per.Reader, enc per.
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+func (sourceeNBToTargeteNBTransparentContainer *SourceeNBToTargeteNBTransparentContainer) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(sourceeNBToTargeteNBTransparentContainer.extensions.Present())
+	w.WriteBit(sourceeNBToTargeteNBTransparentContainer.ERABInformationList != nil)
+	w.WriteBit(sourceeNBToTargeteNBTransparentContainer.SubscriberProfileIDforRFP != nil)
+	w.WriteBit(sourceeNBToTargeteNBTransparentContainer.iEExtensions != nil)
+	if err := sourceeNBToTargeteNBTransparentContainer.RRCContainer.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if sourceeNBToTargeteNBTransparentContainer.ERABInformationList != nil {
+		if err := sourceeNBToTargeteNBTransparentContainer.ERABInformationList.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if err := sourceeNBToTargeteNBTransparentContainer.TargetCellID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if sourceeNBToTargeteNBTransparentContainer.SubscriberProfileIDforRFP != nil {
+		if err := (*sourceeNBToTargeteNBTransparentContainer.SubscriberProfileIDforRFP).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if err := sourceeNBToTargeteNBTransparentContainer.UEHistoryInformation.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if sourceeNBToTargeteNBTransparentContainer.iEExtensions != nil {
+		if err := (*sourceeNBToTargeteNBTransparentContainer.iEExtensions).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if sourceeNBToTargeteNBTransparentContainer.extensions.Present() {
+		if err := sourceeNBToTargeteNBTransparentContainer.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (sourceeNBToTargeteNBTransparentContainer *SourceeNBToTargeteNBTransparentContainer) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ERABInformationList, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_SubscriberProfileIDforRFP, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&sourceeNBToTargeteNBTransparentContainer.RRCContainer).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_ERABInformationList {
+		if err := (&sourceeNBToTargeteNBTransparentContainer.ERABInformationList).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if err := (&sourceeNBToTargeteNBTransparentContainer.TargetCellID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_SubscriberProfileIDforRFP {
+		var v SubscriberProfileIDforRFP
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		sourceeNBToTargeteNBTransparentContainer.SubscriberProfileIDforRFP = &v
+	}
+	if err := (&sourceeNBToTargeteNBTransparentContainer.UEHistoryInformation).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		var v transparentIEExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		sourceeNBToTargeteNBTransparentContainer.iEExtensions = &v
+	}
+	if extBit {
+		if err := sourceeNBToTargeteNBTransparentContainer.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
 		}
 	}
 	return nil

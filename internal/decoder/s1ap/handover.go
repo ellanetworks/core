@@ -138,7 +138,7 @@ func buildHandoverRequired(value []byte) (S1APMessageValue, string) {
 		ies = append(ies, ie(s1ap.IDDirectForwardingPathAvailability, s1ap.CriticalityIgnore, utils.NamedEnum(uint8(d), d.Name())))
 	}
 
-	ies = append(ies, ie(s1ap.IDSourceToTargetTransparentContainer, s1ap.CriticalityReject, hex.EncodeToString(m.SourceToTarget)))
+	ies = append(ies, ie(s1ap.IDSourceToTargetTransparentContainer, s1ap.CriticalityReject, sourceToTargetTransparentContainer(m.SourceToTarget, m.HandoverType == s1ap.HandoverTypeIntraLTE)))
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, fmt.Sprintf("Handover Required (MME-UE %d, eNB-UE %d)", m.MMEUES1APID, m.ENBUES1APID)
@@ -177,7 +177,7 @@ func buildHandoverRequest(value []byte) (S1APMessageValue, string) {
 	ies = append(ies,
 		ie(s1ap.IDUEAggregateMaximumBitrate, s1ap.CriticalityReject, AMBR{DL: uint64(m.UEAMBR.DL), UL: uint64(m.UEAMBR.UL)}),
 		ie(s1ap.IDERABToBeSetupListHOReq, s1ap.CriticalityReject, erabs),
-		ie(s1ap.IDSourceToTargetTransparentContainer, s1ap.CriticalityReject, hex.EncodeToString(m.SourceToTarget)),
+		ie(s1ap.IDSourceToTargetTransparentContainer, s1ap.CriticalityReject, sourceToTargetTransparentContainer(m.SourceToTarget, true)),
 		ie(s1ap.IDUESecurityCapabilities, s1ap.CriticalityReject, UESecurityCapabilities{
 			EncryptionAlgorithms:          securityAlgorithms(m.UESecurityCapabilities.EncryptionAlgorithms, "EEA"),
 			IntegrityProtectionAlgorithms: securityAlgorithms(m.UESecurityCapabilities.IntegrityProtectionAlgorithms, "EIA"),

@@ -167,3 +167,25 @@ var tnlAssociationUsageNames = map[TNLAssociationUsage]string{
 }
 
 func (u TNLAssociationUsage) Name() string { return tnlAssociationUsageNames[u] }
+
+var dlForwardingNames = map[DLForwarding]string{
+	DLForwardingProposed: "dl-forwarding-proposed",
+}
+
+func (d DLForwarding) Name() string { return dlForwardingNames[d] }
+
+var cellSizeNames = map[CellSize]string{
+	CellSizeVerySmall: "verysmall",
+	CellSizeSmall:     "small",
+	CellSizeMedium:    "medium",
+	CellSizeLarge:     "large",
+}
+
+func (c CellSize) Name() string { return cellSizeNames[c] }
+
+var qosFlowMappingIndicationNames = map[QosFlowMappingIndication]string{
+	QosFlowMappingUL: "ul",
+	QosFlowMappingDL: "dl",
+}
+
+func (q QosFlowMappingIndication) Name() string { return qosFlowMappingIndicationNames[q] }

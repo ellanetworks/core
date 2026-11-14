@@ -131,6 +131,7 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		PDUSessionResourceToBeSwitchedDLList: lib.PDUSessionResourceToBeSwitchedDLList{
 			{PDUSessionID: 1, Transfer: psReqTransfer},
 		},
+		SourceAMFGUAMI: &lib.GUAMI{PLMNIdentity: testPLMN, AMFRegionID: 0xca, AMFSetID: 0x3f8, AMFPointer: 0x01},
 	})
 
 	corpus["path_switch_request_acknowledge_full"] = mustMarshal(t, &lib.PathSwitchRequestAcknowledge{
@@ -351,7 +352,7 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		PDUSessionResourceListHORqd: lib.PDUSessionResourceListHORqd{
 			{PDUSessionID: 1, Transfer: hoRequiredTransfer},
 		},
-		SourceToTargetTransparentContainer: lib.SourceToTargetTransparentContainer{0x01, 0x02},
+		SourceToTargetTransparentContainer: testSourceNGRANContainer(t),
 	})
 
 	corpus["handover_command_full"] = mustMarshal(t, &lib.HandoverCommand{
@@ -385,13 +386,15 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		NewSecurityContextInd:              lib.Ptr(lib.NewSecurityContextIndTrue),
 		PDUSessionResourceSetupListHOReq:   lib.PDUSessionResourceSetupListHOReq{{PDUSessionID: 1, SNSSAI: lib.SNSSAI{SST: 1}, Transfer: hoSetupTransfer}},
 		AllowedNSSAI:                       lib.AllowedNSSAI{{SNSSAI: lib.SNSSAI{SST: 1}}},
-		SourceToTargetTransparentContainer: lib.SourceToTargetTransparentContainer{0x05, 0x06},
+		SourceToTargetTransparentContainer: testSourceNGRANContainer(t),
 		MobilityRestrictionList: &lib.MobilityRestrictionList{
 			ServingPLMN:     testPLMN,
 			EquivalentPLMNs: lib.EquivalentPLMNs{testPLMN},
 			RATRestrictions: lib.RATRestrictions{{PLMNIdentity: testPLMN, RATRestrictionInformation: lib.RATRestrictionEUTRA}},
 		},
-		GUAMI: lib.GUAMI{PLMNIdentity: testPLMN, AMFRegionID: 1, AMFSetID: 1, AMFPointer: 0},
+		GUAMI:           lib.GUAMI{PLMNIdentity: testPLMN, AMFRegionID: 1, AMFSetID: 1, AMFPointer: 0},
+		AMFUENGAPID2:    lib.Ptr(lib.AMFUENGAPID(9)),
+		TargetRANNodeID: &lib.GlobalRANNodeID{Kind: lib.RANNodeIDGNB, PLMNIdentity: testPLMN, Value: 2, Bits: 22},
 	})
 
 	corpus["handover_request_acknowledge_full"] = mustMarshal(t, &lib.HandoverRequestAcknowledge{

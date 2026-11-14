@@ -19,6 +19,7 @@ type PathSwitchRequest struct {
 	UESecurityCapabilities               *UESecurityCapabilities
 	PDUSessionResourceToBeSwitchedDLList PDUSessionResourceToBeSwitchedDLList
 	PDUSessionResourceFailedToSetup      PDUSessionResourceFailedToSetupListPSReq
+	SourceAMFGUAMI                       *GUAMI
 
 	messageMeta
 }
@@ -104,6 +105,27 @@ var pathSwitchRequestIEs = []ieSpec[PathSwitchRequest]{
 			}
 
 			return m.PDUSessionResourceFailedToSetup, true
+		},
+	},
+	{
+		id: IDSourceAMFGUAMI, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *PathSwitchRequest, raw []byte, enc per.Encoding) error {
+			var v GUAMI
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.SourceAMFGUAMI = &v
+
+			return nil
+		},
+		encode: func(m *PathSwitchRequest) (per.Marshaler, bool) {
+			if m.SourceAMFGUAMI == nil {
+				return nil, false
+			}
+
+			return m.SourceAMFGUAMI, true
 		},
 	},
 }

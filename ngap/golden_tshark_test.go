@@ -182,6 +182,7 @@ func ieAdditionGoldenCases() []goldenRoundTrip {
 	out = append(out, uETNLABindingReleaseRequestGoldenCases()...)
 	out = append(out, initialContextSetupRequestGoldenCases()...)
 	out = append(out, uEContextModificationRequestGoldenCases()...)
+	out = append(out, transparentContainerGoldenCases()...)
 
 	return append(out, uEContextReleaseRequestGoldenCases()...)
 }

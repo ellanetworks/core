@@ -244,6 +244,7 @@ func newMessageCases() []newMessageCase {
 		initialContextSetupRequestGoldenCases(),
 		handoverRequestGoldenCases(),
 		pathSwitchRequestAcknowledgeGoldenCases(),
+		transparentContainerGoldenCases(),
 	)...)
 }
 

@@ -26,6 +26,7 @@ type PathSwitchRequest struct {
 	EUTRANCGI              *EUTRANCGI
 	TAI                    *TAI
 	UESecurityCapabilities *UESecurityCapabilities
+	SourceMMEGUMMEI        *GUMMEI
 
 	messageMeta
 }
@@ -121,6 +122,27 @@ var pathSwitchRequestIEs = []ieSpec[PathSwitchRequest]{
 			}
 
 			return m.UESecurityCapabilities, true
+		},
+	},
+	{
+		id: IDSourceMMEGUMMEI, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *PathSwitchRequest, raw []byte, enc per.Encoding) error {
+			var v GUMMEI
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.SourceMMEGUMMEI = &v
+
+			return nil
+		},
+		encode: func(m *PathSwitchRequest) (per.Marshaler, bool) {
+			if m.SourceMMEGUMMEI == nil {
+				return nil, false
+			}
+
+			return m.SourceMMEGUMMEI, true
 		},
 	},
 }

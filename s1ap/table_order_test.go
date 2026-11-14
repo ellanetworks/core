@@ -54,7 +54,7 @@ func TestTableOrderMatchesASN1(t *testing.T) {
 		{"UplinkNASTransport", tableIDs(uplinkNASTransportIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDNASPDU, IDEUTRANCGI, IDTAI}},
 		{"DownlinkNASTransport", tableIDs(downlinkNASTransportIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDNASPDU}},
 		{"Paging", tableIDs(pagingIEs), []ProtocolIEID{IDUEIdentityIndexValue, IDUEPagingID, IDPagingDRX, IDCNDomain, IDTAIList, IDPagingPriority, IDUERadioCapabilityForPaging}},
-		{"PathSwitchRequest", tableIDs(pathSwitchRequestIEs), []ProtocolIEID{IDENBUES1APID, IDERABToBeSwitchedDLList, IDSourceMMEUES1APID, IDEUTRANCGI, IDTAI, IDUESecurityCapabilities}},
+		{"PathSwitchRequest", tableIDs(pathSwitchRequestIEs), []ProtocolIEID{IDENBUES1APID, IDERABToBeSwitchedDLList, IDSourceMMEUES1APID, IDEUTRANCGI, IDTAI, IDUESecurityCapabilities, IDSourceMMEGUMMEI}},
 		{"PathSwitchRequestAcknowledge", tableIDs(pathSwitchRequestAcknowledgeIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDUEAggregateMaximumBitrate, IDERABToBeReleasedList, IDSecurityContext, IDMMEUES1APID2, IDUESecurityCapabilities}},
 		{"PathSwitchRequestFailure", tableIDs(pathSwitchRequestFailureIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDCause, IDCriticalityDiagnostics}},
 		{"Reset", tableIDs(resetIEs), []ProtocolIEID{IDCause, IDResetType}},

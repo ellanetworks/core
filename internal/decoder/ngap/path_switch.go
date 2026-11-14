@@ -195,6 +195,10 @@ func buildPathSwitchRequest(value []byte) NGAPMessageValue {
 		ies = append(ies, ie(ngap.IDPDUSessionResourceFailedToSetupListPSReq, ngap.CriticalityIgnore, failed))
 	}
 
+	if m.SourceAMFGUAMI != nil {
+		ies = append(ies, ie(ngap.IDSourceAMFGUAMI, ngap.CriticalityIgnore, guami(*m.SourceAMFGUAMI)))
+	}
+
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }
 

@@ -53,6 +53,10 @@ func buildPathSwitchRequest(value []byte) (S1APMessageValue, string) {
 		}))
 	}
 
+	if m.SourceMMEGUMMEI != nil {
+		ies = append(ies, ie(s1ap.IDSourceMMEGUMMEI, s1ap.CriticalityIgnore, gummei(*m.SourceMMEGUMMEI)))
+	}
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, fmt.Sprintf("Path Switch Request (eNB-UE %d, source MME-UE %d, %d E-RAB)", m.ENBUES1APID, m.SourceMMEUES1APID, len(m.ERABToBeSwitchedDL))

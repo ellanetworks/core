@@ -136,7 +136,63 @@
           "label": "reject",
           "unknown": false
         },
-        "value": "ab"
+        "value": {
+          "hex": "60018001004e40024500004e4001060000f1100019b0100b300000f1100019b01080001e20020102480002010a",
+          "source_enb_to_target_enb": {
+            "rrc_container": "80",
+            "erab_information_list": [
+              {
+                "erab_id": 5,
+                "dl_forwarding": {
+                  "type": "enum",
+                  "value": 0,
+                  "label": "dL-Forwarding-proposed",
+                  "unknown": false
+                }
+              },
+              {
+                "erab_id": 6
+              }
+            ],
+            "target_cell_id": {
+              "plmn_id": {
+                "mcc": "001",
+                "mnc": "01"
+              },
+              "cell_id": "0019b01"
+            },
+            "subscriber_profile_id_for_rfp": 12,
+            "ue_history_information": [
+              {
+                "e_utran_cell": {
+                  "global_cell_id": {
+                    "plmn_id": {
+                      "mcc": "001",
+                      "mnc": "01"
+                    },
+                    "cell_id": "0019b01"
+                  },
+                  "cell_size": {
+                    "type": "enum",
+                    "value": 1,
+                    "label": "small",
+                    "unknown": false
+                  },
+                  "time_ue_stayed_in_cell": 30
+                }
+              },
+              {
+                "utran_cell": "0102"
+              },
+              {
+                "geran_cell": "undefined"
+              },
+              {
+                "ng_ran_cell": "0a"
+              }
+            ]
+          }
+        }
       },
       {
         "id": {

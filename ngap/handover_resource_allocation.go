@@ -39,8 +39,9 @@ type HandoverRequest struct {
 	// when the list is absent and it cannot determine the serving PLMN otherwise.
 	MobilityRestrictionList *MobilityRestrictionList
 
-	GUAMI        GUAMI
-	AMFUENGAPID2 *AMFUENGAPID
+	GUAMI           GUAMI
+	AMFUENGAPID2    *AMFUENGAPID
+	TargetRANNodeID *GlobalRANNodeID
 
 	messageMeta
 }
@@ -243,6 +244,27 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 			}
 
 			return m.AMFUENGAPID2, true
+		},
+	},
+	{
+		id: IDTargetRANNodeID, presence: presenceOptional, crit: CriticalityIgnore,
+		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
+			var v GlobalRANNodeID
+
+			if err := perIEDecode(raw, &v); err != nil {
+				return err
+			}
+
+			m.TargetRANNodeID = &v
+
+			return nil
+		},
+		encode: func(m *HandoverRequest) (per.Marshaler, bool) {
+			if m.TargetRANNodeID == nil {
+				return nil, false
+			}
+
+			return m.TargetRANNodeID, true
 		},
 	},
 }

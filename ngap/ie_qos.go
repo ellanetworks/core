@@ -465,10 +465,10 @@ type QosFlowListWithCause []QosFlowWithCauseItem
 // AssociatedQosFlowItem ::= SEQUENCE { qosFlowIdentifier,
 // qosFlowMappingIndication OPTIONAL, iE-Extensions OPTIONAL } (extensible).
 type AssociatedQosFlowItem struct {
-	_                        [0]struct{} `per:"extseq"`
 	QosFlowIdentifier        QosFlowIdentifier
 	QosFlowMappingIndication *QosFlowMappingIndication `per:"ENUMERATED,range:0..1,...,optional"`
-	_                        ieExtensions              `per:",skip"`
+	iEExtensions             *rawIEExtensions          `per:",optional"`
+	extensions               per.ExtensionAdditions    `per:",extraw"`
 }
 
 // AssociatedQosFlowList ::= SEQUENCE (SIZE(1..maxnoofQosFlows)) OF

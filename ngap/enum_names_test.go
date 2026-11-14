@@ -60,6 +60,15 @@ func TestEnumNames(t *testing.T) {
 		{"PagingOriginNon3GPP", PagingOriginNon3GPP.Name(), "non-3gpp"},
 		{"PagingOrigin(9)", PagingOrigin(9).Name(), ""},
 
+		{"DLForwardingProposed", DLForwardingProposed.Name(), "dl-forwarding-proposed"},
+		{"DLForwarding(9)", DLForwarding(9).Name(), ""},
+		{"CellSizeVerySmall", CellSizeVerySmall.Name(), "verysmall"},
+		{"CellSizeLarge", CellSizeLarge.Name(), "large"},
+		{"CellSize(9)", CellSize(9).Name(), ""},
+		{"QosFlowMappingUL", QosFlowMappingUL.Name(), "ul"},
+		{"QosFlowMappingDL", QosFlowMappingDL.Name(), "dl"},
+		{"QosFlowMappingIndication(9)", QosFlowMappingIndication(9).Name(), ""},
+
 		{"PagingPriorityLevel8", PagingPriorityLevel8.Name(), "priolevel8"},
 		{"PagingPriority(99)", PagingPriority(99).Name(), ""},
 

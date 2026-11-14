@@ -147,10 +147,15 @@ var messageParsers = []messageParser{
 	}},
 }
 
-// transferParsers are the §9.3.4 transfer parsers. They take a
-// TransferContainer rather than a message body, so they are registered apart
-// from messageParsers; the fuzzer drives both.
+// transferParsers are the §9.3.4 transfer parsers and the §9.3.1.29
+// container parser. They take OCTET STRING contents rather than a message
+// body, so they are registered apart from messageParsers; the fuzzer drives
+// both.
 var transferParsers = []messageParser{
+	{"ParseSourceNGRANNodeToTargetNGRANNodeTransparentContainer", func(v []byte) error {
+		_, err := ParseSourceNGRANNodeToTargetNGRANNodeTransparentContainer(v)
+		return err
+	}},
 	{"ParsePDUSessionResourceNotifyTransfer", func(v []byte) error {
 		_, err := ParsePDUSessionResourceNotifyTransfer(v)
 		return err

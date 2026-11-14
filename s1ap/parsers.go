@@ -86,3 +86,10 @@ var messageParsers = []messageParser{
 	{"ParsePWSFailureIndication", func(v []byte) error { _, err := ParsePWSFailureIndication(v); return err }},
 	{"ParseRerouteNASRequest", func(v []byte) error { _, err := ParseRerouteNASRequest(v); return err }},
 }
+
+var transferParsers = []messageParser{
+	{"ParseSourceeNBToTargeteNBTransparentContainer", func(v []byte) error {
+		_, err := ParseSourceeNBToTargeteNBTransparentContainer(v)
+		return err
+	}},
+}

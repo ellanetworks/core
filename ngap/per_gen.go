@@ -326,14 +326,24 @@ func (allowedNSSAIItem *AllowedNSSAIItem) UnmarshalPER(r *per.Reader, enc per.En
 }
 
 func (associatedQosFlowItem *AssociatedQosFlowItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
+	w.WriteBit(associatedQosFlowItem.extensions.Present())
 	w.WriteBit(associatedQosFlowItem.QosFlowMappingIndication != nil)
-	w.WriteBit(false)
+	w.WriteBit(associatedQosFlowItem.iEExtensions != nil)
 	if err := associatedQosFlowItem.QosFlowIdentifier.MarshalPER(w, enc); err != nil {
 		return err
 	}
 	if associatedQosFlowItem.QosFlowMappingIndication != nil {
 		if err := encodeRootEnumerated(w, enc, 2, int64((*associatedQosFlowItem.QosFlowMappingIndication)), "QosFlowMappingIndication"); err != nil {
+			return err
+		}
+	}
+	if associatedQosFlowItem.iEExtensions != nil {
+		if err := (*associatedQosFlowItem.iEExtensions).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if associatedQosFlowItem.extensions.Present() {
+		if err := associatedQosFlowItem.extensions.MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
@@ -349,7 +359,7 @@ func (associatedQosFlowItem *AssociatedQosFlowItem) UnmarshalPER(r *per.Reader, 
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -365,34 +375,16 @@ func (associatedQosFlowItem *AssociatedQosFlowItem) UnmarshalPER(r *per.Reader, 
 		v = QosFlowMappingIndication(e1)
 		associatedQosFlowItem.QosFlowMappingIndication = &v
 	}
-	if p_f2 {
-		var v ieExtensions
+	if p_iEExtensions {
+		var v rawIEExtensions
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-		_ = v
+		associatedQosFlowItem.iEExtensions = &v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := associatedQosFlowItem.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
@@ -938,6 +930,52 @@ func (cellIDCancelledNRItem *CellIDCancelledNRItem) UnmarshalPER(r *per.Reader, 
 	return nil
 }
 
+func (cellType *CellType) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(cellType.extensions.Present())
+	w.WriteBit(cellType.iEExtensions != nil)
+	if err := cellType.CellSize.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if cellType.iEExtensions != nil {
+		if err := (*cellType.iEExtensions).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if cellType.extensions.Present() {
+		if err := cellType.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (cellType *CellType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&cellType.CellSize).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		var v transparentIEExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		cellType.iEExtensions = &v
+	}
+	if extBit {
+		if err := cellType.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (completedCellsInEAIEUTRAItem *CompletedCellsInEAIEUTRAItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(false)
@@ -1226,6 +1264,58 @@ func (criticalityDiagnosticsIEItem *CriticalityDiagnosticsIEItem) UnmarshalPER(r
 	return nil
 }
 
+func (dRBsToQosFlowsMappingItem *DRBsToQosFlowsMappingItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(dRBsToQosFlowsMappingItem.extensions.Present())
+	w.WriteBit(dRBsToQosFlowsMappingItem.iEExtensions != nil)
+	if err := dRBsToQosFlowsMappingItem.DRBID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := dRBsToQosFlowsMappingItem.AssociatedQosFlowList.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if dRBsToQosFlowsMappingItem.iEExtensions != nil {
+		if err := (*dRBsToQosFlowsMappingItem.iEExtensions).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if dRBsToQosFlowsMappingItem.extensions.Present() {
+		if err := dRBsToQosFlowsMappingItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (dRBsToQosFlowsMappingItem *DRBsToQosFlowsMappingItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&dRBsToQosFlowsMappingItem.DRBID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&dRBsToQosFlowsMappingItem.AssociatedQosFlowList).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		var v transparentIEExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		dRBsToQosFlowsMappingItem.iEExtensions = &v
+	}
+	if extBit {
+		if err := dRBsToQosFlowsMappingItem.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (dataForwardingResponseDRBItem *DataForwardingResponseDRBItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(dataForwardingResponseDRBItem.DLForwardingUPTNLInformation != nil)
@@ -1505,6 +1595,69 @@ func (ePSTAI *EPSTAI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+func (eRABInformationItem *ERABInformationItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(eRABInformationItem.extensions.Present())
+	w.WriteBit(eRABInformationItem.DLForwarding != nil)
+	w.WriteBit(eRABInformationItem.iEExtensions != nil)
+	if err := eRABInformationItem.ERABID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if eRABInformationItem.DLForwarding != nil {
+		if err := (*eRABInformationItem.DLForwarding).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if eRABInformationItem.iEExtensions != nil {
+		if err := (*eRABInformationItem.iEExtensions).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if eRABInformationItem.extensions.Present() {
+		if err := eRABInformationItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (eRABInformationItem *ERABInformationItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_DLForwarding, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&eRABInformationItem.ERABID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_DLForwarding {
+		var v DLForwarding
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		eRABInformationItem.DLForwarding = &v
+	}
+	if p_iEExtensions {
+		var v transparentIEExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		eRABInformationItem.iEExtensions = &v
+	}
+	if extBit {
+		if err := eRABInformationItem.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -2899,6 +3052,144 @@ func (handoverResourceAllocationUnsuccessfulTransfer *HandoverResourceAllocation
 	return nil
 }
 
+func (lastVisitedCellItem *LastVisitedCellItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(lastVisitedCellItem.extensions.Present())
+	w.WriteBit(lastVisitedCellItem.iEExtensions != nil)
+	if err := lastVisitedCellItem.LastVisitedCellInformation.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if lastVisitedCellItem.iEExtensions != nil {
+		if err := (*lastVisitedCellItem.iEExtensions).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if lastVisitedCellItem.extensions.Present() {
+		if err := lastVisitedCellItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (lastVisitedCellItem *LastVisitedCellItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&lastVisitedCellItem.LastVisitedCellInformation).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		var v transparentIEExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		lastVisitedCellItem.iEExtensions = &v
+	}
+	if extBit {
+		if err := lastVisitedCellItem.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (lastVisitedNGRANCellInformation *LastVisitedNGRANCellInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(lastVisitedNGRANCellInformation.extensions.Present())
+	w.WriteBit(lastVisitedNGRANCellInformation.TimeUEStayedInCellEnhancedGranularity != nil)
+	w.WriteBit(lastVisitedNGRANCellInformation.HOCauseValue != nil)
+	w.WriteBit(lastVisitedNGRANCellInformation.iEExtensions != nil)
+	if err := lastVisitedNGRANCellInformation.GlobalCellID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := lastVisitedNGRANCellInformation.CellType.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := lastVisitedNGRANCellInformation.TimeUEStayedInCell.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if lastVisitedNGRANCellInformation.TimeUEStayedInCellEnhancedGranularity != nil {
+		if err := (*lastVisitedNGRANCellInformation.TimeUEStayedInCellEnhancedGranularity).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if lastVisitedNGRANCellInformation.HOCauseValue != nil {
+		if err := (*lastVisitedNGRANCellInformation.HOCauseValue).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if lastVisitedNGRANCellInformation.iEExtensions != nil {
+		if err := (*lastVisitedNGRANCellInformation.iEExtensions).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if lastVisitedNGRANCellInformation.extensions.Present() {
+		if err := lastVisitedNGRANCellInformation.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (lastVisitedNGRANCellInformation *LastVisitedNGRANCellInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_TimeUEStayedInCellEnhancedGranularity, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_HOCauseValue, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&lastVisitedNGRANCellInformation.GlobalCellID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&lastVisitedNGRANCellInformation.CellType).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&lastVisitedNGRANCellInformation.TimeUEStayedInCell).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_TimeUEStayedInCellEnhancedGranularity {
+		var v TimeUEStayedInCellEnhancedGranularity
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		lastVisitedNGRANCellInformation.TimeUEStayedInCellEnhancedGranularity = &v
+	}
+	if p_HOCauseValue {
+		var v Cause
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		lastVisitedNGRANCellInformation.HOCauseValue = &v
+	}
+	if p_iEExtensions {
+		var v transparentIEExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		lastVisitedNGRANCellInformation.iEExtensions = &v
+	}
+	if extBit {
+		if err := lastVisitedNGRANCellInformation.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (mobilityRestrictionList *MobilityRestrictionList) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(mobilityRestrictionList.EquivalentPLMNs != nil)
@@ -3924,6 +4215,73 @@ func (pDUSessionResourceHandoverItem *PDUSessionResourceHandoverItem) UnmarshalP
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+func (pDUSessionResourceInformationItem *PDUSessionResourceInformationItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(pDUSessionResourceInformationItem.extensions.Present())
+	w.WriteBit(pDUSessionResourceInformationItem.DRBsToQosFlowsMappingList != nil)
+	w.WriteBit(pDUSessionResourceInformationItem.iEExtensions != nil)
+	if err := pDUSessionResourceInformationItem.PDUSessionID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := pDUSessionResourceInformationItem.QosFlowInformationList.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if pDUSessionResourceInformationItem.DRBsToQosFlowsMappingList != nil {
+		if err := pDUSessionResourceInformationItem.DRBsToQosFlowsMappingList.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if pDUSessionResourceInformationItem.iEExtensions != nil {
+		if err := (*pDUSessionResourceInformationItem.iEExtensions).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if pDUSessionResourceInformationItem.extensions.Present() {
+		if err := pDUSessionResourceInformationItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (pDUSessionResourceInformationItem *PDUSessionResourceInformationItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_DRBsToQosFlowsMappingList, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&pDUSessionResourceInformationItem.PDUSessionID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&pDUSessionResourceInformationItem.QosFlowInformationList).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_DRBsToQosFlowsMappingList {
+		if err := (&pDUSessionResourceInformationItem.DRBsToQosFlowsMappingList).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_iEExtensions {
+		var v transparentIEExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		pDUSessionResourceInformationItem.iEExtensions = &v
+	}
+	if extBit {
+		if err := pDUSessionResourceInformationItem.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -6603,6 +6961,69 @@ func (qosFlowAddOrModifyResponseItem *QosFlowAddOrModifyResponseItem) UnmarshalP
 	return nil
 }
 
+func (qosFlowInformationItem *QosFlowInformationItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(qosFlowInformationItem.extensions.Present())
+	w.WriteBit(qosFlowInformationItem.DLForwarding != nil)
+	w.WriteBit(qosFlowInformationItem.iEExtensions != nil)
+	if err := qosFlowInformationItem.QosFlowIdentifier.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if qosFlowInformationItem.DLForwarding != nil {
+		if err := (*qosFlowInformationItem.DLForwarding).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if qosFlowInformationItem.iEExtensions != nil {
+		if err := (*qosFlowInformationItem.iEExtensions).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if qosFlowInformationItem.extensions.Present() {
+		if err := qosFlowInformationItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (qosFlowInformationItem *QosFlowInformationItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_DLForwarding, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&qosFlowInformationItem.QosFlowIdentifier).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_DLForwarding {
+		var v DLForwarding
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		qosFlowInformationItem.DLForwarding = &v
+	}
+	if p_iEExtensions {
+		var v transparentIEExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		qosFlowInformationItem.iEExtensions = &v
+	}
+	if extBit {
+		if err := qosFlowInformationItem.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (qosFlowItemWithDataForwarding *QosFlowItemWithDataForwarding) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	w.WriteBit(false)
 	w.WriteBit(qosFlowItemWithDataForwarding.DataForwardingAccepted != nil)
@@ -7783,6 +8204,111 @@ func (sliceSupportItem *SliceSupportItem) UnmarshalPER(r *per.Reader, enc per.En
 			if err := per.SkipOpenType(r, enc); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+func (sourceNGRANNodeToTargetNGRANNodeTransparentContainer *SourceNGRANNodeToTargetNGRANNodeTransparentContainer) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	w.WriteBit(sourceNGRANNodeToTargetNGRANNodeTransparentContainer.extensions.Present())
+	w.WriteBit(sourceNGRANNodeToTargetNGRANNodeTransparentContainer.PDUSessionResourceInformationList != nil)
+	w.WriteBit(sourceNGRANNodeToTargetNGRANNodeTransparentContainer.ERABInformationList != nil)
+	w.WriteBit(sourceNGRANNodeToTargetNGRANNodeTransparentContainer.IndexToRFSP != nil)
+	w.WriteBit(sourceNGRANNodeToTargetNGRANNodeTransparentContainer.iEExtensions != nil)
+	if err := sourceNGRANNodeToTargetNGRANNodeTransparentContainer.RRCContainer.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if sourceNGRANNodeToTargetNGRANNodeTransparentContainer.PDUSessionResourceInformationList != nil {
+		if err := sourceNGRANNodeToTargetNGRANNodeTransparentContainer.PDUSessionResourceInformationList.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if sourceNGRANNodeToTargetNGRANNodeTransparentContainer.ERABInformationList != nil {
+		if err := sourceNGRANNodeToTargetNGRANNodeTransparentContainer.ERABInformationList.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if err := sourceNGRANNodeToTargetNGRANNodeTransparentContainer.TargetCellID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if sourceNGRANNodeToTargetNGRANNodeTransparentContainer.IndexToRFSP != nil {
+		if err := (*sourceNGRANNodeToTargetNGRANNodeTransparentContainer.IndexToRFSP).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if err := sourceNGRANNodeToTargetNGRANNodeTransparentContainer.UEHistoryInformation.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if sourceNGRANNodeToTargetNGRANNodeTransparentContainer.iEExtensions != nil {
+		if err := (*sourceNGRANNodeToTargetNGRANNodeTransparentContainer.iEExtensions).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if sourceNGRANNodeToTargetNGRANNodeTransparentContainer.extensions.Present() {
+		if err := sourceNGRANNodeToTargetNGRANNodeTransparentContainer.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (sourceNGRANNodeToTargetNGRANNodeTransparentContainer *SourceNGRANNodeToTargetNGRANNodeTransparentContainer) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_PDUSessionResourceInformationList, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ERABInformationList, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_IndexToRFSP, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&sourceNGRANNodeToTargetNGRANNodeTransparentContainer.RRCContainer).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_PDUSessionResourceInformationList {
+		if err := (&sourceNGRANNodeToTargetNGRANNodeTransparentContainer.PDUSessionResourceInformationList).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_ERABInformationList {
+		if err := (&sourceNGRANNodeToTargetNGRANNodeTransparentContainer.ERABInformationList).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if err := (&sourceNGRANNodeToTargetNGRANNodeTransparentContainer.TargetCellID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_IndexToRFSP {
+		var v IndexToRFSP
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		sourceNGRANNodeToTargetNGRANNodeTransparentContainer.IndexToRFSP = &v
+	}
+	if err := (&sourceNGRANNodeToTargetNGRANNodeTransparentContainer.UEHistoryInformation).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		var v transparentIEExtensions
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		sourceNGRANNodeToTargetNGRANNodeTransparentContainer.iEExtensions = &v
+	}
+	if extBit {
+		if err := sourceNGRANNodeToTargetNGRANNodeTransparentContainer.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
 		}
 	}
 	return nil
