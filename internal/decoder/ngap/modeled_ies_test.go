@@ -103,6 +103,24 @@ func modeledIEsCorpus(t *testing.T) map[string][]byte {
 				ExtendedBackupAMFName: &lib.ExtendedAMFName{AMFNameVisibleString: lib.Ptr(lib.AMFNameVisibleString("backup-extended"))},
 			}},
 		}),
+		"ng_setup_response_extended_amf_name": mustMarshal(t, &lib.NGSetupResponse{
+			AMFName:             "amf",
+			RelativeAMFCapacity: lib.Ptr(uint8(255)),
+			ServedGUAMIList:     lib.ServedGUAMIList{{GUAMI: guamis[0].GUAMI}},
+			PLMNSupportList: lib.PLMNSupportList{{
+				PLMNIdentity:     testPLMN,
+				SliceSupportList: lib.SliceSupportList{{SNSSAI: lib.SNSSAI{SST: 1}}},
+			}},
+			ExtendedAMFName: &lib.ExtendedAMFName{AMFNameUTF8String: lib.Ptr(lib.AMFNameUTF8String("ella"))},
+		}),
+		"amf_status_indication_unavailable_guami_extensions": mustMarshal(t, &lib.AMFStatusIndication{
+			UnavailableGUAMIList: lib.UnavailableGUAMIList{{
+				GUAMI:                        guamis[0].GUAMI,
+				TimerApproachForGUAMIRemoval: lib.Ptr(lib.TimerApproachApplyTimer),
+				BackupAMFName:                lib.Ptr(lib.Name("backup")),
+				ExtendedBackupAMFName:        &lib.ExtendedAMFName{AMFNameVisibleString: lib.Ptr(lib.AMFNameVisibleString("backup-extended"))},
+			}},
+		}),
 		"ue_context_release_request_gw_context_release_indication": mustMarshal(t, &lib.UEContextReleaseRequest{
 			AMFUENGAPID:                1,
 			RANUENGAPID:                2,
@@ -119,6 +137,22 @@ func TestDecodeNGAPMessage_ModeledIEs(t *testing.T) {
 
 			if msg.Value.Error != "" {
 				t.Fatalf("decode error: %s", msg.Value.Error)
+			}
+
+			pdu, err := lib.ParseRawPDU(raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			wire := pdu.IEs()
+			if len(wire) != len(msg.Value.IEs) {
+				t.Fatalf("rendered %d IEs, want the %d on the wire", len(msg.Value.IEs), len(wire))
+			}
+
+			for i, w := range wire {
+				if msg.Value.IEs[i].ID.Value != int64(w.ID) {
+					t.Errorf("IE %d = %d, want %d", i, msg.Value.IEs[i].ID.Value, w.ID)
+				}
 			}
 
 			for _, e := range msg.Value.IEs {
@@ -184,6 +218,38 @@ func TestDecodeNGAPMessage_ServedGUAMIExtensions(t *testing.T) {
 
 	if got.GUAMIType == nil || got.GUAMIType.Value != int64(lib.GUAMITypeMapped) {
 		t.Fatalf("GUAMI Type = %+v", got.GUAMIType)
+	}
+
+	if got.ExtendedBackupAMFName == nil || got.ExtendedBackupAMFName.VisibleString == nil || *got.ExtendedBackupAMFName.VisibleString != "backup-extended" {
+		t.Fatalf("Extended Backup AMF Name = %+v", got.ExtendedBackupAMFName)
+	}
+}
+
+func TestDecodeNGAPMessage_NGSetupResponseExtendedAMFName(t *testing.T) {
+	ies := DecodeNGAPMessage(modeledIEsCorpus(t)["ng_setup_response_extended_amf_name"]).Value.IEs
+
+	last := ies[len(ies)-1]
+	if last.ID.Value != int64(lib.IDExtendedAMFName) || last.Criticality.Value != int64(lib.CriticalityIgnore) {
+		t.Fatalf("IEs = %+v, want Extended AMF Name last", ies)
+	}
+
+	name, ok := last.Value.(ExtendedAMFName)
+	if !ok || name.UTF8String == nil || *name.UTF8String != "ella" {
+		t.Fatalf("Extended AMF Name = %+v", last.Value)
+	}
+}
+
+func TestDecodeNGAPMessage_UnavailableGUAMIExtensions(t *testing.T) {
+	msg := DecodeNGAPMessage(modeledIEsCorpus(t)["amf_status_indication_unavailable_guami_extensions"])
+
+	list, ok := msg.Value.IEs[0].Value.([]UnavailableGUAMI)
+	if !ok || len(list) != 1 {
+		t.Fatalf("Unavailable GUAMI List = %+v", msg.Value.IEs[0].Value)
+	}
+
+	got := list[0]
+	if got.AMFRegionID == "" || !got.TimerApproachForGUAMIRemoval || got.BackupAMFName == nil || *got.BackupAMFName != "backup" {
+		t.Fatalf("unavailable GUAMI = %+v", got)
 	}
 
 	if got.ExtendedBackupAMFName == nil || got.ExtendedBackupAMFName.VisibleString == nil || *got.ExtendedBackupAMFName.VisibleString != "backup-extended" {

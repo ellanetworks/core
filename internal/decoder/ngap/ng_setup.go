@@ -237,6 +237,10 @@ func buildNGSetupResponse(value []byte) NGAPMessageValue {
 			buildUERetention(*resp.UERetentionInformation)))
 	}
 
+	if resp.ExtendedAMFName != nil {
+		ies = append(ies, ie(ngap.IDExtendedAMFName, ngap.CriticalityIgnore, extendedAMFName(*resp.ExtendedAMFName)))
+	}
+
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(resp.UnknownIEs())...)}
 }
 
