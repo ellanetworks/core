@@ -101,26 +101,6 @@ export async function forgetRadio(
   });
 }
 
-export async function findRadioByName(
-  authToken: string,
-  name: string,
-): Promise<APIRadio | null> {
-  const perPage = 100;
-
-  let best: APIRadio | null = null;
-
-  for (let page = 1; ; page++) {
-    const response = await listRadios(authToken, page, perPage);
-
-    for (const radio of response.items) {
-      if (radio.name !== name) continue;
-      if (radio.status === "online") return radio;
-
-      best ??= radio;
-    }
-
-    if (page * perPage >= response.total_count || response.items.length === 0) {
-      return best;
-    }
-  }
+export function radioDisplayName(name?: string, ref?: string): string {
+  return name || ref || "";
 }

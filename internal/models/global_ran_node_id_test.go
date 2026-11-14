@@ -148,3 +148,50 @@ func TestParseRanNodeRefRejects(t *testing.T) {
 		}
 	}
 }
+
+func TestParseRanNodeRefAcceptsOnlyCanonicalRefs(t *testing.T) {
+	valid := []string{
+		"gNB:001-01:00002a@24",
+		"gNB:001-01:3fffff@22",
+		"gNB:001-001:ffffffff@32",
+		"eNB:001-01:MacroeNB-000ab",
+		"eNB:001-01:HomeeNB-00000ab",
+		"eNB:001-01:SMacroeNB-3ffff",
+		"eNB:001-01:LMacroeNB-1fffff",
+		"ng-eNB:001-01:MacroNGeNB-000ab",
+		"N3IWF:001-01:00ab",
+		"eNB:-:MacroeNB-00001",
+	}
+
+	for _, ref := range valid {
+		id, err := models.ParseRanNodeRef(ref)
+		if err != nil {
+			t.Errorf("models.ParseRanNodeRef(%q): %v", ref, err)
+			continue
+		}
+
+		if got, _ := id.Ref(); got != ref {
+			t.Errorf("models.ParseRanNodeRef(%q).Ref() = %q, want it unchanged", ref, got)
+		}
+	}
+
+	invalid := []string{
+		"eNB:001-01:MacroeNB-000AB",
+		"eNB:001-01:garbage",
+		"eNB:001-01:MacroeNB-0001",
+		"eNB:001-01:MacroeNB-fffff0",
+		"eNB:001-01:SMacroeNB-7ffff",
+		"eNB:001-01:MacroNGeNB-000ab",
+		"ng-eNB:001-01:MacroeNB-000ab",
+		"gNB:001-01:1@22",
+		"gNB:001-01:ffffff@22",
+		"gNB:001-01:gnb-1@24",
+		"N3IWF:001-01:ab",
+	}
+
+	for _, ref := range invalid {
+		if _, err := models.ParseRanNodeRef(ref); err == nil {
+			t.Errorf("models.ParseRanNodeRef(%q) accepted a ref no radio can have", ref)
+		}
+	}
+}

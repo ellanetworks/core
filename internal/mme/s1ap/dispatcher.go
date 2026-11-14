@@ -59,10 +59,12 @@ func Dispatch(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, msg []byte) 
 
 	// Track the eNB before logging so the inbound event is attributed to the radio.
 	isSetup := false
+	setupRef := ""
+
 	if im, ok := pdu.(*s1ap.InitiatingMessage); ok && im.ProcedureCode == s1ap.ProcS1Setup {
 		isSetup = true
 
-		m.TrackRadioFromSetup(ctx, conn, im.Value)
+		setupRef = m.TrackRadioFromSetup(ctx, conn, im.Value)
 	}
 
 	// radio is nil until S1 Setup records the eNB.
@@ -75,7 +77,11 @@ func Dispatch(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, msg []byte) 
 		}
 	}
 
-	m.LogNetworkEvent(ctx, conn, messageType, logger.DirectionInbound, msg)
+	if isSetup {
+		m.LogSetupRequest(ctx, conn, messageType, msg, setupRef)
+	} else {
+		m.LogNetworkEvent(ctx, conn, messageType, logger.DirectionInbound, msg)
+	}
 
 	// TS 36.413: S1 Setup is the first procedure on a TNL association. Until it
 	// completes, drop every other message, including UE signalling from an eNB

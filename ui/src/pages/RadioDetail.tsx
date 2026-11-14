@@ -115,21 +115,21 @@ const RadioDetail: React.FC = () => {
   const subsPerPage = subsPaginationModel.pageSize;
 
   const subscribersQuery = useQuery({
-    queryKey: ["subscribers-by-radio", radioName, subsPage, subsPerPage],
+    queryKey: ["subscribers-by-radio", ref, subsPage, subsPerPage],
     queryFn: () =>
-      listSubscribersByRadio(accessToken!, radioName!, subsPage, subsPerPage),
-    enabled: authReady && !!accessToken && !!radioName,
+      listSubscribersByRadio(accessToken!, ref!, subsPage, subsPerPage),
+    enabled: authReady && !!accessToken && !!ref,
     refetchInterval: 5000,
     retry: false,
   });
 
   const eventsQuery = useQuery({
-    queryKey: ["radio-events", radioName],
+    queryKey: ["radio-events", ref],
     queryFn: () =>
       listRadioEvents(accessToken!, 1, 12, {
-        radio: radioName!,
+        radio: ref!,
       }),
-    enabled: authReady && !!accessToken && !!radioName,
+    enabled: authReady && !!accessToken && !!ref,
     refetchInterval: 5000,
     retry: false,
   });
@@ -573,9 +573,9 @@ const RadioDetail: React.FC = () => {
 
               <RoamersSection
                 title="Connected Roamers"
-                queryKey={["roamers-by-radio", radio.name]}
+                queryKey={["roamers-by-radio", radio.ref]}
                 fetchPage={(page, perPage) =>
-                  listRoamersByRadio(accessToken!, radio.name, page, perPage)
+                  listRoamersByRadio(accessToken!, radio.ref, page, perPage)
                 }
                 enabled={authReady && !!accessToken}
               />
@@ -592,7 +592,7 @@ const RadioDetail: React.FC = () => {
                   <Typography variant="h6">Recent Network Events</Typography>
                   <Button
                     component={RouterLink}
-                    to={`/radios/events?radio=${encodeURIComponent(radio.name)}`}
+                    to={`/radios/events?radio=${encodeURIComponent(radio.ref)}`}
                     size="small"
                     sx={{
                       color: theme.palette.link,
@@ -600,7 +600,7 @@ const RadioDetail: React.FC = () => {
                       "&:hover": { textDecoration: "underline" },
                     }}
                   >
-                    View all events for {radio.name} →
+                    View all events for {radioLabel} →
                   </Button>
                 </Box>
                 <QueryState
@@ -626,7 +626,7 @@ const RadioDetail: React.FC = () => {
                       defaultPageSize={100}
                       onRowClick={(params) => {
                         navigate(
-                          `/radios/events?radio=${encodeURIComponent(radio.name)}&event=${params.row.id}`,
+                          `/radios/events?radio=${encodeURIComponent(radio.ref)}&event=${params.row.id}`,
                         );
                       }}
                       variant="embedded"
