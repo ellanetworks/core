@@ -119,7 +119,7 @@ func TestWriter_DeliversInOrder(t *testing.T) {
 }
 
 // A peer that keeps the association up but stops reading must not block a sender.
-func TestWriter_WedgedPeerFailsAssociation(t *testing.T) {
+func TestWriter_QueueFullKeepsAssociation(t *testing.T) {
 	srv, serverConn, disconnected, client := serverWithAcceptedConn(t)
 
 	defer func() {
@@ -129,19 +129,12 @@ func TestWriter_WedgedPeerFailsAssociation(t *testing.T) {
 		srv.Shutdown(sctx)
 	}()
 
-	// Shrink both buffers so the write side wedges within a few messages.
-	_ = client.controlFd(func(fd int) error {
-		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, 2048)
-	})
-	_ = serverConn.controlFd(func(fd int) error {
-		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_SNDBUF, 2048)
-	})
-
-	payload := make([]byte, 1024)
-	deadline := time.Now().Add(20 * time.Second)
+	payload := make([]byte, 4096)
+	queued := 0
 	sawQueueFull := false
 
-	for i := 0; i < writeQueueDepth*8 && time.Now().Before(deadline); i++ {
+	for i := 0; i < writeQueueDepth*8; i++ {
+		payload[0], payload[1] = byte(i>>8), byte(i)
 		start := time.Now()
 
 		_, err := serverConn.WriteMsg(payload, &SndRcvInfo{PPID: PPIDWireOrder(testPPID), Stream: 0})
@@ -154,16 +147,65 @@ func TestWriter_WedgedPeerFailsAssociation(t *testing.T) {
 			sawQueueFull = true
 			break
 		}
-	}
 
-	select {
-	case <-disconnected:
-	case <-time.After(10 * time.Second):
-		t.Fatal("wedged peer did not fail the association")
+		if err != nil {
+			t.Fatalf("WriteMsg %d: %v", i, err)
+		}
+
+		queued++
 	}
 
 	if !sawQueueFull {
-		t.Log("association failed via write deadline, not queue overflow")
+		t.Fatal("the queue never filled; the peer applied no backpressure")
+	}
+
+	if serverConn.closed.Load() {
+		t.Fatal("a full queue closed the association")
+	}
+
+	buf := make([]byte, 8192)
+
+	readNext := func(want int) {
+		t.Helper()
+
+		if err := client.setDeadline(time.Now().Add(10 * time.Second)); err != nil {
+			t.Fatalf("set deadline: %v", err)
+		}
+
+		for {
+			read, _, notification, err := client.readMsg(buf)
+			if err != nil {
+				t.Fatalf("client read %d: %v", want, err)
+			}
+
+			if notification != nil {
+				continue
+			}
+
+			if read != len(payload) || int(buf[0])<<8|int(buf[1]) != want {
+				t.Fatalf("client read message %d out of order", want)
+			}
+
+			return
+		}
+	}
+
+	for i := 0; i < queued; i++ {
+		readNext(i)
+	}
+
+	payload[0], payload[1] = byte(queued>>8), byte(queued)
+
+	if _, err := serverConn.WriteMsg(payload, &SndRcvInfo{PPID: PPIDWireOrder(testPPID), Stream: 0}); err != nil {
+		t.Fatalf("WriteMsg after the peer drained: %v", err)
+	}
+
+	readNext(queued)
+
+	select {
+	case <-disconnected:
+		t.Fatal("a full queue failed the association")
+	default:
 	}
 }
 
@@ -214,11 +256,6 @@ func TestWriter_StartAfterCloseDoesNotOrphan(t *testing.T) {
 // A send that stays parked past the write deadline must fail the association
 // even when the queue has room.
 func TestWriter_WriteDeadlineFailsAssociation(t *testing.T) {
-	original := writeTimeout
-	writeTimeout = 250 * time.Millisecond
-
-	defer func() { writeTimeout = original }()
-
 	srv, serverConn, disconnected, client := serverWithAcceptedConn(t)
 
 	defer func() {
@@ -227,6 +264,8 @@ func TestWriter_WriteDeadlineFailsAssociation(t *testing.T) {
 
 		srv.Shutdown(sctx)
 	}()
+
+	serverConn.SetWriteTimeout(250 * time.Millisecond)
 
 	_ = client.controlFd(func(fd int) error {
 		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, 2048)
@@ -399,11 +438,6 @@ func TestWriter_WriteMsgWaitReturnsOnContextDone(t *testing.T) {
 }
 
 func TestWriter_WriteMsgWaitEndsWhenWedgedPeerFailsAssociation(t *testing.T) {
-	original := writeTimeout
-	writeTimeout = 250 * time.Millisecond
-
-	defer func() { writeTimeout = original }()
-
 	srv, serverConn, disconnected, client := serverWithAcceptedConn(t)
 
 	defer func() {
@@ -412,6 +446,8 @@ func TestWriter_WriteMsgWaitEndsWhenWedgedPeerFailsAssociation(t *testing.T) {
 
 		srv.Shutdown(sctx)
 	}()
+
+	serverConn.SetWriteTimeout(250 * time.Millisecond)
 
 	_ = client.controlFd(func(fd int) error {
 		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, 2048)
@@ -447,12 +483,7 @@ func TestWriter_WriteMsgWaitEndsWhenWedgedPeerFailsAssociation(t *testing.T) {
 	}
 }
 
-func TestWriter_SetWriteTimeoutOverridesTheDefault(t *testing.T) {
-	original := writeTimeout
-	writeTimeout = 250 * time.Millisecond
-
-	defer func() { writeTimeout = original }()
-
+func TestWriter_PeerThatStopsReadingKeepsAssociation(t *testing.T) {
 	srv, serverConn, disconnected, client := serverWithAcceptedConn(t)
 
 	defer func() {
@@ -462,7 +493,82 @@ func TestWriter_SetWriteTimeoutOverridesTheDefault(t *testing.T) {
 		srv.Shutdown(sctx)
 	}()
 
-	serverConn.SetWriteTimeout(10 * time.Second)
+	const n = 1024
+
+	sendErr := make(chan error, 1)
+
+	go func() {
+		payload := make([]byte, 4096)
+
+		for i := range n {
+			payload[0], payload[1] = byte(i>>8), byte(i)
+
+			if _, err := serverConn.WriteMsgWait(context.Background(), payload, &SndRcvInfo{PPID: PPIDWireOrder(testPPID), Stream: 0}); err != nil {
+				sendErr <- err
+				return
+			}
+		}
+
+		sendErr <- nil
+	}()
+
+	select {
+	case <-disconnected:
+		t.Fatal("a peer that stopped reading lost its association")
+	case err := <-sendErr:
+		t.Fatalf("WriteMsgWait returned while the peer was not reading: %v", err)
+	case <-time.After(6 * time.Second):
+	}
+
+	if len(serverConn.writeCh) != pacedQueueShare {
+		t.Fatalf("queue holds %d writes; the writer never stalled on the peer", len(serverConn.writeCh))
+	}
+
+	buf := make([]byte, 8192)
+
+	for i := range n {
+		if err := client.setDeadline(time.Now().Add(30 * time.Second)); err != nil {
+			t.Fatalf("set deadline: %v", err)
+		}
+
+		for {
+			read, _, notification, err := client.readMsg(buf)
+			if err != nil {
+				t.Fatalf("client read %d: %v", i, err)
+			}
+
+			if notification != nil {
+				continue
+			}
+
+			if read != 4096 || int(buf[0])<<8|int(buf[1]) != i {
+				t.Fatalf("client read message %d out of order", i)
+			}
+
+			break
+		}
+	}
+
+	if err := <-sendErr; err != nil {
+		t.Fatalf("WriteMsgWait: %v", err)
+	}
+
+	select {
+	case <-disconnected:
+		t.Fatal("a peer that stopped reading lost its association")
+	default:
+	}
+}
+
+func TestWriter_WriteMsgWaitEndsWhenPeerAborts(t *testing.T) {
+	srv, serverConn, disconnected, client := serverWithAcceptedConn(t)
+
+	defer func() {
+		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		srv.Shutdown(sctx)
+	}()
 
 	_ = client.controlFd(func(fd int) error {
 		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, 2048)
@@ -471,28 +577,44 @@ func TestWriter_SetWriteTimeoutOverridesTheDefault(t *testing.T) {
 		return syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_SNDBUF, 2048)
 	})
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
+	sendErr := make(chan error, 1)
 
-	payload := make([]byte, 1024)
+	go func() {
+		payload := make([]byte, 1024)
 
-	var err error
-
-	for range writeQueueDepth * 8 {
-		_, err = serverConn.WriteMsgWait(ctx, payload, &SndRcvInfo{PPID: PPIDWireOrder(testPPID), Stream: 0})
-		if err != nil {
-			break
+		for {
+			if _, err := serverConn.WriteMsgWait(context.Background(), payload, &SndRcvInfo{PPID: PPIDWireOrder(testPPID), Stream: 0}); err != nil {
+				sendErr <- err
+				return
+			}
 		}
+	}()
+
+	stalled := time.Now().Add(5 * time.Second)
+
+	for len(serverConn.writeCh) < pacedQueueShare {
+		if time.Now().After(stalled) {
+			t.Fatal("the writer never stalled on the peer")
+		}
+
+		time.Sleep(10 * time.Millisecond)
 	}
 
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("WriteMsgWait error = %v, want the context's", err)
+	_ = client.Abort()
+
+	select {
+	case err := <-sendErr:
+		if !errors.Is(err, net.ErrClosed) {
+			t.Fatalf("WriteMsgWait error = %v, want net.ErrClosed", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("WriteMsgWait stayed blocked after the peer aborted")
 	}
 
 	select {
 	case <-disconnected:
-		t.Fatal("association failed before the per-conn write timeout")
-	default:
+	case <-time.After(5 * time.Second):
+		t.Fatal("a peer abort did not end the association")
 	}
 }
 

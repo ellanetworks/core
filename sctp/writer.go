@@ -20,17 +20,14 @@ const (
 	pacedQueueShare = writeQueueDepth / 2
 )
 
-// Shortened by tests to exercise the deadline path.
-var writeTimeout = 5 * time.Second
-
 // Bounds on a graceful close, so a stalled peer cannot hold up shutdown.
 var (
 	flushTimeout = 2 * time.Second
 	drainTimeout = 500 * time.Millisecond
 )
 
-// errWriteQueueFull reports that the peer stopped draining and the association
-// has been aborted.
+// errWriteQueueFull reports that the outbound queue has no room for the
+// message. The association stays up.
 var errWriteQueueFull = errors.New("sctp: outbound queue full")
 
 var testHookBeforeEnqueue = func() {}
@@ -112,7 +109,12 @@ func (c *SCTPConn) sendQueued(qw queuedWrite) bool {
 		<-c.pacedSlots
 	}
 
-	if err := c.setWriteDeadline(time.Now().Add(c.sendTimeout())); err != nil {
+	var deadline time.Time
+	if d := time.Duration(c.writeTimeout.Load()); d > 0 {
+		deadline = time.Now().Add(d)
+	}
+
+	if err := c.setWriteDeadline(deadline); err != nil {
 		c.failAssociation("set write deadline", err)
 		return false
 	}
@@ -127,14 +129,6 @@ func (c *SCTPConn) sendQueued(qw queuedWrite) bool {
 
 func (c *SCTPConn) SetWriteTimeout(d time.Duration) {
 	c.writeTimeout.Store(int64(d))
-}
-
-func (c *SCTPConn) sendTimeout() time.Duration {
-	if d := time.Duration(c.writeTimeout.Load()); d > 0 {
-		return d
-	}
-
-	return writeTimeout
 }
 
 // WriteMsg queues b for the association's writer goroutine: a nil error means
@@ -167,8 +161,6 @@ func (c *SCTPConn) WriteMsg(b []byte, info *SndRcvInfo) (int, error) {
 	case c.writeCh <- qw:
 		return len(b), nil
 	default:
-		c.failAssociation("queue full", errWriteQueueFull)
-
 		return 0, errWriteQueueFull
 	}
 }
