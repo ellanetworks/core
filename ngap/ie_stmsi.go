@@ -3,6 +3,8 @@
 
 package ngap
 
+import "github.com/ellanetworks/core/per"
+
 // FiveGTMSI ::= OCTET STRING (SIZE(4)).
 type FiveGTMSI uint32
 
@@ -14,9 +16,9 @@ type FiveGTMSI uint32
 //	    fiveG-TMSI    FiveG-TMSI,    -- OCTET STRING (SIZE(4))
 //	    iE-Extensions ... OPTIONAL }
 type FiveGSTMSI struct {
-	_          [0]struct{} `per:"extseq"`
-	AMFSetID   AMFSetID
-	AMFPointer AMFPointer
-	FiveGTMSI  FiveGTMSI
-	_          ieExtensions `per:",skip"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+	AMFSetID     AMFSetID
+	AMFPointer   AMFPointer
+	FiveGTMSI    FiveGTMSI
+	iEExtensions extensionMeta `per:",exttable"`
 }

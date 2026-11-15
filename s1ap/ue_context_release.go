@@ -4,138 +4,44 @@
 package s1ap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
 )
 
-// UE-S1AP-IDs CHOICE alternatives. The CHOICE is extensible, so the count is of
-// its root alternatives.
-const (
-	ues1apIDsPair = iota
-	ues1apIDsMMEUES1APID
-
-	ues1apIDsChoiceRootCount = 2
-)
-
-// UE-S1AP-IDs ::= CHOICE { uE-S1AP-ID-pair, mME-UE-S1AP-ID, ... }. Pair selects
-// uE-S1AP-ID-pair, which the MME sends once the eNB has assigned an eNB UE S1AP
-// ID; otherwise only MMEUES1APID is carried.
+// UE-S1AP-IDs ::= CHOICE { uE-S1AP-ID-pair, mME-UE-S1AP-ID, ... }. The MME
+// sends uE-S1AP-ID-pair once the eNB has assigned an eNB UE S1AP ID; otherwise
+// only mME-UE-S1AP-ID is carried.
 type UES1APIDs struct {
-	MMEUES1APID MMEUES1APID
-	ENBUES1APID ENBUES1APID
-	Pair        bool
-
-	pairIEExtensions *rawIEExtensions
-	pairExtensions   per.ExtensionAdditions
+	UES1APIDPair *UES1APIDPair             `per:",choice:0"`
+	MMEUES1APID  *MMEUES1APID              `per:",choice:1"`
+	Ext          *per.ExtensionAlternative `per:",extalt"`
 }
 
-func (u UES1APIDs) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-
-	if !u.Pair {
-		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, ues1apIDsChoiceRootCount-1, ues1apIDsMMEUES1APID); err != nil {
-			return err
-		}
-
-		return u.MMEUES1APID.MarshalPER(w, enc)
-	}
-
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, ues1apIDsChoiceRootCount-1, ues1apIDsPair); err != nil {
-		return err
-	}
-
-	// UE-S1AP-ID-pair ::= SEQUENCE { mME-UE-S1AP-ID, eNB-UE-S1AP-ID,
-	// iE-Extensions OPTIONAL } (extensible).
-	w.WriteBit(u.pairExtensions.Present())
-	w.WriteBit(u.pairIEExtensions != nil)
-
-	if err := u.MMEUES1APID.MarshalPER(w, enc); err != nil {
-		return err
-	}
-
-	if err := u.ENBUES1APID.MarshalPER(w, enc); err != nil {
-		return err
-	}
-
-	if u.pairIEExtensions != nil {
-		if err := u.pairIEExtensions.MarshalPER(w, enc); err != nil {
-			return err
-		}
-	}
-
-	return u.pairExtensions.MarshalPER(w, enc)
+// UE-S1AP-ID-pair ::= SEQUENCE { mME-UE-S1AP-ID, eNB-UE-S1AP-ID,
+// iE-Extensions OPTIONAL } (extensible).
+type UES1APIDPair struct {
+	MMEUES1APID  MMEUES1APID
+	ENBUES1APID  ENBUES1APID
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
-func (u *UES1APIDs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	isExt, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-
-	if isExt {
-		// §10.3.1 case 6, as for ResetType: handled on criticality rather than
-		// abandoning the message.
-		return fmt.Errorf("%w: UE-S1AP-IDs extension alternative", errNotComprehended)
-	}
-
-	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, ues1apIDsChoiceRootCount-1)
-	if err != nil {
-		return err
-	}
-
-	switch idx {
-	case ues1apIDsPair:
-		extBit, err := r.ReadBit()
-		if err != nil {
-			return err
-		}
-
-		extContainer, err := r.ReadBit()
-		if err != nil {
-			return err
-		}
-
-		var mme MMEUES1APID
-		if err := mme.UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-
-		var enb ENBUES1APID
-		if err := enb.UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-
-		var ieExt *rawIEExtensions
-
-		if extContainer {
-			ieExt = &rawIEExtensions{}
-			if err := ieExt.UnmarshalPER(r, enc); err != nil {
-				return err
-			}
-		}
-
-		var ext per.ExtensionAdditions
-
-		if extBit {
-			if err := ext.UnmarshalPER(r, enc); err != nil {
-				return err
-			}
-		}
-
-		*u = UES1APIDs{MMEUES1APID: mme, ENBUES1APID: enb, Pair: true, pairIEExtensions: ieExt, pairExtensions: ext}
-
-		return nil
+func (u UES1APIDs) MMEID() (MMEUES1APID, bool) {
+	switch {
+	case u.UES1APIDPair != nil:
+		return u.UES1APIDPair.MMEUES1APID, true
+	case u.MMEUES1APID != nil:
+		return *u.MMEUES1APID, true
 	default:
-		var mme MMEUES1APID
-		if err := mme.UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-
-		*u = UES1APIDs{MMEUES1APID: mme}
-
-		return nil
+		return 0, false
 	}
+}
+
+func (u UES1APIDs) ENBID() (ENBUES1APID, bool) {
+	if u.UES1APIDPair == nil {
+		return 0, false
+	}
+
+	return u.UES1APIDPair.ENBUES1APID, true
 }
 
 // TS 36.413 §9.1.4.6.
@@ -148,18 +54,18 @@ type UEContextReleaseCommand struct {
 
 var uEContextReleaseCommandIEs = []ieSpec[UEContextReleaseCommand]{
 	{
-		id: IDUES1APIDs, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *UEContextReleaseCommand, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.UES1APIDs)
+		ID: IDUES1APIDs, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *UEContextReleaseCommand, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.UES1APIDs)
 		},
-		encode: func(m *UEContextReleaseCommand) (per.Marshaler, bool) { return &m.UES1APIDs, true },
+		Encode: func(m *UEContextReleaseCommand) (per.Marshaler, bool) { return &m.UES1APIDs, true },
 	},
 	{
-		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *UEContextReleaseCommand, raw []byte, enc per.Encoding) error {
+		ID: IDCause, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *UEContextReleaseCommand, r *per.Reader, enc per.Encoding) error {
 			var v Cause
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -167,7 +73,7 @@ var uEContextReleaseCommandIEs = []ieSpec[UEContextReleaseCommand]{
 
 			return nil
 		},
-		encode: func(m *UEContextReleaseCommand) (per.Marshaler, bool) {
+		Encode: func(m *UEContextReleaseCommand) (per.Marshaler, bool) {
 			if m.Cause == nil {
 				return nil, false
 			}
@@ -201,6 +107,10 @@ func ParseUEContextReleaseCommand(value []byte) (*UEContextReleaseCommand, error
 	return parseMessageBody[UEContextReleaseCommand](ProcUEContextRelease, TriggeringInitiatingMessage, uEContextReleaseCommandIEs, value)
 }
 
+func DecodeUEContextReleaseCommand(value []byte) (*UEContextReleaseCommand, error) {
+	return decodeMessageBody[UEContextReleaseCommand](ProcUEContextRelease, uEContextReleaseCommandIEs, value)
+}
+
 // TS 36.413 §9.1.4.7.
 type UEContextReleaseComplete struct {
 	MMEUES1APID             *MMEUES1APID
@@ -213,11 +123,11 @@ type UEContextReleaseComplete struct {
 
 var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 	{
-		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
+		ID: IDMMEUES1APID, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *UEContextReleaseComplete, r *per.Reader, enc per.Encoding) error {
 			var v MMEUES1APID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -225,7 +135,7 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 
 			return nil
 		},
-		encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
+		Encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
 			if m.MMEUES1APID == nil {
 				return nil, false
 			}
@@ -234,11 +144,11 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 		},
 	},
 	{
-		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
+		ID: IDENBUES1APID, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *UEContextReleaseComplete, r *per.Reader, enc per.Encoding) error {
 			var v ENBUES1APID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -246,7 +156,7 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 
 			return nil
 		},
-		encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
+		Encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
 			if m.ENBUES1APID == nil {
 				return nil, false
 			}
@@ -255,11 +165,11 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 		},
 	},
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *UEContextReleaseComplete, r *per.Reader, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
-			if err := perIEDecode(raw, &cd); err != nil {
+			if err := decodeIE(r, &cd); err != nil {
 				return err
 			}
 
@@ -267,7 +177,7 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 
 			return nil
 		},
-		encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
+		Encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -276,11 +186,11 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 		},
 	},
 	{
-		id: IDUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
+		ID: IDUserLocationInformation, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *UEContextReleaseComplete, r *per.Reader, enc per.Encoding) error {
 			var uli UserLocationInformation
 
-			if err := perIEDecode(raw, &uli); err != nil {
+			if err := decodeIE(r, &uli); err != nil {
 				return err
 			}
 
@@ -288,7 +198,7 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 
 			return nil
 		},
-		encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
+		Encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
 			if m.UserLocationInformation == nil {
 				return nil, false
 			}
@@ -322,6 +232,10 @@ func ParseUEContextReleaseComplete(value []byte) (*UEContextReleaseComplete, err
 	return parseMessageBody[UEContextReleaseComplete](ProcUEContextRelease, TriggeringSuccessfulOutcome, uEContextReleaseCompleteIEs, value)
 }
 
+func DecodeUEContextReleaseComplete(value []byte) (*UEContextReleaseComplete, error) {
+	return decodeMessageBody[UEContextReleaseComplete](ProcUEContextRelease, uEContextReleaseCompleteIEs, value)
+}
+
 // TS 36.413 §9.1.4.5.
 type UEContextReleaseRequest struct {
 	MMEUES1APID                MMEUES1APID
@@ -334,25 +248,25 @@ type UEContextReleaseRequest struct {
 
 var uEContextReleaseRequestIEs = []ieSpec[UEContextReleaseRequest]{
 	{
-		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *UEContextReleaseRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.MMEUES1APID)
+		ID: IDMMEUES1APID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *UEContextReleaseRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.MMEUES1APID)
 		},
-		encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+		Encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *UEContextReleaseRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ENBUES1APID)
+		ID: IDENBUES1APID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *UEContextReleaseRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.ENBUES1APID)
 		},
-		encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+		Encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *UEContextReleaseRequest, raw []byte, enc per.Encoding) error {
+		ID: IDCause, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *UEContextReleaseRequest, r *per.Reader, enc per.Encoding) error {
 			var v Cause
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -360,7 +274,7 @@ var uEContextReleaseRequestIEs = []ieSpec[UEContextReleaseRequest]{
 
 			return nil
 		},
-		encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) {
+		Encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) {
 			if m.Cause == nil {
 				return nil, false
 			}
@@ -369,11 +283,11 @@ var uEContextReleaseRequestIEs = []ieSpec[UEContextReleaseRequest]{
 		},
 	},
 	{
-		id: IDGWContextReleaseIndication, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *UEContextReleaseRequest, raw []byte, enc per.Encoding) error {
+		ID: IDGWContextReleaseIndication, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *UEContextReleaseRequest, r *per.Reader, enc per.Encoding) error {
 			var v GWContextReleaseIndication
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -381,7 +295,7 @@ var uEContextReleaseRequestIEs = []ieSpec[UEContextReleaseRequest]{
 
 			return nil
 		},
-		encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) {
+		Encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) {
 			if m.GWContextReleaseIndication == nil {
 				return nil, false
 			}
@@ -413,4 +327,8 @@ func (m *UEContextReleaseRequest) Marshal() ([]byte, error) {
 
 func ParseUEContextReleaseRequest(value []byte) (*UEContextReleaseRequest, error) {
 	return parseMessageBody[UEContextReleaseRequest](ProcUEContextReleaseRequest, TriggeringInitiatingMessage, uEContextReleaseRequestIEs, value)
+}
+
+func DecodeUEContextReleaseRequest(value []byte) (*UEContextReleaseRequest, error) {
+	return decodeMessageBody[UEContextReleaseRequest](ProcUEContextReleaseRequest, uEContextReleaseRequestIEs, value)
 }

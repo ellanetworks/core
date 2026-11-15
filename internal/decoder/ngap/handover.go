@@ -329,7 +329,7 @@ func tacsToStrings(list []ngap.TAC) []string {
 // ratRestrictionNames are the RATs a restriction bitmap can bar, in transmission
 // order (TS 38.413 §9.3.1.85).
 var ratRestrictionNames = []struct {
-	bit  ngap.RATRestrictionInformation
+	bit  ngap.RATRestrictionFlags
 	name string
 }{
 	{ngap.RATRestrictionEUTRA, "e-UTRA"},
@@ -345,7 +345,7 @@ func ratRestrictionInformation(v ngap.RATRestrictionInformation) string {
 	var restricted []string
 
 	for _, r := range ratRestrictionNames {
-		if v&r.bit != 0 {
+		if v.Flags&r.bit != 0 {
 			restricted = append(restricted, r.name)
 		}
 	}
@@ -409,7 +409,7 @@ func targetID(t ngap.TargetID) TargetID {
 		out.TargetENBID = &TargetENBID{
 			GlobalNgENBID: GlobalNgENBID{
 				PLMNIdentity: plmnIDToDecoder(t.TargeteNBID.GlobalENBID.PLMNIdentity),
-				NgENBID:      fmt.Sprintf("%x", t.TargeteNBID.GlobalENBID.NgENBID.Value),
+				NgENBID:      ngENBIDHex(t.TargeteNBID.GlobalENBID.NgENBID),
 			},
 			SelectedEPSTAI: EPSTAI{
 				PLMNIdentity: plmnIDToDecoder(t.TargeteNBID.SelectedEPSTAI.PLMNIdentity),
@@ -741,4 +741,13 @@ func buildHandoverCancelAcknowledge(value []byte) NGAPMessageValue {
 	}
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
+}
+
+func ngENBIDHex(id ngap.NgENBID) string {
+	v, _, ok := id.ID()
+	if !ok {
+		return ""
+	}
+
+	return fmt.Sprintf("%x", v)
 }

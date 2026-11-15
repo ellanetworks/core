@@ -5,19 +5,19 @@ package s1ap
 
 import (
 	"bytes"
-	"reflect"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 func TestPagingRoundtrip(t *testing.T) {
 	in := &Paging{
 		UEIdentityIndexValue: Ptr(uint16(0x2a9)), // 10-bit value (IMSI mod 1024)
-		STMSI:                &STMSI{MMEC: 0x01, MTMSI: 0xdeadbeef},
+		UEPagingID:           &UEPagingID{STMSI: &STMSI{MMEC: 0x01, MTMSI: 0xdeadbeef}},
 		CNDomain:             Ptr(CNDomainPS),
-		TAIList: []TAI{
-			{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: TAC(0x0001)},
+		TAIList: TAIList{
+			{TAI: TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: TAC(0x0001)}},
 		},
 		UERadioCapabilityForPaging: []byte{0xaa, 0xbb, 0xcc},
 	}
@@ -46,15 +46,15 @@ func TestPagingRoundtrip(t *testing.T) {
 		t.Fatalf("UE identity index = %#x, want %#x", out.UEIdentityIndexValue, in.UEIdentityIndexValue)
 	}
 
-	if deref(out.STMSI) != deref(in.STMSI) {
-		t.Fatalf("S-TMSI = %+v, want %+v", out.STMSI, in.STMSI)
+	if !out.UEPagingID.Equal(*in.UEPagingID) {
+		t.Fatalf("UE Paging ID = %+v, want %+v", out.UEPagingID, in.UEPagingID)
 	}
 
 	if deref(out.CNDomain) != CNDomainPS {
 		t.Fatalf("CN domain = %d, want PS", out.CNDomain)
 	}
 
-	if !reflect.DeepEqual(out.TAIList, in.TAIList) {
+	if !out.TAIList.Equal(in.TAIList) {
 		t.Fatalf("TAI list = %+v, want %+v", out.TAIList, in.TAIList)
 	}
 
@@ -67,9 +67,9 @@ func TestPagingRoundtrip(t *testing.T) {
 func TestPagingOmitsRadioCapabilityForPaging(t *testing.T) {
 	in := &Paging{
 		UEIdentityIndexValue: Ptr(uint16(0x2a9)),
-		STMSI:                &STMSI{MMEC: 0x01, MTMSI: 0xdeadbeef},
+		UEPagingID:           &UEPagingID{STMSI: &STMSI{MMEC: 0x01, MTMSI: 0xdeadbeef}},
 		CNDomain:             Ptr(CNDomainPS),
-		TAIList:              []TAI{{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: TAC(0x0001)}},
+		TAIList:              TAIList{{TAI: TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: TAC(0x0001)}}},
 	}
 
 	b, err := in.Marshal()
@@ -97,10 +97,10 @@ func TestPagingDRXAndPriorityRoundTrip(t *testing.T) {
 	// Mandatory in S1AP, with no 5G counterpart.
 	in := &Paging{
 		UEIdentityIndexValue: Ptr(uint16(42)),
-		STMSI:                &STMSI{MMEC: 1, MTMSI: 0xdeadbeef},
+		UEPagingID:           &UEPagingID{STMSI: &STMSI{MMEC: 1, MTMSI: 0xdeadbeef}},
 		PagingDRX:            Ptr(PagingDRXv128),
 		CNDomain:             Ptr(CNDomainPS),
-		TAIList:              []TAI{{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}},
+		TAIList:              TAIList{{TAI: TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}}},
 		PagingPriority:       Ptr(PagingPriorityLevel3),
 	}
 
@@ -147,52 +147,63 @@ func TestPagingDRXAndPriorityRoundTrip(t *testing.T) {
 	}
 }
 
-// §9.2.3.13 makes UE Paging ID an extensible CHOICE of S-TMSI and IMSI. Only
-// S-TMSI is modeled, so the rest must error rather than yield a zero identity;
-// the IE is ignore, so §10.3.4.2 carries on with the message.
-func TestUEPagingIDUnsupportedAlternativesAreIgnored(t *testing.T) {
-	taiList := per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-		return encodeSingleContainerList(w, enc, maxnoofTAIs, IDTAIItem, CriticalityIgnore,
-			[]taiItem{{TAI: TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}}})
-	})
+// §9.2.3.13 makes UE Paging ID an extensible CHOICE of S-TMSI and IMSI. Both
+// root alternatives decode, and an extension alternative is kept verbatim and
+// reported on the IE's ignore criticality, so §10.3.4.2 carries on with the
+// message.
+func TestUEPagingIDAlternatives(t *testing.T) {
+	taiList := &TAIList{{TAI: TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}}}
 
 	cases := []struct {
 		name string
-		id   per.Marshaler
+		id   []byte
+		want UEPagingID
 	}{
-		{
-			// iMSI is root alternative 1.
-			"IMSI alternative",
-			per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				w.WriteBit(false) // not an extension
-				return per.EncodeConstrainedWholeNumber(w, enc, 0, uePagingIDRootCount-1, 1)
-			}),
-		},
-		{
-			"extension alternative",
-			per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				w.WriteBit(true) // extension marker set
-				return nil
-			}),
-		},
+		{"IMSI alternative", []byte{0x40, 0x21, 0x43, 0x65}, UEPagingID{IMSI: &IMSI{0x21, 0x43, 0x65}}},
+		{"extension alternative", []byte{0x80, 0x01, 0x2a}, UEPagingID{Ext: &per.ExtensionAlternative{Index: 0, Value: "\x2a"}}},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			msg, err := ParsePaging(container(t,
-				ieField{id: IDUEPagingID, crit: CriticalityIgnore, val: tc.id},
-				ieField{id: IDTAIList, crit: CriticalityIgnore, val: taiList},
+			msg, err := DecodePaging(container(t,
+				ieField{ID: IDUEPagingID, Criticality: CriticalityIgnore, Value: ap.RawValue(tc.id)},
+				ieField{ID: IDTAIList, Criticality: CriticalityIgnore, Value: taiList},
 			))
 			if err != nil {
-				t.Fatalf("parse: %v", err)
-			}
-
-			if msg.STMSI != nil {
-				t.Errorf("STMSI = %+v, want nil for an unsupported alternative", msg.STMSI)
+				t.Fatalf("decode: %v", err)
 			}
 
 			if len(msg.TAIList) != 1 {
 				t.Errorf("rest of the message lost: %+v", msg.TAIList)
+			}
+
+			if tc.want.Ext != nil {
+				if msg.UEPagingID != nil {
+					t.Fatalf("UEPagingID = %+v, want it kept raw", msg.UEPagingID)
+				}
+
+				if err := msg.Diagnostics().Check(); err != nil {
+					t.Fatalf("an ignore IE must not fail the check: %v", err)
+				}
+			} else if msg.UEPagingID == nil || !msg.UEPagingID.Equal(tc.want) {
+				t.Fatalf("UEPagingID = %+v, want %+v", msg.UEPagingID, tc.want)
+			}
+
+			out, err := msg.Marshal()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			pdu, err := Unmarshal(out)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if got := pdu.(*InitiatingMessage).Value; !bytes.Equal(got, container(t,
+				ieField{ID: IDUEPagingID, Criticality: CriticalityIgnore, Value: ap.RawValue(tc.id)},
+				ieField{ID: IDTAIList, Criticality: CriticalityIgnore, Value: taiList},
+			)) {
+				t.Fatalf("re-encoded body % x", got)
 			}
 		})
 	}
@@ -204,7 +215,7 @@ func TestPagingTAIListBounds(t *testing.T) {
 	base := func() *Paging {
 		return &Paging{
 			UEIdentityIndexValue: Ptr(uint16(42)),
-			STMSI:                &STMSI{MMEC: 1, MTMSI: 0xdeadbeef},
+			UEPagingID:           &UEPagingID{STMSI: &STMSI{MMEC: 1, MTMSI: 0xdeadbeef}},
 			CNDomain:             Ptr(CNDomainPS),
 		}
 	}
@@ -215,10 +226,10 @@ func TestPagingTAIListBounds(t *testing.T) {
 	}
 
 	m = base()
-	m.TAIList = make([]TAI, maxnoofTAIs+1)
+	m.TAIList = make(TAIList, maxnoofTAIs+1)
 
 	for i := range m.TAIList {
-		m.TAIList[i] = TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: TAC(i)}
+		m.TAIList[i] = TAIItem{TAI: TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: TAC(i)}}
 	}
 
 	if _, err := m.Marshal(); err == nil {

@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/s1ap"
@@ -40,14 +41,29 @@ type Cause struct {
 	Value utils.EnumField `json:"value"`
 }
 
-func enbIDKind(kind s1ap.ENBIDKind) utils.EnumField {
-	return utils.NamedEnum(uint8(kind), kind.Name())
+func enbIDKind(e s1ap.ENBID) utils.EnumField {
+	switch {
+	case e.MacroENBID != nil:
+		return namedEnum(uint8(0), e.AlternativeName())
+	case e.HomeENBID != nil:
+		return namedEnum(uint8(1), e.AlternativeName())
+	case e.ShortMacroENBID != nil:
+		return namedEnum(uint8(2), e.AlternativeName())
+	case e.LongMacroENBID != nil:
+		return namedEnum(uint8(3), e.AlternativeName())
+	case e.Ext != nil:
+		return utils.MakeEnum(2+e.Ext.Index, "", true)
+	default:
+		return utils.MakeEnum(0, "", true)
+	}
 }
 
 func globalENBID(g s1ap.GlobalENBID) GlobalENBID {
+	value, _ := g.ENBID.Value()
+
 	return GlobalENBID{
 		PLMNID: plmnToID(g.PLMNIdentity),
-		ENBID:  ENBID{Kind: enbIDKind(g.ENBID.Kind), Value: g.ENBID.Value},
+		ENBID:  ENBID{Kind: enbIDKind(g.ENBID), Value: value},
 	}
 }
 
@@ -67,22 +83,34 @@ func supportedTAs(tas s1ap.SupportedTAs) []SupportedTA {
 }
 
 func pagingDRXToEnum(d s1ap.PagingDRX) utils.EnumField {
-	return utils.NamedEnum(uint8(d), d.Name())
+	return namedEnum(uint8(d), d.Name())
 }
 
 func timeToWaitToEnum(t s1ap.TimeToWait) utils.EnumField {
-	return utils.NamedEnum(uint8(t), t.Name())
-}
-
-func causeGroupToEnum(g s1ap.CauseGroup) utils.EnumField {
-	return utils.NamedEnum(uint8(g), g.Name())
+	return namedEnum(uint8(t), t.Name())
 }
 
 func cause(c s1ap.Cause) Cause {
+	group, ok := c.Group()
+	if !ok {
+		var ext int64
+		if c.Ext != nil {
+			ext = c.Ext.Index
+		}
+
+		return Cause{
+			Group: utils.MakeEnum(5+ext, "", true),
+			Value: utils.MakeEnum(0, "unknown", true),
+		}
+	}
+
 	name, index := c.ValueName()
+	if strings.HasPrefix(name, "unknown(") {
+		name = "unknown"
+	}
 
 	return Cause{
-		Group: causeGroupToEnum(c.Group),
+		Group: namedEnum(uint8(group), c.GroupName()),
 		Value: utils.MakeEnum(int64(index), name, name == "unknown"),
 	}
 }
@@ -123,7 +151,7 @@ func buildS1SetupRequest(value []byte) (S1APMessageValue, string) {
 
 	if req.UERetentionInformation != nil {
 		r := *req.UERetentionInformation
-		ies = append(ies, ie(s1ap.IDUERetentionInformation, s1ap.CriticalityIgnore, utils.NamedEnum(uint8(r), r.Name())))
+		ies = append(ies, ie(s1ap.IDUERetentionInformation, s1ap.CriticalityIgnore, namedEnum(uint8(r), r.Name())))
 	}
 
 	summary := "S1 Setup Request"
@@ -172,7 +200,7 @@ func buildS1SetupResponse(value []byte) (S1APMessageValue, string) {
 
 	if resp.UERetentionInformation != nil {
 		r := *resp.UERetentionInformation
-		ies = append(ies, ie(s1ap.IDUERetentionInformation, s1ap.CriticalityIgnore, utils.NamedEnum(uint8(r), r.Name())))
+		ies = append(ies, ie(s1ap.IDUERetentionInformation, s1ap.CriticalityIgnore, namedEnum(uint8(r), r.Name())))
 	}
 
 	ies = appendUnknownIEs(ies, resp.UnknownIEs())

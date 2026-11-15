@@ -81,17 +81,17 @@ func (n *RejectedNSSAIinTA) UnmarshalPER(r *per.Reader, enc per.Encoding) error 
 }
 
 type SourceToTargetAMFInformationReroute struct {
-	_                   [0]struct{}          `per:"extseq"`
-	ConfiguredNSSAI     *ConfiguredNSSAI     `per:",optional"`
-	RejectedNSSAIinPLMN *RejectedNSSAIinPLMN `per:",optional"`
-	RejectedNSSAIinTA   *RejectedNSSAIinTA   `per:",optional"`
-	_                   ieExtensions         `per:",skip"`
+	extensions          per.ExtensionAdditions `per:",extraw"`
+	ConfiguredNSSAI     *ConfiguredNSSAI       `per:",optional"`
+	RejectedNSSAIinPLMN *RejectedNSSAIinPLMN   `per:",optional"`
+	RejectedNSSAIinTA   *RejectedNSSAIinTA     `per:",optional"`
+	iEExtensions        extensionMeta          `per:",exttable"`
 }
 
 type PartiallyAllowedNSSAIItem struct {
-	_      [0]struct{} `per:"extseq"`
-	SNSSAI SNSSAI
-	_      ieExtensions `per:",skip"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+	SNSSAI       SNSSAI
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 type PartiallyAllowedNSSAI []PartiallyAllowedNSSAIItem
@@ -125,18 +125,18 @@ type RerouteNASRequest struct {
 
 var rerouteNASRequestIEs = []ieSpec[RerouteNASRequest]{
 	{
-		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *RerouteNASRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.RANUENGAPID)
+		ID: IDRANUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *RerouteNASRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.RANUENGAPID)
 		},
-		encode: func(m *RerouteNASRequest) (per.Marshaler, bool) { return m.RANUENGAPID, true },
+		Encode: func(m *RerouteNASRequest) (per.Marshaler, bool) { return m.RANUENGAPID, true },
 	},
 	{
-		id: IDAMFUENGAPID, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *RerouteNASRequest, raw []byte, enc per.Encoding) error {
+		ID: IDAMFUENGAPID, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *RerouteNASRequest, r *per.Reader, enc per.Encoding) error {
 			var v AMFUENGAPID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -144,7 +144,7 @@ var rerouteNASRequestIEs = []ieSpec[RerouteNASRequest]{
 
 			return nil
 		},
-		encode: func(m *RerouteNASRequest) (per.Marshaler, bool) {
+		Encode: func(m *RerouteNASRequest) (per.Marshaler, bool) {
 			if m.AMFUENGAPID == nil {
 				return nil, false
 			}
@@ -153,25 +153,25 @@ var rerouteNASRequestIEs = []ieSpec[RerouteNASRequest]{
 		},
 	},
 	{
-		id: IDNGAPMessage, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *RerouteNASRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.NGAPMessage)
+		ID: IDNGAPMessage, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *RerouteNASRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.NGAPMessage)
 		},
-		encode: func(m *RerouteNASRequest) (per.Marshaler, bool) { return m.NGAPMessage, true },
+		Encode: func(m *RerouteNASRequest) (per.Marshaler, bool) { return m.NGAPMessage, true },
 	},
 	{
-		id: IDAMFSetID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *RerouteNASRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.AMFSetID)
+		ID: IDAMFSetID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *RerouteNASRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.AMFSetID)
 		},
-		encode: func(m *RerouteNASRequest) (per.Marshaler, bool) { return m.AMFSetID, true },
+		Encode: func(m *RerouteNASRequest) (per.Marshaler, bool) { return m.AMFSetID, true },
 	},
 	{
-		id: IDAllowedNSSAI, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *RerouteNASRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.AllowedNSSAI)
+		ID: IDAllowedNSSAI, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *RerouteNASRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.AllowedNSSAI)
 		},
-		encode: func(m *RerouteNASRequest) (per.Marshaler, bool) {
+		Encode: func(m *RerouteNASRequest) (per.Marshaler, bool) {
 			if len(m.AllowedNSSAI) == 0 {
 				return nil, false
 			}
@@ -180,11 +180,11 @@ var rerouteNASRequestIEs = []ieSpec[RerouteNASRequest]{
 		},
 	},
 	{
-		id: IDSourceToTargetAMFInformationReroute, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *RerouteNASRequest, raw []byte, enc per.Encoding) error {
+		ID: IDSourceToTargetAMFInformationReroute, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *RerouteNASRequest, r *per.Reader, enc per.Encoding) error {
 			var v SourceToTargetAMFInformationReroute
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -192,7 +192,7 @@ var rerouteNASRequestIEs = []ieSpec[RerouteNASRequest]{
 
 			return nil
 		},
-		encode: func(m *RerouteNASRequest) (per.Marshaler, bool) {
+		Encode: func(m *RerouteNASRequest) (per.Marshaler, bool) {
 			if m.SourceToTargetAMFInformationReroute == nil {
 				return nil, false
 			}
@@ -201,11 +201,11 @@ var rerouteNASRequestIEs = []ieSpec[RerouteNASRequest]{
 		},
 	},
 	{
-		id: IDPartiallyAllowedNSSAI, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *RerouteNASRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.PartiallyAllowedNSSAI)
+		ID: IDPartiallyAllowedNSSAI, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *RerouteNASRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.PartiallyAllowedNSSAI)
 		},
-		encode: func(m *RerouteNASRequest) (per.Marshaler, bool) {
+		Encode: func(m *RerouteNASRequest) (per.Marshaler, bool) {
 			if len(m.PartiallyAllowedNSSAI) == 0 {
 				return nil, false
 			}
@@ -237,4 +237,8 @@ func (m *RerouteNASRequest) Marshal() ([]byte, error) {
 
 func ParseRerouteNASRequest(value []byte) (*RerouteNASRequest, error) {
 	return parseMessageBody[RerouteNASRequest](ProcRerouteNASRequest, TriggeringInitiatingMessage, rerouteNASRequestIEs, value)
+}
+
+func DecodeRerouteNASRequest(value []byte) (*RerouteNASRequest, error) {
+	return decodeMessageBody[RerouteNASRequest](ProcRerouteNASRequest, rerouteNASRequestIEs, value)
 }

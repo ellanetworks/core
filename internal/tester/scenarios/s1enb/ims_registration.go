@@ -987,7 +987,7 @@ func loseRadioConnection(e *s1enb.ENB, u imsCallUE, _ *s1enb.DedicatedBearer) er
 		return fmt.Errorf("await UE Context Release Command: %w", err)
 	}
 
-	return e.SendUEContextReleaseComplete(int64(cmd.UES1APIDs.MMEUES1APID), u.res.ENBUES1APID)
+	return e.SendUEContextReleaseComplete(ueMMEID(cmd.UES1APIDs), u.res.ENBUES1APID)
 }
 
 func runIMSCallLoss(ctx context.Context, env scenarios.Env, caller, callee scenarios.SubscriberSpec, lose bearerLoss) error {

@@ -91,8 +91,8 @@ func TestBuildHandoverRequiredToENB(t *testing.T) {
 	}
 
 	got := msg.TargetID.TargeteNBID.GlobalENBID.NgENBID
-	if got.Kind != ngap.NgENBIDMacro || got.Value != enbID {
-		t.Errorf("ng-eNB ID = kind %d value %#x, want a macro %#x", got.Kind, got.Value, enbID)
+	if got.MacroNgENBID == nil || uint32(*got.MacroNgENBID) != enbID {
+		t.Errorf("ng-eNB ID = %+v, want a macro %#x", got, enbID)
 	}
 
 	if msg.TargetID.TargetRANNodeID != nil {

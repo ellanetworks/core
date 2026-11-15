@@ -12,9 +12,7 @@ import (
 )
 
 func miscCause() *ngap.Cause {
-	return ngap.Ptr(ngap.Cause{
-		Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscHardwareFailure,
-	})
+	return ngap.Ptr(ngap.CauseMiscHardwareFailure.Cause())
 }
 
 func TestHandleNGReset_ResetNGInterface(t *testing.T) {
@@ -30,7 +28,7 @@ func TestHandleNGReset_ResetNGInterface(t *testing.T) {
 
 	msg := &ngap.NGReset{
 		Cause:     miscCause(),
-		ResetType: ngap.ResetType{All: true},
+		ResetType: ngap.ResetType{NGInterface: new(ngap.ResetAllResetAll)},
 	}
 
 	HandleNGReset(context.Background(), amfInstance, ran, msg)
@@ -66,7 +64,7 @@ func TestHandleNGReset_PartOfNGInterface(t *testing.T) {
 
 	msg := &ngap.NGReset{
 		Cause:     miscCause(),
-		ResetType: ngap.ResetType{Part: partOfNG},
+		ResetType: ngap.ResetType{PartOfNGInterface: &partOfNG},
 	}
 
 	HandleNGReset(context.Background(), amfInstance, ran, msg)
@@ -108,7 +106,7 @@ func TestHandleNGReset_PartOfNGInterface_UnknownUE(t *testing.T) {
 
 	msg := &ngap.NGReset{
 		Cause:     miscCause(),
-		ResetType: ngap.ResetType{Part: partOfNG},
+		ResetType: ngap.ResetType{PartOfNGInterface: &partOfNG},
 	}
 
 	HandleNGReset(context.Background(), amfInstance, ran, msg)

@@ -22,8 +22,8 @@ func (e *ENB) SendHandoverRequired(enbUEID, mmeUEID int64, target s1ap.GlobalENB
 		MMEUES1APID:    s1ap.MMEUES1APID(mmeUEID),
 		ENBUES1APID:    s1ap.ENBUES1APID(enbUEID),
 		HandoverType:   s1ap.HandoverTypeIntraLTE,
-		Cause:          s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 16}), // handover-desirable-for-radio-reason
-		TargetID:       s1ap.TargetID{TargeteNBID: s1ap.TargeteNBID{GlobalENBID: target, SelectedTAI: e.tai()}},
+		Cause:          s1ap.Ptr(s1ap.CauseRadioNetworkHandoverDesirableForRadio.Cause()), // handover-desirable-for-radio-reason
+		TargetID:       s1ap.TargetID{TargeteNBID: &s1ap.TargeteNBID{GlobalENBID: target, SelectedTAI: e.tai()}},
 		SourceToTarget: SourceToTargetContainer(),
 	}
 
@@ -57,10 +57,7 @@ func (e *ENB) WaitForHandoverRequest(timeout time.Duration) (*s1ap.HandoverReque
 // so the MME reports the refused ones back to the source in the Handover
 // Command E-RAB To Release list (TS 36.413 §9.1.5.4).
 func (e *ENB) SendHandoverRequestAcknowledgePartial(targetENBUEID, mmeUEID int64, admit []s1ap.ERABID, refuse []s1ap.ERABID, cause s1ap.Cause) (map[s1ap.ERABID]uint32, error) {
-	addr := e.n3Addr.To4()
-	if addr == nil {
-		addr = e.n3Addr.To16()
-	}
+	addr := e.n3TransportLayerAddress()
 
 	admitted := make([]s1ap.ERABAdmittedItem, 0, len(admit))
 	teids := make(map[s1ap.ERABID]uint32, len(admit))
@@ -71,7 +68,7 @@ func (e *ENB) SendHandoverRequestAcknowledgePartial(targetENBUEID, mmeUEID int64
 
 		admitted = append(admitted, s1ap.ERABAdmittedItem{
 			ERABID:                id,
-			TransportLayerAddress: s1ap.TransportLayerAddress(addr),
+			TransportLayerAddress: addr,
 			GTPTEID:               s1ap.GTPTEID(dlTEID),
 		})
 	}
@@ -102,22 +99,19 @@ func (e *ENB) SendHandoverRequestAcknowledgePartial(targetENBUEID, mmeUEID int64
 }
 
 func (e *ENB) SendHandoverRequestAcknowledge(targetENBUEID, mmeUEID int64, erabID s1ap.ERABID, forwarding bool) (dlTEID, dlForwardingTEID uint32, err error) {
-	addr := e.n3Addr.To4()
-	if addr == nil {
-		addr = e.n3Addr.To16()
-	}
+	addr := e.n3TransportLayerAddress()
 
 	dlTEID = e.allocTEID()
 
 	item := s1ap.ERABAdmittedItem{
 		ERABID:                erabID,
-		TransportLayerAddress: s1ap.TransportLayerAddress(addr),
+		TransportLayerAddress: addr,
 		GTPTEID:               s1ap.GTPTEID(dlTEID),
 	}
 
 	if forwarding {
 		dlForwardingTEID = e.allocForwardingTEID()
-		item.DLTransportLayerAddr = s1ap.TransportLayerAddress(addr)
+		item.DLTransportLayerAddr = s1ap.Ptr(addr)
 		item.DLGTPTEID = s1ap.Ptr(s1ap.GTPTEID(dlForwardingTEID))
 	}
 

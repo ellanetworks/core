@@ -7,6 +7,8 @@ import (
 	"bytes"
 	"errors"
 	"testing"
+
+	"github.com/ellanetworks/core/per/ap"
 )
 
 // Golden UE RADIO CAPABILITY INFO INDICATION PDUs.
@@ -123,8 +125,8 @@ func TestUERadioCapabilityInfoIndicationPaging(t *testing.T) {
 // without it is still delivered and the absence reported (§10.3.5).
 func TestUERadioCapabilityInfoIndicationWithoutCapability(t *testing.T) {
 	value := container(t,
-		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
-		ieField{id: IDRANUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
+		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))},
+		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(RANUENGAPID(2))))},
 	)
 
 	msg, err := ParseUERadioCapabilityInfoIndication(value)
@@ -137,7 +139,7 @@ func TestUERadioCapabilityInfoIndicationWithoutCapability(t *testing.T) {
 	}
 
 	d := msg.Diagnostics()
-	if len(d.IEs) != 1 || d.IEs[0].ID != IDUERadioCapability || d.IEs[0].TypeOfError != TypeOfErrorMissing {
+	if len(d.IEs) != 1 || d.IEs[0].ID != IDUERadioCapability || typeOfError(d.IEs[0]) != TypeOfErrorMissing {
 		t.Errorf("diagnostics = %+v, want one missing entry for UERadioCapability", d.IEs)
 	}
 }
@@ -146,8 +148,8 @@ func TestUERadioCapabilityInfoIndicationWithoutCapability(t *testing.T) {
 // missing one (§10.3.5).
 func TestUERadioCapabilityInfoIndicationMissingRejectIE(t *testing.T) {
 	value := container(t,
-		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
-		ieField{id: IDUERadioCapability, crit: CriticalityIgnore, raw: ieRaw(t, UERadioCapability{0x01})},
+		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))},
+		ieField{ID: IDUERadioCapability, Criticality: CriticalityIgnore, Value: ap.RawValue(ieRaw(t, UERadioCapability{0x01}))},
 	)
 
 	_, err := ParseUERadioCapabilityInfoIndication(value)

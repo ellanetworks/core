@@ -14,26 +14,25 @@ import (
 // fixes — the fact a caller cannot see, and the one this API keeps out of them.
 func TestCellIdentityComposition(t *testing.T) {
 	tests := []struct {
-		kind   ENBIDKind
-		enbID  uint32
+		id     ENBID
 		cellID uint32
 		want   uint32
 	}{
-		{ENBIDMacro, 0x1a2b3, 1, 0x1a2b301}, // 20-bit macro, 8-bit cell
-		{ENBIDMacro, 0x00010, 0, 0x1000},
-		{ENBIDHome, 0xabcdef1, 0, 0xabcdef1}, // 28-bit home eNB: the ECI is the eNB id itself
+		{ENBID{MacroENBID: Ptr(MacroENBID(0x1a2b3))}, 1, 0x1a2b301}, // 20-bit macro, 8-bit cell
+		{ENBID{MacroENBID: Ptr(MacroENBID(0x00010))}, 0, 0x1000},
+		{ENBID{HomeENBID: Ptr(HomeENBID(0xabcdef1))}, 0, 0xabcdef1}, // 28-bit home eNB: the ECI is the eNB id itself
 	}
 
 	for _, tt := range tests {
-		id := ENBID{Kind: tt.kind, Value: tt.enbID}
+		id := tt.id
 
 		got, err := id.CellIdentity(tt.cellID)
 		if err != nil {
-			t.Fatalf("kind %d id %#x: %v", tt.kind, tt.enbID, err)
+			t.Fatalf("%v: %v", id, err)
 		}
 
 		if got != tt.want {
-			t.Errorf("kind %d id %#x cell %#x = %#x, want %#x", tt.kind, tt.enbID, tt.cellID, got, tt.want)
+			t.Errorf("%v cell %#x = %#x, want %#x", id, tt.cellID, got, tt.want)
 		}
 
 		cell, ok := id.SplitCellIdentity(got)
@@ -44,29 +43,29 @@ func TestCellIdentityComposition(t *testing.T) {
 }
 
 func TestCellIdentityRejectsOverflow(t *testing.T) {
-	macro := ENBID{Kind: ENBIDMacro, Value: 0x1a2b3}
+	macro := ENBID{MacroENBID: Ptr(MacroENBID(0x1a2b3))}
 
 	// A 20-bit macro id leaves 8 bits for the cell.
 	if _, err := macro.CellIdentity(1 << 8); err == nil {
 		t.Error("a cell id wider than the space left was accepted")
 	}
 
-	if _, err := (ENBID{Kind: ENBIDMacro, Value: 0xffffff}).CellIdentity(0); err == nil {
+	if _, err := (ENBID{MacroENBID: Ptr(MacroENBID(0xffffff))}).CellIdentity(0); err == nil {
 		t.Error("an eNB id exceeding its own bit width was accepted")
 	}
 
-	if _, err := (ENBID{Kind: 99, Value: 1}).CellIdentity(0); err == nil {
-		t.Error("an unknown eNB id kind was accepted")
+	if _, err := (ENBID{Ext: &per.ExtensionAlternative{Index: 2, Value: "\x00"}}).CellIdentity(0); err == nil {
+		t.Error("an unknown eNB id alternative was accepted")
 	}
 
 	// A home eNB ID is itself the 28-bit cell identity, so only cell 0 exists.
-	if _, err := (ENBID{Kind: ENBIDHome, Value: 0xabcdef1}).CellIdentity(1); err == nil {
+	if _, err := (ENBID{HomeENBID: Ptr(HomeENBID(0xabcdef1))}).CellIdentity(1); err == nil {
 		t.Error("a non-zero cell id on a home eNB was accepted")
 	}
 }
 
 func TestENBIDHex(t *testing.T) {
-	if got := (ENBID{Kind: ENBIDMacro, Value: 0x1a2b3}).Hex(); got != "1a2b3" {
+	if got := (ENBID{MacroENBID: Ptr(MacroENBID(0x1a2b3))}).Hex(); got != "1a2b3" {
 		t.Errorf("Hex() = %q, want 1a2b3", got)
 	}
 }
@@ -76,11 +75,11 @@ func TestENBIDHex(t *testing.T) {
 func TestEUTRANCGIRejectsOverWideCellIdentity(t *testing.T) {
 	plmn := PLMNIdentity{0x00, 0xf1, 0x10}
 
-	if err := (EUTRANCGI{PLMNIdentity: plmn, CellID: 0xfffffff}).MarshalPER(per.NewWriter(), per.Aligned); err != nil {
+	if err := (&EUTRANCGI{PLMNIdentity: plmn, CellID: 0xfffffff}).MarshalPER(per.NewWriter(), per.Aligned); err != nil {
 		t.Fatalf("the widest 28-bit cell identity must encode: %v", err)
 	}
 
-	if err := (EUTRANCGI{PLMNIdentity: plmn, CellID: 1 << 28}).MarshalPER(per.NewWriter(), per.Aligned); err == nil {
+	if err := (&EUTRANCGI{PLMNIdentity: plmn, CellID: 1 << 28}).MarshalPER(per.NewWriter(), per.Aligned); err == nil {
 		t.Fatal("a 29-bit cell identity encoded, want an error")
 	}
 }

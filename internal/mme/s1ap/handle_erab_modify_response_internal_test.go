@@ -10,17 +10,18 @@ import (
 )
 
 func TestHandoverTriggeredCauses(t *testing.T) {
-	radio := func(v int) s1ap.Cause { return s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: v} }
-
-	for cause, want := range map[s1ap.Cause]bool{
-		radio(s1ap.CauseRadioNetworkS1IntraSystemHandoverTriggered): true,
-		radio(s1ap.CauseRadioNetworkS1InterSystemHandoverTriggered): true,
-		radio(s1ap.CauseRadioNetworkX2HandoverTriggered):            true,
-		radio(s1ap.CauseRadioNetworkRadioResourcesNotAvailable):     false,
-		{Group: s1ap.CauseGroupTransport, Value: 35}:                false,
+	for _, tc := range []struct {
+		cause s1ap.Cause
+		want  bool
+	}{
+		{s1ap.CauseRadioNetworkS1IntraSystemHandoverTriggered.Cause(), true},
+		{s1ap.CauseRadioNetworkS1InterSystemHandoverTriggered.Cause(), true},
+		{s1ap.CauseRadioNetworkX2HandoverTriggered.Cause(), true},
+		{s1ap.CauseRadioNetworkRadioResourcesNotAvailable.Cause(), false},
+		{s1ap.CauseTransport(35).Cause(), false},
 	} {
-		if got := handoverTriggered(cause); got != want {
-			t.Errorf("handoverTriggered(%+v) = %v, want %v (TS 36.413 §8.2.2.2)", cause, got, want)
+		if got := handoverTriggered(tc.cause); got != tc.want {
+			t.Errorf("handoverTriggered(%+v) = %v, want %v (TS 36.413 §8.2.2.2)", tc.cause, got, tc.want)
 		}
 	}
 }

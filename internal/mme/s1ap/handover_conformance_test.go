@@ -11,6 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/per/ap"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -41,7 +42,7 @@ func ackWith(targetMME s1ap.MMEUES1APID, admitted, failed []uint8) *s1ap.Handove
 	for _, ebi := range admitted {
 		ack.ERABAdmitted = append(ack.ERABAdmitted, s1ap.ERABAdmittedItem{
 			ERABID:                s1ap.ERABID(ebi),
-			TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2},
+			TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 2}),
 			GTPTEID:               s1ap.GTPTEID(0x90 + uint32(ebi)),
 		})
 	}
@@ -49,7 +50,7 @@ func ackWith(targetMME s1ap.MMEUES1APID, admitted, failed []uint8) *s1ap.Handove
 	for _, ebi := range failed {
 		ack.ERABFailedToSetup = append(ack.ERABFailedToSetup, s1ap.ERABItem{
 			ERABID: s1ap.ERABID(ebi),
-			Cause:  s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioResourcesNotAvailable},
+			Cause:  s1ap.CauseRadioNetworkRadioResourcesNotAvailable.Cause(),
 		})
 	}
 
@@ -179,7 +180,7 @@ func TestS1HandoverCommandReportsEveryUnadmittedERAB(t *testing.T) {
 
 			want := causeHOFailureInTarget
 			if tt.failed != nil {
-				want = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioResourcesNotAvailable}
+				want = s1ap.CauseRadioNetworkRadioResourcesNotAvailable.Cause()
 			}
 
 			assertReleaseCause(t, cmd, 6, want)
@@ -195,7 +196,7 @@ func assertReleaseCause(t *testing.T, cmd *s1ap.HandoverCommand, ebi uint8, want
 			continue
 		}
 
-		if it.Cause != want {
+		if !it.Cause.Equal(want) {
 			t.Errorf("release cause for E-RAB %d = %+v, want %+v", ebi, it.Cause, want)
 		}
 
@@ -227,7 +228,7 @@ func TestS1HandoverCommandReportsABearerTheCoreCouldNotOffer(t *testing.T) {
 		successfulValue(t, mustMarshal(t, ack.Marshal)))
 
 	cmd := handoverCommandOn(t, source)
-	assertReleaseCause(t, cmd, 6, s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnspecified})
+	assertReleaseCause(t, cmd, 6, s1ap.CauseRadioNetworkUnspecified.Cause())
 }
 
 func TestS1HandoverPreparationFailureCarriesMandatoryIEs(t *testing.T) {
@@ -237,7 +238,7 @@ func TestS1HandoverPreparationFailureCarriesMandatoryIEs(t *testing.T) {
 	sourceMME, sourceENB := ue.Conn().MMEUES1APID, ue.Conn().ENBUES1APID()
 
 	req := sampleHandoverRequired(ue)
-	req.TargetID.TargeteNBID.GlobalENBID.ENBID = s1ap.ENBID{Kind: s1ap.ENBIDMacro, Value: 0x99}
+	req.TargetID.TargeteNBID.GlobalENBID.ENBID = s1ap.ENBID{MacroENBID: s1ap.Ptr(s1ap.MacroENBID(0x99))}
 
 	handleHandoverRequired(context.Background(), m, mme.NewRadioForTest(source),
 		initiatingValue(t, mustMarshal(t, req.Marshal)))
@@ -349,7 +350,7 @@ func TestS1HandoverRequestCarriesMandatoryIEs(t *testing.T) {
 		t.Error("the E-RAB to set up carries no S-GW uplink TEID")
 	}
 
-	if len(setup.TransportLayerAddress) == 0 {
+	if setup.TransportLayerAddress.IsZero() {
 		t.Error("the E-RAB to set up carries no S-GW transport layer address")
 	}
 
@@ -374,14 +375,14 @@ func TestS1HandoverFailureWithoutENBUES1APIDFailsPreparation(t *testing.T) {
 		initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
 	targetMME := handoverRequestOn(t, target).MMEUES1APID
-	cause := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioResourcesNotAvailable}
+	cause := s1ap.CauseRadioNetworkRadioResourcesNotAvailable.Cause()
 
 	fail := &s1ap.HandoverFailure{MMEUES1APID: s1ap.Ptr(targetMME), Cause: s1ap.Ptr(cause)}
 	handleHandoverFailure(context.Background(), m, mme.NewRadioForTest(target),
 		unsuccessfulValue(t, mustMarshal(t, fail.Marshal)))
 
 	got := preparationFailureOn(t, source)
-	if got.Cause == nil || *got.Cause != cause {
+	if got.Cause == nil || !got.Cause.Equal(cause) {
 		t.Errorf("preparation failure cause = %+v, want the target's %+v", got.Cause, cause)
 	}
 
@@ -404,15 +405,15 @@ func TestS1AcknowledgeAdmittingNoUsableBearerRejectsTheHandover(t *testing.T) {
 	req := handoverRequestOn(t, target)
 
 	ack := ackWith(req.MMEUES1APID, []uint8{mme.DefaultERABID}, nil)
-	ack.ERABAdmitted[0].TransportLayerAddress = s1ap.TransportLayerAddress{10, 4, 0}
+	ack.ERABAdmitted[0].TransportLayerAddress = ap.TransportLayerAddressFromOctets([]byte{10, 4, 0})
 
 	handleHandoverRequestAcknowledge(context.Background(), m, mme.NewRadioForTest(target),
 		successfulValue(t, mustMarshal(t, ack.Marshal)))
 
 	rel := parseUEContextReleaseCommand(t, lastSent(t, target))
-	if rel.UES1APIDs.MMEUES1APID != req.MMEUES1APID {
+	if relMME, _ := rel.UES1APIDs.MMEID(); relMME != req.MMEUES1APID {
 		t.Errorf("target release names MME-UE-S1AP-ID %d, want the target reservation's %d",
-			rel.UES1APIDs.MMEUES1APID, req.MMEUES1APID)
+			relMME, req.MMEUES1APID)
 	}
 
 	if preparationFailureOn(t, source).Cause == nil {
@@ -474,12 +475,15 @@ func TestS1HandoverNotifySwitchesDownlinkAndReleasesTheSource(t *testing.T) {
 	}
 
 	rel := parseUEContextReleaseCommand(t, lastSent(t, source))
-	if rel.UES1APIDs.MMEUES1APID != sourceMME || rel.UES1APIDs.ENBUES1APID != sourceENB {
+	relMME, _ := rel.UES1APIDs.MMEID()
+	relENB, _ := rel.UES1APIDs.ENBID()
+
+	if relMME != sourceMME || relENB != sourceENB {
 		t.Errorf("source release names (%d, %d), want the source's (%d, %d)",
-			rel.UES1APIDs.MMEUES1APID, rel.UES1APIDs.ENBUES1APID, sourceMME, sourceENB)
+			relMME, relENB, sourceMME, sourceENB)
 	}
 
-	if rel.Cause == nil || *rel.Cause != mme.CauseHandoverSuccess {
+	if rel.Cause == nil || !rel.Cause.Equal(mme.CauseHandoverSuccess) {
 		t.Errorf("source release cause = %+v, want successful-handover", rel.Cause)
 	}
 }
@@ -554,19 +558,22 @@ func TestS1HandoverCancelReleasesPreparationAndAcknowledges(t *testing.T) {
 
 	targetMME, targetENB := driveToPrepared(t, m, ue, source, target)
 
-	cause := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkPartialHandover}
+	cause := s1ap.CauseRadioNetworkPartialHandover.Cause()
 
 	cancel := &s1ap.HandoverCancel{MMEUES1APID: sourceMME, ENBUES1APID: sourceENB, Cause: s1ap.Ptr(cause)}
 	handleHandoverCancel(context.Background(), m, mme.NewRadioForTest(source),
 		initiatingValue(t, mustMarshal(t, cancel.Marshal)))
 
 	rel := parseUEContextReleaseCommand(t, lastSent(t, target))
-	if rel.UES1APIDs.MMEUES1APID != targetMME || rel.UES1APIDs.ENBUES1APID != targetENB {
+	relMME, _ := rel.UES1APIDs.MMEID()
+	relENB, _ := rel.UES1APIDs.ENBID()
+
+	if relMME != targetMME || relENB != targetENB {
 		t.Errorf("target release names (%d, %d), want the prepared target's (%d, %d)",
-			rel.UES1APIDs.MMEUES1APID, rel.UES1APIDs.ENBUES1APID, targetMME, targetENB)
+			relMME, relENB, targetMME, targetENB)
 	}
 
-	if rel.Cause == nil || *rel.Cause != cause {
+	if rel.Cause == nil || !rel.Cause.Equal(cause) {
 		t.Errorf("target release cause = %+v, want the source's cancel cause %+v", rel.Cause, cause)
 	}
 
@@ -609,7 +616,7 @@ func TestS1HandoverCancelWithoutCauseStillCancels(t *testing.T) {
 		(&s1ap.HandoverCancel{
 			MMEUES1APID: ue.Conn().MMEUES1APID,
 			ENBUES1APID: ue.Conn().ENBUES1APID(),
-			Cause:       s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkPartialHandover}),
+			Cause:       s1ap.Ptr(s1ap.CauseRadioNetworkPartialHandover.Cause()),
 		}).Marshal)), ieIDHandoverCause)
 
 	handleHandoverCancel(context.Background(), m, mme.NewRadioForTest(source), body)
@@ -723,7 +730,7 @@ func TestS1HandoverCommandRelaysTheTargetsReleaseCause(t *testing.T) {
 
 	req := handoverRequestOn(t, target)
 
-	targetCause := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioResourcesNotAvailable}
+	targetCause := s1ap.CauseRadioNetworkRadioResourcesNotAvailable.Cause()
 
 	ack := ackWith(req.MMEUES1APID, []uint8{mme.DefaultERABID}, nil)
 	ack.ERABFailedToSetup = []s1ap.ERABItem{{ERABID: 6, Cause: targetCause}}
@@ -736,7 +743,7 @@ func TestS1HandoverCommandRelaysTheTargetsReleaseCause(t *testing.T) {
 		t.Fatalf("E-RABs to Release List = %+v, want the refused E-RAB", cmd.ERABToRelease)
 	}
 
-	if cmd.ERABToRelease[0].Cause != targetCause {
+	if !cmd.ERABToRelease[0].Cause.Equal(targetCause) {
 		t.Errorf("release cause = %+v, want the target's %+v", cmd.ERABToRelease[0].Cause, targetCause)
 	}
 }

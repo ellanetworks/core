@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/per/ap"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
@@ -189,7 +190,7 @@ func relayForwardingThroughUPF(ctx context.Context, m *mme.MME, ue *mme.UeContex
 			continue
 		}
 
-		addr, ok := enbTransportAddress(a.DLForwardingAddr)
+		addr, ok := enbTransportAddress(*a.DLForwardingAddr)
 		if !ok {
 			a.DLForwardingAddr, a.DLForwardingTEID = nil, nil
 			out = append(out, a)
@@ -205,7 +206,7 @@ func relayForwardingThroughUPF(ctx context.Context, m *mme.MME, ue *mme.UeContex
 			continue
 		}
 
-		tla, err := models.EncodeTransportLayerAddress(local.IPv4, local.IPv6)
+		tla, err := ap.TransportLayerAddressFromAddrs(local.IPv4, local.IPv6)
 		if err != nil {
 			logger.From(ctx, logger.MmeLog).Warn("could not encode the forwarding tunnel's transport address",
 				logger.ERABID(a.Ebi), zap.Error(err))
@@ -216,7 +217,7 @@ func relayForwardingThroughUPF(ctx context.Context, m *mme.MME, ue *mme.UeContex
 			continue
 		}
 
-		a.DLForwardingAddr = s1ap.TransportLayerAddress(tla)
+		a.DLForwardingAddr = &tla
 		a.DLForwardingTEID = s1ap.Ptr(s1ap.GTPTEID(local.TEID))
 
 		out = append(out, a)
@@ -249,8 +250,8 @@ func forwardingItems(admitted []mme.AdmittedERAB) []s1ap.ERABDataForwardingItem 
 	return out
 }
 
-func forwardingPair(addr s1ap.TransportLayerAddress, teid *s1ap.GTPTEID) (s1ap.TransportLayerAddress, *s1ap.GTPTEID) {
-	if !addr.Valid() || teid == nil {
+func forwardingPair(addr *s1ap.TransportLayerAddress, teid *s1ap.GTPTEID) (*s1ap.TransportLayerAddress, *s1ap.GTPTEID) {
+	if addr == nil || !addr.Valid() || teid == nil {
 		return nil, nil
 	}
 

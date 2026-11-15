@@ -4,8 +4,6 @@
 package ngap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
 )
 
@@ -64,17 +62,17 @@ func (c *EUTRACellIdentity) UnmarshalPER(r *per.Reader, enc per.Encoding) error 
 }
 
 type NRCGI struct {
-	_              [0]struct{} `per:"extseq"`
+	extensions     per.ExtensionAdditions `per:",extraw"`
 	PLMNIdentity   PLMNIdentity
 	NRCellIdentity NRCellIdentity
-	_              ieExtensions `per:",skip"`
+	iEExtensions   extensionMeta `per:",exttable"`
 }
 
 type EUTRACGI struct {
-	_                 [0]struct{} `per:"extseq"`
+	extensions        per.ExtensionAdditions `per:",extraw"`
 	PLMNIdentity      PLMNIdentity
 	EUTRACellIdentity EUTRACellIdentity
-	_                 ieExtensions `per:",skip"`
+	iEExtensions      extensionMeta `per:",exttable"`
 }
 
 type MessageIdentifier uint16
@@ -234,24 +232,7 @@ type ConcurrentWarningMessageInd uint8
 
 const (
 	ConcurrentWarningMessageIndTrue ConcurrentWarningMessageInd = iota
-
-	concurrentWarningMessageIndRootCount = 1
 )
-
-func (c ConcurrentWarningMessageInd) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, concurrentWarningMessageIndRootCount, int64(c), "ConcurrentWarningMessageInd")
-}
-
-func (c *ConcurrentWarningMessageInd) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := decodeRootEnumerated(r, enc, concurrentWarningMessageIndRootCount, "ConcurrentWarningMessageInd")
-	if err != nil {
-		return err
-	}
-
-	*c = ConcurrentWarningMessageInd(v)
-
-	return nil
-}
 
 type EmergencyAreaID [3]byte
 
@@ -270,240 +251,254 @@ func (e *EmergencyAreaID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
-func chosenAlternative(choice string, set ...bool) (int64, error) {
-	idx := int64(-1)
-
-	for i, s := range set {
-		if !s {
-			continue
-		}
-
-		if idx >= 0 {
-			return 0, fmt.Errorf("ngap: %s has more than one alternative set", choice)
-		}
-
-		idx = int64(i)
-	}
-
-	if idx < 0 {
-		return 0, fmt.Errorf("ngap: %s has no alternative set", choice)
-	}
-
-	return idx, nil
-}
-
-const (
-	warningAreaListEUTRACGI = iota
-	warningAreaListNRCGI
-	warningAreaListTAI
-	warningAreaListEmergencyAreaID
-	warningAreaListChoiceExtensions
-
-	warningAreaListAlternatives = 5
-)
-
 type WarningAreaList struct {
-	EUTRACGIs        []EUTRACGI
-	NRCGIs           []NRCGI
-	TAIs             []TAI
-	EmergencyAreaIDs []EmergencyAreaID
+	EUTRACGIListForWarning *EUTRACGIListForWarning `per:",choice:0"`
+	NRCGIListForWarning    *NRCGIListForWarning    `per:",choice:1"`
+	TAIListForWarning      *TAIListForWarning      `per:",choice:2"`
+	EmergencyAreaIDList    *EmergencyAreaIDList    `per:",choice:3"`
+	ChoiceExtension        *SingleContainer        `per:",choice:4,extie"`
 }
 
-func (l WarningAreaList) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	idx, err := chosenAlternative("WarningAreaList", len(l.EUTRACGIs) > 0, len(l.NRCGIs) > 0, len(l.TAIs) > 0, len(l.EmergencyAreaIDs) > 0)
-	if err != nil {
-		return err
-	}
+type EUTRACGIListForWarning []EUTRACGI
 
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, warningAreaListAlternatives-1, idx); err != nil {
-		return err
-	}
-
-	switch idx {
-	case warningAreaListEUTRACGI:
-		return marshalSeqOf(w, enc, 1, maxnoofCellIDforWarning, l.EUTRACGIs)
-	case warningAreaListNRCGI:
-		return marshalSeqOf(w, enc, 1, maxnoofCellIDforWarning, l.NRCGIs)
-	case warningAreaListTAI:
-		return marshalSeqOf(w, enc, 1, maxnoofTAIforWarning, l.TAIs)
-	default:
-		return marshalSeqOf(w, enc, 1, maxnoofEmergencyAreaID, l.EmergencyAreaIDs)
-	}
+func (l EUTRACGIListForWarning) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofCellIDforWarning, []EUTRACGI(l))
 }
 
-func (l *WarningAreaList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, warningAreaListAlternatives-1)
-	if err != nil {
-		return fmt.Errorf("ngap: WarningAreaList choice: %w", err)
-	}
-
-	var v WarningAreaList
-
-	switch idx {
-	case warningAreaListEUTRACGI:
-		v.EUTRACGIs, err = unmarshalSeqOf[EUTRACGI](r, enc, 1, maxnoofCellIDforWarning)
-	case warningAreaListNRCGI:
-		v.NRCGIs, err = unmarshalSeqOf[NRCGI](r, enc, 1, maxnoofCellIDforWarning)
-	case warningAreaListTAI:
-		v.TAIs, err = unmarshalSeqOf[TAI](r, enc, 1, maxnoofTAIforWarning)
-	case warningAreaListEmergencyAreaID:
-		v.EmergencyAreaIDs, err = unmarshalSeqOf[EmergencyAreaID](r, enc, 1, maxnoofEmergencyAreaID)
-	case warningAreaListChoiceExtensions:
-		return decodeChoiceExtension(r, enc, "WarningAreaList")
-	}
-
+func (l *EUTRACGIListForWarning) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[EUTRACGI](r, enc, 1, maxnoofCellIDforWarning)
 	if err != nil {
 		return err
 	}
 
-	*l = v
+	*l = items
+
+	return nil
+}
+
+type NRCGIListForWarning []NRCGI
+
+func (l NRCGIListForWarning) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofCellIDforWarning, []NRCGI(l))
+}
+
+func (l *NRCGIListForWarning) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[NRCGI](r, enc, 1, maxnoofCellIDforWarning)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+type TAIListForWarning []TAI
+
+func (l TAIListForWarning) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofTAIforWarning, []TAI(l))
+}
+
+func (l *TAIListForWarning) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[TAI](r, enc, 1, maxnoofTAIforWarning)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+type EmergencyAreaIDList []EmergencyAreaID
+
+func (l EmergencyAreaIDList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofEmergencyAreaID, []EmergencyAreaID(l))
+}
+
+func (l *EmergencyAreaIDList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[EmergencyAreaID](r, enc, 1, maxnoofEmergencyAreaID)
+	if err != nil {
+		return err
+	}
+
+	*l = items
 
 	return nil
 }
 
 type CellIDBroadcastEUTRAItem struct {
-	_        [0]struct{} `per:"extseq"`
-	EUTRACGI EUTRACGI
-	_        ieExtensions `per:",skip"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+	EUTRACGI     EUTRACGI
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 type CompletedCellsInTAIEUTRAItem struct {
-	_        [0]struct{} `per:"extseq"`
-	EUTRACGI EUTRACGI
-	_        ieExtensions `per:",skip"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+	EUTRACGI     EUTRACGI
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 type TAIBroadcastEUTRAItem struct {
-	_                   [0]struct{} `per:"extseq"`
+	extensions          per.ExtensionAdditions `per:",extraw"`
 	TAI                 TAI
 	CompletedCellsInTAI []CompletedCellsInTAIEUTRAItem `per:"SEQUENCE-OF,size:1..65535"`
-	_                   ieExtensions                   `per:",skip"`
+	iEExtensions        extensionMeta                  `per:",exttable"`
 }
 
 type CompletedCellsInEAIEUTRAItem struct {
-	_        [0]struct{} `per:"extseq"`
-	EUTRACGI EUTRACGI
-	_        ieExtensions `per:",skip"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+	EUTRACGI     EUTRACGI
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 type EmergencyAreaIDBroadcastEUTRAItem struct {
-	_                   [0]struct{} `per:"extseq"`
+	extensions          per.ExtensionAdditions `per:",extraw"`
 	EmergencyAreaID     EmergencyAreaID
 	CompletedCellsInEAI []CompletedCellsInEAIEUTRAItem `per:"SEQUENCE-OF,size:1..65535"`
-	_                   ieExtensions                   `per:",skip"`
+	iEExtensions        extensionMeta                  `per:",exttable"`
 }
 
 type CellIDBroadcastNRItem struct {
-	_     [0]struct{} `per:"extseq"`
-	NRCGI NRCGI
-	_     ieExtensions `per:",skip"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+	NRCGI        NRCGI
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 type CompletedCellsInTAINRItem struct {
-	_     [0]struct{} `per:"extseq"`
-	NRCGI NRCGI
-	_     ieExtensions `per:",skip"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+	NRCGI        NRCGI
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 type TAIBroadcastNRItem struct {
-	_                   [0]struct{} `per:"extseq"`
+	extensions          per.ExtensionAdditions `per:",extraw"`
 	TAI                 TAI
 	CompletedCellsInTAI []CompletedCellsInTAINRItem `per:"SEQUENCE-OF,size:1..65535"`
-	_                   ieExtensions                `per:",skip"`
+	iEExtensions        extensionMeta               `per:",exttable"`
 }
 
 type CompletedCellsInEAINRItem struct {
-	_     [0]struct{} `per:"extseq"`
-	NRCGI NRCGI
-	_     ieExtensions `per:",skip"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+	NRCGI        NRCGI
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 type EmergencyAreaIDBroadcastNRItem struct {
-	_                   [0]struct{} `per:"extseq"`
+	extensions          per.ExtensionAdditions `per:",extraw"`
 	EmergencyAreaID     EmergencyAreaID
 	CompletedCellsInEAI []CompletedCellsInEAINRItem `per:"SEQUENCE-OF,size:1..65535"`
-	_                   ieExtensions                `per:",skip"`
+	iEExtensions        extensionMeta               `per:",exttable"`
 }
-
-const (
-	broadcastAreaCellIDEUTRA = iota
-	broadcastAreaTAIEUTRA
-	broadcastAreaEmergencyAreaIDEUTRA
-	broadcastAreaCellIDNR
-	broadcastAreaTAINR
-	broadcastAreaEmergencyAreaIDNR
-	broadcastAreaChoiceExtensions
-
-	broadcastAreaAlternatives = 7
-)
 
 type BroadcastCompletedAreaList struct {
-	CellIDBroadcastEUTRA          []CellIDBroadcastEUTRAItem
-	TAIBroadcastEUTRA             []TAIBroadcastEUTRAItem
-	EmergencyAreaIDBroadcastEUTRA []EmergencyAreaIDBroadcastEUTRAItem
-	CellIDBroadcastNR             []CellIDBroadcastNRItem
-	TAIBroadcastNR                []TAIBroadcastNRItem
-	EmergencyAreaIDBroadcastNR    []EmergencyAreaIDBroadcastNRItem
+	CellIDBroadcastEUTRA          *CellIDBroadcastEUTRA          `per:",choice:0"`
+	TAIBroadcastEUTRA             *TAIBroadcastEUTRA             `per:",choice:1"`
+	EmergencyAreaIDBroadcastEUTRA *EmergencyAreaIDBroadcastEUTRA `per:",choice:2"`
+	CellIDBroadcastNR             *CellIDBroadcastNR             `per:",choice:3"`
+	TAIBroadcastNR                *TAIBroadcastNR                `per:",choice:4"`
+	EmergencyAreaIDBroadcastNR    *EmergencyAreaIDBroadcastNR    `per:",choice:5"`
+	ChoiceExtension               *SingleContainer               `per:",choice:6,extie"`
 }
 
-func (l BroadcastCompletedAreaList) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	idx, err := chosenAlternative("BroadcastCompletedAreaList",
-		len(l.CellIDBroadcastEUTRA) > 0, len(l.TAIBroadcastEUTRA) > 0, len(l.EmergencyAreaIDBroadcastEUTRA) > 0,
-		len(l.CellIDBroadcastNR) > 0, len(l.TAIBroadcastNR) > 0, len(l.EmergencyAreaIDBroadcastNR) > 0)
-	if err != nil {
-		return err
-	}
+type CellIDBroadcastEUTRA []CellIDBroadcastEUTRAItem
 
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, broadcastAreaAlternatives-1, idx); err != nil {
-		return err
-	}
-
-	switch idx {
-	case broadcastAreaCellIDEUTRA:
-		return marshalSeqOf(w, enc, 1, maxnoofCellIDforWarning, l.CellIDBroadcastEUTRA)
-	case broadcastAreaTAIEUTRA:
-		return marshalSeqOf(w, enc, 1, maxnoofTAIforWarning, l.TAIBroadcastEUTRA)
-	case broadcastAreaEmergencyAreaIDEUTRA:
-		return marshalSeqOf(w, enc, 1, maxnoofEmergencyAreaID, l.EmergencyAreaIDBroadcastEUTRA)
-	case broadcastAreaCellIDNR:
-		return marshalSeqOf(w, enc, 1, maxnoofCellIDforWarning, l.CellIDBroadcastNR)
-	case broadcastAreaTAINR:
-		return marshalSeqOf(w, enc, 1, maxnoofTAIforWarning, l.TAIBroadcastNR)
-	default:
-		return marshalSeqOf(w, enc, 1, maxnoofEmergencyAreaID, l.EmergencyAreaIDBroadcastNR)
-	}
+func (l CellIDBroadcastEUTRA) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofCellIDforWarning, []CellIDBroadcastEUTRAItem(l))
 }
 
-func (l *BroadcastCompletedAreaList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, broadcastAreaAlternatives-1)
-	if err != nil {
-		return fmt.Errorf("ngap: BroadcastCompletedAreaList choice: %w", err)
-	}
-
-	var v BroadcastCompletedAreaList
-
-	switch idx {
-	case broadcastAreaCellIDEUTRA:
-		v.CellIDBroadcastEUTRA, err = unmarshalSeqOf[CellIDBroadcastEUTRAItem](r, enc, 1, maxnoofCellIDforWarning)
-	case broadcastAreaTAIEUTRA:
-		v.TAIBroadcastEUTRA, err = unmarshalSeqOf[TAIBroadcastEUTRAItem](r, enc, 1, maxnoofTAIforWarning)
-	case broadcastAreaEmergencyAreaIDEUTRA:
-		v.EmergencyAreaIDBroadcastEUTRA, err = unmarshalSeqOf[EmergencyAreaIDBroadcastEUTRAItem](r, enc, 1, maxnoofEmergencyAreaID)
-	case broadcastAreaCellIDNR:
-		v.CellIDBroadcastNR, err = unmarshalSeqOf[CellIDBroadcastNRItem](r, enc, 1, maxnoofCellIDforWarning)
-	case broadcastAreaTAINR:
-		v.TAIBroadcastNR, err = unmarshalSeqOf[TAIBroadcastNRItem](r, enc, 1, maxnoofTAIforWarning)
-	case broadcastAreaEmergencyAreaIDNR:
-		v.EmergencyAreaIDBroadcastNR, err = unmarshalSeqOf[EmergencyAreaIDBroadcastNRItem](r, enc, 1, maxnoofEmergencyAreaID)
-	case broadcastAreaChoiceExtensions:
-		return decodeChoiceExtension(r, enc, "BroadcastCompletedAreaList")
-	}
-
+func (l *CellIDBroadcastEUTRA) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[CellIDBroadcastEUTRAItem](r, enc, 1, maxnoofCellIDforWarning)
 	if err != nil {
 		return err
 	}
 
-	*l = v
+	*l = items
+
+	return nil
+}
+
+type TAIBroadcastEUTRA []TAIBroadcastEUTRAItem
+
+func (l TAIBroadcastEUTRA) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofTAIforWarning, []TAIBroadcastEUTRAItem(l))
+}
+
+func (l *TAIBroadcastEUTRA) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[TAIBroadcastEUTRAItem](r, enc, 1, maxnoofTAIforWarning)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+type EmergencyAreaIDBroadcastEUTRA []EmergencyAreaIDBroadcastEUTRAItem
+
+func (l EmergencyAreaIDBroadcastEUTRA) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofEmergencyAreaID, []EmergencyAreaIDBroadcastEUTRAItem(l))
+}
+
+func (l *EmergencyAreaIDBroadcastEUTRA) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[EmergencyAreaIDBroadcastEUTRAItem](r, enc, 1, maxnoofEmergencyAreaID)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+type CellIDBroadcastNR []CellIDBroadcastNRItem
+
+func (l CellIDBroadcastNR) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofCellIDforWarning, []CellIDBroadcastNRItem(l))
+}
+
+func (l *CellIDBroadcastNR) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[CellIDBroadcastNRItem](r, enc, 1, maxnoofCellIDforWarning)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+type TAIBroadcastNR []TAIBroadcastNRItem
+
+func (l TAIBroadcastNR) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofTAIforWarning, []TAIBroadcastNRItem(l))
+}
+
+func (l *TAIBroadcastNR) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[TAIBroadcastNRItem](r, enc, 1, maxnoofTAIforWarning)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+type EmergencyAreaIDBroadcastNR []EmergencyAreaIDBroadcastNRItem
+
+func (l EmergencyAreaIDBroadcastNR) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofEmergencyAreaID, []EmergencyAreaIDBroadcastNRItem(l))
+}
+
+func (l *EmergencyAreaIDBroadcastNR) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[EmergencyAreaIDBroadcastNRItem](r, enc, 1, maxnoofEmergencyAreaID)
+	if err != nil {
+		return err
+	}
+
+	*l = items
 
 	return nil
 }
@@ -512,162 +507,186 @@ type CancelAllWarningMessages uint8
 
 const (
 	CancelAllWarningMessagesTrue CancelAllWarningMessages = iota
-
-	cancelAllWarningMessagesRootCount = 1
 )
 
-func (c CancelAllWarningMessages) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, cancelAllWarningMessagesRootCount, int64(c), "CancelAllWarningMessages")
+type CellIDCancelledEUTRAItem struct {
+	extensions         per.ExtensionAdditions `per:",extraw"`
+	EUTRACGI           EUTRACGI
+	NumberOfBroadcasts uint16        `per:",range:0..65535"`
+	iEExtensions       extensionMeta `per:",exttable"`
 }
 
-func (c *CancelAllWarningMessages) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := decodeRootEnumerated(r, enc, cancelAllWarningMessagesRootCount, "CancelAllWarningMessages")
+type CancelledCellsInTAIEUTRAItem struct {
+	extensions         per.ExtensionAdditions `per:",extraw"`
+	EUTRACGI           EUTRACGI
+	NumberOfBroadcasts uint16        `per:",range:0..65535"`
+	iEExtensions       extensionMeta `per:",exttable"`
+}
+
+type TAICancelledEUTRAItem struct {
+	extensions          per.ExtensionAdditions `per:",extraw"`
+	TAI                 TAI
+	CancelledCellsInTAI []CancelledCellsInTAIEUTRAItem `per:"SEQUENCE-OF,size:1..65535"`
+	iEExtensions        extensionMeta                  `per:",exttable"`
+}
+
+type CancelledCellsInEAIEUTRAItem struct {
+	extensions         per.ExtensionAdditions `per:",extraw"`
+	EUTRACGI           EUTRACGI
+	NumberOfBroadcasts uint16        `per:",range:0..65535"`
+	iEExtensions       extensionMeta `per:",exttable"`
+}
+
+type EmergencyAreaIDCancelledEUTRAItem struct {
+	extensions          per.ExtensionAdditions `per:",extraw"`
+	EmergencyAreaID     EmergencyAreaID
+	CancelledCellsInEAI []CancelledCellsInEAIEUTRAItem `per:"SEQUENCE-OF,size:1..65535"`
+	iEExtensions        extensionMeta                  `per:",exttable"`
+}
+
+type CellIDCancelledNRItem struct {
+	extensions         per.ExtensionAdditions `per:",extraw"`
+	NRCGI              NRCGI
+	NumberOfBroadcasts uint16        `per:",range:0..65535"`
+	iEExtensions       extensionMeta `per:",exttable"`
+}
+
+type CancelledCellsInTAINRItem struct {
+	extensions         per.ExtensionAdditions `per:",extraw"`
+	NRCGI              NRCGI
+	NumberOfBroadcasts uint16        `per:",range:0..65535"`
+	iEExtensions       extensionMeta `per:",exttable"`
+}
+
+type TAICancelledNRItem struct {
+	extensions          per.ExtensionAdditions `per:",extraw"`
+	TAI                 TAI
+	CancelledCellsInTAI []CancelledCellsInTAINRItem `per:"SEQUENCE-OF,size:1..65535"`
+	iEExtensions        extensionMeta               `per:",exttable"`
+}
+
+type CancelledCellsInEAINRItem struct {
+	extensions         per.ExtensionAdditions `per:",extraw"`
+	NRCGI              NRCGI
+	NumberOfBroadcasts uint16        `per:",range:0..65535"`
+	iEExtensions       extensionMeta `per:",exttable"`
+}
+
+type EmergencyAreaIDCancelledNRItem struct {
+	extensions          per.ExtensionAdditions `per:",extraw"`
+	EmergencyAreaID     EmergencyAreaID
+	CancelledCellsInEAI []CancelledCellsInEAINRItem `per:"SEQUENCE-OF,size:1..65535"`
+	iEExtensions        extensionMeta               `per:",exttable"`
+}
+
+type BroadcastCancelledAreaList struct {
+	CellIDCancelledEUTRA          *CellIDCancelledEUTRA          `per:",choice:0"`
+	TAICancelledEUTRA             *TAICancelledEUTRA             `per:",choice:1"`
+	EmergencyAreaIDCancelledEUTRA *EmergencyAreaIDCancelledEUTRA `per:",choice:2"`
+	CellIDCancelledNR             *CellIDCancelledNR             `per:",choice:3"`
+	TAICancelledNR                *TAICancelledNR                `per:",choice:4"`
+	EmergencyAreaIDCancelledNR    *EmergencyAreaIDCancelledNR    `per:",choice:5"`
+	ChoiceExtension               *SingleContainer               `per:",choice:6,extie"`
+}
+
+type CellIDCancelledEUTRA []CellIDCancelledEUTRAItem
+
+func (l CellIDCancelledEUTRA) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofCellIDforWarning, []CellIDCancelledEUTRAItem(l))
+}
+
+func (l *CellIDCancelledEUTRA) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[CellIDCancelledEUTRAItem](r, enc, 1, maxnoofCellIDforWarning)
 	if err != nil {
 		return err
 	}
 
-	*c = CancelAllWarningMessages(v)
+	*l = items
 
 	return nil
 }
 
-type CellIDCancelledEUTRAItem struct {
-	_                  [0]struct{} `per:"extseq"`
-	EUTRACGI           EUTRACGI
-	NumberOfBroadcasts uint16       `per:",range:0..65535"`
-	_                  ieExtensions `per:",skip"`
+type TAICancelledEUTRA []TAICancelledEUTRAItem
+
+func (l TAICancelledEUTRA) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofTAIforWarning, []TAICancelledEUTRAItem(l))
 }
 
-type CancelledCellsInTAIEUTRAItem struct {
-	_                  [0]struct{} `per:"extseq"`
-	EUTRACGI           EUTRACGI
-	NumberOfBroadcasts uint16       `per:",range:0..65535"`
-	_                  ieExtensions `per:",skip"`
-}
-
-type TAICancelledEUTRAItem struct {
-	_                   [0]struct{} `per:"extseq"`
-	TAI                 TAI
-	CancelledCellsInTAI []CancelledCellsInTAIEUTRAItem `per:"SEQUENCE-OF,size:1..65535"`
-	_                   ieExtensions                   `per:",skip"`
-}
-
-type CancelledCellsInEAIEUTRAItem struct {
-	_                  [0]struct{} `per:"extseq"`
-	EUTRACGI           EUTRACGI
-	NumberOfBroadcasts uint16       `per:",range:0..65535"`
-	_                  ieExtensions `per:",skip"`
-}
-
-type EmergencyAreaIDCancelledEUTRAItem struct {
-	_                   [0]struct{} `per:"extseq"`
-	EmergencyAreaID     EmergencyAreaID
-	CancelledCellsInEAI []CancelledCellsInEAIEUTRAItem `per:"SEQUENCE-OF,size:1..65535"`
-	_                   ieExtensions                   `per:",skip"`
-}
-
-type CellIDCancelledNRItem struct {
-	_                  [0]struct{} `per:"extseq"`
-	NRCGI              NRCGI
-	NumberOfBroadcasts uint16       `per:",range:0..65535"`
-	_                  ieExtensions `per:",skip"`
-}
-
-type CancelledCellsInTAINRItem struct {
-	_                  [0]struct{} `per:"extseq"`
-	NRCGI              NRCGI
-	NumberOfBroadcasts uint16       `per:",range:0..65535"`
-	_                  ieExtensions `per:",skip"`
-}
-
-type TAICancelledNRItem struct {
-	_                   [0]struct{} `per:"extseq"`
-	TAI                 TAI
-	CancelledCellsInTAI []CancelledCellsInTAINRItem `per:"SEQUENCE-OF,size:1..65535"`
-	_                   ieExtensions                `per:",skip"`
-}
-
-type CancelledCellsInEAINRItem struct {
-	_                  [0]struct{} `per:"extseq"`
-	NRCGI              NRCGI
-	NumberOfBroadcasts uint16       `per:",range:0..65535"`
-	_                  ieExtensions `per:",skip"`
-}
-
-type EmergencyAreaIDCancelledNRItem struct {
-	_                   [0]struct{} `per:"extseq"`
-	EmergencyAreaID     EmergencyAreaID
-	CancelledCellsInEAI []CancelledCellsInEAINRItem `per:"SEQUENCE-OF,size:1..65535"`
-	_                   ieExtensions                `per:",skip"`
-}
-
-type BroadcastCancelledAreaList struct {
-	CellIDCancelledEUTRA          []CellIDCancelledEUTRAItem
-	TAICancelledEUTRA             []TAICancelledEUTRAItem
-	EmergencyAreaIDCancelledEUTRA []EmergencyAreaIDCancelledEUTRAItem
-	CellIDCancelledNR             []CellIDCancelledNRItem
-	TAICancelledNR                []TAICancelledNRItem
-	EmergencyAreaIDCancelledNR    []EmergencyAreaIDCancelledNRItem
-}
-
-func (l BroadcastCancelledAreaList) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	idx, err := chosenAlternative("BroadcastCancelledAreaList",
-		len(l.CellIDCancelledEUTRA) > 0, len(l.TAICancelledEUTRA) > 0, len(l.EmergencyAreaIDCancelledEUTRA) > 0,
-		len(l.CellIDCancelledNR) > 0, len(l.TAICancelledNR) > 0, len(l.EmergencyAreaIDCancelledNR) > 0)
+func (l *TAICancelledEUTRA) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[TAICancelledEUTRAItem](r, enc, 1, maxnoofTAIforWarning)
 	if err != nil {
 		return err
 	}
 
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, broadcastAreaAlternatives-1, idx); err != nil {
-		return err
-	}
+	*l = items
 
-	switch idx {
-	case broadcastAreaCellIDEUTRA:
-		return marshalSeqOf(w, enc, 1, maxnoofCellIDforWarning, l.CellIDCancelledEUTRA)
-	case broadcastAreaTAIEUTRA:
-		return marshalSeqOf(w, enc, 1, maxnoofTAIforWarning, l.TAICancelledEUTRA)
-	case broadcastAreaEmergencyAreaIDEUTRA:
-		return marshalSeqOf(w, enc, 1, maxnoofEmergencyAreaID, l.EmergencyAreaIDCancelledEUTRA)
-	case broadcastAreaCellIDNR:
-		return marshalSeqOf(w, enc, 1, maxnoofCellIDforWarning, l.CellIDCancelledNR)
-	case broadcastAreaTAINR:
-		return marshalSeqOf(w, enc, 1, maxnoofTAIforWarning, l.TAICancelledNR)
-	default:
-		return marshalSeqOf(w, enc, 1, maxnoofEmergencyAreaID, l.EmergencyAreaIDCancelledNR)
-	}
+	return nil
 }
 
-func (l *BroadcastCancelledAreaList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, broadcastAreaAlternatives-1)
-	if err != nil {
-		return fmt.Errorf("ngap: BroadcastCancelledAreaList choice: %w", err)
-	}
+type EmergencyAreaIDCancelledEUTRA []EmergencyAreaIDCancelledEUTRAItem
 
-	var v BroadcastCancelledAreaList
+func (l EmergencyAreaIDCancelledEUTRA) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofEmergencyAreaID, []EmergencyAreaIDCancelledEUTRAItem(l))
+}
 
-	switch idx {
-	case broadcastAreaCellIDEUTRA:
-		v.CellIDCancelledEUTRA, err = unmarshalSeqOf[CellIDCancelledEUTRAItem](r, enc, 1, maxnoofCellIDforWarning)
-	case broadcastAreaTAIEUTRA:
-		v.TAICancelledEUTRA, err = unmarshalSeqOf[TAICancelledEUTRAItem](r, enc, 1, maxnoofTAIforWarning)
-	case broadcastAreaEmergencyAreaIDEUTRA:
-		v.EmergencyAreaIDCancelledEUTRA, err = unmarshalSeqOf[EmergencyAreaIDCancelledEUTRAItem](r, enc, 1, maxnoofEmergencyAreaID)
-	case broadcastAreaCellIDNR:
-		v.CellIDCancelledNR, err = unmarshalSeqOf[CellIDCancelledNRItem](r, enc, 1, maxnoofCellIDforWarning)
-	case broadcastAreaTAINR:
-		v.TAICancelledNR, err = unmarshalSeqOf[TAICancelledNRItem](r, enc, 1, maxnoofTAIforWarning)
-	case broadcastAreaEmergencyAreaIDNR:
-		v.EmergencyAreaIDCancelledNR, err = unmarshalSeqOf[EmergencyAreaIDCancelledNRItem](r, enc, 1, maxnoofEmergencyAreaID)
-	case broadcastAreaChoiceExtensions:
-		return decodeChoiceExtension(r, enc, "BroadcastCancelledAreaList")
-	}
-
+func (l *EmergencyAreaIDCancelledEUTRA) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[EmergencyAreaIDCancelledEUTRAItem](r, enc, 1, maxnoofEmergencyAreaID)
 	if err != nil {
 		return err
 	}
 
-	*l = v
+	*l = items
+
+	return nil
+}
+
+type CellIDCancelledNR []CellIDCancelledNRItem
+
+func (l CellIDCancelledNR) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofCellIDforWarning, []CellIDCancelledNRItem(l))
+}
+
+func (l *CellIDCancelledNR) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[CellIDCancelledNRItem](r, enc, 1, maxnoofCellIDforWarning)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+type TAICancelledNR []TAICancelledNRItem
+
+func (l TAICancelledNR) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofTAIforWarning, []TAICancelledNRItem(l))
+}
+
+func (l *TAICancelledNR) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[TAICancelledNRItem](r, enc, 1, maxnoofTAIforWarning)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+type EmergencyAreaIDCancelledNR []EmergencyAreaIDCancelledNRItem
+
+func (l EmergencyAreaIDCancelledNR) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofEmergencyAreaID, []EmergencyAreaIDCancelledNRItem(l))
+}
+
+func (l *EmergencyAreaIDCancelledNR) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[EmergencyAreaIDCancelledNRItem](r, enc, 1, maxnoofEmergencyAreaID)
+	if err != nil {
+		return err
+	}
+
+	*l = items
 
 	return nil
 }
@@ -677,65 +696,42 @@ const (
 	maxnoofEAIforRestart = 256
 )
 
-const (
-	cellListEUTRA = iota
-	cellListNR
-	cellListChoiceExtensions
-
-	cellListAlternatives = 3
-)
-
-func marshalCellList(w *per.Writer, enc per.Encoding, choice string, eutra []EUTRACGI, nr []NRCGI) error {
-	idx, err := chosenAlternative(choice, len(eutra) > 0, len(nr) > 0)
-	if err != nil {
-		return err
-	}
-
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, cellListAlternatives-1, idx); err != nil {
-		return err
-	}
-
-	if idx == cellListEUTRA {
-		return marshalSeqOf(w, enc, 1, maxnoofCellsinngeNB, eutra)
-	}
-
-	return marshalSeqOf(w, enc, 1, maxnoofCellsingNB, nr)
-}
-
-func unmarshalCellList(r *per.Reader, enc per.Encoding, choice string) ([]EUTRACGI, []NRCGI, error) {
-	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, cellListAlternatives-1)
-	if err != nil {
-		return nil, nil, fmt.Errorf("ngap: %s choice: %w", choice, err)
-	}
-
-	switch idx {
-	case cellListEUTRA:
-		eutra, err := unmarshalSeqOf[EUTRACGI](r, enc, 1, maxnoofCellsinngeNB)
-		return eutra, nil, err
-	case cellListNR:
-		nr, err := unmarshalSeqOf[NRCGI](r, enc, 1, maxnoofCellsingNB)
-		return nil, nr, err
-	default:
-		return nil, nil, decodeChoiceExtension(r, enc, choice)
-	}
-}
-
 type CellIDListForRestart struct {
-	EUTRACGIs []EUTRACGI
-	NRCGIs    []NRCGI
+	EUTRACGIListforRestart *EUTRACGIList    `per:",choice:0"`
+	NRCGIListforRestart    *NRCGIList       `per:",choice:1"`
+	ChoiceExtension        *SingleContainer `per:",choice:2,extie"`
 }
 
-func (l CellIDListForRestart) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return marshalCellList(w, enc, "CellIDListForRestart", l.EUTRACGIs, l.NRCGIs)
+type EUTRACGIList []EUTRACGI
+
+func (l EUTRACGIList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofCellsinngeNB, []EUTRACGI(l))
 }
 
-func (l *CellIDListForRestart) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	eutra, nr, err := unmarshalCellList(r, enc, "CellIDListForRestart")
+func (l *EUTRACGIList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[EUTRACGI](r, enc, 1, maxnoofCellsinngeNB)
 	if err != nil {
 		return err
 	}
 
-	*l = CellIDListForRestart{EUTRACGIs: eutra, NRCGIs: nr}
+	*l = items
+
+	return nil
+}
+
+type NRCGIList []NRCGI
+
+func (l NRCGIList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofCellsingNB, []NRCGI(l))
+}
+
+func (l *NRCGIList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[NRCGI](r, enc, 1, maxnoofCellsingNB)
+	if err != nil {
+		return err
+	}
+
+	*l = items
 
 	return nil
 }
@@ -775,21 +771,7 @@ func (l *EmergencyAreaIDListForRestart) UnmarshalPER(r *per.Reader, enc per.Enco
 }
 
 type PWSFailedCellIDList struct {
-	EUTRACGIs []EUTRACGI
-	NRCGIs    []NRCGI
-}
-
-func (l PWSFailedCellIDList) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return marshalCellList(w, enc, "PWSFailedCellIDList", l.EUTRACGIs, l.NRCGIs)
-}
-
-func (l *PWSFailedCellIDList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	eutra, nr, err := unmarshalCellList(r, enc, "PWSFailedCellIDList")
-	if err != nil {
-		return err
-	}
-
-	*l = PWSFailedCellIDList{EUTRACGIs: eutra, NRCGIs: nr}
-
-	return nil
+	EUTRACGIPWSFailedList *EUTRACGIList    `per:",choice:0"`
+	NRCGIPWSFailedList    *NRCGIList       `per:",choice:1"`
+	ChoiceExtension       *SingleContainer `per:",choice:2,extie"`
 }

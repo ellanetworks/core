@@ -7,12 +7,12 @@ import (
 	"bytes"
 	"encoding/hex"
 	"os/exec"
-	"reflect"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 type goldenRoundTrip struct {
@@ -39,7 +39,7 @@ func checkGoldenRoundTrip(t *testing.T, c goldenRoundTrip) {
 		t.Fatal(err)
 	}
 
-	if !reflect.DeepEqual(out, c.msg) {
+	if !equalByMethod(out, c.msg) {
 		t.Fatalf("decoded\n got %+v\nwant %+v", out, c.msg)
 	}
 
@@ -82,12 +82,12 @@ func insertRawIEs(t *testing.T, pdu []byte, at int, extra ...ieField) []byte {
 
 	fields := make([]ieField, 0, len(raw)+len(extra))
 	for _, f := range raw[:at] {
-		fields = append(fields, f.field())
+		fields = append(fields, f.Encodable())
 	}
 
 	fields = append(fields, extra...)
 	for _, f := range raw[at:] {
-		fields = append(fields, f.field())
+		fields = append(fields, f.Encodable())
 	}
 
 	value := container(t, fields...)
@@ -134,12 +134,8 @@ func checkWireCase(t *testing.T, c wireCase) {
 	}
 }
 
-func rawMaskedIMEISV() ieField {
-	return ieField{id: IDMaskedIMEISV, crit: CriticalityIgnore, raw: []byte{0x86, 0x65, 0x07, 0x04, 0x00, 0xff, 0xff, 0x01}}
-}
-
-func rawRedirectionVoiceFallback() ieField {
-	return ieField{id: IDRedirectionVoiceFallback, crit: CriticalityIgnore, raw: []byte{0x00}}
+func rawUnknownIE(id ProtocolIEID, value ...byte) ieField {
+	return ieField{ID: id, Criticality: CriticalityIgnore, Value: ap.RawValue(value)}
 }
 
 func marshalT(t *testing.T, m interface{ Marshal() ([]byte, error) }) []byte {

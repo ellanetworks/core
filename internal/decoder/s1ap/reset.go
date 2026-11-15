@@ -4,6 +4,7 @@
 package s1ap
 
 import (
+	"encoding/hex"
 	"fmt"
 
 	"github.com/ellanetworks/core/s1ap"
@@ -58,16 +59,21 @@ func buildReset(value []byte) (S1APMessageValue, string) {
 		ies = append(ies, ie(s1ap.IDCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
 	}
 
-	rt := ResetType{S1Interface: m.ResetType.All}
-	if !m.ResetType.All {
-		rt.PartOfS1 = ueAssociatedConnections(m.ResetType.Part)
+	all := m.ResetType.S1Interface != nil
+	part := derefSlice(m.ResetType.PartOfS1Interface)
+
+	var rt any = ResetType{S1Interface: all}
+	if m.ResetType.Ext != nil {
+		rt = rawIEValue{Hex: hex.EncodeToString([]byte(m.ResetType.Ext.Value))}
+	} else if !all {
+		rt = ResetType{PartOfS1: ueAssociatedConnections(part)}
 	}
 
 	ies = append(ies, ie(s1ap.IDResetType, s1ap.CriticalityReject, rt))
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
-	scope := fmt.Sprintf("%d connection(s)", len(m.ResetType.Part))
-	if m.ResetType.All {
+	scope := fmt.Sprintf("%d connection(s)", len(part))
+	if all {
 		scope = "whole S1 interface"
 	}
 

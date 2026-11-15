@@ -213,7 +213,7 @@ func TestRefusedArrivalLeavesThePDNConnectionOnEPS(t *testing.T) {
 	sc, ref, _, pfcpBefore := prepareArrival(t, s, upf)
 
 	refused, err := (&libngap.HandoverResourceAllocationUnsuccessfulTransfer{
-		Cause: libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: libngap.CauseRadioNetworkRadioResourcesNotAvailable},
+		Cause: libngap.CauseRadioNetworkRadioResourcesNotAvailable.Cause(),
 	}).Marshal()
 	if err != nil {
 		t.Fatalf("build the refusal transfer: %v", err)

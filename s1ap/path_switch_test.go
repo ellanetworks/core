@@ -4,7 +4,6 @@
 package s1ap
 
 import (
-	"bytes"
 	"testing"
 )
 
@@ -12,12 +11,12 @@ func sampledPathSwitchRequest() *PathSwitchRequest {
 	return &PathSwitchRequest{
 		ENBUES1APID: 2,
 		ERABToBeSwitchedDL: []ERABToBeSwitchedDLItem{
-			{ERABID: 5, TransportLayerAddress: TransportLayerAddress{10, 1, 2, 3}, GTPTEID: 0x01020304},
+			{ERABID: 5, TransportLayerAddress: tlaOf(10, 1, 2, 3), GTPTEID: 0x01020304},
 		},
 		SourceMMEUES1APID:      0x020000bf,
 		EUTRANCGI:              Ptr(EUTRANCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0x123c601}),
 		TAI:                    Ptr(TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}),
-		UESecurityCapabilities: Ptr(UESecurityCapabilities{EncryptionAlgorithms: 0xc000, IntegrityProtectionAlgorithms: 0xc000}),
+		UESecurityCapabilities: Ptr(UESecurityCapabilities{EncryptionAlgorithms: SecurityAlgorithms{Value: 0xc000}, IntegrityProtectionAlgorithms: SecurityAlgorithms{Value: 0xc000}}),
 	}
 }
 
@@ -64,7 +63,7 @@ func TestPathSwitchRequestRoundTrip(t *testing.T) {
 	want := in.ERABToBeSwitchedDL[0]
 
 	if got.ERABID != want.ERABID || got.GTPTEID != want.GTPTEID ||
-		!bytes.Equal(got.TransportLayerAddress, want.TransportLayerAddress) {
+		got.TransportLayerAddress != want.TransportLayerAddress {
 		t.Fatalf("E-RAB item = %+v, want %+v", got, want)
 	}
 }
@@ -90,7 +89,7 @@ func TestPathSwitchRequestAcknowledgeRoundTrip(t *testing.T) {
 		ENBUES1APID:               Ptr(ENBUES1APID(2)),
 		UEAggregateMaximumBitRate: &UEAggregateMaximumBitRate{DL: 1_000_000, UL: 500_000},
 		SecurityContext:           SecurityContext{NextHopChainingCount: 3, NextHopParameter: nh},
-		UESecurityCapabilities:    &UESecurityCapabilities{EncryptionAlgorithms: 0x8000, IntegrityProtectionAlgorithms: 0x8000},
+		UESecurityCapabilities:    &UESecurityCapabilities{EncryptionAlgorithms: SecurityAlgorithms{Value: 0x8000}, IntegrityProtectionAlgorithms: SecurityAlgorithms{Value: 0x8000}},
 	}
 
 	b, err := in.Marshal()
@@ -165,7 +164,7 @@ func TestPathSwitchRequestFailureRoundTrip(t *testing.T) {
 	in := &PathSwitchRequestFailure{
 		MMEUES1APID: Ptr(MMEUES1APID(7)),
 		ENBUES1APID: Ptr(ENBUES1APID(2)),
-		Cause:       Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 4}),
+		Cause:       Ptr(CauseRadioNetworkHandoverCancelled.Cause()),
 	}
 
 	b, err := in.Marshal()
@@ -189,7 +188,7 @@ func TestPathSwitchRequestFailureRoundTrip(t *testing.T) {
 	}
 
 	if deref(out.MMEUES1APID) != deref(in.MMEUES1APID) || deref(out.ENBUES1APID) != deref(in.ENBUES1APID) ||
-		deref(out.Cause) != deref(in.Cause) {
+		!deref(out.Cause).Equal(deref(in.Cause)) {
 		t.Fatalf("failure = %+v, want %+v", out, in)
 	}
 }

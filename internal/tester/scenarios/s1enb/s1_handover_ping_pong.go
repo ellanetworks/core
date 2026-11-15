@@ -187,7 +187,7 @@ func s1PrepareHandoverLeg(source, target *s1enb.ENB, sourceENBUEID, sourceMMEUEI
 		return s1LegEndpoints{}, fmt.Errorf("handover request carried %d E-RABs, want 1", len(hoReq.ERABToBeSetup))
 	}
 
-	if ext := hoReq.ERABToBeSetup[0].Extensions; ext != nil && ext.DataForwardingNotPossible != nil {
+	if hoReq.ERABToBeSetup[0].DataForwardingNotPossible != nil {
 		return s1LegEndpoints{}, fmt.Errorf("the target was told data forwarding is not possible, so it allocates no forwarding endpoint")
 	}
 

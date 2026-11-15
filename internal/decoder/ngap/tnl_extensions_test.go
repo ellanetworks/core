@@ -10,11 +10,12 @@ import (
 	"testing"
 
 	lib "github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 func tunnel(teid uint32) lib.UPTransportLayerInformation {
-	return lib.UPTransportLayerInformation{GTPTunnel: lib.GTPTunnel{
-		TransportLayerAddress: lib.TransportLayerAddress{10, 0, 0, 1},
+	return lib.UPTransportLayerInformation{GTPTunnel: &lib.GTPTunnel{
+		TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 0, 0, 1}),
 		GTPTEID:               lib.GTPTEID(teid),
 	}}
 }
@@ -72,7 +73,7 @@ func tnlRenderCases(t *testing.T) []tnlRenderCase {
 		QosFlowSetupRequest: lib.QosFlowSetupRequestList{{
 			QosFlowIdentifier: 1,
 			QosFlowLevelQosParameters: lib.QosFlowLevelQosParameters{
-				QosCharacteristics:             lib.QosCharacteristics{Kind: lib.QosCharacteristicsNonDynamic5QI, NonDynamic5QI: lib.NonDynamic5QIDescriptor{FiveQI: 9}},
+				QosCharacteristics:             lib.QosCharacteristics{NonDynamic5QI: &lib.NonDynamic5QIDescriptor{FiveQI: 9}},
 				AllocationAndRetentionPriority: lib.AllocationAndRetentionPriority{PriorityLevelARP: 8},
 			},
 		}},
@@ -231,7 +232,7 @@ func tnlRenderCases(t *testing.T) []tnlRenderCase {
 			name: "path_switch_request",
 			raw: mustMarshal(t, &lib.PathSwitchRequest{
 				RANUENGAPID: 2, SourceAMFUENGAPID: 1,
-				UserLocationInformation:              &lib.UserLocationInformation{Kind: lib.UserLocationNR, PLMNIdentity: testPLMN, TAI: testTAI},
+				UserLocationInformation:              &lib.UserLocationInformation{NR: &lib.UserLocationInformationNR{NRCGI: lib.NRCGI{PLMNIdentity: testPLMN, NRCellIdentity: lib.NRCellIdentity(0)}, TAI: testTAI}},
 				UESecurityCapabilities:               &lib.UESecurityCapabilities{},
 				PDUSessionResourceToBeSwitchedDLList: lib.PDUSessionResourceToBeSwitchedDLList{{PDUSessionID: 5, Transfer: psReq}},
 			}),

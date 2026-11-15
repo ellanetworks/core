@@ -15,12 +15,13 @@ import (
 // (§9.3.4.1). The AMF neither builds nor reads it — the SMF does — so it is
 // carried opaquely.
 type PDUSessionResourceSetupItemCxtReq struct {
-	PDUSessionID PDUSessionID
-	NASPDU       *NASPDU `per:",optional"`
-	SNSSAI       SNSSAI
-	Transfer     TransferContainer
-	iEExtensions *rawIEExtensions       `per:",optional"`
-	extensions   per.ExtensionAdditions `per:",extraw"`
+	PDUSessionID                          PDUSessionID
+	NASPDU                                *NASPDU `per:",optional"`
+	SNSSAI                                SNSSAI
+	Transfer                              TransferContainer
+	PduSessionExpectedUEActivityBehaviour *ExpectedUEActivityBehaviour `per:",extie:IDPduSessionExpectedUEActivityBehaviour,crit:ignore"`
+	iEExtensions                          extensionMeta                `per:",exttable"`
+	extensions                            per.ExtensionAdditions       `per:",extraw"`
 }
 
 // PDUSessionResourceSetupListCxtReq ::= SEQUENCE (SIZE(1..maxnoofPDUSessions))
@@ -34,7 +35,7 @@ type PDUSessionResourceSetupListCxtReq []PDUSessionResourceSetupItemCxtReq
 type PDUSessionResourceSetupItemCxtRes struct {
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	iEExtensions *rawIEExtensions       `per:",optional"`
+	iEExtensions extensionMeta          `per:",exttable"`
 	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
@@ -47,10 +48,10 @@ type PDUSessionResourceSetupListCxtRes []PDUSessionResourceSetupItemCxtRes
 // (extensible). The transfer contains a
 // PDUSessionResourceSetupUnsuccessfulTransfer (§9.3.4.16).
 type PDUSessionResourceFailedToSetupItemCxtRes struct {
-	_            [0]struct{} `per:"extseq"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // PDUSessionResourceFailedToSetupListCxtRes ::= SEQUENCE
@@ -60,10 +61,10 @@ type PDUSessionResourceFailedToSetupListCxtRes []PDUSessionResourceFailedToSetup
 // PDUSessionResourceFailedToSetupItemCxtFail has the same shape as its CxtRes
 // counterpart but its own ASN.1 type, so the two lists stay distinct.
 type PDUSessionResourceFailedToSetupItemCxtFail struct {
-	_            [0]struct{} `per:"extseq"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // PDUSessionResourceFailedToSetupListCxtFail ::= SEQUENCE
@@ -76,43 +77,87 @@ type InitialContextSetupRequest struct {
 	RANUENGAPID RANUENGAPID
 	// C-ifPDUSessionResourceSetup: present exactly when PDUSessionResourceSetup
 	// is (§9.2.2.1).
-	UEAggregateMaximumBitRate  *UEAggregateMaximumBitRate
-	GUAMI                      GUAMI
-	PDUSessionResourceSetup    PDUSessionResourceSetupListCxtReq
-	AllowedNSSAI               AllowedNSSAI
-	UESecurityCapabilities     UESecurityCapabilities
-	SecurityKey                SecurityKey
-	TraceActivation            *TraceActivation
-	UERadioCapability          UERadioCapability
-	NASPDU                     *NASPDU
-	UERadioCapabilityForPaging *UERadioCapabilityForPaging
-	AMFUENGAPID2               *AMFUENGAPID
+	UEAggregateMaximumBitRate                   *UEAggregateMaximumBitRate
+	GUAMI                                       GUAMI
+	PDUSessionResourceSetup                     PDUSessionResourceSetupListCxtReq
+	AllowedNSSAI                                AllowedNSSAI
+	UESecurityCapabilities                      UESecurityCapabilities
+	SecurityKey                                 SecurityKey
+	TraceActivation                             *TraceActivation
+	UERadioCapability                           UERadioCapability
+	NASPDU                                      *NASPDU
+	UERadioCapabilityForPaging                  *UERadioCapabilityForPaging
+	AMFUENGAPID2                                *AMFUENGAPID
+	OldAMF                                      *Name
+	CoreNetworkAssistanceInformationForInactive *CoreNetworkAssistanceInformationForInactive
+	MobilityRestrictionList                     *MobilityRestrictionList
+	IndexToRFSP                                 *IndexToRFSP
+	MaskedIMEISV                                *MaskedIMEISV
+	EmergencyFallbackIndicator                  *EmergencyFallbackIndicator
+	RRCInactiveTransitionReportRequest          *RRCInactiveTransitionReportRequest
+	RedirectionVoiceFallback                    *RedirectionVoiceFallback
+	LocationReportingRequestType                *LocationReportingRequestType
+	CNAssistedRANTuning                         *CNAssistedRANTuning
+	SRVCCOperationPossible                      *SRVCCOperationPossible
+	IABAuthorized                               *IABAuthorized
+	EnhancedCoverageRestriction                 *EnhancedCoverageRestriction
+	ExtendedConnectedTime                       *ExtendedConnectedTime
+	UEDifferentiationInfo                       *UEDifferentiationInfo
+	NRV2XServicesAuthorized                     *NRV2XServicesAuthorized
+	LTEV2XServicesAuthorized                    *LTEV2XServicesAuthorized
+	NRUESidelinkAggregateMaximumBitrate         *NRUESidelinkAggregateMaximumBitrate
+	LTEUESidelinkAggregateMaximumBitrate        *LTEUESidelinkAggregateMaximumBitrate
+	PC5QoSParameters                            *PC5QoSParameters
+	CEmodeBrestricted                           *CEmodeBrestricted
+	UEUPCIoTSupport                             *UEUPCIoTSupport
+	RGLevelWirelineAccessCharacteristics        *RGLevelWirelineAccessCharacteristics
+	ManagementBasedMDTPLMNList                  MDTPLMNList
+	UERadioCapabilityID                         *UERadioCapabilityID
+	TimeSyncAssistanceInfo                      *TimeSyncAssistanceInfo
+	QMCConfigInfo                               *QMCConfigInfo
+	TargetNSSAIInformation                      *TargetNSSAIInformation
+	UESliceMaximumBitRateList                   UESliceMaximumBitRateList
+	FiveGProSeAuthorized                        *FiveGProSeAuthorized
+	FiveGProSeUEPC5AggregateMaximumBitRate      *NRUESidelinkAggregateMaximumBitrate
+	FiveGProSePC5QoSParameters                  *FiveGProSePC5QoSParameters
+	NetworkControlledRepeaterAuthorized         *NetworkControlledRepeaterAuthorized
+	AerialUEsubscriptionInformation             *AerialUEsubscriptionInformation
+	NRA2XServicesAuthorized                     *NRA2XServicesAuthorized
+	LTEA2XServicesAuthorized                    *LTEA2XServicesAuthorized
+	NRA2XUEPC5AggregateMaximumBitRate           *NRUESidelinkAggregateMaximumBitrate
+	LTEA2XUEPC5AggregateMaximumBitRate          *LTEUESidelinkAggregateMaximumBitrate
+	A2XPC5QoSParameters                         *A2XPC5QoSParameters
+	MobileIABAuthorized                         *MobileIABAuthorized
+	PartiallyAllowedNSSAI                       PartiallyAllowedNSSAI
+	SLPositioningRangingServiceInfo             *SLPositioningRangingServiceInfo
+	ExtendedOldAMF                              *ExtendedAMFName
 
 	messageMeta
 }
 
 var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 	{
-		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.AMFUENGAPID)
+		ID: IDAMFUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *InitialContextSetupRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.AMFUENGAPID)
 		},
-		encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
+		Encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.RANUENGAPID)
+		ID: IDRANUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *InitialContextSetupRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.RANUENGAPID)
 		},
-		encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
+		Encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
+	optionalExtension(IDOldAMF, CriticalityReject, func(m *InitialContextSetupRequest) **Name { return &m.OldAMF }),
 	{
-		id: IDUEAggregateMaximumBitRate, presence: presenceConditional, crit: CriticalityReject,
-		condition: func(m *InitialContextSetupRequest) bool { return m.PDUSessionResourceSetup != nil },
-		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
+		ID: IDUEAggregateMaximumBitRate, Presence: presenceConditional, Criticality: CriticalityReject,
+		Condition: func(m *InitialContextSetupRequest) bool { return m.PDUSessionResourceSetup != nil },
+		Decode: func(m *InitialContextSetupRequest, r *per.Reader, enc per.Encoding) error {
 			var v UEAggregateMaximumBitRate
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -120,7 +165,7 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 
 			return nil
 		},
-		encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) {
+		Encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) {
 			if m.UEAggregateMaximumBitRate == nil {
 				return nil, false
 			}
@@ -128,19 +173,22 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 			return m.UEAggregateMaximumBitRate, true
 		},
 	},
+	optionalExtension(IDCoreNetworkAssistanceInformationForInactive, CriticalityIgnore, func(m *InitialContextSetupRequest) **CoreNetworkAssistanceInformationForInactive {
+		return &m.CoreNetworkAssistanceInformationForInactive
+	}),
 	{
-		id: IDGUAMI, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.GUAMI)
+		ID: IDGUAMI, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *InitialContextSetupRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.GUAMI)
 		},
-		encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) { return &m.GUAMI, true },
+		Encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) { return &m.GUAMI, true },
 	},
 	{
-		id: IDPDUSessionResourceSetupListCxtReq, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.PDUSessionResourceSetup)
+		ID: IDPDUSessionResourceSetupListCxtReq, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *InitialContextSetupRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.PDUSessionResourceSetup)
 		},
-		encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) {
+		Encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) {
 			if m.PDUSessionResourceSetup == nil {
 				return nil, false
 			}
@@ -149,11 +197,11 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 		},
 	},
 	{
-		id: IDAllowedNSSAI, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.AllowedNSSAI)
+		ID: IDAllowedNSSAI, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *InitialContextSetupRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.AllowedNSSAI)
 		},
-		encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) {
+		Encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) {
 			if m.AllowedNSSAI == nil {
 				return nil, false
 			}
@@ -162,27 +210,27 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 		},
 	},
 	{
-		id: IDUESecurityCapabilities, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.UESecurityCapabilities)
+		ID: IDUESecurityCapabilities, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *InitialContextSetupRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.UESecurityCapabilities)
 		},
-		encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) {
+		Encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) {
 			return &m.UESecurityCapabilities, true
 		},
 	},
 	{
-		id: IDSecurityKey, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.SecurityKey)
+		ID: IDSecurityKey, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *InitialContextSetupRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.SecurityKey)
 		},
-		encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) { return &m.SecurityKey, true },
+		Encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) { return &m.SecurityKey, true },
 	},
 	{
-		id: IDTraceActivation, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
+		ID: IDTraceActivation, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *InitialContextSetupRequest, r *per.Reader, enc per.Encoding) error {
 			var v TraceActivation
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -190,7 +238,7 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 
 			return nil
 		},
-		encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) {
+		Encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) {
 			if m.TraceActivation == nil {
 				return nil, false
 			}
@@ -198,12 +246,13 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 			return m.TraceActivation, true
 		},
 	},
+	optionalExtension(IDMobilityRestrictionList, CriticalityIgnore, func(m *InitialContextSetupRequest) **MobilityRestrictionList { return &m.MobilityRestrictionList }),
 	{
-		id: IDUERadioCapability, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.UERadioCapability)
+		ID: IDUERadioCapability, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *InitialContextSetupRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.UERadioCapability)
 		},
-		encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) {
+		Encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) {
 			if m.UERadioCapability == nil {
 				return nil, false
 			}
@@ -211,12 +260,14 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 			return m.UERadioCapability, true
 		},
 	},
+	optionalExtension(IDIndexToRFSP, CriticalityIgnore, func(m *InitialContextSetupRequest) **IndexToRFSP { return &m.IndexToRFSP }),
+	optionalExtension(IDMaskedIMEISV, CriticalityIgnore, func(m *InitialContextSetupRequest) **MaskedIMEISV { return &m.MaskedIMEISV }),
 	{
-		id: IDNASPDU, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
+		ID: IDNASPDU, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *InitialContextSetupRequest, r *per.Reader, enc per.Encoding) error {
 			var v NASPDU
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -224,7 +275,7 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 
 			return nil
 		},
-		encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) {
+		Encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) {
 			if m.NASPDU == nil {
 				return nil, false
 			}
@@ -232,12 +283,16 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 			return m.NASPDU, true
 		},
 	},
+	optionalExtension(IDEmergencyFallbackIndicator, CriticalityReject, func(m *InitialContextSetupRequest) **EmergencyFallbackIndicator { return &m.EmergencyFallbackIndicator }),
+	optionalExtension(IDRRCInactiveTransitionReportRequest, CriticalityIgnore, func(m *InitialContextSetupRequest) **RRCInactiveTransitionReportRequest {
+		return &m.RRCInactiveTransitionReportRequest
+	}),
 	{
-		id: IDUERadioCapabilityForPaging, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
+		ID: IDUERadioCapabilityForPaging, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *InitialContextSetupRequest, r *per.Reader, enc per.Encoding) error {
 			var v UERadioCapabilityForPaging
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -245,7 +300,7 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 
 			return nil
 		},
-		encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) {
+		Encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) {
 			if m.UERadioCapabilityForPaging == nil {
 				return nil, false
 			}
@@ -253,12 +308,70 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 			return m.UERadioCapabilityForPaging, true
 		},
 	},
+	optionalExtension(IDRedirectionVoiceFallback, CriticalityIgnore, func(m *InitialContextSetupRequest) **RedirectionVoiceFallback { return &m.RedirectionVoiceFallback }),
+	optionalExtension(IDLocationReportingRequestType, CriticalityIgnore, func(m *InitialContextSetupRequest) **LocationReportingRequestType {
+		return &m.LocationReportingRequestType
+	}),
+	optionalExtension(IDCNAssistedRANTuning, CriticalityIgnore, func(m *InitialContextSetupRequest) **CNAssistedRANTuning { return &m.CNAssistedRANTuning }),
+	optionalExtension(IDSRVCCOperationPossible, CriticalityIgnore, func(m *InitialContextSetupRequest) **SRVCCOperationPossible { return &m.SRVCCOperationPossible }),
+	optionalExtension(IDIABAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **IABAuthorized { return &m.IABAuthorized }),
+	optionalExtension(IDEnhancedCoverageRestriction, CriticalityIgnore, func(m *InitialContextSetupRequest) **EnhancedCoverageRestriction {
+		return &m.EnhancedCoverageRestriction
+	}),
+	optionalExtension(IDExtendedConnectedTime, CriticalityIgnore, func(m *InitialContextSetupRequest) **ExtendedConnectedTime { return &m.ExtendedConnectedTime }),
+	optionalExtension(IDUEDifferentiationInfo, CriticalityIgnore, func(m *InitialContextSetupRequest) **UEDifferentiationInfo { return &m.UEDifferentiationInfo }),
+	optionalExtension(IDNRV2XServicesAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **NRV2XServicesAuthorized { return &m.NRV2XServicesAuthorized }),
+	optionalExtension(IDLTEV2XServicesAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **LTEV2XServicesAuthorized { return &m.LTEV2XServicesAuthorized }),
+	optionalExtension(IDNRUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *InitialContextSetupRequest) **NRUESidelinkAggregateMaximumBitrate {
+		return &m.NRUESidelinkAggregateMaximumBitrate
+	}),
+	optionalExtension(IDLTEUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *InitialContextSetupRequest) **LTEUESidelinkAggregateMaximumBitrate {
+		return &m.LTEUESidelinkAggregateMaximumBitrate
+	}),
+	optionalExtension(IDPC5QoSParameters, CriticalityIgnore, func(m *InitialContextSetupRequest) **PC5QoSParameters { return &m.PC5QoSParameters }),
+	optionalExtension(IDCEmodeBrestricted, CriticalityIgnore, func(m *InitialContextSetupRequest) **CEmodeBrestricted { return &m.CEmodeBrestricted }),
+	optionalExtension(IDUEUPCIoTSupport, CriticalityIgnore, func(m *InitialContextSetupRequest) **UEUPCIoTSupport { return &m.UEUPCIoTSupport }),
+	optionalExtension(IDRGLevelWirelineAccessCharacteristics, CriticalityIgnore, func(m *InitialContextSetupRequest) **RGLevelWirelineAccessCharacteristics {
+		return &m.RGLevelWirelineAccessCharacteristics
+	}),
+	listExtension(IDManagementBasedMDTPLMNList, CriticalityIgnore, func(m *InitialContextSetupRequest) *MDTPLMNList { return &m.ManagementBasedMDTPLMNList }),
+	optionalExtension(IDUERadioCapabilityID, CriticalityReject, func(m *InitialContextSetupRequest) **UERadioCapabilityID { return &m.UERadioCapabilityID }),
+	optionalExtension(IDTimeSyncAssistanceInfo, CriticalityIgnore, func(m *InitialContextSetupRequest) **TimeSyncAssistanceInfo { return &m.TimeSyncAssistanceInfo }),
+	optionalExtension(IDQMCConfigInfo, CriticalityIgnore, func(m *InitialContextSetupRequest) **QMCConfigInfo { return &m.QMCConfigInfo }),
+	optionalExtension(IDTargetNSSAIInformation, CriticalityIgnore, func(m *InitialContextSetupRequest) **TargetNSSAIInformation { return &m.TargetNSSAIInformation }),
+	listExtension(IDUESliceMaximumBitRateList, CriticalityIgnore, func(m *InitialContextSetupRequest) *UESliceMaximumBitRateList { return &m.UESliceMaximumBitRateList }),
+	optionalExtension(IDFiveGProSeAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **FiveGProSeAuthorized { return &m.FiveGProSeAuthorized }),
+	optionalExtension(IDFiveGProSeUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *InitialContextSetupRequest) **NRUESidelinkAggregateMaximumBitrate {
+		return &m.FiveGProSeUEPC5AggregateMaximumBitRate
+	}),
+	optionalExtension(IDFiveGProSePC5QoSParameters, CriticalityIgnore, func(m *InitialContextSetupRequest) **FiveGProSePC5QoSParameters { return &m.FiveGProSePC5QoSParameters }),
+	optionalExtension(IDNetworkControlledRepeaterAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **NetworkControlledRepeaterAuthorized {
+		return &m.NetworkControlledRepeaterAuthorized
+	}),
+	optionalExtension(IDAerialUEsubscriptionInformation, CriticalityIgnore, func(m *InitialContextSetupRequest) **AerialUEsubscriptionInformation {
+		return &m.AerialUEsubscriptionInformation
+	}),
+	optionalExtension(IDNRA2XServicesAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **NRA2XServicesAuthorized { return &m.NRA2XServicesAuthorized }),
+	optionalExtension(IDLTEA2XServicesAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **LTEA2XServicesAuthorized { return &m.LTEA2XServicesAuthorized }),
+	optionalExtension(IDNRA2XUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *InitialContextSetupRequest) **NRUESidelinkAggregateMaximumBitrate {
+		return &m.NRA2XUEPC5AggregateMaximumBitRate
+	}),
+	optionalExtension(IDLTEA2XUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *InitialContextSetupRequest) **LTEUESidelinkAggregateMaximumBitrate {
+		return &m.LTEA2XUEPC5AggregateMaximumBitRate
+	}),
+	optionalExtension(IDA2XPC5QoSParameters, CriticalityIgnore, func(m *InitialContextSetupRequest) **A2XPC5QoSParameters { return &m.A2XPC5QoSParameters }),
+	optionalExtension(IDMobileIABAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **MobileIABAuthorized { return &m.MobileIABAuthorized }),
+	listExtension(IDPartiallyAllowedNSSAI, CriticalityIgnore, func(m *InitialContextSetupRequest) *PartiallyAllowedNSSAI { return &m.PartiallyAllowedNSSAI }),
+	optionalExtension(IDSLPositioningRangingServiceInfo, CriticalityIgnore, func(m *InitialContextSetupRequest) **SLPositioningRangingServiceInfo {
+		return &m.SLPositioningRangingServiceInfo
+	}),
+	optionalExtension(IDExtendedOldAMF, CriticalityIgnore, func(m *InitialContextSetupRequest) **ExtendedAMFName { return &m.ExtendedOldAMF }),
 	{
-		id: IDAMFUENGAPID2, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *InitialContextSetupRequest, raw []byte, enc per.Encoding) error {
+		ID: IDAMFUENGAPID2, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *InitialContextSetupRequest, r *per.Reader, enc per.Encoding) error {
 			var v AMFUENGAPID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -266,7 +379,7 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 
 			return nil
 		},
-		encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) {
+		Encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) {
 			if m.AMFUENGAPID2 == nil {
 				return nil, false
 			}
@@ -300,6 +413,10 @@ func ParseInitialContextSetupRequest(value []byte) (*InitialContextSetupRequest,
 	return parseMessageBody[InitialContextSetupRequest](ProcInitialContextSetup, TriggeringInitiatingMessage, initialContextSetupRequestIEs, value)
 }
 
+func DecodeInitialContextSetupRequest(value []byte) (*InitialContextSetupRequest, error) {
+	return decodeMessageBody[InitialContextSetupRequest](ProcInitialContextSetup, initialContextSetupRequestIEs, value)
+}
+
 // TS 38.413 §9.2.2.2.
 type InitialContextSetupResponse struct {
 	AMFUENGAPID              *AMFUENGAPID
@@ -313,11 +430,11 @@ type InitialContextSetupResponse struct {
 
 var initialContextSetupResponseIEs = []ieSpec[InitialContextSetupResponse]{
 	{
-		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *InitialContextSetupResponse, raw []byte, enc per.Encoding) error {
+		ID: IDAMFUENGAPID, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *InitialContextSetupResponse, r *per.Reader, enc per.Encoding) error {
 			var v AMFUENGAPID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -325,7 +442,7 @@ var initialContextSetupResponseIEs = []ieSpec[InitialContextSetupResponse]{
 
 			return nil
 		},
-		encode: func(m *InitialContextSetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *InitialContextSetupResponse) (per.Marshaler, bool) {
 			if m.AMFUENGAPID == nil {
 				return nil, false
 			}
@@ -334,11 +451,11 @@ var initialContextSetupResponseIEs = []ieSpec[InitialContextSetupResponse]{
 		},
 	},
 	{
-		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *InitialContextSetupResponse, raw []byte, enc per.Encoding) error {
+		ID: IDRANUENGAPID, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *InitialContextSetupResponse, r *per.Reader, enc per.Encoding) error {
 			var v RANUENGAPID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -346,7 +463,7 @@ var initialContextSetupResponseIEs = []ieSpec[InitialContextSetupResponse]{
 
 			return nil
 		},
-		encode: func(m *InitialContextSetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *InitialContextSetupResponse) (per.Marshaler, bool) {
 			if m.RANUENGAPID == nil {
 				return nil, false
 			}
@@ -355,11 +472,11 @@ var initialContextSetupResponseIEs = []ieSpec[InitialContextSetupResponse]{
 		},
 	},
 	{
-		id: IDPDUSessionResourceSetupListCxtRes, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *InitialContextSetupResponse, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.PDUSessionResourceSetup)
+		ID: IDPDUSessionResourceSetupListCxtRes, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *InitialContextSetupResponse, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.PDUSessionResourceSetup)
 		},
-		encode: func(m *InitialContextSetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *InitialContextSetupResponse) (per.Marshaler, bool) {
 			if m.PDUSessionResourceSetup == nil {
 				return nil, false
 			}
@@ -368,11 +485,11 @@ var initialContextSetupResponseIEs = []ieSpec[InitialContextSetupResponse]{
 		},
 	},
 	{
-		id: IDPDUSessionResourceFailedToSetupListCxtRes, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *InitialContextSetupResponse, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.PDUSessionResourceFailed)
+		ID: IDPDUSessionResourceFailedToSetupListCxtRes, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *InitialContextSetupResponse, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.PDUSessionResourceFailed)
 		},
-		encode: func(m *InitialContextSetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *InitialContextSetupResponse) (per.Marshaler, bool) {
 			if m.PDUSessionResourceFailed == nil {
 				return nil, false
 			}
@@ -381,11 +498,11 @@ var initialContextSetupResponseIEs = []ieSpec[InitialContextSetupResponse]{
 		},
 	},
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *InitialContextSetupResponse, raw []byte, enc per.Encoding) error {
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *InitialContextSetupResponse, r *per.Reader, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
-			if err := perIEDecode(raw, &cd); err != nil {
+			if err := decodeIE(r, &cd); err != nil {
 				return err
 			}
 
@@ -393,7 +510,7 @@ var initialContextSetupResponseIEs = []ieSpec[InitialContextSetupResponse]{
 
 			return nil
 		},
-		encode: func(m *InitialContextSetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *InitialContextSetupResponse) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -427,6 +544,10 @@ func ParseInitialContextSetupResponse(value []byte) (*InitialContextSetupRespons
 	return parseMessageBody[InitialContextSetupResponse](ProcInitialContextSetup, TriggeringSuccessfulOutcome, initialContextSetupResponseIEs, value)
 }
 
+func DecodeInitialContextSetupResponse(value []byte) (*InitialContextSetupResponse, error) {
+	return decodeMessageBody[InitialContextSetupResponse](ProcInitialContextSetup, initialContextSetupResponseIEs, value)
+}
+
 // TS 38.413 §9.2.2.3.
 type InitialContextSetupFailure struct {
 	AMFUENGAPID              *AMFUENGAPID
@@ -440,11 +561,11 @@ type InitialContextSetupFailure struct {
 
 var initialContextSetupFailureIEs = []ieSpec[InitialContextSetupFailure]{
 	{
-		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *InitialContextSetupFailure, raw []byte, enc per.Encoding) error {
+		ID: IDAMFUENGAPID, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *InitialContextSetupFailure, r *per.Reader, enc per.Encoding) error {
 			var v AMFUENGAPID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -452,7 +573,7 @@ var initialContextSetupFailureIEs = []ieSpec[InitialContextSetupFailure]{
 
 			return nil
 		},
-		encode: func(m *InitialContextSetupFailure) (per.Marshaler, bool) {
+		Encode: func(m *InitialContextSetupFailure) (per.Marshaler, bool) {
 			if m.AMFUENGAPID == nil {
 				return nil, false
 			}
@@ -461,11 +582,11 @@ var initialContextSetupFailureIEs = []ieSpec[InitialContextSetupFailure]{
 		},
 	},
 	{
-		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *InitialContextSetupFailure, raw []byte, enc per.Encoding) error {
+		ID: IDRANUENGAPID, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *InitialContextSetupFailure, r *per.Reader, enc per.Encoding) error {
 			var v RANUENGAPID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -473,7 +594,7 @@ var initialContextSetupFailureIEs = []ieSpec[InitialContextSetupFailure]{
 
 			return nil
 		},
-		encode: func(m *InitialContextSetupFailure) (per.Marshaler, bool) {
+		Encode: func(m *InitialContextSetupFailure) (per.Marshaler, bool) {
 			if m.RANUENGAPID == nil {
 				return nil, false
 			}
@@ -482,11 +603,11 @@ var initialContextSetupFailureIEs = []ieSpec[InitialContextSetupFailure]{
 		},
 	},
 	{
-		id: IDPDUSessionResourceFailedToSetupListCxtFail, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *InitialContextSetupFailure, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.PDUSessionResourceFailed)
+		ID: IDPDUSessionResourceFailedToSetupListCxtFail, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *InitialContextSetupFailure, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.PDUSessionResourceFailed)
 		},
-		encode: func(m *InitialContextSetupFailure) (per.Marshaler, bool) {
+		Encode: func(m *InitialContextSetupFailure) (per.Marshaler, bool) {
 			if m.PDUSessionResourceFailed == nil {
 				return nil, false
 			}
@@ -495,11 +616,11 @@ var initialContextSetupFailureIEs = []ieSpec[InitialContextSetupFailure]{
 		},
 	},
 	{
-		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *InitialContextSetupFailure, raw []byte, enc per.Encoding) error {
+		ID: IDCause, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *InitialContextSetupFailure, r *per.Reader, enc per.Encoding) error {
 			var v Cause
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -507,7 +628,7 @@ var initialContextSetupFailureIEs = []ieSpec[InitialContextSetupFailure]{
 
 			return nil
 		},
-		encode: func(m *InitialContextSetupFailure) (per.Marshaler, bool) {
+		Encode: func(m *InitialContextSetupFailure) (per.Marshaler, bool) {
 			if m.Cause == nil {
 				return nil, false
 			}
@@ -516,11 +637,11 @@ var initialContextSetupFailureIEs = []ieSpec[InitialContextSetupFailure]{
 		},
 	},
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *InitialContextSetupFailure, raw []byte, enc per.Encoding) error {
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *InitialContextSetupFailure, r *per.Reader, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
-			if err := perIEDecode(raw, &cd); err != nil {
+			if err := decodeIE(r, &cd); err != nil {
 				return err
 			}
 
@@ -528,7 +649,7 @@ var initialContextSetupFailureIEs = []ieSpec[InitialContextSetupFailure]{
 
 			return nil
 		},
-		encode: func(m *InitialContextSetupFailure) (per.Marshaler, bool) {
+		Encode: func(m *InitialContextSetupFailure) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -560,4 +681,8 @@ func (m *InitialContextSetupFailure) Marshal() ([]byte, error) {
 
 func ParseInitialContextSetupFailure(value []byte) (*InitialContextSetupFailure, error) {
 	return parseMessageBody[InitialContextSetupFailure](ProcInitialContextSetup, TriggeringUnsuccessfulOutcome, initialContextSetupFailureIEs, value)
+}
+
+func DecodeInitialContextSetupFailure(value []byte) (*InitialContextSetupFailure, error) {
+	return decodeMessageBody[InitialContextSetupFailure](ProcInitialContextSetup, initialContextSetupFailureIEs, value)
 }

@@ -4,9 +4,8 @@
 package ngap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 // UE NGAP ID ranges (TS 38.413 §9.3.3). The AMF id is 40 bits wide, so both
@@ -73,24 +72,9 @@ const (
 	RRCCauseMOSMS
 	RRCCauseMPSPriorityAccess
 	RRCCauseMCSPriorityAccess
-
-	rrcEstablishmentCauseRootCount = 10
+	RRCCauseNotAvailable
+	RRCCauseMOExceptionData
 )
-
-func (c RRCEstablishmentCause) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, rrcEstablishmentCauseRootCount, int64(c), "RRCEstablishmentCause")
-}
-
-func (c *RRCEstablishmentCause) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, rrcEstablishmentCauseRootCount, "RRCEstablishmentCause")
-	if err != nil {
-		return fmt.Errorf("ngap: rrc establishment cause: %w", err)
-	}
-
-	*c = RRCEstablishmentCause(idx)
-
-	return nil
-}
 
 // UEContextRequest ::= ENUMERATED { requested, ... } (extensible). No S1AP
 // counterpart: only NGAP lets the NG-RAN node ask for a UE context alongside
@@ -99,78 +83,19 @@ type UEContextRequest uint8
 
 const (
 	UEContextRequested UEContextRequest = iota
-
-	ueContextRequestRootCount = 1
 )
-
-func (u UEContextRequest) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, ueContextRequestRootCount, int64(u), "UEContextRequest")
-}
-
-func (u *UEContextRequest) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, ueContextRequestRootCount, "UEContextRequest")
-	if err != nil {
-		return err
-	}
-
-	*u = UEContextRequest(idx)
-
-	return nil
-}
 
 type GWContextReleaseIndication uint8
 
 const (
 	GWContextReleaseIndicationTrue GWContextReleaseIndication = iota
-
-	gwContextReleaseIndicationRootCount = 1
 )
-
-func (g GWContextReleaseIndication) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, gwContextReleaseIndicationRootCount, int64(g), "GWContextReleaseIndication")
-}
-
-func (g *GWContextReleaseIndication) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, gwContextReleaseIndicationRootCount, "GWContextReleaseIndication")
-	if err != nil {
-		return err
-	}
-
-	*g = GWContextReleaseIndication(idx)
-
-	return nil
-}
 
 // Cell identity widths of the two 3GPP-access CGIs (TS 38.413 §9.3.1.7,
 // §9.3.1.9). S1AP has one, 28 bits wide.
 const (
 	EUTRACellIdentityBits = 28
 	NRCellIdentityBits    = 36
-)
-
-// UserLocationInformation CHOICE alternatives (TS 38.413 §9.3.1.16). The CHOICE
-// is closed by a choice-Extensions alternative rather than an extension marker,
-// so the index is constrained across all four.
-const (
-	userLocationInformationEUTRA = iota
-	userLocationInformationNR
-	userLocationInformationN3IWF
-	userLocationInformationChoiceExtensions
-
-	userLocationInformationAlternatives = 4
-)
-
-// UserLocationInformationKind selects which CGI the cell identity belongs to.
-type UserLocationInformationKind uint8
-
-const (
-	// UserLocationEUTRA is userLocationInformationEUTRA: EUTRA-CGI, 28 bits.
-	UserLocationEUTRA UserLocationInformationKind = iota
-	// UserLocationNR is userLocationInformationNR: NR-CGI, 36 bits.
-	UserLocationNR
-	// UserLocationN3IWF is userLocationInformationN3IWF-with-PortNumber: an IP
-	// address and port instead of a cell.
-	UserLocationN3IWF
 )
 
 // PortNumber ::= OCTET STRING (SIZE(2)).
@@ -195,38 +120,248 @@ func (p *PortNumber) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 // counterpart: the S1AP User Location Information carries no timestamp.
 type TimeStamp [4]byte
 
+func (t TimeStamp) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeOctetString(w, enc, 4, 4, true, true, false, t[:])
+}
+
+func (t *TimeStamp) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 4, 4, true, true, false)
+	if err != nil {
+		return err
+	}
+
+	copy(t[:], b)
+
+	return nil
+}
+
 // UserLocationInformation ::= CHOICE { userLocationInformationEUTRA,
 // userLocationInformationNR, userLocationInformationN3IWF-with-PortNumber,
 // choice-Extensions } — TS 38.413 §9.3.1.16.
 //
-// The two 3GPP-access alternatives are an extensible SEQUENCE of a CGI, a TAI
-// and an optional timeStamp, so they flatten into one struct: Kind says which
-// CGI CellIdentity came from and therefore how wide it is. The N3IWF
-// alternative reports an IP address and port instead, and uses IPAddress and
-// PortNumber; Ella Core does not serve non-3GPP access, but modelling it lets an
-// N3IWF's messages decode, which matters because the IE is mandatory-reject in
-// INITIAL UE MESSAGE (§10.3.4.2).
-//
-// Only the with-PortNumber alternative decodes. The rest of the non-3GPP
-// alternatives — TNGF, TWIF, W-AGF and N3IWF-without-PortNumber — are
-// choice-Extensions, which decodeChoiceExtension consumes and reports as not
-// comprehended, so the IE's own reject criticality rejects the procedure.
-//
 // S1AP carries the same information as two separate mandatory IEs, E-UTRAN CGI
 // and TAI, with no CHOICE and no timestamp.
 type UserLocationInformation struct {
-	Kind UserLocationInformationKind
+	EUTRA                  *UserLocationInformationEUTRA                  `per:",choice:0"`
+	NR                     *UserLocationInformationNR                     `per:",choice:1"`
+	N3IWF                  *UserLocationInformationN3IWFWithPortNumber    `per:",choice:2"`
+	TNGF                   *UserLocationInformationTNGF                   `per:",choice:3,extie:IDUserLocationInformationTNGF,crit:ignore"`
+	TWIF                   *UserLocationInformationTWIF                   `per:",choice:3,extie:IDUserLocationInformationTWIF,crit:ignore"`
+	WAGF                   *UserLocationInformationWAGF                   `per:",choice:3,extie:IDUserLocationInformationWAGF,crit:ignore"`
+	N3IWFWithoutPortNumber *UserLocationInformationN3IWFWithoutPortNumber `per:",choice:3,extie:IDUserLocationInformationN3IWFwithoutPortNumber,crit:ignore"`
+	ChoiceExtension        *SingleContainer                               `per:",choice:3,extie"`
+	choiceCriticality      ap.WireCriticality                             `per:",choicecrit"`
+}
 
-	// Set for UserLocationEUTRA and UserLocationNR.
-	PLMNIdentity PLMNIdentity
-	// CellIdentity is right-aligned in the width Kind implies.
-	CellIdentity uint64
+type UserLocationInformationEUTRA struct {
+	EUTRACGI          EUTRACGI
+	TAI               TAI
+	TimeStamp         *TimeStamp             `per:",optional"`
+	PSCellInformation *NGRANCGI              `per:",extie:IDPSCellInformation,crit:ignore"`
+	iEExtensions      extensionMeta          `per:",exttable"`
+	extensions        per.ExtensionAdditions `per:",extraw"`
+}
+
+type UserLocationInformationNR struct {
+	NRCGI                              NRCGI
+	TAI                                TAI
+	TimeStamp                          *TimeStamp                          `per:",optional"`
+	PSCellInformation                  *NGRANCGI                           `per:",extie:IDPSCellInformation,crit:ignore"`
+	NID                                *NID                                `per:",extie:IDNID,crit:reject"`
+	NRNTNTAIInformation                *NRNTNTAIInformation                `per:",extie:IDNRNTNTAIInformation,crit:ignore"`
+	MobileIABMTUserLocationInformation *MobileIABMTUserLocationInformation `per:",extie:IDMobileIABMTUserLocationInformation,crit:ignore"`
+	AdditionalULI                      *AdditionalULI                      `per:",extie:IDAdditionalULI,crit:ignore"`
+	AerialUEFlightInformationReporting *AerialUEFlightInformationReporting `per:",extie:IDAerialUEFlightInformationReporting,crit:ignore"`
+	iEExtensions                       extensionMeta                       `per:",exttable"`
+	extensions                         per.ExtensionAdditions              `per:",extraw"`
+}
+
+type UserLocationInformationN3IWFWithPortNumber struct {
+	IPAddress    TransportLayerAddress
+	PortNumber   PortNumber
+	TAI          *TAI                   `per:",extie:IDTAI,crit:ignore"`
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+}
+
+type UserLocationInformationTNGF struct {
+	TNAPID       TNAPID
+	IPAddress    TransportLayerAddress
+	PortNumber   *PortNumber            `per:",optional"`
+	TAI          *TAI                   `per:",extie:IDTAI,crit:ignore"`
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+}
+
+type UserLocationInformationTWIF struct {
+	TWAPID       TWAPID
+	IPAddress    TransportLayerAddress
+	PortNumber   *PortNumber            `per:",optional"`
+	TAI          *TAI                   `per:",extie:IDTAI,crit:ignore"`
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+}
+
+type UserLocationInformationWAGF struct {
+	GlobalLineID      *GlobalLineID      `per:",choice:0"`
+	HFCNodeID         *HFCNodeID         `per:",choice:1"`
+	GlobalCableID     *GlobalCableID     `per:",choice:2,extie:IDGlobalCableID,crit:ignore"`
+	HFCNodeIDNew      *HFCNodeIDNew      `per:",choice:2,extie:IDHFCNodeIDnew,crit:ignore"`
+	GlobalCableIDNew  *GlobalCableIDNew  `per:",choice:2,extie:IDGlobalCableIDnew,crit:ignore"`
+	ChoiceExtension   *SingleContainer   `per:",choice:2,extie"`
+	choiceCriticality ap.WireCriticality `per:",choicecrit"`
+}
+
+type UserLocationInformationN3IWFWithoutPortNumber struct {
+	IPAddress    TransportLayerAddress
+	TAI          *TAI                   `per:",optional"`
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+}
+
+type GlobalLineID struct {
+	GlobalLineIdentity GlobalLineIdentity
+	LineType           *LineType              `per:",optional"`
+	TAI                *TAI                   `per:",extie:IDTAI,crit:ignore"`
+	iEExtensions       extensionMeta          `per:",exttable"`
+	extensions         per.ExtensionAdditions `per:",extraw"`
+}
+
+type LineType uint8
+
+const (
+	LineTypeDSL LineType = iota
+	LineTypePON
+)
+
+type HFCNodeIDNew struct {
+	HFCNodeID     HFCNodeID
+	TAI           TAI
+	GlobalCableID GlobalCableID          `per:",extie:IDGlobalCableID,crit:ignore"`
+	iEExtensions  extensionMeta          `per:",exttable"`
+	extensions    per.ExtensionAdditions `per:",extraw"`
+}
+
+type GlobalCableIDNew struct {
+	GlobalCableID GlobalCableID
+	TAI           TAI
+	iEExtensions  extensionMeta          `per:",exttable"`
+	extensions    per.ExtensionAdditions `per:",extraw"`
+}
+
+type NRNTNTAIInformation struct {
+	ServingPLMN                 PLMNIdentity
+	TACListInNRNTN              TACListInNRNTN
+	UELocationDerivedTACInNRNTN *TAC                   `per:",optional"`
+	iEExtensions                extensionMeta          `per:",exttable"`
+	extensions                  per.ExtensionAdditions `per:",extraw"`
+}
+
+const maxnoofTACsinNTN = 12
+
+type TACListInNRNTN []TAC
+
+func (l TACListInNRNTN) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofTACsinNTN, []TAC(l))
+}
+
+func (l *TACListInNRNTN) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[TAC](r, enc, 1, maxnoofTACsinNTN)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+type MobileIABMTUserLocationInformation struct {
+	NRCGI        NRCGI
 	TAI          TAI
-	TimeStamp    *TimeStamp
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+}
 
-	// Set for UserLocationN3IWF.
-	IPAddress  TransportLayerAddress
-	PortNumber PortNumber
+type AdditionalULI struct {
+	NRCGI        NRCGI
+	TAI          TAI
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+}
+
+type AerialUEFlightInformationReporting struct {
+	Altitude     Altitude `per:",range:-420..10000,..."`
+	TimeStamp    TimeStamp
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+}
+
+type Altitude int32
+
+type TNAPID []byte
+
+func (v TNAPID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeOctetString(w, enc, 0, 0, true, false, false, v)
+}
+
+func (v *TNAPID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 0, 0, true, false, false)
+	*v = b
+
+	return err
+}
+
+type TWAPID []byte
+
+func (v TWAPID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeOctetString(w, enc, 0, 0, true, false, false, v)
+}
+
+func (v *TWAPID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 0, 0, true, false, false)
+	*v = b
+
+	return err
+}
+
+type GlobalLineIdentity []byte
+
+func (v GlobalLineIdentity) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeOctetString(w, enc, 0, 0, true, false, false, v)
+}
+
+func (v *GlobalLineIdentity) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 0, 0, true, false, false)
+	*v = b
+
+	return err
+}
+
+type HFCNodeID []byte
+
+func (v HFCNodeID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeOctetString(w, enc, 0, 0, true, false, false, v)
+}
+
+func (v *HFCNodeID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 0, 0, true, false, false)
+	*v = b
+
+	return err
+}
+
+type GlobalCableID []byte
+
+func (v GlobalCableID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeOctetString(w, enc, 0, 0, true, false, false, v)
+}
+
+func (v *GlobalCableID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 0, 0, true, false, false)
+	*v = b
+
+	return err
 }
 
 // NASPDU ::= OCTET STRING (unbounded), carried opaquely (TS 24.501).
@@ -250,10 +385,10 @@ func (n *NASPDU) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 // TAI ::= SEQUENCE { pLMNIdentity, tAC, iE-Extensions OPTIONAL } (extensible)
 // — TS 38.413 §9.3.3.11.
 type TAI struct {
-	_            [0]struct{} `per:"extseq"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 	PLMNIdentity PLMNIdentity
 	TAC          TAC
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // PDUSessionID ::= INTEGER (0..255) — TS 38.413 §9.3.1.50.
@@ -285,23 +420,27 @@ func (b BitRate) MarshalPER(w *per.Writer, enc per.Encoding) error {
 }
 
 func (b *BitRate) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := decodeExtensibleInt(r, enc, 0, bitRateMax, "BitRate")
+	v, err := decodeExtensibleInt[BitRate](r, enc, 0, bitRateMax)
 	if err != nil {
 		return err
 	}
 
-	*b = BitRate(v)
+	*b = v
 
 	return nil
+}
+
+func (v BitRate) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return outsideRoot(int64(v), 0, bitRateMax)
 }
 
 // UEAggregateMaximumBitRate ::= SEQUENCE { ...DL, ...UL, iE-Extensions OPTIONAL }
 // (extensible) — TS 38.413 §9.3.1.58.
 type UEAggregateMaximumBitRate struct {
-	_  [0]struct{} `per:"extseq"`
-	DL BitRate
-	UL BitRate
-	_  ieExtensions `per:",skip"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+	DL           BitRate
+	UL           BitRate
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // SecurityKey ::= BIT STRING (SIZE(256)) — the K_gNB.
@@ -326,59 +465,43 @@ func (k *SecurityKey) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 // iE-Extensions OPTIONAL } (extensible) — TS 38.413 §9.3.1.86. Each field is
 // BIT STRING (SIZE(16, ...)). S1AP carries only the E-UTRA pair.
 type UESecurityCapabilities struct {
-	NREncryptionAlgorithms             uint16
-	NRIntegrityProtectionAlgorithms    uint16
-	EUTRAEncryptionAlgorithms          uint16
-	EUTRAIntegrityProtectionAlgorithms uint16
+	NREncryptionAlgorithms             SecurityAlgorithms
+	NRIntegrityProtectionAlgorithms    SecurityAlgorithms
+	EUTRAEncryptionAlgorithms          SecurityAlgorithms
+	EUTRAIntegrityProtectionAlgorithms SecurityAlgorithms
+	iEExtensions                       extensionMeta          `per:",exttable"`
+	extensions                         per.ExtensionAdditions `per:",extraw"`
 }
 
-func (c UESecurityCapabilities) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+const securityAlgorithmsBits = 16
 
-	for _, v := range [4]uint16{
-		c.NREncryptionAlgorithms, c.NRIntegrityProtectionAlgorithms,
-		c.EUTRAEncryptionAlgorithms, c.EUTRAIntegrityProtectionAlgorithms,
-	} {
-		if err := per.EncodeBitString(w, enc, 16, 16, true, true, true, uintToBits(uint64(v), 16), 16); err != nil {
-			return err
-		}
+type SecurityAlgorithms struct {
+	Value    uint16
+	extended bool
+	raw      BitString
+}
+
+func SecurityAlgorithmsFrom(v uint16) SecurityAlgorithms { return SecurityAlgorithms{Value: v} }
+
+func (a SecurityAlgorithms) Uint16() uint16 { return a.Value }
+
+func (a SecurityAlgorithms) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	if a.extended {
+		return a.raw.encode(w, enc, securityAlgorithmsBits, securityAlgorithmsBits)
 	}
 
-	return nil
+	return BitStringFromUint(uint64(a.Value), securityAlgorithmsBits).encode(w, enc, securityAlgorithmsBits, securityAlgorithmsBits)
 }
 
-func (c *UESecurityCapabilities) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	extBit, err := r.ReadBit()
+func (a *SecurityAlgorithms) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := decodeBitString(r, enc, securityAlgorithmsBits, securityAlgorithmsBits)
 	if err != nil {
 		return err
 	}
 
-	extContainer, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-
-	var algs [4]uint16
-
-	for i := range algs {
-		b, nbits, err := per.DecodeBitString(r, enc, 16, 16, true, true, true)
-		if err != nil {
-			return err
-		}
-
-		algs[i] = uint16(bitsToUint(b, nbits))
-	}
-
-	if err := skipSequenceExtensionsPER(r, enc, extContainer, extBit); err != nil {
-		return err
-	}
-
-	*c = UESecurityCapabilities{
-		NREncryptionAlgorithms:             algs[0],
-		NRIntegrityProtectionAlgorithms:    algs[1],
-		EUTRAEncryptionAlgorithms:          algs[2],
-		EUTRAIntegrityProtectionAlgorithms: algs[3],
+	*a = SecurityAlgorithms{Value: uint16(BitStringFrom(append(b.Bytes(), 0, 0), securityAlgorithmsBits).Uint64())}
+	if b.Bits() != securityAlgorithmsBits {
+		a.extended, a.raw = true, b
 	}
 
 	return nil

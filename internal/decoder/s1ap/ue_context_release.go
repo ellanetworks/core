@@ -49,7 +49,10 @@ func buildUEContextReleaseCommand(value []byte) (S1APMessageValue, string) {
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
-	return S1APMessageValue{IEs: ies}, fmt.Sprintf("UE Context Release Command (MME-UE %d, eNB-UE %d)", m.UES1APIDs.MMEUES1APID, m.UES1APIDs.ENBUES1APID)
+	mme, _ := m.UES1APIDs.MMEID()
+	enb, _ := m.UES1APIDs.ENBID()
+
+	return S1APMessageValue{IEs: ies}, fmt.Sprintf("UE Context Release Command (MME-UE %d, eNB-UE %d)", mme, enb)
 }
 
 func buildUEContextReleaseComplete(value []byte) (S1APMessageValue, string) {

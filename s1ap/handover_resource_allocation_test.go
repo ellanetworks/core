@@ -6,7 +6,6 @@ package s1ap
 import (
 	"bytes"
 	"encoding/hex"
-	"reflect"
 	"testing"
 )
 
@@ -19,16 +18,16 @@ func TestHandoverRequestRoundTrip(t *testing.T) {
 	in := &HandoverRequest{
 		MMEUES1APID:  0x020000bf,
 		HandoverType: HandoverTypeIntraLTE,
-		Cause:        Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 16}),
+		Cause:        Ptr(CauseRadioNetworkHandoverDesirableForRadio.Cause()),
 		UEAMBR:       UEAggregateMaximumBitRate{DL: 1_000_000, UL: 500_000},
 		ERABToBeSetup: []ERABToBeSetupItemHOReq{{
 			ERABID:                5,
-			TransportLayerAddress: TransportLayerAddress{10, 1, 2, 3},
+			TransportLayerAddress: tlaOf(10, 1, 2, 3),
 			GTPTEID:               0x01020304,
 			QoS:                   ERABLevelQoSParameters{QCI: 9, ARP: AllocationAndRetentionPriority{PriorityLevel: 15}},
 		}},
 		SourceToTarget:         TransparentContainer{0xaa, 0xbb},
-		UESecurityCapabilities: UESecurityCapabilities{EncryptionAlgorithms: 0xc000, IntegrityProtectionAlgorithms: 0xc000},
+		UESecurityCapabilities: UESecurityCapabilities{EncryptionAlgorithms: SecurityAlgorithms{Value: 0xc000}, IntegrityProtectionAlgorithms: SecurityAlgorithms{Value: 0xc000}},
 		SecurityContext:        SecurityContext{NextHopChainingCount: 3, NextHopParameter: nh},
 	}
 
@@ -66,7 +65,7 @@ func TestHandoverRequestRoundTrip(t *testing.T) {
 
 	got, want := out.ERABToBeSetup[0], in.ERABToBeSetup[0]
 	if got.ERABID != want.ERABID || got.GTPTEID != want.GTPTEID || got.QoS.QCI != want.QoS.QCI ||
-		!bytes.Equal(got.TransportLayerAddress, want.TransportLayerAddress) {
+		got.TransportLayerAddress != want.TransportLayerAddress {
 		t.Fatalf("E-RAB item = %+v, want %+v", got, want)
 	}
 }
@@ -77,10 +76,10 @@ func TestHandoverRequestAcknowledgeRoundTrip(t *testing.T) {
 		ENBUES1APID: Ptr(ENBUES1APID(9)),
 		ERABAdmitted: []ERABAdmittedItem{{
 			ERABID:                5,
-			TransportLayerAddress: TransportLayerAddress{10, 9, 9, 9},
+			TransportLayerAddress: tlaOf(10, 9, 9, 9),
 			GTPTEID:               0x0a0b0c0d,
 		}},
-		ERABFailedToSetup: []ERABItem{{ERABID: 6, Cause: Cause{Group: CauseGroupRadioNetwork, Value: 0}}},
+		ERABFailedToSetup: []ERABItem{{ERABID: 6, Cause: CauseRadioNetworkUnspecified.Cause()}},
 		TargetToSource:    TransparentContainer{0x11, 0x22, 0x33},
 	}
 
@@ -109,7 +108,7 @@ func TestHandoverRequestAcknowledgeRoundTrip(t *testing.T) {
 	}
 
 	if len(out.ERABAdmitted) != 1 || out.ERABAdmitted[0].GTPTEID != in.ERABAdmitted[0].GTPTEID ||
-		!bytes.Equal(out.ERABAdmitted[0].TransportLayerAddress, in.ERABAdmitted[0].TransportLayerAddress) {
+		out.ERABAdmitted[0].TransportLayerAddress != in.ERABAdmitted[0].TransportLayerAddress {
 		t.Fatalf("admitted = %+v", out.ERABAdmitted)
 	}
 
@@ -130,9 +129,9 @@ func TestHandoverRequestAcknowledgeForwardingTunnels(t *testing.T) {
 		ENBUES1APID: Ptr(ENBUES1APID(9)),
 		ERABAdmitted: []ERABAdmittedItem{{
 			ERABID:                5,
-			TransportLayerAddress: TransportLayerAddress{10, 9, 9, 9},
+			TransportLayerAddress: tlaOf(10, 9, 9, 9),
 			GTPTEID:               0x0a0b0c0d,
-			DLTransportLayerAddr:  TransportLayerAddress{10, 8, 8, 8},
+			DLTransportLayerAddr:  Ptr(tlaOf(10, 8, 8, 8)),
 			DLGTPTEID:             &dlTEID,
 		}},
 		TargetToSource: TransparentContainer{0x01},
@@ -154,7 +153,7 @@ func TestHandoverRequestAcknowledgeForwardingTunnels(t *testing.T) {
 	}
 
 	it := out.ERABAdmitted[0]
-	if it.DLGTPTEID == nil || *it.DLGTPTEID != dlTEID || !bytes.Equal(it.DLTransportLayerAddr, in.ERABAdmitted[0].DLTransportLayerAddr) {
+	if it.DLGTPTEID == nil || *it.DLGTPTEID != dlTEID || it.DLTransportLayerAddr == nil || *it.DLTransportLayerAddr != *in.ERABAdmitted[0].DLTransportLayerAddr {
 		t.Fatalf("DL forwarding tunnel = %+v", it)
 	}
 
@@ -166,7 +165,7 @@ func TestHandoverRequestAcknowledgeForwardingTunnels(t *testing.T) {
 func TestHandoverFailureRoundTrip(t *testing.T) {
 	in := &HandoverFailure{
 		MMEUES1APID: Ptr(MMEUES1APID(7)),
-		Cause:       Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 0}),
+		Cause:       Ptr(CauseRadioNetworkUnspecified.Cause()),
 	}
 
 	b, err := in.Marshal()
@@ -189,7 +188,7 @@ func TestHandoverFailureRoundTrip(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if deref(out.MMEUES1APID) != deref(in.MMEUES1APID) || deref(out.Cause) != deref(in.Cause) {
+	if deref(out.MMEUES1APID) != deref(in.MMEUES1APID) || !deref(out.Cause).Equal(deref(in.Cause)) {
 		t.Fatalf("failure = %+v, want %+v", out, in)
 	}
 }
@@ -205,7 +204,7 @@ func TestHandoverRequestAcknowledgeFailedListItemID(t *testing.T) {
 		MMEUES1APID:       Ptr(MMEUES1APID(1)),
 		ENBUES1APID:       Ptr(ENBUES1APID(2)),
 		ERABAdmitted:      []ERABAdmittedItem{{ERABID: 0}},
-		ERABFailedToSetup: []ERABItem{{ERABID: 4, Cause: Cause{Group: CauseGroupRadioNetwork, Value: 0}}},
+		ERABFailedToSetup: []ERABItem{{ERABID: 4, Cause: CauseRadioNetworkUnspecified.Cause()}},
 		TargetToSource:    TransparentContainer{0x00},
 	}).Marshal()
 	if err != nil {
@@ -225,15 +224,13 @@ func TestHandoverRequestDataForwardingNotPossibleRoundTrip(t *testing.T) {
 	in := &HandoverRequest{
 		MMEUES1APID:  1,
 		HandoverType: HandoverTypeIntraLTE,
-		Cause:        Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 16}),
+		Cause:        Ptr(CauseRadioNetworkHandoverDesirableForRadio.Cause()),
 		ERABToBeSetup: []ERABToBeSetupItemHOReq{{
-			ERABID:                5,
-			TransportLayerAddress: TransportLayerAddress{10, 1, 2, 3},
-			GTPTEID:               0x01020304,
-			QoS:                   ERABLevelQoSParameters{QCI: 9, ARP: AllocationAndRetentionPriority{PriorityLevel: 15}},
-			Extensions: &ERABToBeSetupItemHOReqExtIEs{
-				DataForwardingNotPossible: Ptr(DataForwardingNotPossibleTrue),
-			},
+			ERABID:                    5,
+			TransportLayerAddress:     tlaOf(10, 1, 2, 3),
+			GTPTEID:                   0x01020304,
+			QoS:                       ERABLevelQoSParameters{QCI: 9, ARP: AllocationAndRetentionPriority{PriorityLevel: 15}},
+			DataForwardingNotPossible: Ptr(DataForwardingNotPossibleTrue),
 		}},
 		SourceToTarget: TransparentContainer{0xaa},
 	}
@@ -262,10 +259,7 @@ func TestHandoverRequestDataForwardingNotPossibleRoundTrip(t *testing.T) {
 		t.Fatalf("E-RAB list len = %d, want 1", len(out.ERABToBeSetup))
 	}
 
-	ext := out.ERABToBeSetup[0].Extensions
-	if ext == nil {
-		t.Fatal("iE-Extensions: got absent, want present")
-	}
+	ext := out.ERABToBeSetup[0]
 
 	if ext.DataForwardingNotPossible == nil {
 		t.Fatal("Data Forwarding Not Possible: got absent, want present")
@@ -276,34 +270,17 @@ func TestHandoverRequestDataForwardingNotPossibleRoundTrip(t *testing.T) {
 	}
 }
 
-// The container is SIZE(1..maxProtocolExtensions), so a present-but-empty one
-// has no legal encoding.
-func TestERABToBeSetupItemHOReqEmptyExtensionsRejected(t *testing.T) {
-	_, err := (&HandoverRequest{
-		MMEUES1APID:    1,
-		HandoverType:   HandoverTypeIntraLTE,
-		Cause:          Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 16}),
-		ERABToBeSetup:  []ERABToBeSetupItemHOReq{{ERABID: 5, Extensions: &ERABToBeSetupItemHOReqExtIEs{}}},
-		SourceToTarget: TransparentContainer{0xaa},
-	}).Marshal()
-	if err == nil {
-		t.Fatal("expected an error encoding an empty iE-Extensions container")
-	}
-}
-
 // Verified against the Wireshark S1AP dissector, which reads the container as
 // id-Data-Forwarding-Not-Possible (143), criticality ignore, value
 // data-Forwarding-not-Possible.
 func TestHandoverRequestDataForwardingNotPossibleGolden(t *testing.T) {
 	b, err := (&HandoverRequest{
-		Cause:          new(Cause),
+		Cause:          Ptr(CauseRadioNetworkUnspecified.Cause()),
 		SourceToTarget: TransparentContainer{0x00},
 		ERABToBeSetup: []ERABToBeSetupItemHOReq{{
-			ERABID: 1, TransportLayerAddress: TransportLayerAddress{10, 0, 0, 1}, GTPTEID: 1,
-			QoS: ERABLevelQoSParameters{QCI: 9, ARP: AllocationAndRetentionPriority{PriorityLevel: 1}},
-			Extensions: &ERABToBeSetupItemHOReqExtIEs{
-				DataForwardingNotPossible: Ptr(DataForwardingNotPossibleTrue),
-			},
+			ERABID: 1, TransportLayerAddress: tlaOf(10, 0, 0, 1), GTPTEID: 1,
+			QoS:                       ERABLevelQoSParameters{QCI: 9, ARP: AllocationAndRetentionPriority{PriorityLevel: 1}},
+			DataForwardingNotPossible: Ptr(DataForwardingNotPossibleTrue),
 		}},
 	}).Marshal()
 	if err != nil {
@@ -330,16 +307,16 @@ func TestHandoverRequestCarriesRestrictionList(t *testing.T) {
 	in := &HandoverRequest{
 		MMEUES1APID:  1,
 		HandoverType: HandoverTypeIntraLTE,
-		Cause:        Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 0}),
+		Cause:        Ptr(CauseRadioNetworkUnspecified.Cause()),
 		UEAMBR:       UEAggregateMaximumBitRate{DL: 1000, UL: 1000},
 		ERABToBeSetup: []ERABToBeSetupItemHOReq{{
 			ERABID:                5,
-			TransportLayerAddress: TransportLayerAddress{192, 0, 2, 1},
+			TransportLayerAddress: tlaOf(192, 0, 2, 1),
 			GTPTEID:               1,
 			QoS:                   ERABLevelQoSParameters{QCI: 9, ARP: AllocationAndRetentionPriority{PriorityLevel: 1}},
 		}},
 		SourceToTarget:         TransparentContainer{0x01},
-		UESecurityCapabilities: UESecurityCapabilities{EncryptionAlgorithms: 0x8000, IntegrityProtectionAlgorithms: 0x8000},
+		UESecurityCapabilities: UESecurityCapabilities{EncryptionAlgorithms: SecurityAlgorithms{Value: 0x8000}, IntegrityProtectionAlgorithms: SecurityAlgorithms{Value: 0x8000}},
 		HandoverRestrictionList: &HandoverRestrictionList{
 			ServingPLMN:        serving,
 			EquivalentPLMNs:    EPLMNs{other},
@@ -378,11 +355,11 @@ func TestHandoverRequestCarriesRestrictionList(t *testing.T) {
 		t.Errorf("equivalent PLMNs = %+v, want [% x]", got.EquivalentPLMNs, other)
 	}
 
-	if len(got.ForbiddenTAs) != 1 || !reflect.DeepEqual(got.ForbiddenTAs[0].ForbiddenTACs, ForbiddenTACs{7, 8}) {
+	if len(got.ForbiddenTAs) != 1 || !got.ForbiddenTAs[0].ForbiddenTACs.Equal(ForbiddenTACs{7, 8}) {
 		t.Errorf("forbidden TAs = %+v, want one item with TACs [7 8]", got.ForbiddenTAs)
 	}
 
-	if len(got.ForbiddenLAs) != 1 || !reflect.DeepEqual(got.ForbiddenLAs[0].ForbiddenLACs, ForbiddenLACs{9}) {
+	if len(got.ForbiddenLAs) != 1 || !got.ForbiddenLAs[0].ForbiddenLACs.Equal(ForbiddenLACs{9}) {
 		t.Errorf("forbidden LAs = %+v, want one item with LACs [9]", got.ForbiddenLAs)
 	}
 
@@ -445,11 +422,11 @@ func handoverRequestGoldenCases() []newMessageCase {
 			msg: &HandoverRequest{
 				MMEUES1APID:            1,
 				HandoverType:           HandoverTypeIntraLTE,
-				Cause:                  Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 16}),
+				Cause:                  Ptr(CauseRadioNetworkHandoverDesirableForRadio.Cause()),
 				UEAMBR:                 UEAggregateMaximumBitRate{DL: 1_000_000, UL: 500_000},
 				ERABToBeSetup:          []ERABToBeSetupItemHOReq{{ERABID: 5, TransportLayerAddress: goldTLA(), GTPTEID: 1, QoS: goldQoS()}},
 				SourceToTarget:         TransparentContainer{0x00, 0x01, 0x80, 0x00, 0x00, 0xf1, 0x10, 0x00, 0x00, 0x10, 0x10, 0x00, 0x00, 0xf1, 0x10, 0x00, 0x00, 0x10, 0x20, 0x80, 0x00, 0x0a},
-				UESecurityCapabilities: UESecurityCapabilities{EncryptionAlgorithms: 0x8000, IntegrityProtectionAlgorithms: 0xc000},
+				UESecurityCapabilities: UESecurityCapabilities{EncryptionAlgorithms: SecurityAlgorithms{Value: 0x8000}, IntegrityProtectionAlgorithms: SecurityAlgorithms{Value: 0xc000}},
 				SecurityContext:        SecurityContext{NextHopChainingCount: 3},
 				GUMMEI:                 Ptr(goldGUMMEI()),
 				MMEUES1APID2:           Ptr(MMEUES1APID(3)),

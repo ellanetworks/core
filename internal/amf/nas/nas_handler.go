@@ -261,7 +261,7 @@ func rejectBareServiceRequest(ctx context.Context, ue *amf.UeConn, cause fgs.GMM
 		logger.From(ctx, logger.AmfLog).Warn("failed to send service reject for uncontextualized service request", zap.Error(err))
 	}
 
-	ue.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
+	ue.SendUEContextReleaseCommand(ctx, ngap.CauseNASNormalRelease.Cause())
 }
 
 // fetchUeContextWithMobileIdentity resolves an existing UE context from the GUTI

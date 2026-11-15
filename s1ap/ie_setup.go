@@ -3,6 +3,8 @@
 
 package s1ap
 
+import "github.com/ellanetworks/core/per"
+
 // TAC ::= OCTET STRING (SIZE(2)).
 type TAC uint16
 
@@ -12,10 +14,11 @@ type BPLMNs []PLMNIdentity
 // SupportedTAItem ::= SEQUENCE { tAC, broadcastPLMNs, iE-Extensions OPTIONAL }
 // (extensible).
 type SupportedTAItem struct {
-	_              [0]struct{} `per:"extseq"`
+	extensions     per.ExtensionAdditions `per:",extraw"`
 	TAC            TAC
 	BroadcastPLMNs BPLMNs
-	_              ieExtensions `per:",skip"`
+	RATType        *RATType      `per:",extie:IDRATType,crit:reject"`
+	iEExtensions   extensionMeta `per:",exttable"`
 }
 
 // SupportedTAs ::= SEQUENCE (SIZE(1..maxnoofTACs)) OF SupportedTAs-Item.
@@ -28,8 +31,6 @@ type UERetentionInformation uint8
 
 const (
 	UERetentionUesRetained UERetentionInformation = iota
-
-	ueRetentionInformationRootCount = 1
 )
 
 // PagingDRX ::= ENUMERATED { v32, v64, v128, v256, ... } (extensible).
@@ -40,8 +41,6 @@ const (
 	PagingDRXv64
 	PagingDRXv128
 	PagingDRXv256
-
-	pagingDRXRootCount = 4
 )
 
 // maxnoof constants for S1 Setup IEs (TS 36.413, S1AP-Constants).

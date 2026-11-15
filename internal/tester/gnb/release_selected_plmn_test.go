@@ -79,8 +79,8 @@ func TestUEContextReleaseClearsSelectedPLMN(t *testing.T) {
 	}
 
 	cmd := &ngap.UEContextReleaseCommand{
-		UENGAPIDs: ngap.UENGAPIDs{AMFUENGAPID: 1, RANUENGAPID: ranUEID, Pair: true},
-		Cause:     &ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease},
+		UENGAPIDs: ngap.UENGAPIDs{UENGAPIDPair: &ngap.UENGAPIDPair{AMFUENGAPID: 1, RANUENGAPID: ranUEID}},
+		Cause:     new(ngap.CauseNASNormalRelease.Cause()),
 	}
 
 	pdu, err := cmd.Marshal()

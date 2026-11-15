@@ -132,9 +132,9 @@ func assertERABRelease(pdn *s1enb.PDNResult, rel *s1enb.PDNReleaseResult) error 
 		return fmt.Errorf("E-RAB Release Command released E-RAB %d, want the %d the PDN disconnect named", rel.ERABID, pdn.ERABID)
 	}
 
-	if rel.Cause.Group != s1ap.CauseGroupNAS || rel.Cause.Value != s1ap.CauseNASNormalRelease {
-		return fmt.Errorf("E-RAB Release Command cause = group %d value %d, want NAS normal-release for a UE-requested PDN disconnect",
-			rel.Cause.Group, rel.Cause.Value)
+	if !rel.Cause.Equal(s1ap.CauseNASNormalRelease.Cause()) {
+		return fmt.Errorf("E-RAB Release Command cause = %s, want NAS normal-release for a UE-requested PDN disconnect",
+			rel.Cause)
 	}
 
 	return nil

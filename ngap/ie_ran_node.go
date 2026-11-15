@@ -5,129 +5,228 @@ package ngap
 
 import (
 	"fmt"
+
+	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
-// GlobalRANNodeID ::= CHOICE { globalGNB-ID, globalNgENB-ID, globalN3IWF-ID,
-// choice-Extensions } root alternatives (TS 38.413 §9.3.1.5). The CHOICE is
-// not extensible, so choice-Extensions is a plain alternative index.
-const (
-	globalGNBID = iota
-	globalNgENBID
-	globalN3IWFID
-	globalRANNodeIDChoiceExtensions
-
-	globalRANNodeIDAlternatives = 4
-)
-
-// Selects a GlobalRANNodeID alternative together with the nested node-id
-// CHOICE alternative. The two levels are flattened because every combination
-// names one kind of RAN node.
-type RANNodeIDKind uint8
-
-const (
-	// RANNodeIDGNB is globalGNB-ID / gNB-ID: BIT STRING (SIZE(22..32)).
-	RANNodeIDGNB RANNodeIDKind = iota
-	// RANNodeIDMacroNgENB is globalNgENB-ID / macroNgENB-ID: SIZE(20).
-	RANNodeIDMacroNgENB
-	// RANNodeIDShortMacroNgENB is globalNgENB-ID / shortMacroNgENB-ID: SIZE(18).
-	RANNodeIDShortMacroNgENB
-	// RANNodeIDLongMacroNgENB is globalNgENB-ID / longMacroNgENB-ID: SIZE(21).
-	RANNodeIDLongMacroNgENB
-	// RANNodeIDN3IWF is globalN3IWF-ID / n3IWF-ID: BIT STRING (SIZE(16)).
-	RANNodeIDN3IWF
-)
-
-// How one kind sits on the wire.
-type ranNodeIDShape struct {
-	outer  int
-	inner  int
-	lb, ub int
-}
-
-var ranNodeIDShapes = map[RANNodeIDKind]ranNodeIDShape{
-	RANNodeIDGNB:             {globalGNBID, 0, 22, 32},
-	RANNodeIDMacroNgENB:      {globalNgENBID, 0, 20, 20},
-	RANNodeIDShortMacroNgENB: {globalNgENBID, 1, 18, 18},
-	RANNodeIDLongMacroNgENB:  {globalNgENBID, 2, 21, 21},
-	RANNodeIDN3IWF:           {globalN3IWFID, 0, 16, 16},
-}
-
-// nodeIDAlternatives is the number of alternatives in each Global*-ID's nested
-// node-id CHOICE, including its choice-Extensions. None is extensible.
-var nodeIDAlternatives = map[int]int{
-	globalGNBID:   2, // gNB-ID, choice-Extensions
-	globalNgENBID: 4, // macroNgENB-ID, shortMacroNgENB-ID, longMacroNgENB-ID, choice-Extensions
-	globalN3IWFID: 2, // n3IWF-ID, choice-Extensions
-}
-
-var nodeIDChoiceName = map[int]string{
-	globalGNBID:   "GNB-ID",
-	globalNgENBID: "NgENB-ID",
-	globalN3IWFID: "N3IWF-ID",
-}
-
-var kindForShape = func() map[[2]int]RANNodeIDKind {
-	m := make(map[[2]int]RANNodeIDKind, len(ranNodeIDShapes))
-	for kind, s := range ranNodeIDShapes {
-		m[[2]int{s.outer, s.inner}] = kind
-	}
-
-	return m
-}()
-
-// TS 38.413 §9.3.1.5. Each of globalGNB-ID, globalNgENB-ID and globalN3IWF-ID
-// is an extensible SEQUENCE of a PLMN identity and a node-id CHOICE, so the
-// three flatten into one struct without losing anything the wire carries.
 type GlobalRANNodeID struct {
-	Kind         RANNodeIDKind
+	GlobalGNBID       *GlobalGNBID       `per:",choice:0"`
+	GlobalNgENBID     *GlobalNgENBID     `per:",choice:1"`
+	GlobalN3IWFID     *GlobalN3IWFID     `per:",choice:2"`
+	GlobalTNGFID      *GlobalTNGFID      `per:",choice:3,extie:IDGlobalTNGFID,crit:reject"`
+	GlobalTWIFID      *GlobalTWIFID      `per:",choice:3,extie:IDGlobalTWIFID,crit:reject"`
+	GlobalWAGFID      *GlobalWAGFID      `per:",choice:3,extie:IDGlobalWAGFID,crit:reject"`
+	ChoiceExtension   *SingleContainer   `per:",choice:3,extie"`
+	choiceCriticality ap.WireCriticality `per:",choicecrit"`
+}
+
+type GlobalGNBID struct {
 	PLMNIdentity PLMNIdentity
+	GNBID        GNBID
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+}
 
-	// Value is the node identifier, right-aligned in Bits bits.
+type GNBID struct {
+	GNBID           *GNBIDValue      `per:",choice:0"`
+	ChoiceExtension *SingleContainer `per:",choice:1,extie"`
+}
+
+type GNBIDValue struct {
 	Value uint32
-
-	// Only RANNodeIDGNB has a range to choose from (22..32); every other kind
-	// has one legal length, and encoding rejects anything else.
-	Bits int
+	Bits  int
 }
 
-// NgENBIDKind selects an NgENB-ID CHOICE alternative (TS 38.413 §9.3.1.6). The
-// flattened GlobalRANNodeID above covers the same three alternatives as part of
-// its own CHOICE; GlobalNgENB-ID is the standalone SEQUENCE TargeteNB-ID uses,
-// which no GlobalRANNodeID sits inside.
-type NgENBIDKind uint8
-
-const (
-	NgENBIDMacro      NgENBIDKind = iota // macroNgENB-ID: BIT STRING (SIZE(20))
-	NgENBIDShortMacro                    // shortMacroNgENB-ID: SIZE(18)
-	NgENBIDLongMacro                     // longMacroNgENB-ID: SIZE(21)
-
-	// ngENBIDAlternatives counts the three above plus choice-Extensions. The
-	// CHOICE is not extensible, so choice-Extensions is a plain alternative
-	// index.
-	ngENBIDAlternatives = 4
-)
-
-var ngENBIDBits = map[NgENBIDKind]int{
-	NgENBIDMacro:      20,
-	NgENBIDShortMacro: 18,
-	NgENBIDLongMacro:  21,
+type GlobalN3IWFID struct {
+	PLMNIdentity PLMNIdentity
+	N3IWFID      N3IWFID
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
+
+type N3IWFID struct {
+	N3IWFID         *N3IWFIDValue    `per:",choice:0"`
+	ChoiceExtension *SingleContainer `per:",choice:1,extie"`
+}
+
+type N3IWFIDValue uint16
+
+type GlobalTNGFID struct {
+	PLMNIdentity PLMNIdentity
+	TNGFID       TNGFID
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+}
+
+type TNGFID struct {
+	TNGFID          *TNGFIDValue     `per:",choice:0"`
+	ChoiceExtension *SingleContainer `per:",choice:1,extie"`
+}
+
+type TNGFIDValue struct{ BitString }
+
+type GlobalTWIFID struct {
+	PLMNIdentity PLMNIdentity
+	TWIFID       TWIFID
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+}
+
+type TWIFID struct {
+	TWIFID          *TWIFIDValue     `per:",choice:0"`
+	ChoiceExtension *SingleContainer `per:",choice:1,extie"`
+}
+
+type TWIFIDValue struct{ BitString }
+
+type GlobalWAGFID struct {
+	PLMNIdentity PLMNIdentity
+	WAGFID       WAGFID
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+}
+
+type WAGFID struct {
+	WAGFID          *WAGFIDValue     `per:",choice:0"`
+	ChoiceExtension *SingleContainer `per:",choice:1,extie"`
+}
+
+type WAGFIDValue struct{ BitString }
 
 // NgENB-ID ::= CHOICE { macroNgENB-ID, shortMacroNgENB-ID, longMacroNgENB-ID,
-// choice-Extensions } — TS 38.413 §9.3.1.6. Each alternative fixes its own
-// width, so the kind is what the width is read from.
+// choice-Extensions } — TS 38.413 §9.3.1.6.
 type NgENBID struct {
-	Kind  NgENBIDKind
-	Value uint32
+	MacroNgENBID      *MacroNgENBID      `per:",choice:0"`
+	ShortMacroNgENBID *ShortMacroNgENBID `per:",choice:1"`
+	LongMacroNgENBID  *LongMacroNgENBID  `per:",choice:2"`
+	ChoiceExtension   *SingleContainer   `per:",choice:3,extie"`
+}
+
+type MacroNgENBID uint32
+
+type ShortMacroNgENBID uint32
+
+type LongMacroNgENBID uint32
+
+const (
+	gnbIDMinBits          = 22
+	gnbIDMaxBits          = 32
+	macroNgENBIDBits      = 20
+	shortMacroNgENBIDBits = 18
+	longMacroNgENBIDBits  = 21
+	n3IWFIDBits           = 16
+	tngfIDBits            = 32
+	twifIDBits            = 32
+	wagfIDBits            = 16
+)
+
+func NewGlobalGNBID(plmn PLMNIdentity, id uint32, bits int) GlobalRANNodeID {
+	return GlobalRANNodeID{GlobalGNBID: &GlobalGNBID{
+		PLMNIdentity: plmn,
+		GNBID:        GNBID{GNBID: &GNBIDValue{Value: id, Bits: bits}},
+	}}
+}
+
+func NewGlobalNgENBID(plmn PLMNIdentity, id NgENBID) GlobalRANNodeID {
+	return GlobalRANNodeID{GlobalNgENBID: &GlobalNgENBID{PLMNIdentity: plmn, NgENBID: id}}
+}
+
+func NewGlobalN3IWFID(plmn PLMNIdentity, id uint16) GlobalRANNodeID {
+	v := N3IWFIDValue(id)
+
+	return GlobalRANNodeID{GlobalN3IWFID: &GlobalN3IWFID{PLMNIdentity: plmn, N3IWFID: N3IWFID{N3IWFID: &v}}}
+}
+
+func NgENBIDOfBits(id uint32, bits int) (NgENBID, bool) {
+	switch bits {
+	case macroNgENBIDBits:
+		v := MacroNgENBID(id)
+
+		return NgENBID{MacroNgENBID: &v}, true
+	case shortMacroNgENBIDBits:
+		v := ShortMacroNgENBID(id)
+
+		return NgENBID{ShortMacroNgENBID: &v}, true
+	case longMacroNgENBIDBits:
+		v := LongMacroNgENBID(id)
+
+		return NgENBID{LongMacroNgENBID: &v}, true
+	default:
+		return NgENBID{}, false
+	}
+}
+
+func (n NgENBID) ID() (value uint32, bits int, ok bool) {
+	switch {
+	case n.MacroNgENBID != nil:
+		return uint32(*n.MacroNgENBID), macroNgENBIDBits, true
+	case n.ShortMacroNgENBID != nil:
+		return uint32(*n.ShortMacroNgENBID), shortMacroNgENBIDBits, true
+	case n.LongMacroNgENBID != nil:
+		return uint32(*n.LongMacroNgENBID), longMacroNgENBIDBits, true
+	default:
+		return 0, 0, false
+	}
+}
+
+func (g GlobalRANNodeID) PLMNIdentity() (PLMNIdentity, bool) {
+	switch {
+	case g.GlobalGNBID != nil:
+		return g.GlobalGNBID.PLMNIdentity, true
+	case g.GlobalNgENBID != nil:
+		return g.GlobalNgENBID.PLMNIdentity, true
+	case g.GlobalN3IWFID != nil:
+		return g.GlobalN3IWFID.PLMNIdentity, true
+	case g.GlobalTNGFID != nil:
+		return g.GlobalTNGFID.PLMNIdentity, true
+	case g.GlobalTWIFID != nil:
+		return g.GlobalTWIFID.PLMNIdentity, true
+	case g.GlobalWAGFID != nil:
+		return g.GlobalWAGFID.PLMNIdentity, true
+	default:
+		return PLMNIdentity{}, false
+	}
+}
+
+func (g GlobalRANNodeID) NodeID() (value uint64, bits int, ok bool) {
+	switch {
+	case g.GlobalGNBID != nil:
+		if v := g.GlobalGNBID.GNBID.GNBID; v != nil {
+			return uint64(v.Value), v.Bits, true
+		}
+	case g.GlobalNgENBID != nil:
+		v, n, ok := g.GlobalNgENBID.NgENBID.ID()
+
+		return uint64(v), n, ok
+	case g.GlobalN3IWFID != nil:
+		if v := g.GlobalN3IWFID.N3IWFID.N3IWFID; v != nil {
+			return uint64(*v), n3IWFIDBits, true
+		}
+	case g.GlobalTNGFID != nil:
+		if v := g.GlobalTNGFID.TNGFID.TNGFID; v != nil && v.Bits() <= 64 {
+			return v.Uint64(), v.Bits(), true
+		}
+	case g.GlobalTWIFID != nil:
+		if v := g.GlobalTWIFID.TWIFID.TWIFID; v != nil && v.Bits() <= 64 {
+			return v.Uint64(), v.Bits(), true
+		}
+	case g.GlobalWAGFID != nil:
+		if v := g.GlobalWAGFID.WAGFID.WAGFID; v != nil && v.Bits() <= 64 {
+			return v.Uint64(), v.Bits(), true
+		}
+	}
+
+	return 0, 0, false
 }
 
 // GlobalNgENB-ID ::= SEQUENCE { pLMNIdentity, ngENB-ID, iE-Extensions OPTIONAL }
 // (extensible) — TS 38.413 §9.3.1.8.
 type GlobalNgENBID struct {
-	_            [0]struct{} `per:"extseq"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 	PLMNIdentity PLMNIdentity
 	NgENBID      NgENBID
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // EPS-TAC ::= OCTET STRING (SIZE(2)) — TS 38.413 §9.3.3.32, held as the 16-bit
@@ -138,10 +237,10 @@ type EPSTAC uint16
 // EPS-TAI ::= SEQUENCE { pLMNIdentity, ePS-TAC, iE-Extensions OPTIONAL }
 // (extensible) — TS 38.413 §9.3.3.31.
 type EPSTAI struct {
-	_            [0]struct{} `per:"extseq"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 	PLMNIdentity PLMNIdentity
 	TAC          EPSTAC
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // The library owns every conversion between a wire field and the sub-fields
@@ -166,20 +265,21 @@ func (g GlobalRANNodeID) cellIdentity(cellID uint64, width int, kind string) (ui
 	// Unlike S1AP, whose 28-bit Home eNB ID is itself the cell identity, no NGAP
 	// node kind is as wide as either cell identity (gNB-ID tops out at 32 of 36,
 	// ng-eNB at 21 of 28), so a node filling it is always an error.
-	if g.Bits <= 0 || g.Bits >= width {
-		return 0, fmt.Errorf("ngap: node id of %d bits leaves no room in a %d-bit %s cell identity", g.Bits, width, kind)
+	value, bits, _ := g.NodeID()
+	if bits <= 0 || bits >= width {
+		return 0, fmt.Errorf("ngap: node id of %d bits leaves no room in a %d-bit %s cell identity", bits, width, kind)
 	}
 
-	cellBits := width - g.Bits
+	cellBits := width - bits
 	if cellID >= 1<<uint(cellBits) {
-		return 0, fmt.Errorf("ngap: cell id %d exceeds the %d bits left by a %d-bit node id", cellID, cellBits, g.Bits)
+		return 0, fmt.Errorf("ngap: cell id %d exceeds the %d bits left by a %d-bit node id", cellID, cellBits, bits)
 	}
 
-	if g.Bits < 64 && uint64(g.Value) >= 1<<uint(g.Bits) {
-		return 0, fmt.Errorf("ngap: node id %d exceeds its own %d bits", g.Value, g.Bits)
+	if bits < 64 && value >= 1<<uint(bits) {
+		return 0, fmt.Errorf("ngap: node id %d exceeds its own %d bits", value, bits)
 	}
 
-	return uint64(g.Value)<<uint(cellBits) | cellID, nil
+	return value<<uint(cellBits) | cellID, nil
 }
 
 // SplitNRCellIdentity is NRCellIdentity's inverse for a cell of this node.
@@ -193,12 +293,13 @@ func (g GlobalRANNodeID) SplitEUTRACellIdentity(eci uint64) (cellID uint64, ok b
 }
 
 func (g GlobalRANNodeID) splitCellIdentity(id uint64, width int) (uint64, bool) {
-	if g.Bits <= 0 || g.Bits >= width {
+	value, bits, _ := g.NodeID()
+	if bits <= 0 || bits >= width {
 		return 0, false
 	}
 
-	cellBits := width - g.Bits
-	if id>>uint(cellBits) != uint64(g.Value) {
+	cellBits := width - bits
+	if id>>uint(cellBits) != value {
 		return 0, false
 	}
 
@@ -206,9 +307,10 @@ func (g GlobalRANNodeID) splitCellIdentity(id uint64, width int) (uint64, bool) 
 }
 
 func (g GlobalRANNodeID) Hex() string {
-	if g.Bits <= 0 {
+	value, bits, _ := g.NodeID()
+	if bits <= 0 {
 		return ""
 	}
 
-	return fmt.Sprintf("%0*x", (g.Bits+3)/4, g.Value)
+	return fmt.Sprintf("%0*x", (bits+3)/4, value)
 }

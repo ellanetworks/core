@@ -6,7 +6,6 @@ package ngap
 import (
 	"bytes"
 	"errors"
-	"reflect"
 	"testing"
 )
 
@@ -170,15 +169,13 @@ func TestAMFStatusIndicationExtendedBackupAMFNameGolden(t *testing.T) {
 
 func TestUnavailableGUAMIItemUnknownExtensionKeepsItsPosition(t *testing.T) {
 	item := goldAMFStatusIndicationExtendedBackupAMFName().UnavailableGUAMIList[0]
-	item.iEExtensions = messageMeta{
-		unknownIEs: []rawIE{{id: 9999, crit: CriticalityIgnore, value: []byte{0x5a}}},
-		wire: []wireSlot{
-			{id: 9999, crit: CriticalityIgnore, unknown: 0},
-			{id: IDExtendedBackupAMFName, crit: CriticalityIgnore, unknown: -1},
-		},
-	}
-
+	restore := swapTable(&extIEsUnavailableGUAMIItem,
+		rawRow[UnavailableGUAMIItem](9999, CriticalityIgnore, []byte{0x5a}),
+		tableRow(extIEsUnavailableGUAMIItem, IDExtendedBackupAMFName, CriticalityIgnore),
+	)
 	pdu := marshalT(t, &AMFStatusIndication{UnavailableGUAMIList: UnavailableGUAMIList{item}})
+
+	restore()
 
 	p, err := Unmarshal(pdu)
 	if err != nil {
@@ -191,12 +188,8 @@ func TestUnavailableGUAMIItemUnknownExtensionKeepsItsPosition(t *testing.T) {
 	}
 
 	got := out.UnavailableGUAMIList[0]
-	if got.ExtendedBackupAMFName == nil || len(got.iEExtensions.unknownIEs) != 1 {
+	if got.ExtendedBackupAMFName == nil || len(got.iEExtensions.UnknownIEs()) != 1 {
 		t.Fatalf("decoded %+v", got)
-	}
-
-	if !reflect.DeepEqual(got.iEExtensions.wire, item.iEExtensions.wire) {
-		t.Fatalf("wire order %+v, want %+v", got.iEExtensions.wire, item.iEExtensions.wire)
 	}
 
 	if re := marshalT(t, out); !bytes.Equal(re, pdu) {
@@ -206,7 +199,7 @@ func TestUnavailableGUAMIItemUnknownExtensionKeepsItsPosition(t *testing.T) {
 
 func TestUnavailableGUAMIItemUnknownRejectExtensionRejectsProcedure(t *testing.T) {
 	item := UnavailableGUAMIItem{GUAMI: goldGUAMI()}
-	item.iEExtensions = messageMeta{unknownIEs: []rawIE{{id: 9999, crit: CriticalityReject, value: []byte{0x5a}}}}
+	item.iEExtensions.Append(rawIE{ID: 9999, Criticality: CriticalityReject, Value: []byte{0x5a}})
 
 	p, err := Unmarshal(marshalT(t, &AMFStatusIndication{UnavailableGUAMIList: UnavailableGUAMIList{item}}))
 	if err != nil {

@@ -3,7 +3,11 @@
 
 package s1ap
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ellanetworks/core/per"
+)
 
 func TestProcedureCodeString(t *testing.T) {
 	for _, tc := range []struct {
@@ -40,12 +44,12 @@ func TestCauseString(t *testing.T) {
 		in   Cause
 		want string
 	}{
-		{Cause{Group: CauseGroupRadioNetwork, Value: 0}, "radioNetwork: unspecified (0)"},
-		{Cause{Group: CauseGroupNAS, Value: CauseNASDetach}, "nas: detach (2)"},
+		{CauseRadioNetworkUnspecified.Cause(), "radioNetwork: unspecified (0)"},
+		{CauseNASDetach.Cause(), "nas: detach (2)"},
 		// An extension addition's index continues after the root values.
-		{Cause{Group: CauseGroupRadioNetwork, Value: 4, Extended: true}, "radioNetwork: n26-interface-not-available (40)"},
-		{Cause{Group: CauseGroupRadioNetwork, Value: 99}, "radioNetwork: unknown (99)"},
-		{Cause{Group: CauseGroup(9), Value: 1}, "group-9: value-1"},
+		{CauseRadioNetworkN26InterfaceNotAvailable.Cause(), "radioNetwork: n26-interface-not-available (40)"},
+		{CauseRadioNetwork(99).Cause(), "radioNetwork: unknown (99)"},
+		{Cause{Ext: &per.ExtensionAlternative{Index: 1}}, "extension-1"},
 	} {
 		if got := tc.in.String(); got != tc.want {
 			t.Errorf("String() = %q, want %q", got, tc.want)
@@ -57,7 +61,7 @@ func TestAbstractSyntaxErrorMessage(t *testing.T) {
 	err := &AbstractSyntaxError{
 		Procedure: ProcS1Setup,
 		Trigger:   TriggeringInitiatingMessage,
-		Cause:     Cause{Group: CauseGroupProtocol, Value: CauseProtocolAbstractSyntaxErrorReject},
+		Cause:     CauseProtocolAbstractSyntaxErrorReject.Cause(),
 		IEs: []CriticalityDiagnosticsIEItem{
 			{IEID: IDGlobalENBID, IECriticality: CriticalityReject, TypeOfError: TypeOfErrorMissing},
 			{IEID: IDSupportedTAs, IECriticality: CriticalityReject, TypeOfError: TypeOfErrorNotUnderstood},

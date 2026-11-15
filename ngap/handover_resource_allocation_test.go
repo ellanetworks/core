@@ -6,7 +6,6 @@ package ngap
 import (
 	"bytes"
 	"encoding/hex"
-	"reflect"
 	"testing"
 )
 
@@ -17,14 +16,14 @@ func handoverSetupTransfer(t *testing.T) TransferContainer {
 	t.Helper()
 
 	b, err := (&PDUSessionResourceSetupRequestTransfer{
-		ULNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: GTPTunnel{
-			TransportLayerAddress: TransportLayerAddress{192, 168, 1, 1}, GTPTEID: 1,
+		ULNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: &GTPTunnel{
+			TransportLayerAddress: tlaOf(192, 168, 1, 1), GTPTEID: 1,
 		}},
 		PDUSessionType: PDUSessionTypeIPv4,
 		QosFlowSetupRequest: QosFlowSetupRequestList{{
 			QosFlowIdentifier: 1,
 			QosFlowLevelQosParameters: QosFlowLevelQosParameters{
-				QosCharacteristics:             QosCharacteristics{Kind: QosCharacteristicsNonDynamic5QI, NonDynamic5QI: NonDynamic5QIDescriptor{FiveQI: 9}},
+				QosCharacteristics:             QosCharacteristics{NonDynamic5QI: &NonDynamic5QIDescriptor{FiveQI: 9}},
 				AllocationAndRetentionPriority: AllocationAndRetentionPriority{PriorityLevelARP: 1},
 			},
 		}},
@@ -46,9 +45,9 @@ func goldHandoverRequest(t *testing.T) *HandoverRequest {
 
 	return &HandoverRequest{
 		AMFUENGAPID: 1, HandoverType: HandoverTypeIntra5GS,
-		Cause:                     &Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkHandoverDesirableForRadio},
+		Cause:                     Ptr(CauseRadioNetworkHandoverDesirableForRadio.Cause()),
 		UEAggregateMaximumBitRate: UEAggregateMaximumBitRate{DL: 1000000000, UL: 1000000000},
-		UESecurityCapabilities:    UESecurityCapabilities{NREncryptionAlgorithms: 0x8000, NRIntegrityProtectionAlgorithms: 0x8000},
+		UESecurityCapabilities:    UESecurityCapabilities{NREncryptionAlgorithms: SecurityAlgorithmsFrom(0x8000), NRIntegrityProtectionAlgorithms: SecurityAlgorithmsFrom(0x8000)},
 		SecurityContext:           SecurityContext{NextHopChainingCount: 1},
 		PDUSessionResourceSetupListHOReq: PDUSessionResourceSetupListHOReq{{
 			PDUSessionID: 5, SNSSAI: SNSSAI{SST: 1}, Transfer: handoverSetupTransfer(t),
@@ -67,7 +66,7 @@ func handoverRequestWireCases(t *testing.T) []wireCase {
 
 	return []wireCase{{
 		name:  "HandoverRequestAMFUENGAPID2AfterUnmodeledIE",
-		pdu:   insertRawIEs(t, marshalT(t, m), 10, rawRedirectionVoiceFallback()),
+		pdu:   insertRawIEs(t, marshalT(t, m), 10, rawUnknownIE(40001, 0x00)),
 		parse: func(v []byte) (any, error) { return ParseHandoverRequest(v) },
 
 		notTshark: "the Source to Target Transparent Container is opaque test octets that tshark dissects as NR RRC",
@@ -85,9 +84,9 @@ func handoverRequestWireCases(t *testing.T) []wireCase {
 func TestHandoverRequestGolden(t *testing.T) {
 	in := HandoverRequest{
 		AMFUENGAPID: 1, HandoverType: HandoverTypeIntra5GS,
-		Cause:                     &Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkHandoverDesirableForRadio},
+		Cause:                     Ptr(CauseRadioNetworkHandoverDesirableForRadio.Cause()),
 		UEAggregateMaximumBitRate: UEAggregateMaximumBitRate{DL: 1000000000, UL: 1000000000},
-		UESecurityCapabilities:    UESecurityCapabilities{NREncryptionAlgorithms: 0x8000, NRIntegrityProtectionAlgorithms: 0x8000},
+		UESecurityCapabilities:    UESecurityCapabilities{NREncryptionAlgorithms: SecurityAlgorithmsFrom(0x8000), NRIntegrityProtectionAlgorithms: SecurityAlgorithmsFrom(0x8000)},
 		SecurityContext:           SecurityContext{NextHopChainingCount: 1},
 		PDUSessionResourceSetupListHOReq: PDUSessionResourceSetupListHOReq{{
 			PDUSessionID: 5, SNSSAI: SNSSAI{SST: 1}, Transfer: handoverSetupTransfer(t),
@@ -138,8 +137,8 @@ const goldenHandoverRequestAcknowledge = "200d0035000005000a40020001005540020002
 
 func TestHandoverRequestAcknowledgeGolden(t *testing.T) {
 	admitted, err := (&HandoverRequestAcknowledgeTransfer{
-		DLNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: GTPTunnel{
-			TransportLayerAddress: TransportLayerAddress{192, 168, 1, 2}, GTPTEID: 2,
+		DLNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: &GTPTunnel{
+			TransportLayerAddress: tlaOf(192, 168, 1, 2), GTPTEID: 2,
 		}},
 		QosFlowSetupResponse: QosFlowListWithDataForwarding{{QosFlowIdentifier: 1}},
 	}).Marshal()
@@ -148,7 +147,7 @@ func TestHandoverRequestAcknowledgeGolden(t *testing.T) {
 	}
 
 	refused, err := (&HandoverResourceAllocationUnsuccessfulTransfer{
-		Cause: Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkHOFailureInTarget},
+		Cause: CauseRadioNetworkHOFailureInTarget.Cause(),
 	}).Marshal()
 	if err != nil {
 		t.Fatal(err)
@@ -198,7 +197,7 @@ func TestHandoverRequestAcknowledgeGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if unsuccessful.Cause.Group != CauseGroupRadioNetwork || unsuccessful.Cause.Value != CauseRadioNetworkHOFailureInTarget {
+	if !unsuccessful.Cause.Equal(CauseRadioNetworkHOFailureInTarget.Cause()) {
 		t.Errorf("nested cause %+v", unsuccessful.Cause)
 	}
 }
@@ -210,7 +209,7 @@ func TestHandoverFailureGolden(t *testing.T) {
 
 	in := HandoverFailure{
 		AMFUENGAPID: &amfID,
-		Cause:       &Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkHOFailureInTarget},
+		Cause:       Ptr(CauseRadioNetworkHOFailureInTarget.Cause()),
 		TargettoSourceFailureTransparentContainer: TargettoSourceFailureTransparentContainer{0xee, 0xff},
 	}
 
@@ -239,7 +238,7 @@ func TestHandoverFailureGolden(t *testing.T) {
 	}
 
 	if out.AMFUENGAPID == nil || *out.AMFUENGAPID != 1 || out.Cause == nil ||
-		out.Cause.Value != CauseRadioNetworkHOFailureInTarget ||
+		!out.Cause.Equal(CauseRadioNetworkHOFailureInTarget.Cause()) ||
 		!bytes.Equal(out.TargettoSourceFailureTransparentContainer, []byte{0xee, 0xff}) {
 		t.Fatalf("round trip %+v", out)
 	}
@@ -258,14 +257,14 @@ func TestHandoverFailureMissingMandatoryIEsAreIgnored(t *testing.T) {
 		t.Errorf("decoded %+v, want every field absent", out)
 	}
 
-	ies := out.meta().diagnostics.IEs
+	ies := out.meta().Message.Diagnostics().IEs
 	if len(ies) != 2 {
 		t.Fatalf("diagnostics = %+v, want two missing entries", ies)
 	}
 
 	for _, ie := range ies {
-		if ie.TypeOfError != TypeOfErrorMissing {
-			t.Errorf("IE %v reported %v, want missing", ie.ID, ie.TypeOfError)
+		if typeOfError(ie) != TypeOfErrorMissing {
+			t.Errorf("IE %v reported %v, want missing", ie.ID, typeOfError(ie))
 		}
 	}
 }
@@ -276,7 +275,7 @@ func TestHandoverRequestRefusesMissingMandatoryIEs(t *testing.T) {
 	full := func() HandoverRequest {
 		return HandoverRequest{
 			AMFUENGAPID: 1, HandoverType: HandoverTypeIntra5GS,
-			Cause:                     &Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkHandoverDesirableForRadio},
+			Cause:                     Ptr(CauseRadioNetworkHandoverDesirableForRadio.Cause()),
 			UEAggregateMaximumBitRate: UEAggregateMaximumBitRate{DL: 1, UL: 1},
 			PDUSessionResourceSetupListHOReq: PDUSessionResourceSetupListHOReq{{
 				PDUSessionID: 5, SNSSAI: SNSSAI{SST: 1}, Transfer: handoverSetupTransfer(t),
@@ -320,9 +319,9 @@ func TestHandoverRequestCarriesNASC(t *testing.T) {
 
 	in := HandoverRequest{
 		AMFUENGAPID: 1, HandoverType: HandoverTypeEPSToFiveGS,
-		Cause:                     &Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkHandoverDesirableForRadio},
+		Cause:                     Ptr(CauseRadioNetworkHandoverDesirableForRadio.Cause()),
 		UEAggregateMaximumBitRate: UEAggregateMaximumBitRate{DL: 1000000000, UL: 1000000000},
-		UESecurityCapabilities:    UESecurityCapabilities{NREncryptionAlgorithms: 0x8000, NRIntegrityProtectionAlgorithms: 0x8000},
+		UESecurityCapabilities:    UESecurityCapabilities{NREncryptionAlgorithms: SecurityAlgorithmsFrom(0x8000), NRIntegrityProtectionAlgorithms: SecurityAlgorithmsFrom(0x8000)},
 		SecurityContext:           SecurityContext{NextHopChainingCount: 0},
 		NewSecurityContextInd:     Ptr(NewSecurityContextIndTrue),
 		NASC:                      nasc,
@@ -404,9 +403,9 @@ func TestHandoverRequestCarriesMobilityRestrictionList(t *testing.T) {
 
 	in := HandoverRequest{
 		AMFUENGAPID: 1, HandoverType: HandoverTypeIntra5GS,
-		Cause:                     &Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkHandoverDesirableForRadio},
+		Cause:                     Ptr(CauseRadioNetworkHandoverDesirableForRadio.Cause()),
 		UEAggregateMaximumBitRate: UEAggregateMaximumBitRate{DL: 1000000000, UL: 1000000000},
-		UESecurityCapabilities:    UESecurityCapabilities{NREncryptionAlgorithms: 0x8000, NRIntegrityProtectionAlgorithms: 0x8000},
+		UESecurityCapabilities:    UESecurityCapabilities{NREncryptionAlgorithms: SecurityAlgorithmsFrom(0x8000), NRIntegrityProtectionAlgorithms: SecurityAlgorithmsFrom(0x8000)},
 		SecurityContext:           SecurityContext{NextHopChainingCount: 1},
 		PDUSessionResourceSetupListHOReq: PDUSessionResourceSetupListHOReq{{
 			PDUSessionID: 5, SNSSAI: SNSSAI{SST: 1}, Transfer: handoverSetupTransfer(t),
@@ -418,7 +417,7 @@ func TestHandoverRequestCarriesMobilityRestrictionList(t *testing.T) {
 			EquivalentPLMNs: EquivalentPLMNs{other},
 			RATRestrictions: RATRestrictions{{
 				PLMNIdentity:              other,
-				RATRestrictionInformation: RATRestrictionEUTRA | RATRestrictionNRLEO,
+				RATRestrictionInformation: RATRestrictionInformationFrom(RATRestrictionEUTRA | RATRestrictionNRLEO),
 			}},
 			ForbiddenAreaInformation: ForbiddenAreaInformation{{
 				PLMNIdentity: other, ForbiddenTACs: ForbiddenTACs{0x000007, 0xabcdef},
@@ -450,15 +449,15 @@ func TestHandoverRequestCarriesMobilityRestrictionList(t *testing.T) {
 		t.Fatal("restriction list absent")
 	}
 
-	if !reflect.DeepEqual(got, in.MobilityRestrictionList) {
+	if !got.Equal(*in.MobilityRestrictionList) {
 		t.Fatalf("restriction list = %+v, want %+v", got, in.MobilityRestrictionList)
 	}
 
 	// The RAT restriction bitmap is a bit string, so its first bit in
 	// transmission order is the most significant octet bit — getting that
 	// backwards would restrict nR-OTHERSAT where e-UTRA was meant.
-	if want := RATRestrictionInformation(0b1001_0000); got.RATRestrictions[0].RATRestrictionInformation != want {
-		t.Errorf("RAT restriction = %08b, want %08b", got.RATRestrictions[0].RATRestrictionInformation, want)
+	if want := RATRestrictionFlags(0b1001_0000); got.RATRestrictions[0].RATRestrictionInformation.Flags != want {
+		t.Errorf("RAT restriction = %08b, want %08b", got.RATRestrictions[0].RATRestrictionInformation.Flags, want)
 	}
 
 	// Serving PLMN alone is the minimum §8.4.2.4 turns on, and the optional

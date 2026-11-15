@@ -30,9 +30,9 @@ type AdmittedERAB struct {
 	Ebi      uint8
 	EnbFTEID models.FTEID
 
-	DLForwardingAddr s1ap.TransportLayerAddress
+	DLForwardingAddr *s1ap.TransportLayerAddress
 	DLForwardingTEID *s1ap.GTPTEID
-	ULForwardingAddr s1ap.TransportLayerAddress
+	ULForwardingAddr *s1ap.TransportLayerAddress
 	ULForwardingTEID *s1ap.GTPTEID
 }
 
@@ -41,8 +41,8 @@ func (a AdmittedERAB) Forwards() bool {
 		validForwardingPair(a.ULForwardingAddr, a.ULForwardingTEID)
 }
 
-func validForwardingPair(addr s1ap.TransportLayerAddress, teid *s1ap.GTPTEID) bool {
-	return addr.Valid() && teid != nil
+func validForwardingPair(addr *s1ap.TransportLayerAddress, teid *s1ap.GTPTEID) bool {
+	return addr != nil && addr.Valid() && teid != nil
 }
 
 type HandoverCandidate struct {
@@ -690,7 +690,7 @@ func SendHandoverPreparationFailure(ctx context.Context, m *MME, conn S1APWriter
 
 func SendUEContextRelease(ctx context.Context, m *MME, conn S1APWriter, mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, pair bool, cause s1ap.Cause) {
 	cmd := &s1ap.UEContextReleaseCommand{
-		UES1APIDs: s1ap.UES1APIDs{MMEUES1APID: mmeUEID, ENBUES1APID: enbUEID, Pair: pair},
+		UES1APIDs: ueS1APIDs(mmeUEID, enbUEID, pair),
 		Cause:     s1ap.Ptr(cause),
 	}
 
@@ -705,12 +705,12 @@ func SendUEContextRelease(ctx context.Context, m *MME, conn S1APWriter, mmeUEID 
 }
 
 var (
-	CauseHandoverSuccess              = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkSuccessfulHandover}
-	causeHandoverTS1relocExpiry       = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkTS1RelocOverallExpiry}
-	causeHandoverCancelled            = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHandoverCancelled}
-	causeHandoverEUTRANReason         = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkReleaseDueToEUTRANGeneratedReason}
-	causeHandoverInterSystemTriggered = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkS1InterSystemHandoverTriggered}
-	causeHandoverUnspecified          = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnspecified}
+	CauseHandoverSuccess              = s1ap.CauseRadioNetworkSuccessfulHandover.Cause()
+	causeHandoverTS1relocExpiry       = s1ap.CauseRadioNetworkTS1RelocOverallExpiry.Cause()
+	causeHandoverCancelled            = s1ap.CauseRadioNetworkHandoverCancelled.Cause()
+	causeHandoverEUTRANReason         = s1ap.CauseRadioNetworkReleaseDueToEUTRANGeneratedReason.Cause()
+	causeHandoverInterSystemTriggered = s1ap.CauseRadioNetworkS1InterSystemHandoverTriggered.Cause()
+	causeHandoverUnspecified          = s1ap.CauseRadioNetworkUnspecified.Cause()
 )
 
 func (ue *UeContext) advanceNextHop() error {

@@ -25,12 +25,9 @@ func goldUEContextModificationResponse() *UEContextModificationResponse {
 	plmn := PLMNIdentity{0x00, 0xf1, 0x10}
 
 	return &UEContextModificationResponse{
-		AMFUENGAPID: Ptr(AMFUENGAPID(1)),
-		RANUENGAPID: Ptr(RANUENGAPID(2)),
-		UserLocationInformation: &UserLocationInformation{
-			Kind: UserLocationNR, PLMNIdentity: plmn, CellIdentity: 0x123456789,
-			TAI: TAI{PLMNIdentity: plmn, TAC: 1},
-		},
+		AMFUENGAPID:             Ptr(AMFUENGAPID(1)),
+		RANUENGAPID:             Ptr(RANUENGAPID(2)),
+		UserLocationInformation: &UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: plmn, NRCellIdentity: NRCellIdentity(0x123456789)}, TAI: TAI{PLMNIdentity: plmn, TAC: 1}}},
 	}
 }
 
@@ -38,7 +35,7 @@ func goldUEContextModificationFailure() *UEContextModificationFailure {
 	return &UEContextModificationFailure{
 		AMFUENGAPID: Ptr(AMFUENGAPID(1)),
 		RANUENGAPID: Ptr(RANUENGAPID(2)),
-		Cause:       Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified}),
+		Cause:       Ptr(CauseRadioNetworkUnspecified.Cause()),
 	}
 }
 
@@ -136,7 +133,7 @@ func TestUEContextModificationRoundTrips(t *testing.T) {
 		}
 
 		if deref(out.AMFUENGAPID) != 1 || deref(out.RANUENGAPID) != 2 || out.UserLocationInformation == nil ||
-			out.UserLocationInformation.CellIdentity != in.UserLocationInformation.CellIdentity {
+			!out.UserLocationInformation.Equal(*in.UserLocationInformation) {
 			t.Fatalf("mismatch:\n  in  %+v\n  out %+v", in, out)
 		}
 	})
@@ -164,7 +161,7 @@ func TestUEContextModificationRoundTrips(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if deref(out.AMFUENGAPID) != 1 || deref(out.RANUENGAPID) != 2 || deref(out.Cause) != deref(in.Cause) {
+		if deref(out.AMFUENGAPID) != 1 || deref(out.RANUENGAPID) != 2 || !deref(out.Cause).Equal(deref(in.Cause)) {
 			t.Fatalf("mismatch:\n  in  %+v\n  out %+v", in, out)
 		}
 	})

@@ -4,28 +4,37 @@
 package s1ap
 
 import (
-	"net/netip"
+	"math"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 // ERABID ::= INTEGER (0..15, ...) (extensible).
 type ERABID uint8
 
 func (id ERABID) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeExtensibleInt(w, enc, 0, 15, int64(id))
+	return encodeExtensibleInt(w, enc, 0, erabIDRootMax, int64(id))
 }
 
 func (id *ERABID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := decodeExtensibleInt(r, enc, 0, 15, "E-RAB-ID")
+	v, err := decodeExtensibleInt(r, enc, 0, erabIDRootMax)
 	if err != nil {
 		return err
+	}
+
+	if v < 0 || v > math.MaxUint8 {
+		return per.ErrOverflow
 	}
 
 	*id = ERABID(v)
 
 	return nil
 }
+
+const erabIDRootMax = 15
+
+func (id *ERABID) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool { return *id > erabIDRootMax }
 
 // QCI ::= INTEGER (0..255).
 type QCI uint8
@@ -65,11 +74,11 @@ const (
 // pre-emptionCapability, pre-emptionVulnerability, iE-Extensions OPTIONAL }
 // (extensible). PriorityLevel ::= INTEGER (0..15).
 type AllocationAndRetentionPriority struct {
-	PriorityLevel           uint8                   `per:",range:0..15"`
-	PreemptionCapability    PreemptionCapability    `per:"ENUMERATED,range:0..1"`
-	PreemptionVulnerability PreemptionVulnerability `per:"ENUMERATED,range:0..1"`
-	iEExtensions            *rawIEExtensions        `per:",optional"`
-	extensions              per.ExtensionAdditions  `per:",extraw"`
+	PriorityLevel           uint8 `per:",range:0..15"`
+	PreemptionCapability    PreemptionCapability
+	PreemptionVulnerability PreemptionVulnerability
+	iEExtensions            extensionMeta          `per:",exttable"`
+	extensions              per.ExtensionAdditions `per:",extraw"`
 }
 
 // GBRQosInformation ::= SEQUENCE { four BitRates, iE-Extensions OPTIONAL }
@@ -79,27 +88,12 @@ type GBRQosInformation struct {
 	MaximumBitrateUL            BitRate
 	GuaranteedBitrateDL         BitRate
 	GuaranteedBitrateUL         BitRate
-	ExtendedMaximumBitrateDL    *ExtendedBitRate       `per:"-"`
-	ExtendedMaximumBitrateUL    *ExtendedBitRate       `per:"-"`
-	ExtendedGuaranteedBitrateDL *ExtendedBitRate       `per:"-"`
-	ExtendedGuaranteedBitrateUL *ExtendedBitRate       `per:"-"`
-	iEExtensions                messageMeta            `per:",exttable:gBRQosInformationExtIEs"`
+	ExtendedMaximumBitrateDL    *ExtendedBitRate       `per:",extie:IDExtendedERABMaximumBitrateDL,crit:ignore"`
+	ExtendedMaximumBitrateUL    *ExtendedBitRate       `per:",extie:IDExtendedERABMaximumBitrateUL,crit:ignore"`
+	ExtendedGuaranteedBitrateDL *ExtendedBitRate       `per:",extie:IDExtendedERABGuaranteedBitrateDL,crit:ignore"`
+	ExtendedGuaranteedBitrateUL *ExtendedBitRate       `per:",extie:IDExtendedERABGuaranteedBitrateUL,crit:ignore"`
+	iEExtensions                extensionMeta          `per:",exttable"`
 	extensions                  per.ExtensionAdditions `per:",extraw"`
-}
-
-var gBRQosInformationExtIEs = []ieSpec[GBRQosInformation]{
-	optionalExtension(IDExtendedERABMaximumBitrateDL, CriticalityIgnore, func(m *GBRQosInformation) **ExtendedBitRate {
-		return &m.ExtendedMaximumBitrateDL
-	}),
-	optionalExtension(IDExtendedERABMaximumBitrateUL, CriticalityIgnore, func(m *GBRQosInformation) **ExtendedBitRate {
-		return &m.ExtendedMaximumBitrateUL
-	}),
-	optionalExtension(IDExtendedERABGuaranteedBitrateDL, CriticalityIgnore, func(m *GBRQosInformation) **ExtendedBitRate {
-		return &m.ExtendedGuaranteedBitrateDL
-	}),
-	optionalExtension(IDExtendedERABGuaranteedBitrateUL, CriticalityIgnore, func(m *GBRQosInformation) **ExtendedBitRate {
-		return &m.ExtendedGuaranteedBitrateUL
-	}),
 }
 
 // ERABLevelQoSParameters ::= SEQUENCE { qCI, allocationRetentionPriority,
@@ -108,62 +102,13 @@ type ERABLevelQoSParameters struct {
 	QCI                    QCI
 	ARP                    AllocationAndRetentionPriority
 	GBR                    *GBRQosInformation     `per:",optional"`
-	DownlinkPacketLossRate *PacketLossRate        `per:"-"`
-	UplinkPacketLossRate   *PacketLossRate        `per:"-"`
-	iEExtensions           messageMeta            `per:",exttable:eRABLevelQoSParametersExtIEs"`
+	DownlinkPacketLossRate *PacketLossRate        `per:",extie:IDDownlinkPacketLossRate,crit:ignore"`
+	UplinkPacketLossRate   *PacketLossRate        `per:",extie:IDUplinkPacketLossRate,crit:ignore"`
+	iEExtensions           extensionMeta          `per:",exttable"`
 	extensions             per.ExtensionAdditions `per:",extraw"`
 }
 
-var eRABLevelQoSParametersExtIEs = []ieSpec[ERABLevelQoSParameters]{
-	optionalExtension(IDDownlinkPacketLossRate, CriticalityIgnore, func(m *ERABLevelQoSParameters) **PacketLossRate {
-		return &m.DownlinkPacketLossRate
-	}),
-	optionalExtension(IDUplinkPacketLossRate, CriticalityIgnore, func(m *ERABLevelQoSParameters) **PacketLossRate {
-		return &m.UplinkPacketLossRate
-	}),
-}
-
-// TransportLayerAddress ::= BIT STRING (SIZE(1..160, ...)). Holds the address
-// octets (IPv4 = 4, IPv6 = 16).
-type TransportLayerAddress []byte
-
-func (a TransportLayerAddress) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return per.EncodeBitString(w, enc, 1, 160, true, true, true, a, len(a)*8)
-}
-
-func (a *TransportLayerAddress) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	b, nbits, err := per.DecodeBitString(r, enc, 1, 160, true, true, true)
-	if err != nil {
-		return err
-	}
-
-	*a = TransportLayerAddress(b[:(nbits+7)/8])
-
-	return nil
-}
-
-// IPs returns the addresses the bit string carries. TS 36.414 §5.1 packs an
-// IPv4 address, an IPv6 address, or both with the IPv4 one first; a return is
-// invalid when that address is absent.
-func (a TransportLayerAddress) IPs() (ipv4, ipv6 netip.Addr) {
-	switch len(a) {
-	case 4:
-		ipv4, _ = netip.AddrFromSlice(a)
-	case 16:
-		ipv6, _ = netip.AddrFromSlice(a)
-	case 20:
-		ipv4, _ = netip.AddrFromSlice(a[:4])
-		ipv6, _ = netip.AddrFromSlice(a[4:])
-	}
-
-	return ipv4, ipv6
-}
-
-func (a TransportLayerAddress) Valid() bool {
-	ipv4, ipv6 := a.IPs()
-
-	return ipv4.IsValid() || ipv6.IsValid()
-}
+type TransportLayerAddress = ap.TransportLayerAddress
 
 // GTPTEID ::= OCTET STRING (SIZE(4)).
 type GTPTEID uint32
@@ -192,32 +137,14 @@ type ERABToBeSetupItemCtxtSUReq struct {
 	TransportLayerAddress TransportLayerAddress
 	GTPTEID               GTPTEID
 	NASPDU                NASPDU                 `per:",optional"`
-	CorrelationID         *CorrelationID         `per:"-"`
-	SIPTOCorrelationID    *CorrelationID         `per:"-"`
-	BearerType            *BearerType            `per:"-"`
-	EthernetType          *EthernetType          `per:"-"`
-	SecurityIndication    *SecurityIndication    `per:"-"`
-	iEExtensions          messageMeta            `per:",exttable:eRABToBeSetupItemCtxtSUReqExtIEs"`
+	CorrelationID         *CorrelationID         `per:",extie:IDCorrelationID,crit:ignore"`
+	SIPTOCorrelationID    *CorrelationID         `per:",extie:IDSIPTOCorrelationID,crit:ignore"`
+	BearerType            *BearerType            `per:",extie:IDBearerType,crit:reject"`
+	EthernetType          *EthernetType          `per:",extie:IDEthernetType,crit:ignore"`
+	SecurityIndication    *SecurityIndication    `per:",extie:IDSecurityIndication,crit:reject"`
+	iEExtensions          extensionMeta          `per:",exttable"`
 	extensions            per.ExtensionAdditions `per:",extraw"`
 	containerCrit         `per:"-"`
-}
-
-var eRABToBeSetupItemCtxtSUReqExtIEs = []ieSpec[ERABToBeSetupItemCtxtSUReq]{
-	optionalExtension(IDCorrelationID, CriticalityIgnore, func(m *ERABToBeSetupItemCtxtSUReq) **CorrelationID {
-		return &m.CorrelationID
-	}),
-	optionalExtension(IDSIPTOCorrelationID, CriticalityIgnore, func(m *ERABToBeSetupItemCtxtSUReq) **CorrelationID {
-		return &m.SIPTOCorrelationID
-	}),
-	optionalExtension(IDBearerType, CriticalityReject, func(m *ERABToBeSetupItemCtxtSUReq) **BearerType {
-		return &m.BearerType
-	}),
-	optionalExtension(IDEthernetType, CriticalityIgnore, func(m *ERABToBeSetupItemCtxtSUReq) **EthernetType {
-		return &m.EthernetType
-	}),
-	optionalExtension(IDSecurityIndication, CriticalityReject, func(m *ERABToBeSetupItemCtxtSUReq) **SecurityIndication {
-		return &m.SecurityIndication
-	}),
 }
 
 // ERABSetupItemCtxtSURes ::= SEQUENCE { e-RAB-ID, transportLayerAddress,
@@ -226,64 +153,30 @@ type ERABSetupItemCtxtSURes struct {
 	ERABID                ERABID
 	TransportLayerAddress TransportLayerAddress
 	GTPTEID               GTPTEID
-	iEExtensions          *rawIEExtensions       `per:",optional"`
+	iEExtensions          extensionMeta          `per:",exttable"`
 	extensions            per.ExtensionAdditions `per:",extraw"`
 	containerCrit         `per:"-"`
 }
 
 // ERABItem ::= SEQUENCE { e-RAB-ID, cause, iE-Extensions OPTIONAL } (extensible).
 type ERABItem struct {
-	_      [0]struct{} `per:"extseq"`
-	ERABID ERABID
-	Cause  Cause
-	_      ieExtensions `per:",skip"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+	ERABID       ERABID
+	Cause        Cause
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 type BearerType uint8
 
 const (
 	BearerTypeNonIP BearerType = iota
-
-	bearerTypeRootCount = 1
 )
-
-func (b BearerType) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, bearerTypeRootCount, int64(b), "BearerType")
-}
-
-func (b *BearerType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, bearerTypeRootCount, "BearerType")
-	if err != nil {
-		return err
-	}
-
-	*b = BearerType(idx)
-
-	return nil
-}
 
 type EthernetType uint8
 
 const (
 	EthernetTypeTrue EthernetType = iota
-
-	ethernetTypeRootCount = 1
 )
-
-func (e EthernetType) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, ethernetTypeRootCount, int64(e), "Ethernet-Type")
-}
-
-func (e *EthernetType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, ethernetTypeRootCount, "Ethernet-Type")
-	if err != nil {
-		return err
-	}
-
-	*e = EthernetType(idx)
-
-	return nil
-}
 
 type IntegrityProtectionIndication uint8
 
@@ -291,28 +184,11 @@ const (
 	IntegrityProtectionRequired IntegrityProtectionIndication = iota
 	IntegrityProtectionPreferred
 	IntegrityProtectionNotNeeded
-
-	integrityProtectionIndicationRootCount = 3
 )
-
-func (i IntegrityProtectionIndication) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, integrityProtectionIndicationRootCount, int64(i), "IntegrityProtectionIndication")
-}
-
-func (i *IntegrityProtectionIndication) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, integrityProtectionIndicationRootCount, "IntegrityProtectionIndication")
-	if err != nil {
-		return err
-	}
-
-	*i = IntegrityProtectionIndication(idx)
-
-	return nil
-}
 
 type SecurityIndication struct {
 	IntegrityProtectionIndication IntegrityProtectionIndication
-	iEExtensions                  *rawIEExtensions       `per:",optional"`
+	iEExtensions                  extensionMeta          `per:",exttable"`
 	extensions                    per.ExtensionAdditions `per:",extraw"`
 }
 
@@ -362,7 +238,7 @@ func (b ExtendedBitRate) MarshalPER(w *per.Writer, enc per.Encoding) error {
 }
 
 func (b *ExtendedBitRate) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := decodeExtensibleInt(r, enc, extendedBitRateMin, extendedBitRateMax, "ExtendedBitRate")
+	v, err := decodeExtensibleInt(r, enc, extendedBitRateMin, extendedBitRateMax)
 	if err != nil {
 		return err
 	}
@@ -370,4 +246,8 @@ func (b *ExtendedBitRate) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	*b = ExtendedBitRate(v)
 
 	return nil
+}
+
+func (b *ExtendedBitRate) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return *b < extendedBitRateMin || *b > extendedBitRateMax
 }

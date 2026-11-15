@@ -4,24 +4,25 @@
 package s1ap
 
 import (
+	"bytes"
 	"encoding/hex"
 	"errors"
 	"os"
-	"reflect"
 	"slices"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 func pwsPLMN() PLMNIdentity { return PLMNIdentity{0x00, 0xf1, 0x10} }
 
-func pwsECGI(cell uint32) EUTRANCGI { return EUTRANCGI{PLMNIdentity: pwsPLMN(), CellID: cell} }
+func pwsECGI(cell CellIdentity) EUTRANCGI { return EUTRANCGI{PLMNIdentity: pwsPLMN(), CellID: cell} }
 
 func pwsTAI(tac TAC) TAI { return TAI{PLMNIdentity: pwsPLMN(), TAC: tac} }
 
 func pwsENB() GlobalENBID {
-	return GlobalENBID{PLMNIdentity: pwsPLMN(), ENBID: ENBID{Kind: ENBIDMacro, Value: 0x12345}}
+	return GlobalENBID{PLMNIdentity: pwsPLMN(), ENBID: ENBID{MacroENBID: Ptr(MacroENBID(0x12345))}}
 }
 
 func pwsGUMMEI() GUMMEI {
@@ -65,7 +66,7 @@ func newMessageCases() []newMessageCase {
 		{
 			name: "OverloadStart",
 			msg: &OverloadStart{
-				OverloadResponse:               OverloadResponse{OverloadAction: OverloadActionRejectDelayTolerantAccess},
+				OverloadResponse:               OverloadResponse{OverloadAction: Ptr(OverloadActionRejectDelayTolerantAccess)},
 				GUMMEIList:                     []GUMMEI{pwsGUMMEI()},
 				TrafficLoadReductionIndication: Ptr(uint8(50)),
 			},
@@ -85,7 +86,7 @@ func newMessageCases() []newMessageCase {
 			msg: &WriteReplaceWarningRequest{
 				MessageIdentifier:                 0x1112,
 				SerialNumber:                      0x3000,
-				WarningAreaList:                   &WarningAreaList{CellIDList: []EUTRANCGI{pwsECGI(0x1234501), pwsECGI(0x1234502)}},
+				WarningAreaList:                   &WarningAreaList{CellIDList: &ECGIList{pwsECGI(0x1234501), pwsECGI(0x1234502)}},
 				RepetitionPeriod:                  60,
 				ExtendedRepetitionPeriod:          Ptr(uint32(5000)),
 				NumberofBroadcastRequest:          0,
@@ -105,7 +106,7 @@ func newMessageCases() []newMessageCase {
 			msg: &WriteReplaceWarningRequest{
 				MessageIdentifier:        0x1100,
 				SerialNumber:             0x0001,
-				WarningAreaList:          &WarningAreaList{TAIList: []TAI{pwsTAI(1)}},
+				WarningAreaList:          &WarningAreaList{TrackingAreaListforWarning: &TAIListforWarning{pwsTAI(1)}},
 				RepetitionPeriod:         0,
 				NumberofBroadcastRequest: 1,
 			},
@@ -118,7 +119,7 @@ func newMessageCases() []newMessageCase {
 			msg: &WriteReplaceWarningResponse{
 				MessageIdentifier: 0x1112,
 				SerialNumber:      0x3000,
-				BroadcastCompletedAreaList: &BroadcastCompletedAreaList{TAIBroadcast: []TAIBroadcastItem{{
+				BroadcastCompletedAreaList: &BroadcastCompletedAreaList{TAIBroadcast: &TAIBroadcast{{
 					TAI:                pwsTAI(7),
 					CompletedCellInTAI: []CompletedCellInTAIItem{{ECGI: pwsECGI(0x1234501)}},
 				}}},
@@ -133,7 +134,7 @@ func newMessageCases() []newMessageCase {
 			msg: &WriteReplaceWarningResponse{
 				MessageIdentifier: 0x1112,
 				SerialNumber:      0x3000,
-				BroadcastCompletedAreaList: &BroadcastCompletedAreaList{EmergencyAreaIDBroadcast: []EmergencyAreaIDBroadcastItem{{
+				BroadcastCompletedAreaList: &BroadcastCompletedAreaList{EmergencyAreaIDBroadcast: &EmergencyAreaIDBroadcast{{
 					EmergencyAreaID:    EmergencyAreaID{0x01, 0x02, 0x03},
 					CompletedCellInEAI: []CompletedCellInEAIItem{{ECGI: pwsECGI(0x1234501)}},
 				}}},
@@ -147,7 +148,7 @@ func newMessageCases() []newMessageCase {
 			msg: &KillRequest{
 				MessageIdentifier:      0x1112,
 				SerialNumber:           0x3000,
-				WarningAreaList:        &WarningAreaList{EmergencyAreaIDList: []EmergencyAreaID{{0x01, 0x02, 0x03}}},
+				WarningAreaList:        &WarningAreaList{EmergencyAreaIDList: &EmergencyAreaIDList{{0x01, 0x02, 0x03}}},
 				KillAllWarningMessages: Ptr(KillAllWarningMessagesTrue),
 			},
 			parse:  func(b []byte) (any, error) { return ParseKillRequest(b) },
@@ -159,7 +160,7 @@ func newMessageCases() []newMessageCase {
 			msg: &KillResponse{
 				MessageIdentifier: 0x1112,
 				SerialNumber:      0x3000,
-				BroadcastCancelledAreaList: &BroadcastCancelledAreaList{CellIDCancelled: []CellIDCancelledItem{
+				BroadcastCancelledAreaList: &BroadcastCancelledAreaList{CellIDCancelled: &CellIDCancelled{
 					{ECGI: pwsECGI(0x1234501), NumberOfBroadcasts: 3},
 				}},
 			},
@@ -172,7 +173,7 @@ func newMessageCases() []newMessageCase {
 			msg: &KillResponse{
 				MessageIdentifier: 0x1112,
 				SerialNumber:      0x3000,
-				BroadcastCancelledAreaList: &BroadcastCancelledAreaList{TAICancelled: []TAICancelledItem{{
+				BroadcastCancelledAreaList: &BroadcastCancelledAreaList{TAICancelled: &TAICancelled{{
 					TAI:                pwsTAI(7),
 					CancelledCellInTAI: []CancelledCellInTAIItem{{ECGI: pwsECGI(0x1234501), NumberOfBroadcasts: 300}},
 				}}},
@@ -186,7 +187,7 @@ func newMessageCases() []newMessageCase {
 			msg: &KillResponse{
 				MessageIdentifier: 0x1112,
 				SerialNumber:      0x3000,
-				BroadcastCancelledAreaList: &BroadcastCancelledAreaList{EmergencyAreaIDCancelled: []EmergencyAreaIDCancelledItem{{
+				BroadcastCancelledAreaList: &BroadcastCancelledAreaList{EmergencyAreaIDCancelled: &EmergencyAreaIDCancelled{{
 					EmergencyAreaID:    EmergencyAreaID{0x01, 0x02, 0x03},
 					CancelledCellInEAI: []CancelledCellInEAIItem{{ECGI: pwsECGI(0x1234501), NumberOfBroadcasts: 1}},
 				}}},
@@ -283,7 +284,7 @@ func TestNewMessagesRoundTrip(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if !reflect.DeepEqual(got, tc.msg) {
+			if !equalByMethod(got, tc.msg) {
 				t.Errorf("round trip mismatch:\n got %+v\nwant %+v", got, tc.msg)
 			}
 
@@ -355,8 +356,8 @@ func TestNewMessagesWireCriticality(t *testing.T) {
 			}
 
 			for i := range want {
-				if got[i].id != want[i].id || got[i].crit != want[i].crit {
-					t.Errorf("IE %d = {%s, %s}, want {%s, %s}", i, got[i].id, got[i].crit, want[i].id, want[i].crit)
+				if got[i].ID != want[i].id || got[i].Criticality != want[i].crit {
+					t.Errorf("IE %d = {%s, %s}, want {%s, %s}", i, got[i].ID, got[i].Criticality, want[i].id, want[i].crit)
 				}
 			}
 		})
@@ -366,49 +367,92 @@ func TestNewMessagesWireCriticality(t *testing.T) {
 func TestWarningAreaListNeedsExactlyOneAlternative(t *testing.T) {
 	for name, l := range map[string]WarningAreaList{
 		"none": {},
-		"two":  {CellIDList: []EUTRANCGI{pwsECGI(1)}, TAIList: []TAI{pwsTAI(1)}},
+		"two":  {CellIDList: &ECGIList{pwsECGI(1)}, TrackingAreaListforWarning: &TAIListforWarning{pwsTAI(1)}},
 	} {
-		if _, err := per.Marshal(l); err == nil {
+		if _, err := per.Marshal(&l); err == nil {
 			t.Errorf("%s: Marshal() = nil error", name)
 		}
 	}
 
-	if _, err := per.Marshal(BroadcastCompletedAreaList{}); err == nil {
+	if _, err := per.Marshal(&BroadcastCompletedAreaList{}); err == nil {
 		t.Error("empty BroadcastCompletedAreaList encoded")
 	}
 
-	if _, err := per.Marshal(BroadcastCancelledAreaList{}); err == nil {
+	if _, err := per.Marshal(&BroadcastCancelledAreaList{}); err == nil {
 		t.Error("empty BroadcastCancelledAreaList encoded")
 	}
 }
 
 func TestWarningAreaListExtensionAlternativeNotComprehended(t *testing.T) {
-	var l WarningAreaList
-	if err := per.Unmarshal([]byte{0x80, 0x01, 0x00}, &l); !errors.Is(err, errNotComprehended) {
-		t.Fatalf("err = %v, want errNotComprehended", err)
+	in := []byte{0x80, 0x01, 0x00}
+
+	for _, v := range []interface {
+		per.Unmarshaler
+		per.Marshaler
+		Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+	}{&WarningAreaList{}, &BroadcastCompletedAreaList{}, &BroadcastCancelledAreaList{}} {
+		if err := per.Unmarshal(in, v); err != nil {
+			t.Fatalf("%T: %v", v, err)
+		}
+
+		if !v.Diagnose(&ap.Diagnosis[ProtocolIEID]{}) {
+			t.Errorf("%T: an unknown alternative is reported as comprehended", v)
+		}
+
+		out, err := per.Marshal(v)
+		if err != nil {
+			t.Fatalf("%T: %v", v, err)
+		}
+
+		if !bytes.Equal(out, in) {
+			t.Errorf("%T: re-encoded % x, want % x", v, out, in)
+		}
 	}
 }
 
 func TestOverloadActionExtensionValues(t *testing.T) {
 	for v := OverloadActionRejectNonEmergencyMODT; v <= OverloadActionNotAcceptMODataOrDelayTolerantAccessFromCPCIoT; v++ {
-		b, err := per.Marshal(OverloadResponse{OverloadAction: v})
+		b, err := per.Marshal(&OverloadResponse{OverloadAction: Ptr(v)})
 		if err != nil {
 			t.Fatalf("%d: %v", v, err)
 		}
 
 		var got OverloadResponse
-		if err := per.Unmarshal(b, &got); err != nil || got.OverloadAction != v {
-			t.Fatalf("%d: got %d, %v", v, got.OverloadAction, err)
+		if err := per.Unmarshal(b, &got); err != nil || got.OverloadAction == nil || *got.OverloadAction != v {
+			t.Fatalf("%d: got %v, %v", v, got.OverloadAction, err)
 		}
 	}
 
-	if _, err := per.Marshal(OverloadResponse{OverloadAction: 7}); err == nil {
-		t.Error("undefined OverloadAction encoded")
+	unknown := OverloadAction(len(enumOverloadAction.Root) + len(enumOverloadAction.Extension))
+
+	b, err := per.Marshal(&OverloadResponse{OverloadAction: &unknown})
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	var got OverloadResponse
-	if err := per.Unmarshal([]byte{0x42, 0x00}, &got); !errors.Is(err, errNotComprehended) {
-		t.Errorf("unknown extension value: err = %v, want errNotComprehended", err)
+	if err := per.Unmarshal(b, &got); err != nil || got.OverloadAction == nil || *got.OverloadAction != unknown {
+		t.Fatalf("unknown extension value: got %v, %v; want it kept", got.OverloadAction, err)
+	}
+
+	if !got.Diagnose(&ap.Diagnosis[ProtocolIEID]{}) {
+		t.Error("an unknown OverloadAction is not reported as not comprehended")
+	}
+
+	alt := OverloadResponse{Ext: &per.ExtensionAlternative{Index: 3, Value: "\x01\x02"}}
+
+	b, err = per.Marshal(&alt)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got = OverloadResponse{}
+	if err := per.Unmarshal(b, &got); err != nil || got.Ext == nil || *got.Ext != *alt.Ext {
+		t.Fatalf("unknown extension alternative: got %+v, %v; want it kept", got, err)
+	}
+
+	if !got.Diagnose(&ap.Diagnosis[ProtocolIEID]{}) {
+		t.Error("an unknown OverloadResponse alternative is not reported as not comprehended")
 	}
 }
 

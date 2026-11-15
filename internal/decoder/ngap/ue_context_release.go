@@ -27,18 +27,20 @@ type PDUSessionResourceListCxtRelReq struct {
 	PDUSessionID int64 `json:"pdu_session_id"`
 }
 
-// UENGAPIDs ::= CHOICE { uE-NGAP-ID-pair, aMF-UE-NGAP-ID, ... }. The library
-// flattens the CHOICE onto one struct with a Pair discriminator, so only the
+// UENGAPIDs ::= CHOICE { uE-NGAP-ID-pair, aMF-UE-NGAP-ID, ... }. Only the
 // selected alternative is rendered (TS 38.413 §9.3.3.1).
 func libUENGAPIDs(ids ngap.UENGAPIDs) UENGAPIDs {
-	if ids.Pair {
+	switch {
+	case ids.UENGAPIDPair != nil:
 		return UENGAPIDs{UENGAPIDPair: UENGAPIDPair{
-			AMFUENGAPID: int64(ids.AMFUENGAPID),
-			RANUENGAPID: int64(ids.RANUENGAPID),
+			AMFUENGAPID: int64(ids.UENGAPIDPair.AMFUENGAPID),
+			RANUENGAPID: int64(ids.UENGAPIDPair.RANUENGAPID),
 		}}
+	case ids.AMFUENGAPID != nil:
+		return UENGAPIDs{AMFUENGAPID: int64(*ids.AMFUENGAPID)}
+	default:
+		return UENGAPIDs{}
 	}
-
-	return UENGAPIDs{AMFUENGAPID: int64(ids.AMFUENGAPID)}
 }
 
 func buildUEContextReleaseRequest(value []byte) NGAPMessageValue {

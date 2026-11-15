@@ -18,7 +18,7 @@ func TestERABSetupRequestRoundTrips(t *testing.T) {
 		},
 	}
 
-	tla := TransportLayerAddress{10, 45, 0, 1}
+	tla := tlaOf(10, 45, 0, 1)
 	ambr := UEAggregateMaximumBitRate{DL: 1000000000, UL: 500000000}
 
 	in := &ERABSetupRequest{
@@ -61,13 +61,13 @@ func TestERABSetupRequestRoundTrips(t *testing.T) {
 
 	gi, go_ := in.ERABToBeSetup[0], out.ERABToBeSetup[0]
 	if gi.ERABID != go_.ERABID || gi.GTPTEID != go_.GTPTEID || gi.QoS.QCI != go_.QoS.QCI ||
-		!bytes.Equal(gi.TransportLayerAddress, go_.TransportLayerAddress) || !bytes.Equal(gi.NASPDU, go_.NASPDU) {
+		gi.TransportLayerAddress != go_.TransportLayerAddress || !bytes.Equal(gi.NASPDU, go_.NASPDU) {
 		t.Fatalf("E-RAB item mismatch:\n  in  %+v\n  out %+v", gi, go_)
 	}
 }
 
 func TestERABSetupResponseRoundTrips(t *testing.T) {
-	tla := TransportLayerAddress{10, 45, 0, 9}
+	tla := tlaOf(10, 45, 0, 9)
 
 	in := &ERABSetupResponse{
 		MMEUES1APID: Ptr(MMEUES1APID(42)),
@@ -97,7 +97,7 @@ func TestERABSetupResponseRoundTrips(t *testing.T) {
 
 	if deref(out.MMEUES1APID) != 42 || deref(out.ENBUES1APID) != 1 || len(out.ERABSetup) != 1 ||
 		out.ERABSetup[0].ERABID != 6 || out.ERABSetup[0].GTPTEID != 0xdeadbeef ||
-		!bytes.Equal(out.ERABSetup[0].TransportLayerAddress, tla) {
+		out.ERABSetup[0].TransportLayerAddress != tla {
 		t.Fatalf("mismatch:\n  in  %+v\n  out %+v", in, out)
 	}
 }

@@ -7,131 +7,26 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// UE-NGAP-IDs CHOICE alternatives. The CHOICE is not extensible, so
-// choice-Extensions is a plain alternative index.
-const (
-	ueNGAPIDsPair = iota
-	ueNGAPIDsAMFUENGAPID
-	ueNGAPIDsChoiceExtensions
-
-	ueNGAPIDsAlternatives = 3
-)
-
 // UE-NGAP-IDs ::= CHOICE { uE-NGAP-ID-pair, aMF-UE-NGAP-ID, choice-Extensions }.
-// Pair selects uE-NGAP-ID-pair, which the AMF sends once the NG-RAN node has
-// assigned a RAN UE NGAP ID; otherwise only AMFUENGAPID is carried.
 type UENGAPIDs struct {
-	AMFUENGAPID AMFUENGAPID
-	RANUENGAPID RANUENGAPID
-	Pair        bool
-
-	pairIEExtensions *rawIEExtensions
-	pairExtensions   per.ExtensionAdditions
+	UENGAPIDPair    *UENGAPIDPair    `per:",choice:0"`
+	AMFUENGAPID     *AMFUENGAPID     `per:",choice:1"`
+	ChoiceExtension *SingleContainer `per:",choice:2,extie"`
 }
 
-func (u UENGAPIDs) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	if !u.Pair {
-		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, ueNGAPIDsAlternatives-1, ueNGAPIDsAMFUENGAPID); err != nil {
-			return err
-		}
-
-		return u.AMFUENGAPID.MarshalPER(w, enc)
-	}
-
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, ueNGAPIDsAlternatives-1, ueNGAPIDsPair); err != nil {
-		return err
-	}
-
-	// UE-NGAP-ID-pair ::= SEQUENCE { aMF-UE-NGAP-ID, rAN-UE-NGAP-ID,
-	// iE-Extensions OPTIONAL } (extensible).
-	w.WriteBit(u.pairExtensions.Present())
-	w.WriteBit(u.pairIEExtensions != nil)
-
-	if err := u.AMFUENGAPID.MarshalPER(w, enc); err != nil {
-		return err
-	}
-
-	if err := u.RANUENGAPID.MarshalPER(w, enc); err != nil {
-		return err
-	}
-
-	if u.pairIEExtensions != nil {
-		if err := u.pairIEExtensions.MarshalPER(w, enc); err != nil {
-			return err
-		}
-	}
-
-	return u.pairExtensions.MarshalPER(w, enc)
-}
-
-func (u *UENGAPIDs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, ueNGAPIDsAlternatives-1)
-	if err != nil {
-		return err
-	}
-
-	switch idx {
-	case ueNGAPIDsPair:
-		extBit, err := r.ReadBit()
-		if err != nil {
-			return err
-		}
-
-		extContainer, err := r.ReadBit()
-		if err != nil {
-			return err
-		}
-
-		var amf AMFUENGAPID
-		if err := amf.UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-
-		var ran RANUENGAPID
-		if err := ran.UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-
-		var ieExt *rawIEExtensions
-
-		if extContainer {
-			ieExt = &rawIEExtensions{}
-			if err := ieExt.UnmarshalPER(r, enc); err != nil {
-				return err
-			}
-		}
-
-		var ext per.ExtensionAdditions
-
-		if extBit {
-			if err := ext.UnmarshalPER(r, enc); err != nil {
-				return err
-			}
-		}
-
-		*u = UENGAPIDs{AMFUENGAPID: amf, RANUENGAPID: ran, Pair: true, pairIEExtensions: ieExt, pairExtensions: ext}
-
-		return nil
-	case ueNGAPIDsChoiceExtensions:
-		return decodeChoiceExtension(r, enc, "UE-NGAP-IDs")
-	default:
-		var amf AMFUENGAPID
-		if err := amf.UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-
-		*u = UENGAPIDs{AMFUENGAPID: amf}
-
-		return nil
-	}
+type UENGAPIDPair struct {
+	AMFUENGAPID  AMFUENGAPID
+	RANUENGAPID  RANUENGAPID
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // PDUSessionResourceItemCxtRelReq ::= SEQUENCE { pDUSessionID, iE-Extensions
 // OPTIONAL } (extensible).
 type PDUSessionResourceItemCxtRelReq struct {
-	_            [0]struct{} `per:"extseq"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 	PDUSessionID PDUSessionID
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // PDUSessionResourceListCxtRelReq ::= SEQUENCE (SIZE(1..maxnoofPDUSessions)) OF
@@ -140,12 +35,12 @@ type PDUSessionResourceItemCxtRelReq struct {
 type PDUSessionResourceListCxtRelReq []PDUSessionResourceItemCxtRelReq
 
 // PDUSessionResourceItemCxtRelCpl ::= SEQUENCE { pDUSessionID, iE-Extensions
-// OPTIONAL } (extensible). The release response transfer rides in an
-// ignore-criticality extension, so it is skipped with the container.
+// OPTIONAL } (extensible).
 type PDUSessionResourceItemCxtRelCpl struct {
-	_            [0]struct{} `per:"extseq"`
-	PDUSessionID PDUSessionID
-	_            ieExtensions `per:",skip"`
+	extensions                                per.ExtensionAdditions `per:",extraw"`
+	PDUSessionID                              PDUSessionID
+	PDUSessionResourceReleaseResponseTransfer *TransferContainer `per:",extie:IDPDUSessionResourceReleaseResponseTransfer,crit:ignore"`
+	iEExtensions                              extensionMeta      `per:",exttable"`
 }
 
 // PDUSessionResourceListCxtRelCpl ::= SEQUENCE (SIZE(1..maxnoofPDUSessions)) OF
@@ -167,18 +62,18 @@ type UEContextReleaseCommand struct {
 
 var uEContextReleaseCommandIEs = []ieSpec[UEContextReleaseCommand]{
 	{
-		id: IDUENGAPIDs, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *UEContextReleaseCommand, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.UENGAPIDs)
+		ID: IDUENGAPIDs, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *UEContextReleaseCommand, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.UENGAPIDs)
 		},
-		encode: func(m *UEContextReleaseCommand) (per.Marshaler, bool) { return &m.UENGAPIDs, true },
+		Encode: func(m *UEContextReleaseCommand) (per.Marshaler, bool) { return &m.UENGAPIDs, true },
 	},
 	{
-		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *UEContextReleaseCommand, raw []byte, enc per.Encoding) error {
+		ID: IDCause, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *UEContextReleaseCommand, r *per.Reader, enc per.Encoding) error {
 			var v Cause
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -186,7 +81,7 @@ var uEContextReleaseCommandIEs = []ieSpec[UEContextReleaseCommand]{
 
 			return nil
 		},
-		encode: func(m *UEContextReleaseCommand) (per.Marshaler, bool) {
+		Encode: func(m *UEContextReleaseCommand) (per.Marshaler, bool) {
 			if m.Cause == nil {
 				return nil, false
 			}
@@ -220,24 +115,30 @@ func ParseUEContextReleaseCommand(value []byte) (*UEContextReleaseCommand, error
 	return parseMessageBody[UEContextReleaseCommand](ProcUEContextRelease, TriggeringInitiatingMessage, uEContextReleaseCommandIEs, value)
 }
 
+func DecodeUEContextReleaseCommand(value []byte) (*UEContextReleaseCommand, error) {
+	return decodeMessageBody[UEContextReleaseCommand](ProcUEContextRelease, uEContextReleaseCommandIEs, value)
+}
+
 // TS 38.413 §9.2.2.6.
 type UEContextReleaseComplete struct {
-	AMFUENGAPID             *AMFUENGAPID
-	RANUENGAPID             *RANUENGAPID
-	UserLocationInformation *UserLocationInformation
-	PDUSessionResourceList  PDUSessionResourceListCxtRelCpl
-	CriticalityDiagnostics  *CriticalityDiagnostics
+	AMFUENGAPID                                *AMFUENGAPID
+	RANUENGAPID                                *RANUENGAPID
+	UserLocationInformation                    *UserLocationInformation
+	PDUSessionResourceList                     PDUSessionResourceListCxtRelCpl
+	CriticalityDiagnostics                     *CriticalityDiagnostics
+	InfoOnRecommendedCellsAndRANNodesForPaging *InfoOnRecommendedCellsAndRANNodesForPaging
+	PagingAssisDataforCEcapabUE                *PagingAssisDataforCEcapabUE
 
 	messageMeta
 }
 
 var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 	{
-		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
+		ID: IDAMFUENGAPID, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *UEContextReleaseComplete, r *per.Reader, enc per.Encoding) error {
 			var v AMFUENGAPID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -245,7 +146,7 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 
 			return nil
 		},
-		encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
+		Encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
 			if m.AMFUENGAPID == nil {
 				return nil, false
 			}
@@ -254,11 +155,11 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 		},
 	},
 	{
-		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
+		ID: IDRANUENGAPID, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *UEContextReleaseComplete, r *per.Reader, enc per.Encoding) error {
 			var v RANUENGAPID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -266,7 +167,7 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 
 			return nil
 		},
-		encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
+		Encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
 			if m.RANUENGAPID == nil {
 				return nil, false
 			}
@@ -275,11 +176,11 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 		},
 	},
 	{
-		id: IDUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
+		ID: IDUserLocationInformation, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *UEContextReleaseComplete, r *per.Reader, enc per.Encoding) error {
 			var uli UserLocationInformation
 
-			if err := perIEDecode(raw, &uli); err != nil {
+			if err := decodeIE(r, &uli); err != nil {
 				return err
 			}
 
@@ -287,7 +188,7 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 
 			return nil
 		},
-		encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
+		Encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
 			if m.UserLocationInformation == nil {
 				return nil, false
 			}
@@ -295,12 +196,15 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 			return m.UserLocationInformation, true
 		},
 	},
+	optionalExtension(IDInfoOnRecommendedCellsAndRANNodesForPaging, CriticalityIgnore, func(m *UEContextReleaseComplete) **InfoOnRecommendedCellsAndRANNodesForPaging {
+		return &m.InfoOnRecommendedCellsAndRANNodesForPaging
+	}),
 	{
-		id: IDPDUSessionResourceListCxtRelCpl, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.PDUSessionResourceList)
+		ID: IDPDUSessionResourceListCxtRelCpl, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *UEContextReleaseComplete, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.PDUSessionResourceList)
 		},
-		encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
+		Encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
 			if m.PDUSessionResourceList == nil {
 				return nil, false
 			}
@@ -309,11 +213,11 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 		},
 	},
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *UEContextReleaseComplete, raw []byte, enc per.Encoding) error {
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *UEContextReleaseComplete, r *per.Reader, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
-			if err := perIEDecode(raw, &cd); err != nil {
+			if err := decodeIE(r, &cd); err != nil {
 				return err
 			}
 
@@ -321,7 +225,7 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 
 			return nil
 		},
-		encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
+		Encode: func(m *UEContextReleaseComplete) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -329,6 +233,7 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 			return m.CriticalityDiagnostics, true
 		},
 	},
+	optionalExtension(IDPagingAssisDataforCEcapabUE, CriticalityIgnore, func(m *UEContextReleaseComplete) **PagingAssisDataforCEcapabUE { return &m.PagingAssisDataforCEcapabUE }),
 }
 
 func (m *UEContextReleaseComplete) encodeBody(w *per.Writer, enc per.Encoding) error {
@@ -355,6 +260,10 @@ func ParseUEContextReleaseComplete(value []byte) (*UEContextReleaseComplete, err
 	return parseMessageBody[UEContextReleaseComplete](ProcUEContextRelease, TriggeringSuccessfulOutcome, uEContextReleaseCompleteIEs, value)
 }
 
+func DecodeUEContextReleaseComplete(value []byte) (*UEContextReleaseComplete, error) {
+	return decodeMessageBody[UEContextReleaseComplete](ProcUEContextRelease, uEContextReleaseCompleteIEs, value)
+}
+
 // TS 38.413 §9.2.2.4.
 type UEContextReleaseRequest struct {
 	AMFUENGAPID                AMFUENGAPID
@@ -368,25 +277,25 @@ type UEContextReleaseRequest struct {
 
 var uEContextReleaseRequestIEs = []ieSpec[UEContextReleaseRequest]{
 	{
-		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *UEContextReleaseRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.AMFUENGAPID)
+		ID: IDAMFUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *UEContextReleaseRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.AMFUENGAPID)
 		},
-		encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
+		Encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *UEContextReleaseRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.RANUENGAPID)
+		ID: IDRANUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *UEContextReleaseRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.RANUENGAPID)
 		},
-		encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
+		Encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
-		id: IDPDUSessionResourceListCxtRelReq, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *UEContextReleaseRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.PDUSessionResourceList)
+		ID: IDPDUSessionResourceListCxtRelReq, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *UEContextReleaseRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.PDUSessionResourceList)
 		},
-		encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) {
+		Encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) {
 			if m.PDUSessionResourceList == nil {
 				return nil, false
 			}
@@ -395,11 +304,11 @@ var uEContextReleaseRequestIEs = []ieSpec[UEContextReleaseRequest]{
 		},
 	},
 	{
-		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *UEContextReleaseRequest, raw []byte, enc per.Encoding) error {
+		ID: IDCause, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *UEContextReleaseRequest, r *per.Reader, enc per.Encoding) error {
 			var v Cause
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -407,7 +316,7 @@ var uEContextReleaseRequestIEs = []ieSpec[UEContextReleaseRequest]{
 
 			return nil
 		},
-		encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) {
+		Encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) {
 			if m.Cause == nil {
 				return nil, false
 			}
@@ -416,11 +325,11 @@ var uEContextReleaseRequestIEs = []ieSpec[UEContextReleaseRequest]{
 		},
 	},
 	{
-		id: IDGWContextReleaseIndication, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *UEContextReleaseRequest, raw []byte, enc per.Encoding) error {
+		ID: IDGWContextReleaseIndication, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *UEContextReleaseRequest, r *per.Reader, enc per.Encoding) error {
 			var v GWContextReleaseIndication
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -428,7 +337,7 @@ var uEContextReleaseRequestIEs = []ieSpec[UEContextReleaseRequest]{
 
 			return nil
 		},
-		encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) {
+		Encode: func(m *UEContextReleaseRequest) (per.Marshaler, bool) {
 			if m.GWContextReleaseIndication == nil {
 				return nil, false
 			}
@@ -460,4 +369,8 @@ func (m *UEContextReleaseRequest) Marshal() ([]byte, error) {
 
 func ParseUEContextReleaseRequest(value []byte) (*UEContextReleaseRequest, error) {
 	return parseMessageBody[UEContextReleaseRequest](ProcUEContextReleaseRequest, TriggeringInitiatingMessage, uEContextReleaseRequestIEs, value)
+}
+
+func DecodeUEContextReleaseRequest(value []byte) (*UEContextReleaseRequest, error) {
+	return decodeMessageBody[UEContextReleaseRequest](ProcUEContextReleaseRequest, uEContextReleaseRequestIEs, value)
 }

@@ -48,7 +48,7 @@ func TestSupersededConnectionIsReleasedTowardGNB(t *testing.T) {
 	var released bool
 
 	for _, cmd := range sender.SentUEContextReleaseCommands {
-		if cmd.UENGAPIDs.AMFUENGAPID == ngap.AMFUENGAPID(oldAmfID) && cmd.UENGAPIDs.RANUENGAPID == ngap.RANUENGAPID(oldRanID) {
+		if p := cmd.UENGAPIDs.UENGAPIDPair; p != nil && p.AMFUENGAPID == ngap.AMFUENGAPID(oldAmfID) && p.RANUENGAPID == ngap.RANUENGAPID(oldRanID) {
 			released = true
 		}
 	}

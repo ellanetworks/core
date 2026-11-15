@@ -17,8 +17,7 @@
 // [AbstractSyntaxError]. Anything §10.3.4.2 and §10.3.5 let a receiver carry on
 // past is not an error: the message is returned and [Diagnostics] reports it.
 //
-// Unmodeled IEs are preserved and re-emitted on encode. Preservation and
-// diagnostics are both bounded, since a peer chooses how many IEs to send.
+// Unmodeled IEs are preserved and re-emitted on encode.
 //
 // NGAP closes a CHOICE with a choice-Extensions alternative rather than an
 // extension marker (§9.3); an alternative this version does not model is an
@@ -26,66 +25,20 @@
 package ngap
 
 import (
-	"fmt"
-
-	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 func Ptr[T any](v T) *T { return &v }
 
 // Not extensible.
-type Criticality uint8
+type Criticality = ap.Criticality
 
 const (
-	CriticalityReject Criticality = iota
-	CriticalityIgnore
-	CriticalityNotify
+	CriticalityReject = ap.CriticalityReject
+	CriticalityIgnore = ap.CriticalityIgnore
+	CriticalityNotify = ap.CriticalityNotify
 
 	criticalityRootCount = 3
-)
-
-func (c Criticality) String() string {
-	if name, ok := criticalityNames[c]; ok {
-		return name
-	}
-
-	return fmt.Sprintf("Criticality(%d)", uint8(c))
-}
-
-// encodeRootEnumerated refuses to encode a value outside the root.
-// per.EncodeEnumerated would take it as the (v-nRoot)'th extension addition and
-// put a value 3GPP has not defined on the wire.
-func encodeRootEnumerated(w *per.Writer, enc per.Encoding, nRoot, v int64, name string) error {
-	if v < 0 || v >= nRoot {
-		return fmt.Errorf("ngap: %s %d outside the root values", name, v)
-	}
-
-	return per.EncodeEnumerated(w, enc, nRoot, true, v)
-}
-
-// An extension value decodes as nRoot+k, which narrows back onto a root value
-// in these small Go enum types, so it is refused: §10.3.1 case 6 handles it on
-// the IE's criticality.
-func decodeRootEnumerated(r *per.Reader, enc per.Encoding, nRoot int64, name string) (int64, error) {
-	idx, err := per.DecodeEnumerated(r, enc, nRoot, true)
-	if err != nil {
-		return 0, err
-	}
-
-	if idx >= nRoot {
-		return 0, fmt.Errorf("%w: %s extension value %d", errNotComprehended, name, idx)
-	}
-
-	return idx, nil
-}
-
-// presence is the TS 38.413 §9.2 tabular "Presence" column.
-type presence uint8
-
-const (
-	presenceOptional presence = iota
-	presenceConditional
-	presenceMandatory
 )
 
 type TriggeringMessage uint8
@@ -94,8 +47,6 @@ const (
 	TriggeringInitiatingMessage TriggeringMessage = iota
 	TriggeringSuccessfulOutcome
 	TriggeringUnsuccessfulOutcome
-
-	triggeringMessageRootCount = 3
 )
 
 // ProtocolIEID ::= INTEGER (0..65535).

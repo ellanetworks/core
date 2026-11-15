@@ -68,7 +68,7 @@ func TestENBConfigurationUpdateAcknowledgeRoundTrips(t *testing.T) {
 }
 
 func TestENBConfigurationUpdateFailureRoundTrips(t *testing.T) {
-	in := &ENBConfigurationUpdateFailure{Cause: Ptr(Cause{Group: CauseGroupMisc, Value: 5})}
+	in := &ENBConfigurationUpdateFailure{Cause: Ptr(CauseMiscUnknownPLMN.Cause())}
 
 	b, err := in.Marshal()
 	if err != nil {
@@ -90,7 +90,7 @@ func TestENBConfigurationUpdateFailureRoundTrips(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if deref(out.Cause) != deref(in.Cause) {
+	if !deref(out.Cause).Equal(deref(in.Cause)) {
 		t.Fatalf("cause mismatch: %+v", out.Cause)
 	}
 }
@@ -106,7 +106,7 @@ func TestENBConfigurationUpdateFailureMissingCause(t *testing.T) {
 		t.Error("Marshal() = nil error, want a required-IE error for the absent Cause")
 	}
 
-	value := container(t, ieField{id: IDTimeToWait, crit: CriticalityIgnore, val: TimeToWait(0)})
+	value := container(t, ieField{ID: IDTimeToWait, Criticality: CriticalityIgnore, Value: TimeToWait(0)})
 
 	msg, err := ParseENBConfigurationUpdateFailure(value)
 	if err != nil {
@@ -122,7 +122,7 @@ func TestENBConfigurationUpdateFailureMissingCause(t *testing.T) {
 	var reported bool
 
 	for _, ie := range diag.IEs {
-		if ie.ID == IDCause && ie.TypeOfError == TypeOfErrorMissing {
+		if ie.ID == IDCause && typeOfError(ie) == TypeOfErrorMissing {
 			reported = true
 		}
 	}

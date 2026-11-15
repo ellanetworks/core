@@ -380,13 +380,13 @@ func (g *GnodeB) ServiceRequestSignalling(u *ue.UE, ranUENGAPID int64, timeout t
 	return nil
 }
 
-var CauseUserInactivity = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUserInactivity}
+var CauseUserInactivity = ngap.CauseRadioNetworkUserInactivity.Cause()
 
-var CauseRadioConnectionWithUELost = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkRadioConnectionWithUELost}
+var CauseRadioConnectionWithUELost = ngap.CauseRadioNetworkRadioConnectionWithUELost.Cause()
 
 // CauseNASNormalRelease is the cause the AMF releases a UE context with when it
 // has no reason to hold the NAS signalling connection any longer.
-var CauseNASNormalRelease = ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease}
+var CauseNASNormalRelease = ngap.CauseNASNormalRelease.Cause()
 
 // ReleaseContext performs a gNB-initiated UE context release (TS 23.502
 // §4.2.6), dropping the UE to CM-IDLE. ENB.ReleaseContext is its EPS

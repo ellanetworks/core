@@ -4,9 +4,8 @@
 package ngap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 // PriorityLevelARP ::= INTEGER (1..15) — TS 38.413 §9.3.1.19. S1AP's
@@ -36,8 +35,6 @@ type PreemptionCapability uint8
 const (
 	PreemptionShallNotTrigger PreemptionCapability = iota
 	PreemptionMayTrigger
-
-	preemptionCapabilityRootCount = 2
 )
 
 // Pre-emptionVulnerability ::= ENUMERATED { not-pre-emptable, pre-emptable,
@@ -47,8 +44,6 @@ type PreemptionVulnerability uint8
 const (
 	PreemptionNotPreemptable PreemptionVulnerability = iota
 	PreemptionPreemptable
-
-	preemptionVulnerabilityRootCount = 2
 )
 
 // NotificationControl ::= ENUMERATED { notification-requested, ... }.
@@ -56,8 +51,6 @@ type NotificationControl uint8
 
 const (
 	NotificationRequested NotificationControl = iota
-
-	notificationControlRootCount = 1
 )
 
 // PacketLossRate ::= INTEGER (0..1000, ...) in tenths of a percent.
@@ -68,14 +61,18 @@ func (p PacketLossRate) MarshalPER(w *per.Writer, enc per.Encoding) error {
 }
 
 func (p *PacketLossRate) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := decodeExtensibleInt(r, enc, 0, 1000, "PacketLossRate")
+	v, err := decodeExtensibleInt[PacketLossRate](r, enc, 0, 1000)
 	if err != nil {
 		return err
 	}
 
-	*p = PacketLossRate(v)
+	*p = v
 
 	return nil
+}
+
+func (v PacketLossRate) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return outsideRoot(int64(v), 0, 1000)
 }
 
 // FiveQI ::= INTEGER (0..255, ...). 3GPP gives 5QI no section of its own; it
@@ -89,15 +86,17 @@ func (f FiveQI) MarshalPER(w *per.Writer, enc per.Encoding) error {
 }
 
 func (f *FiveQI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := decodeExtensibleInt(r, enc, 0, 255, "FiveQI")
+	v, err := decodeExtensibleInt[FiveQI](r, enc, 0, 255)
 	if err != nil {
 		return err
 	}
 
-	*f = FiveQI(v)
+	*f = v
 
 	return nil
 }
+
+func (v FiveQI) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool { return outsideRoot(int64(v), 0, 255) }
 
 // PriorityLevelQos ::= INTEGER (1..127, ...) — TS 38.413 §9.3.1.84. Distinct
 // from PriorityLevelARP: this one ranks QoS flows, that one ranks allocation.
@@ -108,14 +107,18 @@ func (p PriorityLevelQos) MarshalPER(w *per.Writer, enc per.Encoding) error {
 }
 
 func (p *PriorityLevelQos) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := decodeExtensibleInt(r, enc, 1, 127, "PriorityLevelQos")
+	v, err := decodeExtensibleInt[PriorityLevelQos](r, enc, 1, 127)
 	if err != nil {
 		return err
 	}
 
-	*p = PriorityLevelQos(v)
+	*p = v
 
 	return nil
+}
+
+func (v PriorityLevelQos) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return outsideRoot(int64(v), 1, 127)
 }
 
 // PacketDelayBudget ::= INTEGER (0..1023, ...) in units of 0.5 ms.
@@ -126,14 +129,18 @@ func (p PacketDelayBudget) MarshalPER(w *per.Writer, enc per.Encoding) error {
 }
 
 func (p *PacketDelayBudget) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := decodeExtensibleInt(r, enc, 0, 1023, "PacketDelayBudget")
+	v, err := decodeExtensibleInt[PacketDelayBudget](r, enc, 0, 1023)
 	if err != nil {
 		return err
 	}
 
-	*p = PacketDelayBudget(v)
+	*p = v
 
 	return nil
+}
+
+func (v PacketDelayBudget) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return outsideRoot(int64(v), 0, 1023)
 }
 
 // AveragingWindow ::= INTEGER (0..4095, ...) in milliseconds.
@@ -144,14 +151,18 @@ func (a AveragingWindow) MarshalPER(w *per.Writer, enc per.Encoding) error {
 }
 
 func (a *AveragingWindow) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := decodeExtensibleInt(r, enc, 0, 4095, "AveragingWindow")
+	v, err := decodeExtensibleInt[AveragingWindow](r, enc, 0, 4095)
 	if err != nil {
 		return err
 	}
 
-	*a = AveragingWindow(v)
+	*a = v
 
 	return nil
+}
+
+func (v AveragingWindow) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return outsideRoot(int64(v), 0, 4095)
 }
 
 // MaximumDataBurstVolume ::= INTEGER (0..4095, ..., 4096..2000000) in bytes.
@@ -166,33 +177,22 @@ const (
 )
 
 func (m MaximumDataBurstVolume) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	if m > maximumDataBurstVolumeUB {
-		return fmt.Errorf("ngap: MaximumDataBurstVolume %d exceeds the extension range ceiling %d", uint32(m), maximumDataBurstVolumeUB)
-	}
-
-	return per.EncodeInteger(w, enc, per.Bounds{
-		LB: 0, HasLB: true, UB: maximumDataBurstVolumeRootUB, HasUB: true, Extensible: true,
-	}, int64(m))
+	return encodeExtensibleInt(w, enc, 0, maximumDataBurstVolumeRootUB, int64(m))
 }
 
-// The extension branch decodes as an unconstrained integer, so the value
-// arrives unbounded and signed; without this check a negative would land in
-// the unsigned Go type as a very large burst volume.
 func (m *MaximumDataBurstVolume) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := per.DecodeInteger(r, enc, per.Bounds{
-		LB: 0, HasLB: true, UB: maximumDataBurstVolumeRootUB, HasUB: true, Extensible: true,
-	})
+	v, err := decodeExtensibleInt[MaximumDataBurstVolume](r, enc, 0, maximumDataBurstVolumeRootUB)
 	if err != nil {
 		return err
 	}
 
-	if v < 0 || v > maximumDataBurstVolumeUB {
-		return fmt.Errorf("ngap: MaximumDataBurstVolume %d outside 0..%d", v, maximumDataBurstVolumeUB)
-	}
-
-	*m = MaximumDataBurstVolume(v)
+	*m = v
 
 	return nil
+}
+
+func (m MaximumDataBurstVolume) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return outsideRoot(int64(m), 0, maximumDataBurstVolumeUB)
 }
 
 // DelayCritical ::= ENUMERATED { delay-critical, non-delay-critical, ... }.
@@ -201,8 +201,6 @@ type DelayCritical uint8
 const (
 	DelayCriticalYes DelayCritical = iota
 	DelayCriticalNo
-
-	delayCriticalRootCount = 2
 )
 
 // ReflectiveQosAttribute ::= ENUMERATED { subject-to, ... }.
@@ -210,8 +208,6 @@ type ReflectiveQosAttribute uint8
 
 const (
 	ReflectiveQosSubjectTo ReflectiveQosAttribute = iota
-
-	reflectiveQosAttributeRootCount = 1
 )
 
 // AdditionalQosFlowInformation ::= ENUMERATED { more-likely, ... }.
@@ -219,8 +215,6 @@ type AdditionalQosFlowInformation uint8
 
 const (
 	AdditionalQosFlowMoreLikely AdditionalQosFlowInformation = iota
-
-	additionalQosFlowInformationRootCount = 1
 )
 
 // PacketErrorRate ::= SEQUENCE { pERScalar INTEGER (0..9, ...), pERExponent
@@ -229,7 +223,7 @@ const (
 type PacketErrorRate struct {
 	Scalar       PERDigit
 	Exponent     PERDigit
-	iEExtensions *rawIEExtensions       `per:",optional"`
+	iEExtensions extensionMeta          `per:",exttable"`
 	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
@@ -241,26 +235,30 @@ func (d PERDigit) MarshalPER(w *per.Writer, enc per.Encoding) error {
 }
 
 func (d *PERDigit) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := decodeExtensibleInt(r, enc, 0, 9, "PacketErrorRate digit")
+	v, err := decodeExtensibleInt[PERDigit](r, enc, 0, 9)
 	if err != nil {
 		return err
 	}
 
-	*d = PERDigit(v)
+	*d = v
 
 	return nil
 }
+
+func (v PERDigit) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool { return outsideRoot(int64(v), 0, 9) }
 
 // NonDynamic5QIDescriptor ::= SEQUENCE { fiveQI, priorityLevelQos OPTIONAL,
 // averagingWindow OPTIONAL, maximumDataBurstVolume OPTIONAL, iE-Extensions
 // OPTIONAL } (extensible) — TS 38.413 §9.3.1.28.
 type NonDynamic5QIDescriptor struct {
 	FiveQI                 FiveQI
-	PriorityLevelQos       *PriorityLevelQos       `per:",optional"`
-	AveragingWindow        *AveragingWindow        `per:",optional"`
-	MaximumDataBurstVolume *MaximumDataBurstVolume `per:",optional"`
-	iEExtensions           *rawIEExtensions        `per:",optional"`
-	extensions             per.ExtensionAdditions  `per:",extraw"`
+	PriorityLevelQos       *PriorityLevelQos          `per:",optional"`
+	AveragingWindow        *AveragingWindow           `per:",optional"`
+	MaximumDataBurstVolume *MaximumDataBurstVolume    `per:",optional"`
+	CNPacketDelayBudgetDL  *ExtendedPacketDelayBudget `per:",extie:IDCNPacketDelayBudgetDL,crit:ignore"`
+	CNPacketDelayBudgetUL  *ExtendedPacketDelayBudget `per:",extie:IDCNPacketDelayBudgetUL,crit:ignore"`
+	iEExtensions           extensionMeta              `per:",exttable"`
+	extensions             per.ExtensionAdditions     `per:",extraw"`
 }
 
 // Dynamic5QIDescriptor ::= SEQUENCE { priorityLevelQos, packetDelayBudget,
@@ -270,27 +268,19 @@ type NonDynamic5QIDescriptor struct {
 // averagingWindow on the flow being GBR, and maximumDataBurstVolume on
 // delayCritical being "delay critical".
 type Dynamic5QIDescriptor struct {
-	PriorityLevelQos       PriorityLevelQos
-	PacketDelayBudget      PacketDelayBudget
-	PacketErrorRate        PacketErrorRate
-	FiveQI                 *FiveQI                 `per:",optional"`
-	DelayCritical          *DelayCritical          `per:"ENUMERATED,range:0..1,...,optional"`
-	AveragingWindow        *AveragingWindow        `per:",optional"`
-	MaximumDataBurstVolume *MaximumDataBurstVolume `per:",optional"`
-	iEExtensions           *rawIEExtensions        `per:",optional"`
-	extensions             per.ExtensionAdditions  `per:",extraw"`
+	PriorityLevelQos          PriorityLevelQos
+	PacketDelayBudget         PacketDelayBudget
+	PacketErrorRate           PacketErrorRate
+	FiveQI                    *FiveQI                    `per:",optional"`
+	DelayCritical             *DelayCritical             `per:",optional"`
+	AveragingWindow           *AveragingWindow           `per:",optional"`
+	MaximumDataBurstVolume    *MaximumDataBurstVolume    `per:",optional"`
+	ExtendedPacketDelayBudget *ExtendedPacketDelayBudget `per:",extie:IDExtendedPacketDelayBudget,crit:ignore"`
+	CNPacketDelayBudgetDL     *ExtendedPacketDelayBudget `per:",extie:IDCNPacketDelayBudgetDL,crit:ignore"`
+	CNPacketDelayBudgetUL     *ExtendedPacketDelayBudget `per:",extie:IDCNPacketDelayBudgetUL,crit:ignore"`
+	iEExtensions              extensionMeta              `per:",exttable"`
+	extensions                per.ExtensionAdditions     `per:",extraw"`
 }
-
-// QosCharacteristicsKind selects the QosCharacteristics CHOICE alternative.
-type QosCharacteristicsKind uint8
-
-const (
-	QosCharacteristicsNonDynamic5QI QosCharacteristicsKind = iota
-	QosCharacteristicsDynamic5QI
-
-	qosCharacteristicsChoiceExtensions = 2
-	qosCharacteristicsAlternatives     = 3
-)
 
 // QosCharacteristics ::= CHOICE { nonDynamic5QI, dynamic5QI, choice-Extensions
 // } — the CHOICE row of TS 38.413 §9.3.1.12, which has no section of its
@@ -299,44 +289,9 @@ const (
 // mandatory and optional across the alternatives, and flattening would lose
 // that. S1AP has no counterpart — an E-RAB carries a bare QCI.
 type QosCharacteristics struct {
-	Kind          QosCharacteristicsKind
-	NonDynamic5QI NonDynamic5QIDescriptor
-	Dynamic5QI    Dynamic5QIDescriptor
-}
-
-func (q QosCharacteristics) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	if q.Kind > QosCharacteristicsDynamic5QI {
-		return fmt.Errorf("ngap: invalid QosCharacteristics kind %d", q.Kind)
-	}
-
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, qosCharacteristicsAlternatives-1, int64(q.Kind)); err != nil {
-		return err
-	}
-
-	if q.Kind == QosCharacteristicsNonDynamic5QI {
-		return q.NonDynamic5QI.MarshalPER(w, enc)
-	}
-
-	return q.Dynamic5QI.MarshalPER(w, enc)
-}
-
-func (q *QosCharacteristics) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, qosCharacteristicsAlternatives-1)
-	if err != nil {
-		return err
-	}
-
-	if idx == qosCharacteristicsChoiceExtensions {
-		return decodeChoiceExtension(r, enc, "QosCharacteristics")
-	}
-
-	q.Kind = QosCharacteristicsKind(idx)
-
-	if q.Kind == QosCharacteristicsNonDynamic5QI {
-		return q.NonDynamic5QI.UnmarshalPER(r, enc)
-	}
-
-	return q.Dynamic5QI.UnmarshalPER(r, enc)
+	NonDynamic5QI   *NonDynamic5QIDescriptor `per:",choice:0"`
+	Dynamic5QI      *Dynamic5QIDescriptor    `per:",choice:1"`
+	ChoiceExtension *SingleContainer         `per:",choice:2,extie"`
 }
 
 // QosFlowLevelQosParameters ::= SEQUENCE { qosCharacteristics,
@@ -346,13 +301,19 @@ func (q *QosCharacteristics) UnmarshalPER(r *per.Reader, enc per.Encoding) error
 // E-RABLevelQoSParameters is the counterpart: a QCI where this has a
 // QosCharacteristics CHOICE, and no reflective/additional fields.
 type QosFlowLevelQosParameters struct {
-	QosCharacteristics             QosCharacteristics
-	AllocationAndRetentionPriority AllocationAndRetentionPriority
-	GBRQosInformation              *GBRQosInformation            `per:",optional"`
-	ReflectiveQosAttribute         *ReflectiveQosAttribute       `per:"ENUMERATED,range:0..0,...,optional"`
-	AdditionalQosFlowInformation   *AdditionalQosFlowInformation `per:"ENUMERATED,range:0..0,...,optional"`
-	iEExtensions                   *rawIEExtensions              `per:",optional"`
-	extensions                     per.ExtensionAdditions        `per:",extraw"`
+	QosCharacteristics                          QosCharacteristics
+	AllocationAndRetentionPriority              AllocationAndRetentionPriority
+	GBRQosInformation                           *GBRQosInformation                           `per:",optional"`
+	ReflectiveQosAttribute                      *ReflectiveQosAttribute                      `per:",optional"`
+	AdditionalQosFlowInformation                *AdditionalQosFlowInformation                `per:",optional"`
+	QosMonitoringRequest                        *QosMonitoringRequest                        `per:",extie:IDQosMonitoringRequest,crit:ignore"`
+	QosMonitoringReportingFrequency             *QosMonitoringReportingFrequency             `per:",extie:IDQosMonitoringReportingFrequency,crit:ignore"`
+	PDUsetQoSParameters                         *PDUsetQoSParameters                         `per:",extie:IDPDUsetQoSParameters,crit:ignore"`
+	DLPDUSetInformationMarkingSupportIndication *DLPDUSetInformationMarkingSupportIndication `per:",extie:IDDLPDUSetInformationMarkingSupportIndication,crit:ignore"`
+	MMSID                                       *MMSID                                       `per:",extie:IDMMSID,crit:ignore"`
+	IndicationofBitrateAdaptation               *IndicationofBitrateAdaptation               `per:",extie:IDIndicationofBitrateAdaptation,crit:ignore"`
+	iEExtensions                                extensionMeta                                `per:",exttable"`
+	extensions                                  per.ExtensionAdditions                       `per:",extraw"`
 }
 
 // AllocationAndRetentionPriority ::= SEQUENCE { priorityLevelARP,
@@ -360,10 +321,10 @@ type QosFlowLevelQosParameters struct {
 // (extensible) — TS 38.413 §9.3.1.19.
 type AllocationAndRetentionPriority struct {
 	PriorityLevelARP        PriorityLevelARP
-	PreemptionCapability    PreemptionCapability    `per:"ENUMERATED,range:0..1,..."`
-	PreemptionVulnerability PreemptionVulnerability `per:"ENUMERATED,range:0..1,..."`
-	iEExtensions            *rawIEExtensions        `per:",optional"`
-	extensions              per.ExtensionAdditions  `per:",extraw"`
+	PreemptionCapability    PreemptionCapability
+	PreemptionVulnerability PreemptionVulnerability
+	iEExtensions            extensionMeta          `per:",exttable"`
+	extensions              per.ExtensionAdditions `per:",extraw"`
 }
 
 // GBR-QosInformation ::= SEQUENCE { four BitRates, notificationControl
@@ -374,15 +335,17 @@ type AllocationAndRetentionPriority struct {
 // an optional extension on E-RABLevelQoSParameters, and is non-extensible
 // there where NGAP's PacketLossRate is extensible.
 type GBRQosInformation struct {
-	MaximumFlowBitRateDL    BitRate
-	MaximumFlowBitRateUL    BitRate
-	GuaranteedFlowBitRateDL BitRate
-	GuaranteedFlowBitRateUL BitRate
-	NotificationControl     *NotificationControl   `per:"ENUMERATED,range:0..0,...,optional"`
-	MaximumPacketLossRateDL *PacketLossRate        `per:",optional"`
-	MaximumPacketLossRateUL *PacketLossRate        `per:",optional"`
-	iEExtensions            *rawIEExtensions       `per:",optional"`
-	extensions              per.ExtensionAdditions `per:",extraw"`
+	MaximumFlowBitRateDL                BitRate
+	MaximumFlowBitRateUL                BitRate
+	GuaranteedFlowBitRateDL             BitRate
+	GuaranteedFlowBitRateUL             BitRate
+	NotificationControl                 *NotificationControl                 `per:",optional"`
+	MaximumPacketLossRateDL             *PacketLossRate                      `per:",optional"`
+	MaximumPacketLossRateUL             *PacketLossRate                      `per:",optional"`
+	AlternativeQoSParaSetList           AlternativeQoSParaSetList            `per:",extie:IDAlternativeQoSParaSetList,crit:ignore"`
+	MonitoringRequestonAvailableBitrate *MonitoringRequestonAvailableBitrate `per:",extie:IDMonitoringRequestonAvailableBitrate,crit:ignore"`
+	iEExtensions                        extensionMeta                        `per:",exttable"`
+	extensions                          per.ExtensionAdditions               `per:",extraw"`
 }
 
 // QosFlowIdentifier ::= INTEGER (0..63, ...) — TS 38.413 §9.3.1.51.
@@ -393,14 +356,18 @@ func (q QosFlowIdentifier) MarshalPER(w *per.Writer, enc per.Encoding) error {
 }
 
 func (q *QosFlowIdentifier) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := decodeExtensibleInt(r, enc, 0, 63, "QosFlowIdentifier")
+	v, err := decodeExtensibleInt[QosFlowIdentifier](r, enc, 0, 63)
 	if err != nil {
 		return err
 	}
 
-	*q = QosFlowIdentifier(v)
+	*q = v
 
 	return nil
+}
+
+func (v QosFlowIdentifier) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return outsideRoot(int64(v), 0, 63)
 }
 
 // ERABID ::= INTEGER (0..15, ...) — TS 38.413 §9.3.2.3. NGAP carries an E-RAB
@@ -413,15 +380,17 @@ func (id ERABID) MarshalPER(w *per.Writer, enc per.Encoding) error {
 }
 
 func (id *ERABID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := decodeExtensibleInt(r, enc, 0, 15, "E-RAB-ID")
+	v, err := decodeExtensibleInt[ERABID](r, enc, 0, 15)
 	if err != nil {
 		return err
 	}
 
-	*id = ERABID(v)
+	*id = v
 
 	return nil
 }
+
+func (v ERABID) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool { return outsideRoot(int64(v), 0, 15) }
 
 // QosFlowMappingIndication ::= ENUMERATED { ul, dl, ... }, inlined in
 // AssociatedQosFlowItem.
@@ -430,19 +399,20 @@ type QosFlowMappingIndication uint8
 const (
 	QosFlowMappingUL QosFlowMappingIndication = iota
 	QosFlowMappingDL
-
-	qosFlowMappingIndicationRootCount = 2
 )
 
 // QosFlowSetupRequestItem ::= SEQUENCE { qosFlowIdentifier,
 // qosFlowLevelQosParameters, e-RAB-ID OPTIONAL, iE-Extensions OPTIONAL }
 // (extensible).
 type QosFlowSetupRequestItem struct {
-	QosFlowIdentifier         QosFlowIdentifier
-	QosFlowLevelQosParameters QosFlowLevelQosParameters
-	ERABID                    *ERABID                `per:",optional"`
-	iEExtensions              *rawIEExtensions       `per:",optional"`
-	extensions                per.ExtensionAdditions `per:",extraw"`
+	QosFlowIdentifier                                 QosFlowIdentifier
+	QosFlowLevelQosParameters                         QosFlowLevelQosParameters
+	ERABID                                            *ERABID                                            `per:",optional"`
+	TSCTrafficCharacteristics                         *TSCTrafficCharacteristics                         `per:",extie:IDTSCTrafficCharacteristics,crit:ignore"`
+	RedundantQosFlowIndicator                         *RedundantQosFlowIndicator                         `per:",extie:IDRedundantQosFlowIndicator,crit:ignore"`
+	ECNMarkingorCongestionInformationReportingRequest *ECNMarkingorCongestionInformationReportingRequest `per:",extie:IDECNMarkingorCongestionInformationReportingRequest,crit:ignore"`
+	iEExtensions                                      extensionMeta                                      `per:",exttable"`
+	extensions                                        per.ExtensionAdditions                             `per:",extraw"`
 }
 
 // QosFlowSetupRequestList ::= SEQUENCE (SIZE(1..maxnoofQosFlows)) OF
@@ -454,7 +424,7 @@ type QosFlowSetupRequestList []QosFlowSetupRequestItem
 type QosFlowWithCauseItem struct {
 	QosFlowIdentifier QosFlowIdentifier
 	Cause             Cause
-	iEExtensions      *rawIEExtensions       `per:",optional"`
+	iEExtensions      extensionMeta          `per:",exttable"`
 	extensions        per.ExtensionAdditions `per:",extraw"`
 }
 
@@ -466,9 +436,10 @@ type QosFlowListWithCause []QosFlowWithCauseItem
 // qosFlowMappingIndication OPTIONAL, iE-Extensions OPTIONAL } (extensible).
 type AssociatedQosFlowItem struct {
 	QosFlowIdentifier        QosFlowIdentifier
-	QosFlowMappingIndication *QosFlowMappingIndication `per:"ENUMERATED,range:0..1,...,optional"`
-	iEExtensions             *rawIEExtensions          `per:",optional"`
-	extensions               per.ExtensionAdditions    `per:",extraw"`
+	QosFlowMappingIndication *QosFlowMappingIndication   `per:",optional"`
+	CurrentQoSParaSetIndex   *AlternativeQoSParaSetIndex `per:",extie:IDCurrentQoSParaSetIndex,crit:ignore"`
+	iEExtensions             extensionMeta               `per:",exttable"`
+	extensions               per.ExtensionAdditions      `per:",extraw"`
 }
 
 // AssociatedQosFlowList ::= SEQUENCE (SIZE(1..maxnoofQosFlows)) OF
@@ -479,7 +450,7 @@ type AssociatedQosFlowList []AssociatedQosFlowItem
 // OPTIONAL } (extensible).
 type QosFlowModifyConfirmItem struct {
 	QosFlowIdentifier QosFlowIdentifier
-	iEExtensions      *rawIEExtensions       `per:",optional"`
+	iEExtensions      extensionMeta          `per:",exttable"`
 	extensions        per.ExtensionAdditions `per:",extraw"`
 }
 
@@ -493,18 +464,16 @@ type QosFlowModifyConfirmList []QosFlowModifyConfirmItem
 // QosFlowSetupRequestItem has them mandatory: a modify may touch only the
 // E-RAB mapping.
 type QosFlowAddOrModifyRequestItem struct {
-	QosFlowIdentifier         QosFlowIdentifier
-	QosFlowLevelQosParameters *QosFlowLevelQosParameters   `per:",optional"`
-	ERABID                    *ERABID                      `per:",optional"`
-	ULNGUUPTNLInformation     *UPTransportLayerInformation `per:"-"`
-	iEExtensions              messageMeta                  `per:",exttable:qosFlowAddOrModifyRequestItemExtIEs"`
-	extensions                per.ExtensionAdditions       `per:",extraw"`
-}
-
-var qosFlowAddOrModifyRequestItemExtIEs = []ieSpec[QosFlowAddOrModifyRequestItem]{
-	optionalExtension(IDULNGUUPTNLInformation, CriticalityIgnore, func(m *QosFlowAddOrModifyRequestItem) **UPTransportLayerInformation {
-		return &m.ULNGUUPTNLInformation
-	}),
+	QosFlowIdentifier                                 QosFlowIdentifier
+	QosFlowLevelQosParameters                         *QosFlowLevelQosParameters                         `per:",optional"`
+	ERABID                                            *ERABID                                            `per:",optional"`
+	TSCTrafficCharacteristics                         *TSCTrafficCharacteristics                         `per:",extie:IDTSCTrafficCharacteristics,crit:ignore"`
+	RedundantQosFlowIndicator                         *RedundantQosFlowIndicator                         `per:",extie:IDRedundantQosFlowIndicator,crit:ignore"`
+	ULNGUUPTNLInformation                             *UPTransportLayerInformation                       `per:",extie:IDULNGUUPTNLInformation,crit:ignore"`
+	DownlinkTLContainer                               *TLContainer                                       `per:",extie:IDDownlinkTLContainer,crit:ignore"`
+	ECNMarkingorCongestionInformationReportingRequest *ECNMarkingorCongestionInformationReportingRequest `per:",extie:IDECNMarkingorCongestionInformationReportingRequest,crit:ignore"`
+	iEExtensions                                      extensionMeta                                      `per:",exttable"`
+	extensions                                        per.ExtensionAdditions                             `per:",extraw"`
 }
 
 // QosFlowAddOrModifyRequestList ::= SEQUENCE (SIZE(1..maxnoofQosFlows)) OF
@@ -516,31 +485,15 @@ type DataForwardingAccepted uint8
 
 const (
 	DataForwardingAcceptedTrue DataForwardingAccepted = iota
-
-	dataForwardingAcceptedRootCount = 1
 )
-
-func (d DataForwardingAccepted) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, dataForwardingAcceptedRootCount, int64(d), "DataForwardingAccepted")
-}
-
-func (d *DataForwardingAccepted) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, dataForwardingAcceptedRootCount, "DataForwardingAccepted")
-	if err != nil {
-		return err
-	}
-
-	*d = DataForwardingAccepted(idx)
-
-	return nil
-}
 
 // QosFlowAcceptedItem ::= SEQUENCE { qosFlowIdentifier, iE-Extensions OPTIONAL
 // } (extensible).
 type QosFlowAcceptedItem struct {
-	QosFlowIdentifier QosFlowIdentifier
-	iEExtensions      *rawIEExtensions       `per:",optional"`
-	extensions        per.ExtensionAdditions `per:",extraw"`
+	QosFlowIdentifier      QosFlowIdentifier
+	CurrentQoSParaSetIndex *AlternativeQoSParaSetIndex `per:",extie:IDCurrentQoSParaSetIndex,crit:ignore"`
+	iEExtensions           extensionMeta               `per:",exttable"`
+	extensions             per.ExtensionAdditions      `per:",extraw"`
 }
 
 // QosFlowAcceptedList ::= SEQUENCE (SIZE(1..maxnoofQosFlows)) OF
@@ -551,7 +504,7 @@ type QosFlowAcceptedList []QosFlowAcceptedItem
 // OPTIONAL } (extensible).
 type QosFlowToBeForwardedItem struct {
 	QosFlowIdentifier QosFlowIdentifier
-	iEExtensions      *rawIEExtensions       `per:",optional"`
+	iEExtensions      extensionMeta          `per:",exttable"`
 	extensions        per.ExtensionAdditions `per:",extraw"`
 }
 
@@ -563,9 +516,10 @@ type QosFlowToBeForwardedList []QosFlowToBeForwardedItem
 // dataForwardingAccepted OPTIONAL, iE-Extensions OPTIONAL } (extensible).
 type QosFlowItemWithDataForwarding struct {
 	QosFlowIdentifier      QosFlowIdentifier
-	DataForwardingAccepted *DataForwardingAccepted `per:"ENUMERATED,range:0..0,...,optional"`
-	iEExtensions           *rawIEExtensions        `per:",optional"`
-	extensions             per.ExtensionAdditions  `per:",extraw"`
+	DataForwardingAccepted *DataForwardingAccepted     `per:",optional"`
+	CurrentQoSParaSetIndex *AlternativeQoSParaSetIndex `per:",extie:IDCurrentQoSParaSetIndex,crit:ignore"`
+	iEExtensions           extensionMeta               `per:",exttable"`
+	extensions             per.ExtensionAdditions      `per:",extraw"`
 }
 
 // QosFlowListWithDataForwarding ::= SEQUENCE (SIZE(1..maxnoofQosFlows)) OF
@@ -578,7 +532,7 @@ type QosFlowListWithDataForwarding []QosFlowItemWithDataForwarding
 type QosFlowPerTNLInformation struct {
 	UPTransportLayerInformation UPTransportLayerInformation
 	AssociatedQosFlowList       AssociatedQosFlowList
-	iEExtensions                *rawIEExtensions       `per:",optional"`
+	iEExtensions                extensionMeta          `per:",exttable"`
 	extensions                  per.ExtensionAdditions `per:",extraw"`
 }
 
@@ -586,7 +540,7 @@ type QosFlowPerTNLInformation struct {
 // iE-Extensions OPTIONAL } (extensible).
 type QosFlowPerTNLInformationItem struct {
 	QosFlowPerTNLInformation QosFlowPerTNLInformation
-	iEExtensions             *rawIEExtensions       `per:",optional"`
+	iEExtensions             extensionMeta          `per:",exttable"`
 	extensions               per.ExtensionAdditions `per:",extraw"`
 }
 
@@ -607,24 +561,7 @@ const (
 	PDUSessionTypeIPv4v6
 	PDUSessionTypeEthernet
 	PDUSessionTypeUnstructured
-
-	pduSessionTypeRootCount = 5
 )
-
-func (p PDUSessionType) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, pduSessionTypeRootCount, int64(p), "PDUSessionType")
-}
-
-func (p *PDUSessionType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, pduSessionTypeRootCount, "PDUSessionType")
-	if err != nil {
-		return err
-	}
-
-	*p = PDUSessionType(idx)
-
-	return nil
-}
 
 // NetworkInstance ::= INTEGER (1..256, ...) — TS 38.413 §9.3.1.113.
 type NetworkInstance uint16
@@ -634,14 +571,18 @@ func (n NetworkInstance) MarshalPER(w *per.Writer, enc per.Encoding) error {
 }
 
 func (n *NetworkInstance) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := decodeExtensibleInt(r, enc, 1, 256, "NetworkInstance")
+	v, err := decodeExtensibleInt[NetworkInstance](r, enc, 1, 256)
 	if err != nil {
 		return err
 	}
 
-	*n = NetworkInstance(v)
+	*n = v
 
 	return nil
+}
+
+func (v NetworkInstance) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return outsideRoot(int64(v), 1, 256)
 }
 
 // PDUSessionAggregateMaximumBitRate ::= SEQUENCE { DL, UL, iE-Extensions
@@ -650,7 +591,7 @@ func (n *NetworkInstance) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 type PDUSessionAggregateMaximumBitRate struct {
 	DL           BitRate
 	UL           BitRate
-	iEExtensions *rawIEExtensions       `per:",optional"`
+	iEExtensions extensionMeta          `per:",exttable"`
 	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
@@ -664,8 +605,6 @@ const (
 	IntegrityProtectionRequired IntegrityProtectionIndication = iota
 	IntegrityProtectionPreferred
 	IntegrityProtectionNotNeeded
-
-	integrityProtectionIndicationRootCount = 3
 )
 
 // ConfidentialityProtectionIndication ::= ENUMERATED { required, preferred,
@@ -677,8 +616,6 @@ const (
 	ConfidentialityProtectionRequired ConfidentialityProtectionIndication = iota
 	ConfidentialityProtectionPreferred
 	ConfidentialityProtectionNotNeeded
-
-	confidentialityProtectionIndicationRootCount = 3
 )
 
 // IntegrityProtectionResult ::= ENUMERATED { performed, not-performed, ... }.
@@ -688,8 +625,6 @@ type IntegrityProtectionResult uint8
 const (
 	IntegrityProtectionPerformed IntegrityProtectionResult = iota
 	IntegrityProtectionNotPerformed
-
-	integrityProtectionResultRootCount = 2
 )
 
 // ConfidentialityProtectionResult ::= ENUMERATED { performed, not-performed,
@@ -700,8 +635,6 @@ type ConfidentialityProtectionResult uint8
 const (
 	ConfidentialityProtectionPerformed ConfidentialityProtectionResult = iota
 	ConfidentialityProtectionNotPerformed
-
-	confidentialityProtectionResultRootCount = 2
 )
 
 // MaximumIntegrityProtectedDataRate ::= ENUMERATED { bitrate64kbs,
@@ -711,8 +644,6 @@ type MaximumIntegrityProtectedDataRate uint8
 const (
 	MaximumIntegrityProtectedDataRate64kbs MaximumIntegrityProtectedDataRate = iota
 	MaximumIntegrityProtectedDataRateMaximumUERate
-
-	maximumIntegrityProtectedDataRateRootCount = 2
 )
 
 // SecurityIndication ::= SEQUENCE { integrityProtectionIndication,
@@ -723,11 +654,12 @@ const (
 // and a decoder accepts whatever arrives. TS 36.413 §9.2.1.163 defines the
 // same IE carrying the integrity indication alone.
 type SecurityIndication struct {
-	IntegrityProtectionIndication       IntegrityProtectionIndication       `per:"ENUMERATED,range:0..2,..."`
-	ConfidentialityProtectionIndication ConfidentialityProtectionIndication `per:"ENUMERATED,range:0..2,..."`
-	MaximumIntegrityProtectedDataRateUL *MaximumIntegrityProtectedDataRate  `per:"ENUMERATED,range:0..1,...,optional"`
-	iEExtensions                        *rawIEExtensions                    `per:",optional"`
-	extensions                          per.ExtensionAdditions              `per:",extraw"`
+	IntegrityProtectionIndication       IntegrityProtectionIndication
+	ConfidentialityProtectionIndication ConfidentialityProtectionIndication
+	MaximumIntegrityProtectedDataRateUL *MaximumIntegrityProtectedDataRate `per:",optional"`
+	MaximumIntegrityProtectedDataRateDL *MaximumIntegrityProtectedDataRate `per:",extie:IDMaximumIntegrityProtectedDataRateDL,crit:ignore"`
+	iEExtensions                        extensionMeta                      `per:",exttable"`
+	extensions                          per.ExtensionAdditions             `per:",extraw"`
 }
 
 // SecurityResult ::= SEQUENCE { integrityProtectionResult,
@@ -735,51 +667,8 @@ type SecurityIndication struct {
 // 38.413 §9.3.1.59. TS 36.413 §9.2.1.164 defines the same IE carrying the
 // integrity result alone.
 type SecurityResult struct {
-	IntegrityProtectionResult       IntegrityProtectionResult       `per:"ENUMERATED,range:0..1,..."`
-	ConfidentialityProtectionResult ConfidentialityProtectionResult `per:"ENUMERATED,range:0..1,..."`
-	iEExtensions                    *rawIEExtensions                `per:",optional"`
-	extensions                      per.ExtensionAdditions          `per:",extraw"`
-}
-
-// Name returns the value's name in TS 38.413 §9.3.1.27, or the empty string for
-// a value the spec's root does not name.
-func (i IntegrityProtectionIndication) Name() string {
-	switch i {
-	case IntegrityProtectionRequired:
-		return "required"
-	case IntegrityProtectionPreferred:
-		return "preferred"
-	case IntegrityProtectionNotNeeded:
-		return "not-needed"
-	default:
-		return ""
-	}
-}
-
-// Name returns the value's name in TS 38.413 §9.3.1.27, or the empty string for
-// a value the spec's root does not name.
-func (c ConfidentialityProtectionIndication) Name() string {
-	switch c {
-	case ConfidentialityProtectionRequired:
-		return "required"
-	case ConfidentialityProtectionPreferred:
-		return "preferred"
-	case ConfidentialityProtectionNotNeeded:
-		return "not-needed"
-	default:
-		return ""
-	}
-}
-
-// Name returns the value's name in TS 38.413 §9.3.1.103, or the empty string for
-// a value the spec's root does not name.
-func (m MaximumIntegrityProtectedDataRate) Name() string {
-	switch m {
-	case MaximumIntegrityProtectedDataRate64kbs:
-		return "bitrate64kbs"
-	case MaximumIntegrityProtectedDataRateMaximumUERate:
-		return "maximum-UE-rate"
-	default:
-		return ""
-	}
+	IntegrityProtectionResult       IntegrityProtectionResult
+	ConfidentialityProtectionResult ConfidentialityProtectionResult
+	iEExtensions                    extensionMeta          `per:",exttable"`
+	extensions                      per.ExtensionAdditions `per:",extraw"`
 }

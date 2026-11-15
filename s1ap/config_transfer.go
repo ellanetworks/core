@@ -4,60 +4,24 @@
 package s1ap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
 )
 
-// SONConfigurationTransfer is held as raw open-type bytes: it is relayed
-// verbatim, and only the leading Target eNB-ID is decoded (TS 36.413 §9.2.3.26).
-type SONConfigurationTransfer []byte
-
-func (c SONConfigurationTransfer) MarshalPER(w *per.Writer, _ per.Encoding) error {
-	return w.WriteOctets(c)
-}
-
-// The extension bit, then a presence bit for iE-Extensions.
-const sonConfigurationTransferPreambleBits = 2
-
-// TS 36.413 §9.2.3.26.
-func (c SONConfigurationTransfer) TargetENBID() (TargeteNBID, error) {
-	r := per.NewReader(c)
-
-	for range sonConfigurationTransferPreambleBits {
-		if _, err := r.ReadBit(); err != nil {
-			return TargeteNBID{}, fmt.Errorf("s1ap: SONConfigurationTransfer preamble: %w", err)
-		}
-	}
-
-	var t TargeteNBID
-	if err := t.UnmarshalPER(r, per.Aligned); err != nil {
-		return TargeteNBID{}, err
-	}
-
-	return t, nil
-}
-
 // TS 36.413 §9.1.16.
 type ENBConfigurationTransfer struct {
-	SONConfigurationTransfer SONConfigurationTransfer
+	SONConfigurationTransfer *SONConfigurationTransfer
 
 	messageMeta
 }
 
 var eNBConfigurationTransferIEs = []ieSpec[ENBConfigurationTransfer]{
 	{
-		id: IDSONConfigurationTransferECT, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *ENBConfigurationTransfer, raw []byte, enc per.Encoding) error {
-			m.SONConfigurationTransfer = SONConfigurationTransfer(raw)
-			return nil
+		ID: IDSONConfigurationTransferECT, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *ENBConfigurationTransfer, r *per.Reader, enc per.Encoding) error {
+			return decodeOptionalIE(r, &m.SONConfigurationTransfer)
 		},
-		encode: func(m *ENBConfigurationTransfer) (per.Marshaler, bool) {
-			if m.SONConfigurationTransfer == nil {
-				return nil, false
-			}
-
-			return m.SONConfigurationTransfer, true
+		Encode: func(m *ENBConfigurationTransfer) (per.Marshaler, bool) {
+			return optionalIE(m.SONConfigurationTransfer)
 		},
 	},
 }
@@ -86,9 +50,13 @@ func ParseENBConfigurationTransfer(value []byte) (*ENBConfigurationTransfer, err
 	return parseMessageBody[ENBConfigurationTransfer](ProcENBConfigurationTransfer, TriggeringInitiatingMessage, eNBConfigurationTransferIEs, value)
 }
 
+func DecodeENBConfigurationTransfer(value []byte) (*ENBConfigurationTransfer, error) {
+	return decodeMessageBody[ENBConfigurationTransfer](ProcENBConfigurationTransfer, eNBConfigurationTransferIEs, value)
+}
+
 // TS 36.413 §9.1.17.
 type MMEConfigurationTransfer struct {
-	SONConfigurationTransfer SONConfigurationTransfer
+	SONConfigurationTransfer *SONConfigurationTransfer
 
 	messageMeta
 }
@@ -96,17 +64,12 @@ type MMEConfigurationTransfer struct {
 // IE is optional, so an empty container is a valid message.
 var mMEConfigurationTransferIEs = []ieSpec[MMEConfigurationTransfer]{
 	{
-		id: IDSONConfigurationTransferMCT, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *MMEConfigurationTransfer, raw []byte, enc per.Encoding) error {
-			m.SONConfigurationTransfer = SONConfigurationTransfer(raw)
-			return nil
+		ID: IDSONConfigurationTransferMCT, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *MMEConfigurationTransfer, r *per.Reader, enc per.Encoding) error {
+			return decodeOptionalIE(r, &m.SONConfigurationTransfer)
 		},
-		encode: func(m *MMEConfigurationTransfer) (per.Marshaler, bool) {
-			if m.SONConfigurationTransfer == nil {
-				return nil, false
-			}
-
-			return m.SONConfigurationTransfer, true
+		Encode: func(m *MMEConfigurationTransfer) (per.Marshaler, bool) {
+			return optionalIE(m.SONConfigurationTransfer)
 		},
 	},
 }
@@ -133,4 +96,8 @@ func (m *MMEConfigurationTransfer) Marshal() ([]byte, error) {
 
 func ParseMMEConfigurationTransfer(value []byte) (*MMEConfigurationTransfer, error) {
 	return parseMessageBody[MMEConfigurationTransfer](ProcMMEConfigurationTransfer, TriggeringInitiatingMessage, mMEConfigurationTransferIEs, value)
+}
+
+func DecodeMMEConfigurationTransfer(value []byte) (*MMEConfigurationTransfer, error) {
+	return decodeMessageBody[MMEConfigurationTransfer](ProcMMEConfigurationTransfer, mMEConfigurationTransferIEs, value)
 }

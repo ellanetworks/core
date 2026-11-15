@@ -73,7 +73,7 @@ func sourceToTargetTransparentContainer(b []byte, sourceNGRANNode bool) SourceTo
 		return out
 	}
 
-	c, err := ngap.ParseSourceNGRANNodeToTargetNGRANNodeTransparentContainer(b)
+	c, err := ngap.DecodeSourceNGRANNodeToTargetNGRANNodeTransparentContainer(b)
 	if err != nil {
 		out.Error = err.Error()
 

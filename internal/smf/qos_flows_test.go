@@ -6,7 +6,6 @@ package smf_test
 import (
 	"bytes"
 	"context"
-	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -129,7 +128,7 @@ func ranAnswers(t *testing.T, s *smf.SMF, ref string, accepted, failed []uint8) 
 	for _, qfi := range failed {
 		tr.QosFlowFailedToAddOrModify = append(tr.QosFlowFailedToAddOrModify, libngap.QosFlowWithCauseItem{
 			QosFlowIdentifier: libngap.QosFlowIdentifier(qfi),
-			Cause:             libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: libngap.CauseRadioNetworkRadioResourcesNotAvailable},
+			Cause:             libngap.CauseRadioNetworkRadioResourcesNotAvailable.Cause(),
 		})
 	}
 
@@ -147,7 +146,7 @@ func ranFallsBack(t *testing.T, s *smf.SMF, ref string) {
 	t.Helper()
 
 	raw, err := (&libngap.PDUSessionResourceModifyUnsuccessfulTransfer{
-		Cause: libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: libngap.CauseRadioNetworkIMSVoiceEPSFallbackTriggered},
+		Cause: libngap.CauseRadioNetworkIMSVoiceEPSFallbackTriggered.Cause(),
 	}).Marshal()
 	if err != nil {
 		t.Fatal(err)
@@ -255,7 +254,7 @@ func TestVoiceRuleCreatesAGBRQoSFlow(t *testing.T) {
 		PreemptionCapability:    libngap.PreemptionMayTrigger,
 		PreemptionVulnerability: libngap.PreemptionNotPreemptable,
 	}
-	if arp := item.QosFlowLevelQosParameters.AllocationAndRetentionPriority; !reflect.DeepEqual(arp, wantARP) {
+	if arp := item.QosFlowLevelQosParameters.AllocationAndRetentionPriority; arp != wantARP {
 		t.Fatalf("N2 ARP %+v, want the rule's %+v (TS 38.413 §9.3.1.19)", arp, wantARP)
 	}
 
@@ -504,11 +503,11 @@ func waitReportedRules(t *testing.T, pcf *fakePCF) []string {
 	return pcf.reportedRules()
 }
 
-func ranFailsWithCause(t *testing.T, s *smf.SMF, ref string, value int) {
+func ranFailsWithCause(t *testing.T, s *smf.SMF, ref string, value libngap.CauseRadioNetwork) {
 	t.Helper()
 
 	raw, err := (&libngap.PDUSessionResourceModifyUnsuccessfulTransfer{
-		Cause: libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: value},
+		Cause: value.Cause(),
 	}).Marshal()
 	if err != nil {
 		t.Fatal(err)
@@ -547,7 +546,7 @@ func TestRANRefusingAJoiningCallKeepsTheFirstCall(t *testing.T) {
 	}
 }
 
-func ranFailsFlowsWithCause(t *testing.T, s *smf.SMF, ref string, value int, failed ...uint8) {
+func ranFailsFlowsWithCause(t *testing.T, s *smf.SMF, ref string, value libngap.CauseRadioNetwork, failed ...uint8) {
 	t.Helper()
 
 	var tr libngap.PDUSessionResourceModifyResponseTransfer
@@ -555,7 +554,7 @@ func ranFailsFlowsWithCause(t *testing.T, s *smf.SMF, ref string, value int, fai
 	for _, qfi := range failed {
 		tr.QosFlowFailedToAddOrModify = append(tr.QosFlowFailedToAddOrModify, libngap.QosFlowWithCauseItem{
 			QosFlowIdentifier: libngap.QosFlowIdentifier(qfi),
-			Cause:             libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: value},
+			Cause:             value.Cause(),
 		})
 	}
 

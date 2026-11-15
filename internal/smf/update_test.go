@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
 	libngap "github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 const testHandoverTEID = 0x1234
@@ -20,8 +21,8 @@ func validHandoverRequestAcknowledgeTransfer(t *testing.T) []byte {
 	t.Helper()
 
 	transfer := libngap.HandoverRequestAcknowledgeTransfer{
-		DLNGUUPTNLInformation: libngap.UPTransportLayerInformation{GTPTunnel: libngap.GTPTunnel{
-			TransportLayerAddress: libngap.TransportLayerAddress{10, 0, 0, 1},
+		DLNGUUPTNLInformation: libngap.UPTransportLayerInformation{GTPTunnel: &libngap.GTPTunnel{
+			TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 0, 0, 1}),
 			GTPTEID:               libngap.GTPTEID(testHandoverTEID),
 		}},
 		QosFlowSetupResponse: libngap.QosFlowListWithDataForwarding{{QosFlowIdentifier: 1}},

@@ -72,7 +72,7 @@ type ieRow struct {
 
 var (
 	reTable = regexp.MustCompile(`(?s)var \w+IEs = \[\]ieSpec\[(\w+)\]\{(.*?)\n\}\n`)
-	reRow   = regexp.MustCompile(`(?s)\{\n\t\tid: (ID\w+), presence: (presence\w+), crit: (Criticality\w+),\n(.*?)\n\t\},`)
+	reRow   = regexp.MustCompile(`(?s)\{\n\t\tID: (ID\w+), Presence: (presence\w+), Criticality: (Criticality\w+),\n(.*?)\n\t\},`)
 	reField = regexp.MustCompile(`m\.([A-Z]\w*)`)
 )
 
@@ -89,7 +89,7 @@ func parseIETables(t *testing.T) []ieRow {
 					id:           m[1],
 					presence:     m[2],
 					criticality:  m[3],
-					hasCondition: strings.Contains(m[4], "condition:"),
+					hasCondition: strings.Contains(m[4], "Condition:"),
 				}
 
 				if f := reField.FindStringSubmatch(m[4]); f != nil {

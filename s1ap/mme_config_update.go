@@ -17,20 +17,20 @@ type MMEConfigurationUpdate struct {
 
 var mMEConfigurationUpdateIEs = []ieSpec[MMEConfigurationUpdate]{
 	{
-		id: IDMMEname, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *MMEConfigurationUpdate, raw []byte, enc per.Encoding) error {
+		ID: IDMMEname, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *MMEConfigurationUpdate, r *per.Reader, enc per.Encoding) error {
 			var (
 				err error
 				n   Name
 			)
-			if err = perIEDecode(raw, &n); err == nil {
+			if err = decodeIE(r, &n); err == nil {
 				name := string(n)
 				m.MMEName = &name
 			}
 
 			return err
 		},
-		encode: func(m *MMEConfigurationUpdate) (per.Marshaler, bool) {
+		Encode: func(m *MMEConfigurationUpdate) (per.Marshaler, bool) {
 			if m.MMEName == nil {
 				return nil, false
 			}
@@ -39,11 +39,11 @@ var mMEConfigurationUpdateIEs = []ieSpec[MMEConfigurationUpdate]{
 		},
 	},
 	{
-		id: IDServedGUMMEIs, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *MMEConfigurationUpdate, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ServedGUMMEIs)
+		ID: IDServedGUMMEIs, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *MMEConfigurationUpdate, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.ServedGUMMEIs)
 		},
-		encode: func(m *MMEConfigurationUpdate) (per.Marshaler, bool) {
+		Encode: func(m *MMEConfigurationUpdate) (per.Marshaler, bool) {
 			if len(m.ServedGUMMEIs) == 0 {
 				return nil, false
 			}
@@ -52,9 +52,9 @@ var mMEConfigurationUpdateIEs = []ieSpec[MMEConfigurationUpdate]{
 		},
 	},
 	{
-		id: IDRelativeMMECapacity, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *MMEConfigurationUpdate, raw []byte, enc per.Encoding) error {
-			v, err := per.DecodeInteger(per.NewReader(raw), enc, relativeMMECapacityBounds)
+		ID: IDRelativeMMECapacity, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *MMEConfigurationUpdate, r *per.Reader, enc per.Encoding) error {
+			v, err := per.DecodeInteger(r, enc, relativeMMECapacityBounds)
 			if err != nil {
 				return err
 			}
@@ -64,7 +64,7 @@ var mMEConfigurationUpdateIEs = []ieSpec[MMEConfigurationUpdate]{
 
 			return nil
 		},
-		encode: func(m *MMEConfigurationUpdate) (per.Marshaler, bool) {
+		Encode: func(m *MMEConfigurationUpdate) (per.Marshaler, bool) {
 			if m.RelativeMMECapacity == nil {
 				return nil, false
 			}
@@ -100,6 +100,10 @@ func ParseMMEConfigurationUpdate(value []byte) (*MMEConfigurationUpdate, error) 
 	return parseMessageBody[MMEConfigurationUpdate](ProcMMEConfigurationUpdate, TriggeringInitiatingMessage, mMEConfigurationUpdateIEs, value)
 }
 
+func DecodeMMEConfigurationUpdate(value []byte) (*MMEConfigurationUpdate, error) {
+	return decodeMessageBody[MMEConfigurationUpdate](ProcMMEConfigurationUpdate, mMEConfigurationUpdateIEs, value)
+}
+
 type MMEConfigurationUpdateAcknowledge struct {
 	CriticalityDiagnostics *CriticalityDiagnostics
 
@@ -108,11 +112,11 @@ type MMEConfigurationUpdateAcknowledge struct {
 
 var mMEConfigurationUpdateAcknowledgeIEs = []ieSpec[MMEConfigurationUpdateAcknowledge]{
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *MMEConfigurationUpdateAcknowledge, raw []byte, enc per.Encoding) error {
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *MMEConfigurationUpdateAcknowledge, r *per.Reader, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
-			if err := perIEDecode(raw, &cd); err != nil {
+			if err := decodeIE(r, &cd); err != nil {
 				return err
 			}
 
@@ -120,7 +124,7 @@ var mMEConfigurationUpdateAcknowledgeIEs = []ieSpec[MMEConfigurationUpdateAcknow
 
 			return nil
 		},
-		encode: func(m *MMEConfigurationUpdateAcknowledge) (per.Marshaler, bool) {
+		Encode: func(m *MMEConfigurationUpdateAcknowledge) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -154,6 +158,10 @@ func ParseMMEConfigurationUpdateAcknowledge(value []byte) (*MMEConfigurationUpda
 	return parseMessageBody[MMEConfigurationUpdateAcknowledge](ProcMMEConfigurationUpdate, TriggeringSuccessfulOutcome, mMEConfigurationUpdateAcknowledgeIEs, value)
 }
 
+func DecodeMMEConfigurationUpdateAcknowledge(value []byte) (*MMEConfigurationUpdateAcknowledge, error) {
+	return decodeMessageBody[MMEConfigurationUpdateAcknowledge](ProcMMEConfigurationUpdate, mMEConfigurationUpdateAcknowledgeIEs, value)
+}
+
 type MMEConfigurationUpdateFailure struct {
 	Cause                  *Cause
 	TimeToWait             *TimeToWait
@@ -164,11 +172,11 @@ type MMEConfigurationUpdateFailure struct {
 
 var mMEConfigurationUpdateFailureIEs = []ieSpec[MMEConfigurationUpdateFailure]{
 	{
-		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *MMEConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
+		ID: IDCause, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *MMEConfigurationUpdateFailure, r *per.Reader, enc per.Encoding) error {
 			var v Cause
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -176,7 +184,7 @@ var mMEConfigurationUpdateFailureIEs = []ieSpec[MMEConfigurationUpdateFailure]{
 
 			return nil
 		},
-		encode: func(m *MMEConfigurationUpdateFailure) (per.Marshaler, bool) {
+		Encode: func(m *MMEConfigurationUpdateFailure) (per.Marshaler, bool) {
 			if m.Cause == nil {
 				return nil, false
 			}
@@ -185,11 +193,11 @@ var mMEConfigurationUpdateFailureIEs = []ieSpec[MMEConfigurationUpdateFailure]{
 		},
 	},
 	{
-		id: IDTimeToWait, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *MMEConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
+		ID: IDTimeToWait, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *MMEConfigurationUpdateFailure, r *per.Reader, enc per.Encoding) error {
 			var ttw TimeToWait
 
-			if err := perIEDecode(raw, &ttw); err != nil {
+			if err := decodeIE(r, &ttw); err != nil {
 				return err
 			}
 
@@ -197,7 +205,7 @@ var mMEConfigurationUpdateFailureIEs = []ieSpec[MMEConfigurationUpdateFailure]{
 
 			return nil
 		},
-		encode: func(m *MMEConfigurationUpdateFailure) (per.Marshaler, bool) {
+		Encode: func(m *MMEConfigurationUpdateFailure) (per.Marshaler, bool) {
 			if m.TimeToWait == nil {
 				return nil, false
 			}
@@ -206,11 +214,11 @@ var mMEConfigurationUpdateFailureIEs = []ieSpec[MMEConfigurationUpdateFailure]{
 		},
 	},
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *MMEConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *MMEConfigurationUpdateFailure, r *per.Reader, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
-			if err := perIEDecode(raw, &cd); err != nil {
+			if err := decodeIE(r, &cd); err != nil {
 				return err
 			}
 
@@ -218,7 +226,7 @@ var mMEConfigurationUpdateFailureIEs = []ieSpec[MMEConfigurationUpdateFailure]{
 
 			return nil
 		},
-		encode: func(m *MMEConfigurationUpdateFailure) (per.Marshaler, bool) {
+		Encode: func(m *MMEConfigurationUpdateFailure) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -250,4 +258,8 @@ func (m *MMEConfigurationUpdateFailure) Marshal() ([]byte, error) {
 
 func ParseMMEConfigurationUpdateFailure(value []byte) (*MMEConfigurationUpdateFailure, error) {
 	return parseMessageBody[MMEConfigurationUpdateFailure](ProcMMEConfigurationUpdate, TriggeringUnsuccessfulOutcome, mMEConfigurationUpdateFailureIEs, value)
+}
+
+func DecodeMMEConfigurationUpdateFailure(value []byte) (*MMEConfigurationUpdateFailure, error) {
+	return decodeMessageBody[MMEConfigurationUpdateFailure](ProcMMEConfigurationUpdate, mMEConfigurationUpdateFailureIEs, value)
 }

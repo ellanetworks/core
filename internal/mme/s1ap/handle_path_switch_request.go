@@ -15,10 +15,10 @@ import (
 
 // S1AP causes the MME returns in a PATH SWITCH REQUEST FAILURE (TS 36.413).
 var (
-	causeUnknownMMEUES1APID    = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnknownMMEUES1APID}
-	causeMultipleERABInstances = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkMultipleERABIDInstances}
-	causePathSwitchNoSecurity  = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASAuthenticationFailure}
-	causePathSwitchUPFailure   = s1ap.Cause{Group: s1ap.CauseGroupTransport, Value: s1ap.CauseTransportResourceUnavailable}
+	causeUnknownMMEUES1APID    = s1ap.CauseRadioNetworkUnknownMMEUES1APID.Cause()
+	causeMultipleERABInstances = s1ap.CauseRadioNetworkMultipleERABIDInstances.Cause()
+	causePathSwitchNoSecurity  = s1ap.CauseNASAuthenticationFailure.Cause()
+	causePathSwitchUPFailure   = s1ap.CauseTransportResourceUnavailable.Cause()
 )
 
 // handlePathSwitchRequest handles an X2-handover PATH SWITCH REQUEST from the
@@ -220,7 +220,7 @@ func releasedERABItems(failed []uint8) []s1ap.ERABItem {
 		return nil
 	}
 
-	cause := s1ap.Cause{Group: s1ap.CauseGroupTransport, Value: s1ap.CauseTransportResourceUnavailable}
+	cause := s1ap.CauseTransportResourceUnavailable.Cause()
 
 	items := make([]s1ap.ERABItem, 0, len(failed))
 	for _, ebi := range failed {
@@ -258,15 +258,15 @@ func pathSwitchSecurityCapabilities(ctx context.Context, ue *mme.UeContext, rece
 
 	stored := mme.S1apSecurityCapabilities(uecap)
 
-	if received == nil || *received == stored {
+	if received == nil || received.Equal(stored) {
 		return nil
 	}
 
 	logger.From(ctx, logger.MmeLog).Warn("UE security capabilities reported by target eNB differ from stored; replaying stored values",
-		zap.Uint16("received_eea", received.EncryptionAlgorithms),
-		zap.Uint16("received_eia", received.IntegrityProtectionAlgorithms),
-		zap.Uint16("stored_eea", stored.EncryptionAlgorithms),
-		zap.Uint16("stored_eia", stored.IntegrityProtectionAlgorithms))
+		zap.Uint16("received_eea", received.EncryptionAlgorithms.Value),
+		zap.Uint16("received_eia", received.IntegrityProtectionAlgorithms.Value),
+		zap.Uint16("stored_eea", stored.EncryptionAlgorithms.Value),
+		zap.Uint16("stored_eia", stored.IntegrityProtectionAlgorithms.Value))
 
 	return &stored
 }

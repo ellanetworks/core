@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"net/netip"
-	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -232,7 +231,7 @@ func TestIdleUEDedicatedBearerIsReleasedLocally(t *testing.T) {
 	m.DedicatedBearerAccepted(context.Background(), ue, 6)
 	m.ReconcileBearersToRAN(context.Background(), ue, RANBearers{Present: []RANBearer{{Ebi: 6}}})
 
-	ue.Conn().releaseCause.Store(&s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUserInactivity})
+	ue.Conn().releaseCause.Store(s1ap.Ptr(s1ap.CauseRadioNetworkUserInactivity.Cause()))
 	m.FreeUeConn(context.Background(), ue)
 
 	if _, b := m.LookupDedicated(ue, 6); b == nil {
@@ -522,12 +521,12 @@ func TestS1ReleaseKeepsGBRBearersOnlyForPreservingCauses(t *testing.T) {
 		cause *s1ap.Cause
 		kept  bool
 	}{
-		{"user inactivity", &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUserInactivity}, true},
-		{"inter-RAT redirection", &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkInterRATRedirection}, true},
-		{"CS fallback triggered", &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkCSFallbackTriggered}, true},
-		{"radio connection lost", &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioConnectionWithUELost}, false},
-		{"UE not available for PS service", &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUENotAvailableForPSService}, false},
-		{"MME normal release", &s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASNormalRelease}, false},
+		{"user inactivity", s1ap.Ptr(s1ap.CauseRadioNetworkUserInactivity.Cause()), true},
+		{"inter-RAT redirection", s1ap.Ptr(s1ap.CauseRadioNetworkInterRATRedirection.Cause()), true},
+		{"CS fallback triggered", s1ap.Ptr(s1ap.CauseRadioNetworkCSFallbackTriggered.Cause()), true},
+		{"radio connection lost", s1ap.Ptr(s1ap.CauseRadioNetworkRadioConnectionWithUELost.Cause()), false},
+		{"UE not available for PS service", s1ap.Ptr(s1ap.CauseRadioNetworkUENotAvailableForPSService.Cause()), false},
+		{"MME normal release", s1ap.Ptr(s1ap.CauseNASNormalRelease.Cause()), false},
 		{"local release, no cause", nil, false},
 	}
 
@@ -744,7 +743,7 @@ func TestNonGBRBearerSignalsNoBitRates_TS36413_9_2_1_15(t *testing.T) {
 	qos := DedicatedERABQoS(&info)
 	want := s1ap.AllocationAndRetentionPriority{PriorityLevel: 3, PreemptionCapability: s1ap.PreemptionMayTrigger, PreemptionVulnerability: s1ap.PreemptionPreemptable}
 
-	if qos.QCI != 69 || qos.GBR != nil || !reflect.DeepEqual(qos.ARP, want) {
+	if qos.QCI != 69 || qos.GBR != nil || qos.ARP != want {
 		t.Fatalf("E-RAB QoS %+v, want QCI 69 at ARP %+v without GBR QoS Information", qos, want)
 	}
 

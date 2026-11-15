@@ -41,4 +41,4 @@ func (p *RawPDU) UES1APIDs() (UES1APIDs, bool, error) {
 	return v, ok, err
 }
 
-func (p *RawPDU) SetUES1APIDs(v UES1APIDs) error { return p.Set(IDUES1APIDs, v) }
+func (p *RawPDU) SetUES1APIDs(v UES1APIDs) error { return p.Set(IDUES1APIDs, &v) }

@@ -263,7 +263,8 @@ func forwardingEndpoint(frame gnb.SCTPFrame, upfAddress string, targetForwarding
 		return relayEndpoint{}, fmt.Errorf("the source was given the target's forwarding TEID %#x, not a tunnel on the UPF", teid)
 	}
 
-	v4, v6 := transfer.DLForwardingUPTNLInformation.GTPTunnel.TransportLayerAddress.IPs()
+	tla := transfer.DLForwardingUPTNLInformation.GTPTunnel.TransportLayerAddress
+	v4, v6 := tla.IPv4(), tla.IPv6()
 
 	upf, err := netip.ParseAddr(upfAddress)
 	if err != nil {

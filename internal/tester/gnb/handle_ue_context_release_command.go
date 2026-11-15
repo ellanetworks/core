@@ -19,11 +19,12 @@ func handleUEContextReleaseCommand(gnb *GnodeB, value []byte) error {
 
 	// The AMF may address the UE by the pair or by the AMF UE NGAP ID alone
 	// (TS 38.413 §9.2.2.5); only the pair names a RAN UE this gNB can resolve.
-	if !cmd.UENGAPIDs.Pair {
+	pair := cmd.UENGAPIDs.UENGAPIDPair
+	if pair == nil {
 		return fmt.Errorf("UEContextReleaseCommand carries no RAN UE NGAP ID")
 	}
 
-	amfUEID, ranUEID := int64(cmd.UENGAPIDs.AMFUENGAPID), int64(cmd.UENGAPIDs.RANUENGAPID)
+	amfUEID, ranUEID := int64(pair.AMFUENGAPID), int64(pair.RANUENGAPID)
 
 	logger.GnbLogger.Debug("Received UE Context Release Command",
 		zap.String("Cause", causeName(cmd.Cause)),

@@ -82,7 +82,7 @@ func TestWireCriticality(t *testing.T) {
 		{
 			"NGSetupFailure §9.2.6.3",
 			(&NGSetupFailure{
-				Cause:                  Ptr(Cause{Group: CauseGroupMisc, Value: CauseMiscUnspecified}),
+				Cause:                  Ptr(CauseMiscUnspecified.Cause()),
 				TimeToWait:             Ptr(TimeToWaitV1s),
 				CriticalityDiagnostics: &CriticalityDiagnostics{},
 			}).encodeBody,
@@ -97,7 +97,7 @@ func TestWireCriticality(t *testing.T) {
 			(&InitialUEMessage{
 				RANUENGAPID:             1,
 				NASPDU:                  NASPDU{0x7e},
-				UserLocationInformation: UserLocationInformation{Kind: UserLocationNR},
+				UserLocationInformation: UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: PLMNIdentity{}, NRCellIdentity: NRCellIdentity(0)}, TAI: TAI{}}},
 				RRCEstablishmentCause:   Ptr(RRCCauseEmergency),
 				FiveGSTMSI:              &FiveGSTMSI{},
 				AMFSetID:                Ptr(AMFSetID(1)),
@@ -130,7 +130,7 @@ func TestWireCriticality(t *testing.T) {
 				AMFUENGAPID:             1,
 				RANUENGAPID:             2,
 				NASPDU:                  NASPDU{0x7e},
-				UserLocationInformation: &UserLocationInformation{Kind: UserLocationNR},
+				UserLocationInformation: &UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: PLMNIdentity{}, NRCellIdentity: NRCellIdentity(0)}, TAI: TAI{}}},
 			}).encodeBody,
 			[]wireIE{
 				{IDAMFUENGAPID, CriticalityReject},
@@ -222,7 +222,7 @@ func TestWireCriticality(t *testing.T) {
 			(&UEContextModificationFailure{
 				AMFUENGAPID:            Ptr(AMFUENGAPID(1)),
 				RANUENGAPID:            Ptr(RANUENGAPID(2)),
-				Cause:                  Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified}),
+				Cause:                  Ptr(CauseRadioNetworkUnspecified.Cause()),
 				CriticalityDiagnostics: &CriticalityDiagnostics{},
 			}).encodeBody,
 			[]wireIE{
@@ -238,7 +238,7 @@ func TestWireCriticality(t *testing.T) {
 				AMFUENGAPID:              Ptr(AMFUENGAPID(1)),
 				RANUENGAPID:              Ptr(RANUENGAPID(2)),
 				PDUSessionResourceFailed: PDUSessionResourceFailedToSetupListCxtFail{{PDUSessionID: 5}},
-				Cause:                    Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified}),
+				Cause:                    Ptr(CauseRadioNetworkUnspecified.Cause()),
 				CriticalityDiagnostics:   &CriticalityDiagnostics{},
 			}).encodeBody,
 			[]wireIE{
@@ -253,7 +253,7 @@ func TestWireCriticality(t *testing.T) {
 			"PDUSessionResourceNotify §9.2.1.9",
 			func() func(*per.Writer, per.Encoding) error {
 				m := goldPDUSessionResourceNotify()
-				m.UserLocationInformation = &UserLocationInformation{Kind: UserLocationNR}
+				m.UserLocationInformation = &UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: PLMNIdentity{}, NRCellIdentity: NRCellIdentity(0)}, TAI: TAI{}}}
 
 				return m.encodeBody
 			}(),
@@ -269,7 +269,7 @@ func TestWireCriticality(t *testing.T) {
 			"PDUSessionResourceModifyIndication §9.2.1.7",
 			func() func(*per.Writer, per.Encoding) error {
 				m := goldPDUSessionResourceModifyIndication()
-				m.UserLocationInformation = &UserLocationInformation{Kind: UserLocationNR}
+				m.UserLocationInformation = &UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: PLMNIdentity{}, NRCellIdentity: NRCellIdentity(0)}, TAI: TAI{}}}
 
 				return m.encodeBody
 			}(),
@@ -313,7 +313,7 @@ func TestWireCriticality(t *testing.T) {
 				RANUENGAPID:              Ptr(RANUENGAPID(2)),
 				PDUSessionResourceModify: PDUSessionResourceModifyListModRes{{PDUSessionID: 5}},
 				PDUSessionResourceFailed: PDUSessionResourceFailedToModifyListModRes{{PDUSessionID: 9}},
-				UserLocationInformation:  &UserLocationInformation{Kind: UserLocationNR},
+				UserLocationInformation:  &UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: PLMNIdentity{}, NRCellIdentity: NRCellIdentity(0)}, TAI: TAI{}}},
 				CriticalityDiagnostics:   &CriticalityDiagnostics{},
 			}).encodeBody,
 			[]wireIE{
@@ -341,7 +341,7 @@ func TestWireCriticality(t *testing.T) {
 				AMFUENGAPID:                Ptr(AMFUENGAPID(1)),
 				RANUENGAPID:                Ptr(RANUENGAPID(2)),
 				PDUSessionResourceReleased: PDUSessionResourceReleasedListRelRes{{PDUSessionID: 5}},
-				UserLocationInformation:    &UserLocationInformation{Kind: UserLocationNR},
+				UserLocationInformation:    &UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: PLMNIdentity{}, NRCellIdentity: NRCellIdentity(0)}, TAI: TAI{}}},
 				CriticalityDiagnostics:     &CriticalityDiagnostics{},
 			}).encodeBody,
 			[]wireIE{
@@ -371,7 +371,7 @@ func TestWireCriticality(t *testing.T) {
 				PDUSessionResourceSetup:  PDUSessionResourceSetupListSURes{{PDUSessionID: 5}},
 				PDUSessionResourceFailed: PDUSessionResourceFailedToSetupListSURes{{PDUSessionID: 9}},
 				CriticalityDiagnostics:   &CriticalityDiagnostics{},
-				UserLocationInformation:  &UserLocationInformation{Kind: UserLocationNR},
+				UserLocationInformation:  &UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: PLMNIdentity{}, NRCellIdentity: NRCellIdentity(0)}, TAI: TAI{}}},
 			}).encodeBody,
 			[]wireIE{
 				{IDAMFUENGAPID, CriticalityIgnore},
@@ -403,7 +403,7 @@ func TestWireCriticality(t *testing.T) {
 				AMFUENGAPID:            1,
 				RANUENGAPID:            2,
 				PDUSessionResourceList: PDUSessionResourceListCxtRelReq{{PDUSessionID: 5}},
-				Cause:                  Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUserInactivity}),
+				Cause:                  Ptr(CauseRadioNetworkUserInactivity.Cause()),
 			}).encodeBody,
 			[]wireIE{
 				{IDAMFUENGAPID, CriticalityReject},
@@ -417,7 +417,7 @@ func TestWireCriticality(t *testing.T) {
 			(&UEContextReleaseRequest{
 				AMFUENGAPID:                1,
 				RANUENGAPID:                2,
-				Cause:                      Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUserInactivity}),
+				Cause:                      Ptr(CauseRadioNetworkUserInactivity.Cause()),
 				GWContextReleaseIndication: Ptr(GWContextReleaseIndicationTrue),
 			}).encodeBody,
 			[]wireIE{
@@ -503,8 +503,8 @@ func TestWireCriticality(t *testing.T) {
 		{
 			"UEContextReleaseCommand §9.2.2.5",
 			(&UEContextReleaseCommand{
-				UENGAPIDs: UENGAPIDs{AMFUENGAPID: 1, RANUENGAPID: 2, Pair: true},
-				Cause:     Ptr(Cause{Group: CauseGroupNAS, Value: CauseNASNormalRelease}),
+				UENGAPIDs: UENGAPIDs{UENGAPIDPair: &UENGAPIDPair{AMFUENGAPID: 1, RANUENGAPID: 2}},
+				Cause:     Ptr(CauseNASNormalRelease.Cause()),
 			}).encodeBody,
 			[]wireIE{
 				{IDUENGAPIDs, CriticalityReject},
@@ -516,7 +516,7 @@ func TestWireCriticality(t *testing.T) {
 			(&UEContextReleaseComplete{
 				AMFUENGAPID:             Ptr(AMFUENGAPID(1)),
 				RANUENGAPID:             Ptr(RANUENGAPID(2)),
-				UserLocationInformation: &UserLocationInformation{Kind: UserLocationNR},
+				UserLocationInformation: &UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: PLMNIdentity{}, NRCellIdentity: NRCellIdentity(0)}, TAI: TAI{}}},
 				PDUSessionResourceList:  PDUSessionResourceListCxtRelCpl{{PDUSessionID: 5}},
 				CriticalityDiagnostics:  &CriticalityDiagnostics{},
 			}).encodeBody,
@@ -534,7 +534,7 @@ func TestWireCriticality(t *testing.T) {
 				AMFUENGAPID: 1,
 				RANUENGAPID: 2,
 				NASPDU:      NASPDU{0x7e},
-				Cause:       Ptr(Cause{Group: CauseGroupMisc, Value: CauseMiscUnspecified}),
+				Cause:       Ptr(CauseMiscUnspecified.Cause()),
 			}).encodeBody,
 			[]wireIE{
 				{IDAMFUENGAPID, CriticalityReject},
@@ -553,8 +553,8 @@ func TestWireCriticality(t *testing.T) {
 			}
 
 			for i, w := range tt.want {
-				if got[i].id != w.id || got[i].crit != w.crit {
-					t.Errorf("IE %d: got %v/%v, want %v/%v", i, got[i].id, got[i].crit, w.id, w.crit)
+				if got[i].ID != w.id || got[i].Criticality != w.crit {
+					t.Errorf("IE %d: got %v/%v, want %v/%v", i, got[i].ID, got[i].Criticality, w.id, w.crit)
 				}
 			}
 		})

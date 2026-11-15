@@ -380,7 +380,7 @@ func (g *GnodeB) SendQoSFlowsReleased(amfUENGAPID, ranUENGAPID, pduSessionID int
 	for _, qfi := range qfis {
 		transfer.QosFlowReleased = append(transfer.QosFlowReleased, ngap.QosFlowWithCauseItem{
 			QosFlowIdentifier: ngap.QosFlowIdentifier(qfi),
-			Cause:             ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkRadioResourcesNotAvailable},
+			Cause:             ngap.CauseRadioNetworkRadioResourcesNotAvailable.Cause(),
 		})
 	}
 

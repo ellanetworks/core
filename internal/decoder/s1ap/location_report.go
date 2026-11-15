@@ -19,8 +19,8 @@ type RequestType struct {
 
 func requestType(r s1ap.RequestType) RequestType {
 	return RequestType{
-		EventType:  utils.NamedEnum(uint8(r.EventType), r.EventType.Name()),
-		ReportArea: utils.NamedEnum(uint8(r.ReportArea), r.ReportArea.Name()),
+		EventType:  namedEnum(uint8(r.EventType), r.EventType.Name()),
+		ReportArea: namedEnum(uint8(r.ReportArea), r.ReportArea.Name()),
 	}
 }
 

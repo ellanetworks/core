@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 type handItem struct {
@@ -78,7 +79,7 @@ func encodeHandList(t *testing.T, w *per.Writer, crit Criticality, items []handI
 
 	mustNil(t, per.EncodeLength(w, per.Aligned, 1, maxnoofIndividualS1ConnectionsToReset, true, int64(len(items)), func(int64) error {
 		for _, it := range items {
-			if err := encodeContainerField(w, per.Aligned, ieField{id: IDUEAssociatedLogicalS1ConnectionItem, crit: crit, raw: encodeHandItem(t, it)}); err != nil {
+			if err := encodeContainerField(w, per.Aligned, ieField{ID: IDUEAssociatedLogicalS1ConnectionItem, Criticality: crit, Value: ap.RawValue(encodeHandItem(t, it))}); err != nil {
 				return err
 			}
 		}
@@ -92,17 +93,17 @@ func handReset(t *testing.T, items []handItem) []byte {
 
 	rt := per.NewWriter()
 	rt.WriteBit(false)
-	mustNil(t, per.EncodeConstrainedWholeNumber(rt, per.Aligned, 0, resetTypeChoiceRootCount-1, resetTypePartOfS1Interface))
+	mustNil(t, per.EncodeConstrainedWholeNumber(rt, per.Aligned, 0, 1, 1))
 	encodeHandList(t, rt, CriticalityReject, items)
 
-	cause, err := per.Marshal(&Cause{Group: CauseGroupMisc, Value: 0})
+	cause, err := per.Marshal(Ptr(CauseMiscControlProcessingOverload.Cause()))
 	mustNil(t, err)
 
 	body := per.NewWriter()
 	body.WriteBit(false)
 	mustNil(t, encodeIEContainer(body, per.Aligned, []ieField{
-		{id: IDCause, crit: CriticalityIgnore, raw: cause},
-		{id: IDResetType, crit: CriticalityReject, raw: rt.Bytes()},
+		{ID: IDCause, Criticality: CriticalityIgnore, Value: ap.RawValue(cause)},
+		{ID: IDResetType, Criticality: CriticalityReject, Value: ap.RawValue(rt.Bytes())},
 	}))
 
 	b, err := Marshal(&InitiatingMessage{ProcedureCode: ProcReset, Criticality: CriticalityReject, Value: body.Bytes()})
@@ -120,7 +121,7 @@ func handResetAck(t *testing.T, items []handItem) []byte {
 	body := per.NewWriter()
 	body.WriteBit(false)
 	mustNil(t, encodeIEContainer(body, per.Aligned, []ieField{
-		{id: IDUEAssociatedLogicalS1ConnectionListResAck, crit: CriticalityIgnore, raw: list.Bytes()},
+		{ID: IDUEAssociatedLogicalS1ConnectionListResAck, Criticality: CriticalityIgnore, Value: ap.RawValue(list.Bytes())},
 	}))
 
 	b, err := Marshal(&SuccessfulOutcome{ProcedureCode: ProcReset, Criticality: CriticalityReject, Value: body.Bytes()})
@@ -156,10 +157,11 @@ func TestResetPreservesItemExtensions(t *testing.T) {
 		t.Fatalf("unmodified Reset re-encoded differently\n got % x\nwant % x", out, in)
 	}
 
-	for i := range m.ResetType.Part {
-		if m.ResetType.Part[i].MMEUES1APID != nil {
-			v := *m.ResetType.Part[i].MMEUES1APID + 0x10000000 - 5
-			m.ResetType.Part[i].MMEUES1APID = &v
+	part := *m.ResetType.PartOfS1Interface
+	for i := range part {
+		if part[i].MMEUES1APID != nil {
+			v := *part[i].MMEUES1APID + 0x10000000 - 5
+			part[i].MMEUES1APID = &v
 		}
 	}
 
@@ -207,6 +209,13 @@ func TestResetItemRejectExtensionNotComprehended(t *testing.T) {
 
 	pdu, err := Unmarshal(in)
 	mustNil(t, err)
+
+	m, err := DecodeReset(pdu.value())
+	mustNil(t, err)
+
+	if out, err := m.Marshal(); err != nil || !bytes.Equal(out, in) {
+		t.Fatalf("re-encode = % x, %v; want % x", out, err, in)
+	}
 
 	if _, err := ParseReset(pdu.value()); err == nil {
 		t.Fatal("reject-criticality item extension accepted")

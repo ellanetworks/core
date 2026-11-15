@@ -62,10 +62,19 @@ type Frame struct {
 // (S1 Setup, Reset). Real eNB-UE-S1AP-IDs start at 1 (see AllocateENBUEID).
 const NoUEID int64 = 0
 
+type ENBIDKind uint8
+
+const (
+	ENBIDMacro ENBIDKind = iota
+	ENBIDHome
+	ENBIDShortMacro
+	ENBIDLongMacro
+)
+
 // StartOpts configures an eNB simulator.
 type StartOpts struct {
 	ENBID            uint32 // eNB identity, at the width ENBIDKind implies
-	ENBIDKind        s1ap.ENBIDKind
+	ENBIDKind        ENBIDKind
 	MCC              string
 	MNC              string
 	TAC              string // hex or decimal string; parsed as the 16-bit TAC
@@ -95,7 +104,7 @@ var DefaultUERadioCapability = []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 
 
 type ENB struct {
 	enbID     uint32
-	enbIDKind s1ap.ENBIDKind
+	enbIDKind ENBIDKind
 	name      string
 	plmn      s1ap.PLMNIdentity
 	bplmns    s1ap.BPLMNs
@@ -762,8 +771,8 @@ func frameENBUEID(f Frame) int64 {
 		// Only the pair alternative names an eNB UE S1AP ID; a Command
 		// addressed by the MME id alone cannot be demultiplexed per UE
 		// (TS 36.413 §9.1.4.6).
-		if m, err := s1ap.ParseUEContextReleaseCommand(f.Value); err == nil && m.UES1APIDs.Pair {
-			return int64(m.UES1APIDs.ENBUES1APID)
+		if m, err := s1ap.ParseUEContextReleaseCommand(f.Value); err == nil && m.UES1APIDs.UES1APIDPair != nil {
+			return int64(m.UES1APIDs.UES1APIDPair.ENBUES1APID)
 		}
 	case f.Category == Initiating && f.ProcedureCode == s1ap.ProcERABSetup:
 		if m, err := s1ap.ParseERABSetupRequest(f.Value); err == nil {

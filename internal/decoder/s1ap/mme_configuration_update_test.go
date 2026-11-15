@@ -58,7 +58,7 @@ func TestDecodeMMEConfigurationUpdateAcknowledge(t *testing.T) {
 
 func TestDecodeMMEConfigurationUpdateFailure(t *testing.T) {
 	msg := decodeHex(t, marshalHex(t, &s1ap.MMEConfigurationUpdateFailure{
-		Cause: s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolSemanticError}),
+		Cause: s1ap.Ptr(s1ap.CauseProtocolSemanticError.Cause()),
 	}))
 
 	if msg.PDUType != "UnsuccessfulOutcome" || msg.ProcedureCode.Value != int64(s1ap.ProcMMEConfigurationUpdate) {

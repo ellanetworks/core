@@ -16,7 +16,7 @@ package lpptype
 
 import "github.com/ellanetworks/core/per"
 
-//go:generate sh -c "rm -f per_gen.go && go run github.com/ellanetworks/core/cmd/pergen"
+//go:generate go run github.com/ellanetworks/core/per/cmd/pergen
 
 // =====================================================================
 // LPP-Message (TS 37.355 §6.2)

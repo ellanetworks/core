@@ -3,6 +3,8 @@
 
 package s1ap
 
+import "github.com/ellanetworks/core/per"
+
 // MTMSI ::= OCTET STRING (SIZE(4)).
 type MTMSI uint32
 
@@ -13,8 +15,8 @@ type MTMSI uint32
 //	    m-TMSI  OCTET STRING (SIZE(4)),
 //	    iE-Extensions ... OPTIONAL }
 type STMSI struct {
-	_     [0]struct{} `per:"extseq"`
-	MMEC  MMECode
-	MTMSI MTMSI
-	_     ieExtensions `per:",skip"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+	MMEC         MMECode
+	MTMSI        MTMSI
+	iEExtensions extensionMeta `per:",exttable"`
 }

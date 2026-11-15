@@ -14,33 +14,37 @@ type NGSetupRequest struct {
 	SupportedTAList        SupportedTAList
 	DefaultPagingDRX       *PagingDRX
 	UERetentionInformation *UERetentionInformation
+	NBIoTDefaultPagingDRX  *NBIoTDefaultPagingDRX
+	ExtendedRANNodeName    *ExtendedRANNodeName
+	AIoTSupport            *AIoTSupport
+	AdditionalULI          *AdditionalULI
 
 	messageMeta
 }
 
 var nGSetupRequestIEs = []ieSpec[NGSetupRequest]{
 	{
-		id: IDGlobalRANNodeID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *NGSetupRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.GlobalRANNodeID)
+		ID: IDGlobalRANNodeID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *NGSetupRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.GlobalRANNodeID)
 		},
-		encode: func(m *NGSetupRequest) (per.Marshaler, bool) { return &m.GlobalRANNodeID, true },
+		Encode: func(m *NGSetupRequest) (per.Marshaler, bool) { return &m.GlobalRANNodeID, true },
 	},
 	{
-		id: IDRANNodeName, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *NGSetupRequest, raw []byte, enc per.Encoding) error {
+		ID: IDRANNodeName, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *NGSetupRequest, r *per.Reader, enc per.Encoding) error {
 			var (
 				err error
 				n   Name
 			)
-			if err = perIEDecode(raw, &n); err == nil {
+			if err = decodeIE(r, &n); err == nil {
 				name := string(n)
 				m.RANNodeName = &name
 			}
 
 			return err
 		},
-		encode: func(m *NGSetupRequest) (per.Marshaler, bool) {
+		Encode: func(m *NGSetupRequest) (per.Marshaler, bool) {
 			if m.RANNodeName == nil {
 				return nil, false
 			}
@@ -49,18 +53,18 @@ var nGSetupRequestIEs = []ieSpec[NGSetupRequest]{
 		},
 	},
 	{
-		id: IDSupportedTAList, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *NGSetupRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.SupportedTAList)
+		ID: IDSupportedTAList, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *NGSetupRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.SupportedTAList)
 		},
-		encode: func(m *NGSetupRequest) (per.Marshaler, bool) { return m.SupportedTAList, true },
+		Encode: func(m *NGSetupRequest) (per.Marshaler, bool) { return m.SupportedTAList, true },
 	},
 	{
-		id: IDDefaultPagingDRX, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *NGSetupRequest, raw []byte, enc per.Encoding) error {
+		ID: IDDefaultPagingDRX, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *NGSetupRequest, r *per.Reader, enc per.Encoding) error {
 			var v PagingDRX
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -68,7 +72,7 @@ var nGSetupRequestIEs = []ieSpec[NGSetupRequest]{
 
 			return nil
 		},
-		encode: func(m *NGSetupRequest) (per.Marshaler, bool) {
+		Encode: func(m *NGSetupRequest) (per.Marshaler, bool) {
 			if m.DefaultPagingDRX == nil {
 				return nil, false
 			}
@@ -77,11 +81,11 @@ var nGSetupRequestIEs = []ieSpec[NGSetupRequest]{
 		},
 	},
 	{
-		id: IDUERetentionInformation, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *NGSetupRequest, raw []byte, enc per.Encoding) error {
+		ID: IDUERetentionInformation, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *NGSetupRequest, r *per.Reader, enc per.Encoding) error {
 			var v UERetentionInformation
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -89,7 +93,7 @@ var nGSetupRequestIEs = []ieSpec[NGSetupRequest]{
 
 			return nil
 		},
-		encode: func(m *NGSetupRequest) (per.Marshaler, bool) {
+		Encode: func(m *NGSetupRequest) (per.Marshaler, bool) {
 			if m.UERetentionInformation == nil {
 				return nil, false
 			}
@@ -97,6 +101,10 @@ var nGSetupRequestIEs = []ieSpec[NGSetupRequest]{
 			return m.UERetentionInformation, true
 		},
 	},
+	optionalExtension(IDNBIoTDefaultPagingDRX, CriticalityIgnore, func(m *NGSetupRequest) **NBIoTDefaultPagingDRX { return &m.NBIoTDefaultPagingDRX }),
+	optionalExtension(IDExtendedRANNodeName, CriticalityIgnore, func(m *NGSetupRequest) **ExtendedRANNodeName { return &m.ExtendedRANNodeName }),
+	optionalExtension(IDAIoTSupport, CriticalityReject, func(m *NGSetupRequest) **AIoTSupport { return &m.AIoTSupport }),
+	optionalExtension(IDAdditionalULI, CriticalityIgnore, func(m *NGSetupRequest) **AdditionalULI { return &m.AdditionalULI }),
 }
 
 func (m *NGSetupRequest) encodeBody(w *per.Writer, enc per.Encoding) error {
@@ -121,4 +129,8 @@ func (m *NGSetupRequest) Marshal() ([]byte, error) {
 
 func ParseNGSetupRequest(value []byte) (*NGSetupRequest, error) {
 	return parseMessageBody[NGSetupRequest](ProcNGSetup, TriggeringInitiatingMessage, nGSetupRequestIEs, value)
+}
+
+func DecodeNGSetupRequest(value []byte) (*NGSetupRequest, error) {
+	return decodeMessageBody[NGSetupRequest](ProcNGSetup, nGSetupRequestIEs, value)
 }

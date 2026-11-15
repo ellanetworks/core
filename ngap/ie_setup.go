@@ -4,8 +4,6 @@
 package ngap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
 )
 
@@ -25,10 +23,13 @@ type TAC uint32
 // BroadcastPLMNItem ::= SEQUENCE { pLMNIdentity, tAISliceSupportList,
 // iE-Extensions OPTIONAL } (extensible).
 type BroadcastPLMNItem struct {
-	_                   [0]struct{} `per:"extseq"`
-	PLMNIdentity        PLMNIdentity
-	TAISliceSupportList SliceSupportList
-	_                   ieExtensions `per:",skip"`
+	extensions                  per.ExtensionAdditions `per:",extraw"`
+	PLMNIdentity                PLMNIdentity
+	TAISliceSupportList         SliceSupportList
+	NPNSupport                  *NPNSupport              `per:",extie:IDNPNSupport,crit:reject"`
+	ExtendedTAISliceSupportList ExtendedSliceSupportList `per:",extie:IDExtendedTAISliceSupportList,crit:reject"`
+	TAINSAGSupportList          TAINSAGSupportList       `per:",extie:IDTAINSAGSupportList,crit:ignore"`
+	iEExtensions                extensionMeta            `per:",exttable"`
 }
 
 // BroadcastPLMNList ::= SEQUENCE (SIZE(1..maxnoofBPLMNs)) OF
@@ -38,10 +39,57 @@ type BroadcastPLMNList []BroadcastPLMNItem
 // SupportedTAItem ::= SEQUENCE { tAC, broadcastPLMNList, iE-Extensions
 // OPTIONAL } (extensible).
 type SupportedTAItem struct {
-	_                 [0]struct{} `per:"extseq"`
-	TAC               TAC
-	BroadcastPLMNList BroadcastPLMNList
-	_                 ieExtensions `per:",skip"`
+	extensions              per.ExtensionAdditions `per:",extraw"`
+	TAC                     TAC
+	BroadcastPLMNList       BroadcastPLMNList
+	ConfiguredTACIndication *ConfiguredTACIndication `per:",extie:IDConfiguredTACIndication,crit:ignore"`
+	RATInformation          *RATInformation          `per:",extie:IDRATInformation,crit:reject"`
+	iEExtensions            extensionMeta            `per:",exttable"`
+}
+
+type ConfiguredTACIndication uint8
+
+const (
+	ConfiguredTACIndicationTrue ConfiguredTACIndication = iota
+)
+
+type RATInformation uint8
+
+const (
+	RATInformationUnlicensed RATInformation = iota
+	RATInformationNBIoT
+	RATInformationNRLEO
+	RATInformationNRMEO
+	RATInformationNRGEO
+	RATInformationNROTHERSAT
+)
+
+const maxnoofNSAGs = 256
+
+type TAINSAGSupportItem struct {
+	NSAGID               NSAGID `per:",range:0..255,..."`
+	NSAGSliceSupportList ExtendedSliceSupportList
+	iEExtensions         extensionMeta          `per:",exttable"`
+	extensions           per.ExtensionAdditions `per:",extraw"`
+}
+
+type NSAGID uint16
+
+type TAINSAGSupportList []TAINSAGSupportItem
+
+func (l TAINSAGSupportList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofNSAGs, []TAINSAGSupportItem(l))
+}
+
+func (l *TAINSAGSupportList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[TAINSAGSupportItem](r, enc, 1, maxnoofNSAGs)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
 }
 
 // SupportedTAList ::= SEQUENCE (SIZE(1..maxnoofTACs)) OF SupportedTAItem.
@@ -52,129 +100,11 @@ type SupportedTAList []SupportedTAItem
 type PLMNSupportItem struct {
 	PLMNIdentity             PLMNIdentity
 	SliceSupportList         SliceSupportList
-	NPNSupport               *NPNSupport
-	ExtendedSliceSupportList ExtendedSliceSupportList
-	OnboardingSupport        *OnboardingSupport
-
-	iEExtensions messageMeta
-	extensions   per.ExtensionAdditions
-}
-
-var pLMNSupportItemExtIEs = []ieSpec[PLMNSupportItem]{
-	{
-		id: IDNPNSupport, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *PLMNSupportItem, raw []byte, enc per.Encoding) error {
-			var v NPNSupport
-
-			if err := perIEDecode(raw, &v); err != nil {
-				return err
-			}
-
-			m.NPNSupport = &v
-
-			return nil
-		},
-		encode: func(m *PLMNSupportItem) (per.Marshaler, bool) {
-			if m.NPNSupport == nil {
-				return nil, false
-			}
-
-			return m.NPNSupport, true
-		},
-	},
-	{
-		id: IDExtendedSliceSupportList, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *PLMNSupportItem, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ExtendedSliceSupportList)
-		},
-		encode: func(m *PLMNSupportItem) (per.Marshaler, bool) {
-			if len(m.ExtendedSliceSupportList) == 0 {
-				return nil, false
-			}
-
-			return m.ExtendedSliceSupportList, true
-		},
-	},
-	{
-		id: IDOnboardingSupport, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *PLMNSupportItem, raw []byte, enc per.Encoding) error {
-			var v OnboardingSupport
-
-			if err := perIEDecode(raw, &v); err != nil {
-				return err
-			}
-
-			m.OnboardingSupport = &v
-
-			return nil
-		},
-		encode: func(m *PLMNSupportItem) (per.Marshaler, bool) {
-			if m.OnboardingSupport == nil {
-				return nil, false
-			}
-
-			return m.OnboardingSupport, true
-		},
-	},
-}
-
-func (p *PLMNSupportItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	ext := extensionFields(pLMNSupportItemExtIEs, p, &p.iEExtensions)
-
-	w.WriteBit(p.extensions.Present())
-	w.WriteBit(len(ext) > 0)
-
-	if err := p.PLMNIdentity.MarshalPER(w, enc); err != nil {
-		return err
-	}
-
-	if err := p.SliceSupportList.MarshalPER(w, enc); err != nil {
-		return err
-	}
-
-	if len(ext) > 0 {
-		if err := encodeExtensionContainer(w, enc, ext); err != nil {
-			return err
-		}
-	}
-
-	if p.extensions.Present() {
-		return p.extensions.MarshalPER(w, enc)
-	}
-
-	return nil
-}
-
-func (p *PLMNSupportItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	extBit, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-
-	extContainer, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-
-	if err := p.PLMNIdentity.UnmarshalPER(r, enc); err != nil {
-		return err
-	}
-
-	if err := p.SliceSupportList.UnmarshalPER(r, enc); err != nil {
-		return err
-	}
-
-	if extContainer {
-		if err := decodeExtensionContainer(r, enc, pLMNSupportItemExtIEs, p, &p.iEExtensions); err != nil {
-			return err
-		}
-	}
-
-	if extBit {
-		return p.extensions.UnmarshalPER(r, enc)
-	}
-
-	return nil
+	NPNSupport               *NPNSupport              `per:",extie:IDNPNSupport,crit:reject"`
+	ExtendedSliceSupportList ExtendedSliceSupportList `per:",extie:IDExtendedSliceSupportList,crit:reject"`
+	OnboardingSupport        *OnboardingSupport       `per:",extie:IDOnboardingSupport,crit:ignore"`
+	iEExtensions             extensionMeta            `per:",exttable"`
+	extensions               per.ExtensionAdditions   `per:",extraw"`
 }
 
 type NID uint64
@@ -196,36 +126,9 @@ func (n *NID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
-const (
-	npnSupportSNPN = iota
-	npnSupportChoiceExtensions
-
-	npnSupportAlternatives = 2
-)
-
 type NPNSupport struct {
-	SNPN NID
-}
-
-func (n NPNSupport) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, npnSupportAlternatives-1, npnSupportSNPN); err != nil {
-		return err
-	}
-
-	return n.SNPN.MarshalPER(w, enc)
-}
-
-func (n *NPNSupport) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, npnSupportAlternatives-1)
-	if err != nil {
-		return fmt.Errorf("ngap: NPN-Support choice: %w", err)
-	}
-
-	if idx == npnSupportChoiceExtensions {
-		return decodeChoiceExtension(r, enc, "NPN-Support")
-	}
-
-	return n.SNPN.UnmarshalPER(r, enc)
+	SNPN            *NID             `per:",choice:0"`
+	ChoiceExtension *SingleContainer `per:",choice:1,extie"`
 }
 
 type ExtendedSliceSupportList []SliceSupportItem
@@ -249,24 +152,7 @@ type OnboardingSupport uint8
 
 const (
 	OnboardingSupportTrue OnboardingSupport = iota
-
-	onboardingSupportRootCount = 1
 )
-
-func (o OnboardingSupport) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, onboardingSupportRootCount, int64(o), "OnboardingSupport")
-}
-
-func (o *OnboardingSupport) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, onboardingSupportRootCount, "OnboardingSupport")
-	if err != nil {
-		return err
-	}
-
-	*o = OnboardingSupport(idx)
-
-	return nil
-}
 
 // PLMNSupportList ::= SEQUENCE (SIZE(1..maxnoofPLMNs)) OF PLMNSupportItem.
 type PLMNSupportList []PLMNSupportItem
@@ -278,8 +164,6 @@ type UERetentionInformation uint8
 
 const (
 	UERetentionUesRetained UERetentionInformation = iota
-
-	ueRetentionInformationRootCount = 1
 )
 
 // PagingDRX ::= ENUMERATED { v32, v64, v128, v256, ... } (extensible).
@@ -290,6 +174,4 @@ const (
 	PagingDRXv64
 	PagingDRXv128
 	PagingDRXv256
-
-	pagingDRXRootCount = 4
 )

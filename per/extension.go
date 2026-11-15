@@ -3,14 +3,11 @@
 
 package per
 
-type ExtensionAdditions struct {
-	present []bool
-	fields  []rawBits
-}
+import "encoding/binary"
 
-type rawBits struct {
-	data  []byte
-	nbits int
+type ExtensionAdditions struct {
+	present string
+	fields  string
 }
 
 func (e *ExtensionAdditions) Present() bool { return len(e.present) > 0 }
@@ -24,8 +21,8 @@ func (e *ExtensionAdditions) MarshalPER(w *Writer, enc Encoding) error {
 
 	err := EncodeNormallySmallLength(w, enc, int64(len(e.present)), func(count int64) error {
 		end := off + int(count)
-		for _, p := range e.present[off:end] {
-			w.WriteBit(p)
+		for i := off; i < end; i++ {
+			w.WriteBit(e.present[i] != 0)
 		}
 
 		off = end
@@ -36,19 +33,26 @@ func (e *ExtensionAdditions) MarshalPER(w *Writer, enc Encoding) error {
 		return err
 	}
 
-	for _, f := range e.fields {
+	for rest := e.fields; rest != ""; {
+		var (
+			data  string
+			nbits int
+		)
+
+		data, nbits, rest = nextRawBits(rest)
+
 		if enc == Aligned {
 			w.AlignToByte()
 		}
 
-		w.WriteBitString(f.data, f.nbits)
+		w.WriteBitString([]byte(data), nbits)
 	}
 
 	return nil
 }
 
 func (e *ExtensionAdditions) UnmarshalPER(r *Reader, enc Encoding) error {
-	var present []bool
+	var present []byte
 
 	err := DecodeNormallySmallLength(r, enc, func(count int64) error {
 		if int64(r.Bits()) < count {
@@ -61,7 +65,11 @@ func (e *ExtensionAdditions) UnmarshalPER(r *Reader, enc Encoding) error {
 				return err
 			}
 
-			present = append(present, b)
+			if b {
+				present = append(present, 1)
+			} else {
+				present = append(present, 0)
+			}
 		}
 
 		return nil
@@ -70,10 +78,10 @@ func (e *ExtensionAdditions) UnmarshalPER(r *Reader, enc Encoding) error {
 		return err
 	}
 
-	var fields []rawBits
+	var fields []byte
 
 	for _, p := range present {
-		if !p {
+		if p == 0 {
 			continue
 		}
 
@@ -92,10 +100,18 @@ func (e *ExtensionAdditions) UnmarshalPER(r *Reader, enc Encoding) error {
 			return err
 		}
 
-		fields = append(fields, rawBits{data: data, nbits: nbits})
+		fields = binary.AppendUvarint(fields, uint64(nbits))
+		fields = append(fields, data...)
 	}
 
-	e.present, e.fields = present, fields
+	e.present, e.fields = string(present), string(fields)
 
 	return nil
+}
+
+func nextRawBits(s string) (string, int, string) {
+	n, w := binary.Uvarint([]byte(s[:min(len(s), binary.MaxVarintLen64)]))
+	end := w + (int(n)+7)/8
+
+	return s[w:end], int(n), s[end:]
 }

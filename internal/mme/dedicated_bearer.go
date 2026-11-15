@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
+	"github.com/ellanetworks/core/per/ap"
 	"github.com/ellanetworks/core/s1ap"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -298,7 +299,7 @@ func dedicatedActivation(linked uint8, b *DedicatedBearer, mappedFiveGSQoS []nas
 		return nil, nil, fmt.Errorf("build Activate Dedicated EPS Bearer Context Request: %w", err)
 	}
 
-	sgwTLA, err := models.EncodeTransportLayerAddress(b.SGW.Addr, b.SGWN3IPv6)
+	sgwTLA, err := ap.TransportLayerAddressFromAddrs(b.SGW.Addr, b.SGWN3IPv6)
 	if err != nil {
 		return nil, nil, fmt.Errorf("encode the S-GW transport layer address: %w", err)
 	}
@@ -307,7 +308,7 @@ func dedicatedActivation(linked uint8, b *DedicatedBearer, mappedFiveGSQoS []nas
 		ERABToBeSetup: []s1ap.ERABToBeSetupItemBearerSUReq{{
 			ERABID:                s1ap.ERABID(b.EBI),
 			QoS:                   DedicatedERABQoS(&b.DedicatedBearerInfo),
-			TransportLayerAddress: s1ap.TransportLayerAddress(sgwTLA),
+			TransportLayerAddress: sgwTLA,
 			GTPTEID:               s1ap.GTPTEID(b.SGW.TEID),
 		}},
 	}, nil
@@ -749,11 +750,11 @@ func (m *MME) sendDedicatedERABRelease(ctx context.Context, ueConn *UeConn, ebi 
 }
 
 func preservesGBRBearers(cause *s1ap.Cause) bool {
-	if cause == nil || cause.Group != s1ap.CauseGroupRadioNetwork || cause.Extended {
+	if cause == nil || cause.RadioNetwork == nil {
 		return false
 	}
 
-	switch cause.Value {
+	switch *cause.RadioNetwork {
 	case s1ap.CauseRadioNetworkUserInactivity, s1ap.CauseRadioNetworkInterRATRedirection, s1ap.CauseRadioNetworkCSFallbackTriggered:
 		return true
 	default:

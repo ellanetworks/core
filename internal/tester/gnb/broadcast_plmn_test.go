@@ -31,8 +31,8 @@ func TestBuildNGSetupRequestBroadcastsAdditionalPLMNs(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if msg.GlobalRANNodeID.PLMNIdentity != homePLMN {
-		t.Errorf("node PLMN = % x, want the primary PLMN", msg.GlobalRANNodeID.PLMNIdentity)
+	if nodePLMN, _ := msg.GlobalRANNodeID.PLMNIdentity(); nodePLMN != homePLMN {
+		t.Errorf("node PLMN = % x, want the primary PLMN", nodePLMN)
 	}
 
 	if len(msg.SupportedTAList) != 1 {
@@ -119,13 +119,17 @@ func TestBuildInitialUEMessageCarriesSelectedPLMNInTAI(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	uli := msg.UserLocationInformation
+	uli := msg.UserLocationInformation.NR
+	if uli == nil {
+		t.Fatalf("location = %+v, want NR", msg.UserLocationInformation)
+	}
+
 	if uli.TAI.PLMNIdentity != otherPLMN {
 		t.Errorf("TAI PLMN = % x, want the selected 310/260", uli.TAI.PLMNIdentity)
 	}
 
-	if uli.PLMNIdentity != homePLMN {
-		t.Errorf("NR CGI PLMN = % x, want the primary PLMN", uli.PLMNIdentity)
+	if uli.NRCGI.PLMNIdentity != homePLMN {
+		t.Errorf("NR CGI PLMN = % x, want the primary PLMN", uli.NRCGI.PLMNIdentity)
 	}
 }
 
@@ -142,8 +146,8 @@ func TestBuildInitialUEMessageDefaultsTAIToServingPLMN(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if msg.UserLocationInformation.TAI.PLMNIdentity != homePLMN {
-		t.Errorf("TAI PLMN = % x, want the primary PLMN", msg.UserLocationInformation.TAI.PLMNIdentity)
+	if nr := msg.UserLocationInformation.NR; nr == nil || nr.TAI.PLMNIdentity != homePLMN {
+		t.Errorf("location = %+v, want TAI PLMN the primary PLMN", msg.UserLocationInformation)
 	}
 }
 
@@ -161,7 +165,7 @@ func TestBuildUplinkNasTransportCarriesSelectedPLMNInTAI(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if msg.UserLocationInformation == nil || msg.UserLocationInformation.TAI.PLMNIdentity != otherPLMN {
+	if msg.UserLocationInformation == nil || msg.UserLocationInformation.NR == nil || msg.UserLocationInformation.NR.TAI.PLMNIdentity != otherPLMN {
 		t.Errorf("location = %+v, want TAI PLMN 310/260", msg.UserLocationInformation)
 	}
 }

@@ -292,7 +292,7 @@ func (a *AMF) AbortRegistrationRetainingContext(ctx context.Context, ue *UeConte
 
 	ueConn.SetReleaseAction(UeContextN2NormalRelease)
 
-	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASUnspecified})
+	ueConn.SendUEContextReleaseCommand(ctx, ngap.CauseNASUnspecified.Cause())
 }
 
 func secureExchangeSHT(ue *UeConn) uint8 {
@@ -741,12 +741,8 @@ func (ueConn *UeConn) SendDownlinkNRPPaTransport(ctx context.Context, routingID 
 
 func ueContextReleaseCommandBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, cause ngap.Cause) ([]byte, error) {
 	msg := &ngap.UEContextReleaseCommand{
-		UENGAPIDs: ngap.UENGAPIDs{
-			AMFUENGAPID: amfID,
-			RANUENGAPID: ranID,
-			Pair:        ranID != ngap.RANUENGAPID(models.RanUeNgapIDUnspecified),
-		},
-		Cause: &cause,
+		UENGAPIDs: ueNGAPIDs(amfID, ranID),
+		Cause:     &cause,
 	}
 
 	return msg.Marshal()
@@ -1328,7 +1324,7 @@ func ReportProtectFailure(ctx context.Context, ue *UeContext, what string, err e
 		zap.String("procedure", what), zap.Error(err))
 
 	if conn := ue.Conn(); conn != nil {
-		conn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
+		conn.SendUEContextReleaseCommand(ctx, ngap.CauseNASNormalRelease.Cause())
 	}
 }
 
@@ -1446,4 +1442,12 @@ func (ueConn *UeConn) SendLocationReportingControl(ctx context.Context, eventTyp
 	ueConn.SendNGAP(ctx, NGAPProcedureLocationReportingControl, pkt)
 
 	return nil
+}
+
+func ueNGAPIDs(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID) ngap.UENGAPIDs {
+	if ranID == ngap.RANUENGAPID(models.RanUeNgapIDUnspecified) {
+		return ngap.UENGAPIDs{AMFUENGAPID: &amfID}
+	}
+
+	return ngap.UENGAPIDs{UENGAPIDPair: &ngap.UENGAPIDPair{AMFUENGAPID: amfID, RANUENGAPID: ranID}}
 }

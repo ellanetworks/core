@@ -6,6 +6,7 @@ package s1ap
 import (
 	"testing"
 
+	"github.com/ellanetworks/core/per/ap"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -21,7 +22,7 @@ func modeledIEsCorpus(t *testing.T) map[string][]byte {
 			ERABToBeSetup: []s1ap.ERABToBeSetupItemCtxtSUReq{{
 				ERABID:                5,
 				QoS:                   s1ap.ERABLevelQoSParameters{QCI: 9, ARP: s1ap.AllocationAndRetentionPriority{PriorityLevel: 15}},
-				TransportLayerAddress: s1ap.TransportLayerAddress{10, 0, 0, 1},
+				TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 0, 0, 1}),
 				GTPTEID:               1,
 			}},
 			GUMMEI:       &gummeiID,
@@ -30,11 +31,11 @@ func modeledIEsCorpus(t *testing.T) map[string][]byte {
 		"handover_request_gummei_mme_ue_s1ap_id_2": mustMarshal(t, &s1ap.HandoverRequest{
 			MMEUES1APID:    1,
 			HandoverType:   s1ap.HandoverTypeIntraLTE,
-			Cause:          &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 16},
+			Cause:          s1ap.Ptr(s1ap.CauseRadioNetworkHandoverDesirableForRadio.Cause()),
 			SourceToTarget: s1ap.TransparentContainer{0x00},
 			ERABToBeSetup: []s1ap.ERABToBeSetupItemHOReq{{
 				ERABID:                5,
-				TransportLayerAddress: s1ap.TransportLayerAddress{10, 0, 0, 1},
+				TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 0, 0, 1}),
 				GTPTEID:               1,
 				QoS:                   s1ap.ERABLevelQoSParameters{QCI: 9, ARP: s1ap.AllocationAndRetentionPriority{PriorityLevel: 15}},
 			}},
@@ -49,7 +50,7 @@ func modeledIEsCorpus(t *testing.T) map[string][]byte {
 		"path_switch_request_acknowledge_erab_to_be_switched_ul_list": mustMarshal(t, &s1ap.PathSwitchRequestAcknowledge{
 			MMEUES1APID:        s1ap.Ptr(s1ap.MMEUES1APID(1)),
 			ENBUES1APID:        s1ap.Ptr(s1ap.ENBUES1APID(2)),
-			ERABToBeSwitchedUL: s1ap.ERABToBeSwitchedULList{{ERABID: 5, TransportLayerAddress: s1ap.TransportLayerAddress{10, 0, 0, 9}, GTPTEID: 7}},
+			ERABToBeSwitchedUL: s1ap.ERABToBeSwitchedULList{{ERABID: 5, TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 0, 0, 9}), GTPTEID: 7}},
 		}),
 		"erab_modify_request_transport_information": mustMarshal(t, &s1ap.ERABModifyRequest{
 			MMEUES1APID: 1,
@@ -58,12 +59,12 @@ func modeledIEsCorpus(t *testing.T) map[string][]byte {
 				ERABID:               5,
 				QoS:                  s1ap.ERABLevelQoSParameters{QCI: 9, ARP: s1ap.AllocationAndRetentionPriority{PriorityLevel: 15}},
 				NASPDU:               s1ap.NASPDU{0x07},
-				TransportInformation: &s1ap.TransportInformation{TransportLayerAddress: s1ap.TransportLayerAddress{10, 0, 0, 9}, ULGTPTEID: 7},
+				TransportInformation: &s1ap.TransportInformation{TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 0, 0, 9}), ULGTPTEID: 7},
 			}},
 		}),
 		"path_switch_request_source_mme_gummei": mustMarshal(t, &s1ap.PathSwitchRequest{
 			ENBUES1APID:            2,
-			ERABToBeSwitchedDL:     []s1ap.ERABToBeSwitchedDLItem{{ERABID: 5, TransportLayerAddress: s1ap.TransportLayerAddress{10, 0, 0, 1}, GTPTEID: 1}},
+			ERABToBeSwitchedDL:     []s1ap.ERABToBeSwitchedDLItem{{ERABID: 5, TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 0, 0, 1}), GTPTEID: 1}},
 			SourceMMEUES1APID:      1,
 			EUTRANCGI:              &s1ap.EUTRANCGI{PLMNIdentity: testPLMN, CellID: 1},
 			TAI:                    &s1ap.TAI{PLMNIdentity: testPLMN, TAC: 1},
@@ -73,7 +74,7 @@ func modeledIEsCorpus(t *testing.T) map[string][]byte {
 		"ue_context_release_request_gw_context_release_indication": mustMarshal(t, &s1ap.UEContextReleaseRequest{
 			MMEUES1APID:                1,
 			ENBUES1APID:                2,
-			Cause:                      &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkX2HandoverTriggered},
+			Cause:                      s1ap.Ptr(s1ap.CauseRadioNetworkX2HandoverTriggered.Cause()),
 			GWContextReleaseIndication: s1ap.Ptr(s1ap.GWContextReleaseIndicationTrue),
 		}),
 	}

@@ -22,7 +22,7 @@ func TestDecodeS1SetupRequest(t *testing.T) {
 	}
 
 	g := mustIE(t, msg, s1ap.IDGlobalENBID).Value.(GlobalENBID)
-	if g.PLMNID.Mcc != "999" || g.PLMNID.Mnc != "01" || g.ENBID.Value != 411 || g.ENBID.Kind.Value != int64(s1ap.ENBIDMacro) {
+	if g.PLMNID.Mcc != "999" || g.PLMNID.Mnc != "01" || g.ENBID.Value != 411 || g.ENBID.Kind.Value != 0 {
 		t.Fatalf("Global-ENB-ID = %+v", g)
 	}
 
@@ -66,7 +66,7 @@ func TestDecodeS1SetupResponse(t *testing.T) {
 func TestDecodeS1SetupFailure(t *testing.T) {
 	ttw := s1ap.TimeToWaitV10s
 	fail := &s1ap.S1SetupFailure{
-		Cause:      &s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 3},
+		Cause:      s1ap.Ptr(s1ap.CauseMiscOMIntervention.Cause()),
 		TimeToWait: &ttw,
 	}
 
@@ -82,7 +82,7 @@ func TestDecodeS1SetupFailure(t *testing.T) {
 	}
 
 	c := mustIE(t, msg, s1ap.IDCause).Value.(Cause)
-	if c.Group.Value != int64(s1ap.CauseGroupMisc) || c.Value.Value != 3 {
+	if c.Group.Value != 4 || c.Value.Value != 3 {
 		t.Fatalf("cause = %+v", c)
 	}
 

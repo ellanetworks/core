@@ -122,8 +122,8 @@ func runXnPathSwitchFailure(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("parse PathSwitchRequestUnsuccessfulTransfer: %w", err)
 	}
 
-	if transfer.Cause.Group != ngaplib.CauseGroupRadioNetwork || transfer.Cause.Value != ngaplib.CauseRadioNetworkUnknownLocalUENGAPID {
-		return fmt.Errorf("the failure cause = %+v, want a radio-network unknown-local-UE-NGAP-ID", transfer.Cause)
+	if !transfer.Cause.Equal(ngaplib.CauseRadioNetworkUnknownLocalUENGAPID.Cause()) {
+		return fmt.Errorf("the failure cause = %v, want a radio-network unknown-local-UE-NGAP-ID", transfer.Cause)
 	}
 
 	if _, err := sourceGNB.WaitForMessage(gnb.Initiating, ngaplib.ProcUEContextRelease, 500*time.Millisecond); err == nil {

@@ -28,7 +28,7 @@ func handleReset(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte
 		cause = mme.S1apCauseName(req.Cause)
 	}
 
-	if req.ResetType.All {
+	if req.ResetType.S1Interface != nil {
 		affected := m.ConnsOnConn(radio.Conn)
 		m.ReclaimConns(ctx, affected, "S1 reset")
 
@@ -39,17 +39,22 @@ func handleReset(ctx context.Context, m *mme.MME, radio *mme.Radio, value []byte
 		return
 	}
 
-	affected := m.ConnsForConnectionList(radio.Conn, req.ResetType.Part)
+	var part []s1ap.UEAssociatedLogicalS1ConnectionItem
+	if req.ResetType.PartOfS1Interface != nil {
+		part = *req.ResetType.PartOfS1Interface
+	}
+
+	affected := m.ConnsForConnectionList(radio.Conn, part)
 	m.ReclaimConns(ctx, affected, "S1 reset")
 
 	radio.Log(ctx).Info("S1 Reset (part of interface)",
 		logger.Cause(cause),
-		zap.Int("requested", len(req.ResetType.Part)),
+		zap.Int("requested", len(part)),
 		zap.Int("connections", len(affected)))
 
 	// TS 36.413 §8.7.1.2.1: the acknowledge echoes the UE-associated logical
 	// S1-connections that were reset.
-	sendResetAcknowledge(ctx, m, radio.Conn, req.ResetType.Part, req.Diagnostics())
+	sendResetAcknowledge(ctx, m, radio.Conn, part, req.Diagnostics())
 }
 
 // sendResetAcknowledge answers a RESET with RESET ACKNOWLEDGE (TS 36.413

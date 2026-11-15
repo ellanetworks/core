@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 // As a peer would send it, without the rules the encoder normally enforces.
@@ -26,11 +27,11 @@ func container(t *testing.T, fields ...ieField) []byte {
 
 func uplinkNASFields() []ieField {
 	return []ieField{
-		{id: IDMMEUES1APID, crit: CriticalityReject, val: Ptr(MMEUES1APID(7))},
-		{id: IDENBUES1APID, crit: CriticalityReject, val: Ptr(ENBUES1APID(9))},
-		{id: IDNASPDU, crit: CriticalityReject, val: Ptr(NASPDU{0x01})},
-		{id: IDEUTRANCGI, crit: CriticalityIgnore, val: Ptr(EUTRANCGI{PLMNIdentity: PLMNIdentity{0x02, 0xf8, 0x39}})},
-		{id: IDTAI, crit: CriticalityIgnore, val: Ptr(TAI{PLMNIdentity: PLMNIdentity{0x02, 0xf8, 0x39}, TAC: TAC(1)})},
+		{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: Ptr(MMEUES1APID(7))},
+		{ID: IDENBUES1APID, Criticality: CriticalityReject, Value: Ptr(ENBUES1APID(9))},
+		{ID: IDNASPDU, Criticality: CriticalityReject, Value: Ptr(NASPDU{0x01})},
+		{ID: IDEUTRANCGI, Criticality: CriticalityIgnore, Value: Ptr(EUTRANCGI{PLMNIdentity: PLMNIdentity{0x02, 0xf8, 0x39}})},
+		{ID: IDTAI, Criticality: CriticalityIgnore, Value: Ptr(TAI{PLMNIdentity: PLMNIdentity{0x02, 0xf8, 0x39}, TAC: TAC(1)})},
 	}
 }
 
@@ -46,7 +47,7 @@ func TestDuplicateIERejected(t *testing.T) {
 		t.Fatalf("error = %v, want *AbstractSyntaxError", err)
 	}
 
-	if ase.Cause.Value != CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage {
+	if !ase.Cause.Equal(CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage.Cause()) {
 		t.Errorf("cause = %s, want falsely-constructed-message", ase.Cause)
 	}
 }
@@ -64,7 +65,7 @@ func TestIEsOutOfOrderRejected(t *testing.T) {
 		t.Fatalf("error = %v, want *AbstractSyntaxError", err)
 	}
 
-	if ase.Cause.Value != CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage {
+	if !ase.Cause.Equal(CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage.Cause()) {
 		t.Errorf("cause = %s, want falsely-constructed-message", ase.Cause)
 	}
 }
@@ -72,7 +73,7 @@ func TestIEsOutOfOrderRejected(t *testing.T) {
 // §10.3.6 considers only IEs the receiver's version defines.
 func TestUnknownIEDoesNotBreakOrdering(t *testing.T) {
 	fields := uplinkNASFields()
-	unknown := ieField{id: ProtocolIEID(60000), crit: CriticalityIgnore, raw: []byte{0x01, 0x02}}
+	unknown := ieField{ID: ProtocolIEID(60000), Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x01, 0x02})}
 	fields = append([]ieField{fields[0], fields[1], unknown}, fields[2:]...)
 
 	msg, err := ParseUplinkNASTransport(container(t, fields...))
@@ -100,7 +101,7 @@ func TestAbsentIgnoreIEIsDelivered(t *testing.T) {
 	}
 
 	diag := msg.Diagnostics()
-	if len(diag.IEs) != 1 || diag.IEs[0].ID != IDTAI || diag.IEs[0].TypeOfError != TypeOfErrorMissing {
+	if len(diag.IEs) != 1 || diag.IEs[0].ID != IDTAI || typeOfError(diag.IEs[0]) != TypeOfErrorMissing {
 		t.Fatalf("diagnostics = %+v, want TAI reported missing", diag.IEs)
 	}
 
@@ -121,7 +122,7 @@ func TestAbsentRejectIEStopsDelivery(t *testing.T) {
 		t.Fatalf("error = %v, want *AbstractSyntaxError", err)
 	}
 
-	if ase.Cause.Value != CauseProtocolAbstractSyntaxErrorReject {
+	if !ase.Cause.Equal(CauseProtocolAbstractSyntaxErrorReject.Cause()) {
 		t.Errorf("cause = %s, want abstract-syntax-error-reject", ase.Cause)
 	}
 
@@ -164,9 +165,9 @@ func TestEncodeRejectsUnsetRequiredIE(t *testing.T) {
 // Recording is bounded, since a peer chooses how many IEs to send.
 func TestDiagnosticsAreBounded(t *testing.T) {
 	fields := uplinkNASFields()
-	for i := range maxDiagnosticIEs + 10 {
+	for i := range paddingIEs + 10 {
 		fields = append(fields, ieField{
-			id: ProtocolIEID(40000 + i), crit: CriticalityIgnore, raw: []byte{0x00},
+			ID: ProtocolIEID(40000 + i), Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x00}),
 		})
 	}
 
@@ -175,17 +176,12 @@ func TestDiagnosticsAreBounded(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	diag := msg.Diagnostics()
-	if len(diag.IEs) > maxDiagnosticIEs {
-		t.Errorf("recorded %d diagnostics, want at most %d", len(diag.IEs), maxDiagnosticIEs)
+	if got := len(msg.Diagnostics().IEs); got != paddingIEs+10 {
+		t.Errorf("recorded %d diagnostics, want %d", got, paddingIEs+10)
 	}
 
-	if !diag.Truncated {
-		t.Error("Truncated = false, want true")
-	}
-
-	if got := len(msg.UnknownIEs()); got > maxPreservedIEs {
-		t.Errorf("preserved %d unknown IEs, want at most %d", got, maxPreservedIEs)
+	if got := len(msg.UnknownIEs()); got != paddingIEs+10 {
+		t.Errorf("preserved %d unknown IEs, want %d", got, paddingIEs+10)
 	}
 }
 
@@ -195,9 +191,9 @@ func TestUEIDsSurvivePadding(t *testing.T) {
 	fields := uplinkNASFields()
 
 	var padded []ieField
-	for i := range maxPreservedIEs * 2 {
+	for i := range paddingIEs * 2 {
 		padded = append(padded, ieField{
-			id: ProtocolIEID(40000 + i), crit: CriticalityIgnore, raw: []byte{0x00},
+			ID: ProtocolIEID(40000 + i), Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x00}),
 		})
 	}
 
@@ -264,8 +260,8 @@ func TestOversizedIECountRejected(t *testing.T) {
 // one (§8.7.2.2).
 func TestUEIDsFromPathSwitchRequest(t *testing.T) {
 	value := container(t,
-		ieField{id: IDENBUES1APID, crit: CriticalityReject, val: Ptr(ENBUES1APID(9))},
-		ieField{id: IDSourceMMEUES1APID, crit: CriticalityReject, val: Ptr(MMEUES1APID(7))},
+		ieField{ID: IDENBUES1APID, Criticality: CriticalityReject, Value: Ptr(ENBUES1APID(9))},
+		ieField{ID: IDSourceMMEUES1APID, Criticality: CriticalityReject, Value: Ptr(MMEUES1APID(7))},
 	)
 
 	_, err := ParsePathSwitchRequest(value)
@@ -281,17 +277,15 @@ func TestUEIDsFromPathSwitchRequest(t *testing.T) {
 	}
 }
 
-// A notify entry must survive the diagnostics bound or the §10.3.4.2 report
-// carries no IE.
-func TestNotifySurvivesTruncation(t *testing.T) {
+func TestNotifyReportedAmongIgnoredIEs(t *testing.T) {
 	fields := uplinkNASFields()
-	for i := range maxDiagnosticIEs + 10 {
+	for i := range paddingIEs + 10 {
 		fields = append(fields, ieField{
-			id: ProtocolIEID(40000 + i), crit: CriticalityIgnore, raw: []byte{0x00},
+			ID: ProtocolIEID(40000 + i), Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x00}),
 		})
 	}
 
-	fields = append(fields, ieField{id: ProtocolIEID(50000), crit: CriticalityNotify, raw: []byte{0x00}})
+	fields = append(fields, ieField{ID: ProtocolIEID(50000), Criticality: CriticalityNotify, Value: ap.RawValue([]byte{0x00})})
 
 	msg, err := ParseUplinkNASTransport(container(t, fields...))
 	if err != nil {
@@ -308,7 +302,7 @@ func TestNotifySurvivesTruncation(t *testing.T) {
 		t.Fatalf("Report() = %+v, want the notify IE", report)
 	}
 
-	if len(diag.IEs) > maxDiagnosticIEs {
-		t.Errorf("recorded %d diagnostics, want at most %d", len(diag.IEs), maxDiagnosticIEs)
+	if len(diag.IEs) != paddingIEs+11 {
+		t.Errorf("recorded %d diagnostics, want %d", len(diag.IEs), paddingIEs+11)
 	}
 }

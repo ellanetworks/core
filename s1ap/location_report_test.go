@@ -70,8 +70,8 @@ func TestLocationReportMissingMandatoryIE(t *testing.T) {
 
 	t.Run("ignore-criticality IEs missing are reported", func(t *testing.T) {
 		value := encode(t, []ieField{
-			{id: IDMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
-			{id: IDENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(1)},
+			{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: MMEUES1APID(1)},
+			{ID: IDENBUES1APID, Criticality: CriticalityReject, Value: ENBUES1APID(1)},
 		})
 
 		out, err := ParseLocationReport(value)
@@ -90,7 +90,7 @@ func TestLocationReportMissingMandatoryIE(t *testing.T) {
 
 		for i, want := range []ProtocolIEID{IDEUTRANCGI, IDTAI, IDRequestType} {
 			if got[i].ID != want || got[i].Criticality != CriticalityIgnore ||
-				got[i].TypeOfError != TypeOfErrorMissing {
+				typeOfError(got[i]) != TypeOfErrorMissing {
 				t.Errorf("diagnostic %d = %+v, want %v missing/ignore", i, got[i], want)
 			}
 		}
@@ -98,7 +98,7 @@ func TestLocationReportMissingMandatoryIE(t *testing.T) {
 
 	t.Run("missing reject-criticality IE rejects the procedure", func(t *testing.T) {
 		value := encode(t, []ieField{
-			{id: IDMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
+			{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: MMEUES1APID(1)},
 		})
 
 		var ase *AbstractSyntaxError

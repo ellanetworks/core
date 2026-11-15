@@ -10,13 +10,14 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 const goldenHandoverPreparationFailure = "400c0015000003000a40020001005540020002000f400201c0"
 
 func TestHandoverPreparationFailureGolden(t *testing.T) {
 	amfID, ranID := AMFUENGAPID(1), RANUENGAPID(2)
-	cause := Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkHOFailureInTarget}
+	cause := CauseRadioNetworkHOFailureInTarget.Cause()
 
 	in := HandoverPreparationFailure{AMFUENGAPID: &amfID, RANUENGAPID: &ranID, Cause: &cause}
 
@@ -45,7 +46,7 @@ func TestHandoverPreparationFailureGolden(t *testing.T) {
 	}
 
 	if out.AMFUENGAPID == nil || *out.AMFUENGAPID != 1 || out.RANUENGAPID == nil || *out.RANUENGAPID != 2 ||
-		out.Cause == nil || *out.Cause != cause {
+		out.Cause == nil || !(*out.Cause).Equal(cause) {
 		t.Fatalf("round trip %+v, want 1/2 and %v", out, cause)
 	}
 
@@ -66,14 +67,14 @@ func TestHandoverPreparationFailureMissingMandatoryIEsAreIgnored(t *testing.T) {
 		t.Errorf("decoded %+v, want every field absent", out)
 	}
 
-	ies := out.meta().diagnostics.IEs
+	ies := out.meta().Message.Diagnostics().IEs
 	if len(ies) != 3 {
 		t.Fatalf("diagnostics = %+v, want three missing entries", ies)
 	}
 
 	for _, ie := range ies {
-		if ie.TypeOfError != TypeOfErrorMissing {
-			t.Errorf("IE %v reported %v, want missing", ie.ID, ie.TypeOfError)
+		if typeOfError(ie) != TypeOfErrorMissing {
+			t.Errorf("IE %v reported %v, want missing", ie.ID, typeOfError(ie))
 		}
 	}
 }
@@ -94,7 +95,7 @@ const goldenHandoverRequired = "000c003d000007000a00020001005500020002001d000100
 	"69000f0002f839100000010002f839000001003d000500000501000065000302aabb"
 
 func TestHandoverRequiredGolden(t *testing.T) {
-	cause := Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkHandoverDesirableForRadio}
+	cause := CauseRadioNetworkHandoverDesirableForRadio.Cause()
 	plmn := PLMNIdentity{0x02, 0xf8, 0x39}
 
 	transfer, err := (&HandoverRequiredTransfer{}).Marshal()
@@ -107,7 +108,7 @@ func TestHandoverRequiredGolden(t *testing.T) {
 		HandoverType: HandoverTypeIntra5GS,
 		Cause:        &cause,
 		TargetID: TargetID{TargetRANNodeID: &TargetRANNodeID{
-			GlobalRANNodeID: GlobalRANNodeID{Kind: RANNodeIDGNB, PLMNIdentity: plmn, Value: 1, Bits: 24},
+			GlobalRANNodeID: NewGlobalGNBID(plmn, 1, 24),
 			SelectedTAI:     TAI{PLMNIdentity: plmn, TAC: 1},
 		}},
 		PDUSessionResourceListHORqd:        PDUSessionResourceListHORqd{{PDUSessionID: 5, Transfer: transfer}},
@@ -152,7 +153,7 @@ func TestTargetIDTargetENBID(t *testing.T) {
 	in := TargetID{TargeteNBID: &TargeteNBID{
 		GlobalENBID: GlobalNgENBID{
 			PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10},
-			NgENBID:      NgENBID{Kind: NgENBIDMacro, Value: 0x00101},
+			NgENBID:      NgENBID{MacroNgENBID: Ptr(MacroNgENBID(0x00101))},
 		},
 		SelectedEPSTAI: EPSTAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 7},
 	}}
@@ -177,7 +178,7 @@ func TestTargetIDTargetENBID(t *testing.T) {
 		t.Errorf("selected EPS TAC = %d, want 7", out.TargeteNBID.SelectedEPSTAI.TAC)
 	}
 
-	if got := out.TargeteNBID.GlobalENBID.NgENBID; got != in.TargeteNBID.GlobalENBID.NgENBID {
+	if got := out.TargeteNBID.GlobalENBID.NgENBID; !got.Equal(in.TargeteNBID.GlobalENBID.NgENBID) {
 		t.Errorf("ng-eNB id = %+v, want %+v", got, in.TargeteNBID.GlobalENBID.NgENBID)
 	}
 
@@ -193,45 +194,55 @@ func TestTargetIDTargetENBID(t *testing.T) {
 	}
 }
 
-// choice-Extensions still names a target this AMF cannot reach, and is refused
-// rather than misread.
-func TestTargetIDRejectsChoiceExtensions(t *testing.T) {
-	w := per.NewWriter()
-	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, targetIDAlternatives-1, targetIDChoiceExtensions); err != nil {
+func TestTargetIDTypedAndUnknownChoiceExtensions(t *testing.T) {
+	rnc := TargetID{TargetRNCID: &TargetRNCID{
+		LAI:           LAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, LAC: LAC{0x12, 0x34}},
+		RNCID:         4095,
+		ExtendedRNCID: Ptr(ExtendedRNCID(4096)),
+	}}
+	home := TargetID{TargetHomeENBID: &TargetHomeENBID{
+		PLMNIdentity:   PLMNIdentity{0x00, 0xf1, 0x10},
+		HomeENBID:      0xfffffff,
+		SelectedEPSTAI: EPSTAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 0x0102},
+	}}
+
+	for _, in := range []TargetID{rnc, home} {
+		w := per.NewWriter()
+		if err := in.MarshalPER(w, per.Aligned); err != nil {
+			t.Fatal(err)
+		}
+
+		out, err := unmarshalPERValue[TargetID](perBytes(w))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !out.Equal(in) {
+			t.Errorf("round trip = %+v, want %+v", out, in)
+		}
+	}
+
+	wire := choiceExtensionValue(t, targetIDAlternatives, targetIDChoiceExtensions, 9999)
+
+	out, err := unmarshalPERValue[TargetID](wire)
+	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, maxProtocolIEs, int64(IDTargetID)); err != nil {
-		t.Fatal(err)
+	if out.ChoiceExtension == nil || out.ChoiceExtension.ID != 9999 || out.TargetRNCID != nil {
+		t.Fatalf("decoded %+v, want the unknown choice-Extensions kept", out)
 	}
 
-	if err := per.EncodeEnumerated(w, per.Aligned, criticalityRootCount, false, int64(CriticalityReject)); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := per.EncodeOpenTypeBytes(w, per.Aligned, []byte{0x00}); err != nil {
-		t.Fatal(err)
-	}
-
-	w.AlignToByte()
-
-	var v TargetID
-
-	err := v.UnmarshalPER(per.NewReader(w.Bytes()), per.Aligned)
-	if err == nil {
-		t.Fatal("choice-Extensions decoded")
-	}
-
-	if !errors.Is(err, errNotComprehended) {
-		t.Errorf("err = %v, want errNotComprehended so criticality decides", err)
+	if d := ap.Diagnose[ProtocolIEID](&out); len(d.IEs) != 1 || d.IEs[0].Criticality != CriticalityReject {
+		t.Errorf("diagnostics = %+v", d.IEs)
 	}
 }
 
 // TS 38.413 gives HandoverType three root members; TS 36.413 gives its own
 // HandoverType five, with no shared wire values.
 func TestHandoverTypeRootCountMatchesSpec(t *testing.T) {
-	if handoverTypeRootCount != 3 {
-		t.Errorf("root count is %d, TS 38.413 §9.3.1.22 defines three members before the extension marker", handoverTypeRootCount)
+	if int64(len(enumHandoverType.Root)) != 3 {
+		t.Errorf("root count is %d, TS 38.413 §9.3.1.22 defines three members before the extension marker", int64(len(enumHandoverType.Root)))
 	}
 }
 
@@ -245,7 +256,7 @@ func TestHandoverCommandGolden(t *testing.T) {
 	}
 
 	refused, err := (&HandoverPreparationUnsuccessfulTransfer{
-		Cause: Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkHandoverDesirableForRadio},
+		Cause: CauseRadioNetworkHandoverDesirableForRadio.Cause(),
 	}).Marshal()
 	if err != nil {
 		t.Fatal(err)
@@ -294,8 +305,7 @@ func TestHandoverCommandGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if unsuccessful.Cause.Group != CauseGroupRadioNetwork ||
-		unsuccessful.Cause.Value != CauseRadioNetworkHandoverDesirableForRadio {
+	if !unsuccessful.Cause.Equal(CauseRadioNetworkHandoverDesirableForRadio.Cause()) {
 		t.Errorf("nested cause %+v", unsuccessful.Cause)
 	}
 }
@@ -385,8 +395,18 @@ func TestHandoverCommandRejectsNASSecurityParametersWithoutCondition(t *testing.
 		t.Fatalf("err = %v, want an AbstractSyntaxError", err)
 	}
 
-	if abstract.Cause.Value != CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage {
+	if !abstract.Cause.Equal(CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage.Cause()) {
 		t.Errorf("cause %v, want falsely-constructed-message", abstract.Cause)
+	}
+
+	decoded, err := DecodeHandoverCommand(pdu.(*SuccessfulOutcome).Value)
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+
+	again, err := decoded.Marshal()
+	if err != nil || !bytes.Equal(again, b) {
+		t.Fatalf("Marshal(Decode(b)) = %x (%v), want %x", again, err, b)
 	}
 }
 
@@ -396,7 +416,7 @@ func encodedHandoverTypeIE(t *testing.T, v HandoverType) []byte {
 	t.Helper()
 
 	w := per.NewWriter()
-	if err := encodeContainerField(w, per.Aligned, ieField{id: IDHandoverType, crit: CriticalityReject, val: v}); err != nil {
+	if err := encodeContainerField(w, ieField{ID: IDHandoverType, Criticality: CriticalityReject, Value: v}); err != nil {
 		t.Fatal(err)
 	}
 

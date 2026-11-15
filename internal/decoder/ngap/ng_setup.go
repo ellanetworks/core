@@ -6,6 +6,7 @@ package ngap
 import (
 	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/ngap"
@@ -28,31 +29,34 @@ type Cause struct {
 	Value utils.EnumField `json:"value"`
 }
 
-func causeGroupToEnum(g ngap.CauseGroup) utils.EnumField {
-	return utils.NamedEnum(uint8(g), g.Name())
-}
-
 // The library owns the cause vocabulary, including which values are extension
 // additions and where their numbering resumes, so the index it reports is the
 // one to display rather than the raw per-group value.
 func cause(c ngap.Cause) Cause {
-	name, index := c.ValueName()
+	alt, group := c.Alternative()
+	index, name := c.Value()
+
+	unknown := name == "" || strings.HasPrefix(name, "unknown(")
+	if unknown {
+		name = "unknown"
+	}
 
 	return Cause{
-		Group: causeGroupToEnum(c.Group),
-		Value: utils.MakeEnum(int64(index), name, name == "unknown"),
+		Group: utils.NamedEnum(int64(alt), group),
+		Value: utils.MakeEnum(int64(index), name, unknown),
 	}
 }
 
 func buildGlobalRANNodeID(id ngap.GlobalRANNodeID) GlobalRANNodeIDIE {
-	ie := GlobalRANNodeIDIE{PLMNIdentity: plmnIDToDecoder(id.PLMNIdentity)}
+	plmn, _ := id.PLMNIdentity()
+	ie := GlobalRANNodeIDIE{PLMNIdentity: plmnIDToDecoder(plmn)}
 
-	switch id.Kind {
-	case ngap.RANNodeIDGNB:
+	switch {
+	case id.GlobalGNBID != nil:
 		ie.GlobalGNBID = id.Hex()
-	case ngap.RANNodeIDMacroNgENB, ngap.RANNodeIDShortMacroNgENB, ngap.RANNodeIDLongMacroNgENB:
+	case id.GlobalNgENBID != nil:
 		ie.GlobalNgENBID = id.Hex()
-	case ngap.RANNodeIDN3IWF:
+	case id.GlobalN3IWFID != nil:
 		ie.GlobalN3IWFID = id.Hex()
 	}
 
@@ -199,8 +203,8 @@ func buildPLMNSupportList(list ngap.PLMNSupportList) []PLMN {
 			OnboardingSupport:        item.OnboardingSupport != nil,
 		}
 
-		if item.NPNSupport != nil {
-			nid := bitsHex(uint64(item.NPNSupport.SNPN), 44)
+		if item.NPNSupport != nil && item.NPNSupport.SNPN != nil {
+			nid := bitsHex(uint64(*item.NPNSupport.SNPN), 44)
 			out[i].NPNSupportNID = &nid
 		}
 	}

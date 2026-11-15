@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ellanetworks/core/per/ap"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -29,7 +30,7 @@ func knownExtensionQoS() s1ap.ERABLevelQoSParameters {
 
 func TestDecodeS1APMessage_KnownERABExtensions(t *testing.T) {
 	sec := &s1ap.SecurityIndication{IntegrityProtectionIndication: s1ap.IntegrityProtectionPreferred}
-	tla := s1ap.TransportLayerAddress{10, 0, 0, 1}
+	tla := ap.TransportLayerAddressFromOctets([]byte{10, 0, 0, 1})
 	qosKeys := []string{
 		`"downlink_packet_loss_rate":10`, `"uplink_packet_loss_rate":20`,
 		`"extended_maximum_bitrate_dl":10000000001`, `"extended_maximum_bitrate_ul":10000000002`,
@@ -84,18 +85,16 @@ func TestDecodeS1APMessage_KnownERABExtensions(t *testing.T) {
 			raw: mustMarshal(t, &s1ap.HandoverRequest{
 				MMEUES1APID:    1,
 				HandoverType:   s1ap.HandoverTypeUTRANtoLTE,
-				Cause:          &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 16},
+				Cause:          s1ap.Ptr(s1ap.CauseRadioNetworkHandoverDesirableForRadio.Cause()),
 				SourceToTarget: testSourceeNBContainer(t),
 
 				NASSecurityParameterstoEUTRAN: s1ap.NASSecurityParameterstoEUTRAN{0x0a, 0x0b},
 				ERABToBeSetup: s1ap.ERABToBeSetupListHOReq{{
 					ERABID: 5, TransportLayerAddress: tla, GTPTEID: 1, QoS: knownExtensionQoS(),
-					Extensions: &s1ap.ERABToBeSetupItemHOReqExtIEs{
-						DataForwardingNotPossible: s1ap.Ptr(s1ap.DataForwardingNotPossibleTrue),
-						BearerType:                s1ap.Ptr(s1ap.BearerTypeNonIP),
-						EthernetType:              s1ap.Ptr(s1ap.EthernetTypeTrue),
-						SecurityIndication:        sec,
-					},
+					DataForwardingNotPossible: s1ap.Ptr(s1ap.DataForwardingNotPossibleTrue),
+					BearerType:                s1ap.Ptr(s1ap.BearerTypeNonIP),
+					EthernetType:              s1ap.Ptr(s1ap.EthernetTypeTrue),
+					SecurityIndication:        sec,
 				}},
 			}),
 			want: append(append([]string{`"data_forwarding_not_possible":true`}, setupKeys...), qosKeys...),

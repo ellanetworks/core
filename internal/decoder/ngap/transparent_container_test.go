@@ -33,7 +33,7 @@ func testSourceNGRANContainer(t *testing.T) lib.SourceToTargetTransparentContain
 				CellType:                              lib.CellType{CellSize: lib.CellSizeMedium},
 				TimeUEStayedInCell:                    30,
 				TimeUEStayedInCellEnhancedGranularity: lib.Ptr(lib.TimeUEStayedInCellEnhancedGranularity(300)),
-				HOCauseValue:                          &lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 16},
+				HOCauseValue:                          new(lib.CauseRadioNetwork(16).Cause()),
 			}}},
 			{LastVisitedCellInformation: lib.LastVisitedCellInformation{EUTRANCell: lib.Ptr(lib.LastVisitedEUTRANCellInformation{0x01})}},
 			{LastVisitedCellInformation: lib.LastVisitedCellInformation{UTRANCell: lib.Ptr(lib.LastVisitedUTRANCellInformation{0x02})}},
@@ -54,7 +54,7 @@ func TestDecodeSourceNGRANNodeToTargetNGRANNodeTransparentContainer(t *testing.T
 	eutra := eutraCGI(lib.EUTRACGI{PLMNIdentity: testPLMN, EUTRACellIdentity: 0x101})
 	dl := utils.NamedEnum(uint8(0), "dl-forwarding-proposed")
 	ul := utils.NamedEnum(uint8(0), "ul")
-	hoCause := cause(lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 16})
+	hoCause := cause(lib.CauseRadioNetwork(16).Cause())
 	e, u, g := "01", "02", "03"
 
 	want := SourceToTargetTransparentContainer{
@@ -109,7 +109,7 @@ func TestDecodeNGAPMessage_TargetRANNodeIDAndSourceAMFGUAMI(t *testing.T) {
 
 	ho := DecodeNGAPMessage(corpus["handover_request_target_ran_node_id"]).Value.IEs
 	if last := ho[len(ho)-1]; last.ID.Value != int64(lib.IDTargetRANNodeID) || last.Criticality.Value != int64(lib.CriticalityIgnore) ||
-		!reflect.DeepEqual(last.Value, buildGlobalRANNodeID(lib.GlobalRANNodeID{Kind: lib.RANNodeIDGNB, PLMNIdentity: testPLMN, Value: 2, Bits: 22})) {
+		!reflect.DeepEqual(last.Value, buildGlobalRANNodeID(lib.NewGlobalGNBID(testPLMN, 2, 22))) {
 		t.Fatalf("last IE = %+v, want Target-RAN-Node-ID", last)
 	}
 

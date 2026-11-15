@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/eps"
+	"github.com/ellanetworks/core/per/ap"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -93,7 +94,7 @@ func pathSwitchUE(t *testing.T, m *mme.MME) *mme.UeContext {
 func switchedDLItem() s1ap.ERABToBeSwitchedDLItem {
 	return s1ap.ERABToBeSwitchedDLItem{
 		ERABID:                s1ap.ERABID(mme.DefaultERABID),
-		TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2},
+		TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 2}),
 		GTPTEID:               0x99,
 	}
 }
@@ -105,7 +106,7 @@ func samplePathSwitchRequest(ue *mme.UeContext) *s1ap.PathSwitchRequest {
 		SourceMMEUES1APID:      ue.Conn().MMEUES1APID,
 		EUTRANCGI:              s1ap.Ptr(s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 1}),
 		TAI:                    s1ap.Ptr(s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}),
-		UESecurityCapabilities: s1ap.Ptr(s1ap.UESecurityCapabilities{EncryptionAlgorithms: 0xc000, IntegrityProtectionAlgorithms: 0xc000}),
+		UESecurityCapabilities: s1ap.Ptr(s1ap.UESecurityCapabilities{EncryptionAlgorithms: s1ap.SecurityAlgorithms{Value: 0xc000}, IntegrityProtectionAlgorithms: s1ap.SecurityAlgorithms{Value: 0xc000}}),
 	}
 }
 
@@ -162,7 +163,7 @@ func TestPathSwitchUnknownUEFails(t *testing.T) {
 		SourceMMEUES1APID:      999,
 		EUTRANCGI:              s1ap.Ptr(s1ap.EUTRANCGI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 1}),
 		TAI:                    s1ap.Ptr(s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}),
-		UESecurityCapabilities: s1ap.Ptr(s1ap.UESecurityCapabilities{EncryptionAlgorithms: 0xc000, IntegrityProtectionAlgorithms: 0xc000}),
+		UESecurityCapabilities: s1ap.Ptr(s1ap.UESecurityCapabilities{EncryptionAlgorithms: s1ap.SecurityAlgorithms{Value: 0xc000}, IntegrityProtectionAlgorithms: s1ap.SecurityAlgorithms{Value: 0xc000}}),
 	}
 
 	target := &captureConn{}
@@ -172,7 +173,7 @@ func TestPathSwitchUnknownUEFails(t *testing.T) {
 		t.Fatalf("expected one downlink (Failure), got %d", target.count())
 	}
 
-	if fail := parsePathSwitchFailure(t, target.sent[0]); fail.Cause == nil || *fail.Cause != causeUnknownMMEUES1APID {
+	if fail := parsePathSwitchFailure(t, target.sent[0]); fail.Cause == nil || !fail.Cause.Equal(causeUnknownMMEUES1APID) {
 		t.Fatalf("cause = %+v, want unknown-mme-ue-s1ap-id", fail.Cause)
 	}
 }
@@ -189,7 +190,7 @@ func TestPathSwitchNoSecurityContextFails(t *testing.T) {
 		t.Fatalf("expected one downlink (Failure), got %d", target.count())
 	}
 
-	if fail := parsePathSwitchFailure(t, target.sent[0]); fail.Cause == nil || *fail.Cause != causePathSwitchNoSecurity {
+	if fail := parsePathSwitchFailure(t, target.sent[0]); fail.Cause == nil || !fail.Cause.Equal(causePathSwitchNoSecurity) {
 		t.Fatalf("cause = %+v, want authentication-failure", fail.Cause)
 	}
 
@@ -208,7 +209,7 @@ func TestPathSwitchDuplicateERABFails(t *testing.T) {
 	target := &captureConn{}
 	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(target), pathSwitchValue(t, req))
 
-	if fail := parsePathSwitchFailure(t, target.sent[0]); fail.Cause == nil || *fail.Cause != causeMultipleERABInstances {
+	if fail := parsePathSwitchFailure(t, target.sent[0]); fail.Cause == nil || !fail.Cause.Equal(causeMultipleERABInstances) {
 		t.Fatalf("cause = %+v, want multiple-E-RAB-ID-instances", fail.Cause)
 	}
 
@@ -227,7 +228,7 @@ func TestPathSwitchUnknownERABFails(t *testing.T) {
 	target := &captureConn{}
 	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(target), pathSwitchValue(t, req))
 
-	if fail := parsePathSwitchFailure(t, target.sent[0]); fail.Cause == nil || *fail.Cause != causePathSwitchUPFailure {
+	if fail := parsePathSwitchFailure(t, target.sent[0]); fail.Cause == nil || !fail.Cause.Equal(causePathSwitchUPFailure) {
 		t.Fatalf("cause = %+v, want transport-resource-unavailable", fail.Cause)
 	}
 
@@ -245,15 +246,15 @@ func TestPathSwitchCapabilityMismatchReplaysStored(t *testing.T) {
 	ue := pathSwitchUE(t, m)
 
 	req := samplePathSwitchRequest(ue)
-	req.UESecurityCapabilities = s1ap.Ptr(s1ap.UESecurityCapabilities{EncryptionAlgorithms: 0x8000, IntegrityProtectionAlgorithms: 0x8000})
+	req.UESecurityCapabilities = s1ap.Ptr(s1ap.UESecurityCapabilities{EncryptionAlgorithms: s1ap.SecurityAlgorithms{Value: 0x8000}, IntegrityProtectionAlgorithms: s1ap.SecurityAlgorithms{Value: 0x8000}})
 
 	target := &captureConn{}
 	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(target), pathSwitchValue(t, req))
 
 	ack := parsePathSwitchAck(t, target.sent[0])
 
-	want := s1ap.UESecurityCapabilities{EncryptionAlgorithms: 0xc000, IntegrityProtectionAlgorithms: 0xc000}
-	if ack.UESecurityCapabilities == nil || *ack.UESecurityCapabilities != want {
+	want := s1ap.UESecurityCapabilities{EncryptionAlgorithms: s1ap.SecurityAlgorithms{Value: 0xc000}, IntegrityProtectionAlgorithms: s1ap.SecurityAlgorithms{Value: 0xc000}}
+	if ack.UESecurityCapabilities == nil || !ack.UESecurityCapabilities.Equal(want) {
 		t.Fatalf("replayed capabilities = %+v, want %+v", ack.UESecurityCapabilities, want)
 	}
 }
@@ -290,7 +291,7 @@ func TestPathSwitchPartialFailureReleasesUnswitchedERAB(t *testing.T) {
 
 	req.ERABToBeSwitchedDL = append(req.ERABToBeSwitchedDL, s1ap.ERABToBeSwitchedDLItem{
 		ERABID:                unknownERAB,
-		TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 3},
+		TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 3}),
 		GTPTEID:               0x9a,
 	})
 

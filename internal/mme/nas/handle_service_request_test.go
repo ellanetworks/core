@@ -177,7 +177,7 @@ func TestServiceRequestRestoresThePreservedVoiceBearer(t *testing.T) {
 	m.DedicatedBearerAccepted(t.Context(), ue, 6)
 	m.ReconcileBearersToRAN(t.Context(), ue, mme.RANBearers{Present: []mme.RANBearer{{Ebi: 6, EnbFTEID: models.FTEID{TEID: 0x77, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 3})}}}})
 
-	m.ReleaseUEContext(t.Context(), ue, ue.Conn(), s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUserInactivity})
+	m.ReleaseUEContext(t.Context(), ue, ue.Conn(), s1ap.CauseRadioNetworkUserInactivity.Cause())
 	m.FreeUeConn(t.Context(), ue)
 
 	if ue.Connected() {
@@ -294,7 +294,7 @@ func TestServiceRequestS1UTransportFamily(t *testing.T) {
 			}
 
 			ics := parseInitialContextSetup(t, cc.sent[0])
-			got := []byte(ics.ERABToBeSetup[0].TransportLayerAddress)
+			got := ics.ERABToBeSetup[0].TransportLayerAddress.Bytes()
 
 			if !bytes.Equal(got, tc.wantTLA) {
 				t.Fatalf("S1-U transport layer address = %x, want %x", got, tc.wantTLA)
@@ -355,8 +355,8 @@ func TestServiceRequestUnknownSTMSIRejected(t *testing.T) {
 	}
 
 	cmd := parseUEContextReleaseCommand(t, cc.sent[1])
-	if cmd.UES1APIDs.ENBUES1APID != msg.ENBUES1APID {
-		t.Fatalf("release eNB-UE-S1AP-ID = %d, want %d", cmd.UES1APIDs.ENBUES1APID, msg.ENBUES1APID)
+	if enbID, _ := cmd.UES1APIDs.ENBID(); enbID != msg.ENBUES1APID {
+		t.Fatalf("release eNB-UE-S1AP-ID = %d, want %d", enbID, msg.ENBUES1APID)
 	}
 }
 

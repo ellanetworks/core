@@ -15,16 +15,16 @@ import (
 )
 
 // enbTransportAddress resolves the eNB S1-U endpoint from an E-RAB Transport
-// Layer Address (TS 36.413): IPv4 (4 octets), IPv6 (16), or dual-stack (20),
+// Layer Address (TS 36.413): IPv4 (32 bits), IPv6 (128), or dual-stack (160),
 // preferring IPv6. It reports false when no address is present.
 func enbTransportAddress(tla s1ap.TransportLayerAddress) (netip.Addr, bool) {
-	v4, v6 := tla.IPs()
+	v4, v6 := tla.IPv4(), tla.IPv6()
 
 	switch {
 	case v6.IsValid():
 		return v6.Unmap(), true
 	case v4.IsValid():
-		return v4.Unmap(), true
+		return v4, true
 	default:
 		return netip.Addr{}, false
 	}

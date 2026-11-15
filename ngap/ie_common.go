@@ -4,10 +4,8 @@
 package ngap
 
 import (
-	"fmt"
-	"net/netip"
-
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 // nameMaxLen bounds AMFName / RANNodeName (PrintableString (SIZE(1..150,...))).
@@ -72,7 +70,7 @@ func (n *AMFNameUTF8String) UnmarshalPER(r *per.Reader, enc per.Encoding) error 
 type ExtendedAMFName struct {
 	AMFNameVisibleString *AMFNameVisibleString  `per:",optional"`
 	AMFNameUTF8String    *AMFNameUTF8String     `per:",optional"`
-	iEExtensions         *rawIEExtensions       `per:",optional"`
+	iEExtensions         extensionMeta          `per:",exttable"`
 	extensions           per.ExtensionAdditions `per:",extraw"`
 }
 
@@ -99,53 +97,25 @@ func (t *GTPTEID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 type GTPTunnel struct {
 	TransportLayerAddress TransportLayerAddress
 	GTPTEID               GTPTEID
-	iEExtensions          *rawIEExtensions       `per:",optional"`
+	iEExtensions          extensionMeta          `per:",exttable"`
 	extensions            per.ExtensionAdditions `per:",extraw"`
 }
-
-// UPTransportLayerInformation CHOICE alternatives. The CHOICE is not
-// extensible, so choice-Extensions is a plain alternative index.
-const (
-	upTransportLayerInformationGTPTunnel = iota
-	upTransportLayerInformationChoiceExtensions
-
-	upTransportLayerInformationAlternatives = 2
-)
 
 // UPTransportLayerInformation ::= CHOICE { gTPTunnel, choice-Extensions } —
 // TS 38.413 §9.3.2.2. S1AP carries the user-plane endpoint as a bare
 // TransportLayerAddress and GTP-TEID pair inside each E-RAB item instead.
 type UPTransportLayerInformation struct {
-	GTPTunnel GTPTunnel
-}
-
-func (u UPTransportLayerInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, upTransportLayerInformationAlternatives-1, upTransportLayerInformationGTPTunnel); err != nil {
-		return err
-	}
-
-	return u.GTPTunnel.MarshalPER(w, enc)
-}
-
-func (u *UPTransportLayerInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, upTransportLayerInformationAlternatives-1)
-	if err != nil {
-		return err
-	}
-
-	if idx == upTransportLayerInformationChoiceExtensions {
-		return decodeChoiceExtension(r, enc, "UPTransportLayerInformation")
-	}
-
-	return u.GTPTunnel.UnmarshalPER(r, enc)
+	GTPTunnel       *GTPTunnel       `per:",choice:0"`
+	ChoiceExtension *SingleContainer `per:",choice:1,extie"`
 }
 
 // UPTransportLayerInformationItem ::= SEQUENCE { nGU-UP-TNLInformation,
 // iE-Extensions OPTIONAL } (extensible).
 type UPTransportLayerInformationItem struct {
-	NGUUPTNLInformation UPTransportLayerInformation
-	iEExtensions        *rawIEExtensions       `per:",optional"`
-	extensions          per.ExtensionAdditions `per:",extraw"`
+	NGUUPTNLInformation   UPTransportLayerInformation
+	CommonNetworkInstance *CommonNetworkInstance `per:",extie:IDCommonNetworkInstance,crit:ignore"`
+	iEExtensions          extensionMeta          `per:",exttable"`
+	extensions            per.ExtensionAdditions `per:",extraw"`
 }
 
 // UPTransportLayerInformationList ::= SEQUENCE
@@ -159,7 +129,7 @@ type UPTransportLayerInformationList []UPTransportLayerInformationItem
 type UPTransportLayerInformationPairItem struct {
 	ULNGUUPTNLInformation UPTransportLayerInformation
 	DLNGUUPTNLInformation UPTransportLayerInformation
-	iEExtensions          *rawIEExtensions       `per:",optional"`
+	iEExtensions          extensionMeta          `per:",exttable"`
 	extensions            per.ExtensionAdditions `per:",extraw"`
 }
 
@@ -175,19 +145,10 @@ type UPTransportLayerInformationPairList []UPTransportLayerInformationPairItem
 type ULNGUUPTNLModifyItem struct {
 	ULNGUUPTNLInformation          UPTransportLayerInformation
 	DLNGUUPTNLInformation          UPTransportLayerInformation
-	RedundantULNGUUPTNLInformation *UPTransportLayerInformation `per:"-"`
-	RedundantDLNGUUPTNLInformation *UPTransportLayerInformation `per:"-"`
-	iEExtensions                   messageMeta                  `per:",exttable:uLNGUUPTNLModifyItemExtIEs"`
+	RedundantULNGUUPTNLInformation *UPTransportLayerInformation `per:",extie:IDRedundantULNGUUPTNLInformation,crit:ignore"`
+	RedundantDLNGUUPTNLInformation *UPTransportLayerInformation `per:",extie:IDRedundantDLNGUUPTNLInformation,crit:ignore"`
+	iEExtensions                   extensionMeta                `per:",exttable"`
 	extensions                     per.ExtensionAdditions       `per:",extraw"`
-}
-
-var uLNGUUPTNLModifyItemExtIEs = []ieSpec[ULNGUUPTNLModifyItem]{
-	optionalExtension(IDRedundantULNGUUPTNLInformation, CriticalityIgnore, func(m *ULNGUUPTNLModifyItem) **UPTransportLayerInformation {
-		return &m.RedundantULNGUUPTNLInformation
-	}),
-	optionalExtension(IDRedundantDLNGUUPTNLInformation, CriticalityIgnore, func(m *ULNGUUPTNLModifyItem) **UPTransportLayerInformation {
-		return &m.RedundantDLNGUUPTNLInformation
-	}),
 }
 
 // ULNGUUPTNLModifyList ::= SEQUENCE (SIZE(1..maxnoofMultiConnectivity)) OF
@@ -202,15 +163,17 @@ func (d DRBID) MarshalPER(w *per.Writer, enc per.Encoding) error {
 }
 
 func (d *DRBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := decodeExtensibleInt(r, enc, 1, 32, "DRB-ID")
+	v, err := decodeExtensibleInt[DRBID](r, enc, 1, 32)
 	if err != nil {
 		return err
 	}
 
-	*d = DRBID(v)
+	*d = v
 
 	return nil
 }
+
+func (v DRBID) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool { return outsideRoot(int64(v), 1, 32) }
 
 // DataForwardingResponseDRBItem ::= SEQUENCE { dRB-ID,
 // dLForwardingUP-TNLInformation OPTIONAL, uLForwardingUP-TNLInformation
@@ -219,7 +182,7 @@ type DataForwardingResponseDRBItem struct {
 	DRBID                        DRBID
 	DLForwardingUPTNLInformation *UPTransportLayerInformation `per:",optional"`
 	ULForwardingUPTNLInformation *UPTransportLayerInformation `per:",optional"`
-	iEExtensions                 *rawIEExtensions             `per:",optional"`
+	iEExtensions                 extensionMeta                `per:",exttable"`
 	extensions                   per.ExtensionAdditions       `per:",extraw"`
 }
 
@@ -230,7 +193,7 @@ type DataForwardingResponseDRBList []DataForwardingResponseDRBItem
 type DataForwardingResponseERABListItem struct {
 	ERABID                       ERABID
 	DLForwardingUPTNLInformation UPTransportLayerInformation
-	iEExtensions                 *rawIEExtensions       `per:",optional"`
+	iEExtensions                 extensionMeta          `per:",exttable"`
 	extensions                   per.ExtensionAdditions `per:",extraw"`
 }
 
@@ -255,15 +218,9 @@ type AdditionalDLUPTNLInformationForHOItem struct {
 	AdditionalDLNGUUPTNLInformation          UPTransportLayerInformation
 	AdditionalQosFlowSetupResponse           QosFlowListWithDataForwarding
 	AdditionalDLForwardingUPTNLInformation   *UPTransportLayerInformation `per:",optional"`
-	AdditionalRedundantDLNGUUPTNLInformation *UPTransportLayerInformation `per:"-"`
-	iEExtensions                             messageMeta                  `per:",exttable:additionalDLUPTNLInformationForHOItemExtIEs"`
+	AdditionalRedundantDLNGUUPTNLInformation *UPTransportLayerInformation `per:",extie:IDAdditionalRedundantDLNGUUPTNLInformation,crit:ignore"`
+	iEExtensions                             extensionMeta                `per:",exttable"`
 	extensions                               per.ExtensionAdditions       `per:",extraw"`
-}
-
-var additionalDLUPTNLInformationForHOItemExtIEs = []ieSpec[AdditionalDLUPTNLInformationForHOItem]{
-	optionalExtension(IDAdditionalRedundantDLNGUUPTNLInformation, CriticalityIgnore, func(m *AdditionalDLUPTNLInformationForHOItem) **UPTransportLayerInformation {
-		return &m.AdditionalRedundantDLNGUUPTNLInformation
-	}),
 }
 
 type AdditionalDLUPTNLInformationForHOList []AdditionalDLUPTNLInformationForHOItem
@@ -288,63 +245,33 @@ type UserPlaneFailureType uint8
 const (
 	UserPlaneFailureTypeGTPUErrorIndicationReceived UserPlaneFailureType = iota
 	UserPlaneFailureTypeUPPathFailure
-
-	userPlaneFailureTypeRootCount = 2
 )
-
-func (u UserPlaneFailureType) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, userPlaneFailureTypeRootCount, int64(u), "UserPlaneFailureType")
-}
-
-func (u *UserPlaneFailureType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, userPlaneFailureTypeRootCount, "UserPlaneFailureType")
-	if err != nil {
-		return err
-	}
-
-	*u = UserPlaneFailureType(idx)
-
-	return nil
-}
 
 type UserPlaneFailureIndication struct {
 	UserPlaneFailureType  UserPlaneFailureType
 	ULNGUUPTNLInformation UPTransportLayerInformation
 	DLNGUUPTNLInformation UPTransportLayerInformation
-	iEExtensions          *rawIEExtensions       `per:",optional"`
+	iEExtensions          extensionMeta          `per:",exttable"`
 	extensions            per.ExtensionAdditions `per:",extraw"`
 }
 
-// encodeExtensibleInt encodes an INTEGER whose constraint carries an extension
-// marker but defines no extension additions: X.691 §13.1 spends one bit, then
-// the root value follows. A value outside the root is refused rather than sent
-// as an extension, because 3GPP has defined no such addition to send.
 func encodeExtensibleInt(w *per.Writer, enc per.Encoding, lb, ub, n int64) error {
-	if n < lb || n > ub {
-		return fmt.Errorf("value %d outside the extension root %d..%d", n, lb, ub)
-	}
-
-	w.WriteBit(false)
-
-	return per.EncodeInteger(w, enc, per.Bounds{LB: lb, HasLB: true, UB: ub, HasUB: true}, n)
+	return per.EncodeInteger(w, enc, per.Bounds{LB: lb, HasLB: true, UB: ub, HasUB: true, Extensible: true}, n)
 }
 
-// decodeExtensibleInt consumes an extension value before reporting it, so the
-// reader is left positioned after the field: X.691 §13.1 sends an out-of-root
-// value as an unconstrained integer (§13.2.4-13.2.6), which carries its own
-// length determinant and is therefore skippable without knowing the addition.
-// Criticality then decides what to do with the enclosing IE (§10.3.1 case 6).
-func decodeExtensibleInt(r *per.Reader, enc per.Encoding, lb, ub int64, name string) (int64, error) {
+func outsideRoot(v, lb, ub int64) bool { return v < lb || v > ub }
+
+func decodeExtensibleInt[T per.Integer](r *per.Reader, enc per.Encoding, lb, ub int64) (T, error) {
 	v, err := per.DecodeInteger(r, enc, per.Bounds{LB: lb, HasLB: true, UB: ub, HasUB: true, Extensible: true})
 	if err != nil {
 		return 0, err
 	}
 
-	if v < lb || v > ub {
-		return 0, fmt.Errorf("%w: %s extension value %d", errNotComprehended, name, v)
+	if t := T(v); int64(t) == v {
+		return t, nil
 	}
 
-	return v, nil
+	return 0, per.ErrOverflow
 }
 
 // TransferContainer is an OCTET STRING (CONTAINING XxxTransfer): a nested PER
@@ -367,47 +294,7 @@ func (c *TransferContainer) UnmarshalPER(r *per.Reader, enc per.Encoding) error 
 	return nil
 }
 
-// TransportLayerAddress ::= BIT STRING (SIZE(1..160, ...)). Holds the address
-// octets (IPv4 = 4, IPv6 = 16).
-type TransportLayerAddress []byte
-
-func (a TransportLayerAddress) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return per.EncodeBitString(w, enc, 1, 160, true, true, true, a, len(a)*8)
-}
-
-func (a *TransportLayerAddress) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	b, nbits, err := per.DecodeBitString(r, enc, 1, 160, true, true, true)
-	if err != nil {
-		return err
-	}
-
-	*a = TransportLayerAddress(b[:(nbits+7)/8])
-
-	return nil
-}
-
-// IPs returns the addresses the bit string carries. TS 38.414 §5.1 packs an
-// IPv4 address, an IPv6 address, or both with the IPv4 one first; a return is
-// invalid when that address is absent.
-func (a TransportLayerAddress) IPs() (ipv4, ipv6 netip.Addr) {
-	switch len(a) {
-	case 4:
-		ipv4, _ = netip.AddrFromSlice(a)
-	case 16:
-		ipv6, _ = netip.AddrFromSlice(a)
-	case 20:
-		ipv4, _ = netip.AddrFromSlice(a[:4])
-		ipv6, _ = netip.AddrFromSlice(a[4:])
-	}
-
-	return ipv4, ipv6
-}
-
-func (a TransportLayerAddress) Valid() bool {
-	ipv4, ipv6 := a.IPs()
-
-	return ipv4.IsValid() || ipv6.IsValid()
-}
+type TransportLayerAddress = ap.TransportLayerAddress
 
 // Most significant bit first, matching BIT STRING storage.
 func uintToBits(v uint64, nbits int) []byte {
@@ -438,4 +325,54 @@ func bitsToUint(b []byte, nbits int) uint64 {
 	}
 
 	return v
+}
+
+const uint64RangeOctets = 8
+
+func encodeUint64Range(w *per.Writer, enc per.Encoding, v uint64) error {
+	if enc == per.Unaligned {
+		w.WriteBits(v, 64)
+
+		return nil
+	}
+
+	octets := 1
+	for x := v >> 8; x != 0; x >>= 8 {
+		octets++
+	}
+
+	return per.EncodeLength(w, enc, 1, uint64RangeOctets, true, int64(octets), func(int64) error {
+		w.AlignToByte()
+
+		for i := octets - 1; i >= 0; i-- {
+			w.WriteBits(v>>(8*i)&0xff, 8)
+		}
+
+		return nil
+	})
+}
+
+func decodeUint64Range(r *per.Reader, enc per.Encoding) (uint64, error) {
+	if enc == per.Unaligned {
+		return r.ReadBits(64)
+	}
+
+	var v uint64
+
+	err := per.DecodeLength(r, enc, 1, uint64RangeOctets, true, func(count int64) error {
+		r.AlignToByte()
+
+		for range count {
+			b, err := r.ReadBits(8)
+			if err != nil {
+				return err
+			}
+
+			v = v<<8 | b
+		}
+
+		return nil
+	})
+
+	return v, err
 }

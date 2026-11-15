@@ -8,6 +8,7 @@ import (
 	"net/netip"
 
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 type PathSwitchRequestOpts struct {
@@ -36,7 +37,7 @@ func BuildPathSwitchRequest(opts *PathSwitchRequestOpts) ([]byte, error) {
 		return nil, err
 	}
 
-	addr, err := transportLayerAddress(opts.N3GnbIp)
+	addr, err := ap.TransportLayerAddressFrom(opts.N3GnbIp)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +77,7 @@ func BuildPathSwitchRequest(opts *PathSwitchRequestOpts) ([]byte, error) {
 func buildPathSwitchRequestTransfer(teid uint32, addr ngap.TransportLayerAddress, flows []uint8) (ngap.TransferContainer, error) {
 	transfer := &ngap.PathSwitchRequestTransfer{
 		DLNGUUPTNLInformation: ngap.UPTransportLayerInformation{
-			GTPTunnel: ngap.GTPTunnel{TransportLayerAddress: addr, GTPTEID: ngap.GTPTEID(teid)},
+			GTPTunnel: &ngap.GTPTunnel{TransportLayerAddress: addr, GTPTEID: ngap.GTPTEID(teid)},
 		},
 		QosFlowAccepted: ngap.QosFlowAcceptedList{{QosFlowIdentifier: 1}},
 	}

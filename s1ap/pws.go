@@ -10,9 +10,9 @@ import (
 func decodeOptionalIE[T any, PT interface {
 	*T
 	per.Unmarshaler
-}](raw []byte, dst **T) error {
+}](r *per.Reader, dst **T) error {
 	v := PT(new(T))
-	if err := perIEDecode(raw, v); err != nil {
+	if err := decodeIE(r, v); err != nil {
 		return err
 	}
 
@@ -32,8 +32,8 @@ func optionalIE[T any, PT interface {
 	return PT(v), true
 }
 
-func decodeOptionalInteger[T ~uint8 | ~uint16 | ~uint32](raw []byte, b per.Bounds, dst **T) error {
-	n, err := per.DecodeInteger(per.NewReader(raw), per.Aligned, b)
+func decodeOptionalInteger[T ~uint8 | ~uint16 | ~uint32](r *per.Reader, b per.Bounds, dst **T) error {
+	n, err := per.DecodeInteger(r, per.Aligned, b)
 	if err != nil {
 		return err
 	}
@@ -69,44 +69,44 @@ type WriteReplaceWarningRequest struct {
 
 var writeReplaceWarningRequestIEs = []ieSpec[WriteReplaceWarningRequest]{
 	{
-		id: IDMessageIdentifier, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *WriteReplaceWarningRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.MessageIdentifier)
+		ID: IDMessageIdentifier, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *WriteReplaceWarningRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.MessageIdentifier)
 		},
-		encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) { return &m.MessageIdentifier, true },
+		Encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) { return &m.MessageIdentifier, true },
 	},
 	{
-		id: IDSerialNumber, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *WriteReplaceWarningRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.SerialNumber)
+		ID: IDSerialNumber, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *WriteReplaceWarningRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.SerialNumber)
 		},
-		encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) { return &m.SerialNumber, true },
+		Encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) { return &m.SerialNumber, true },
 	},
 	{
-		id: IDWarningAreaList, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *WriteReplaceWarningRequest, raw []byte, enc per.Encoding) error {
-			return decodeOptionalIE(raw, &m.WarningAreaList)
+		ID: IDWarningAreaList, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *WriteReplaceWarningRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeOptionalIE(r, &m.WarningAreaList)
 		},
-		encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) { return optionalIE(m.WarningAreaList) },
+		Encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) { return optionalIE(m.WarningAreaList) },
 	},
 	{
-		id: IDRepetitionPeriod, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *WriteReplaceWarningRequest, raw []byte, enc per.Encoding) error {
-			n, err := per.DecodeInteger(per.NewReader(raw), enc, repetitionPeriodBounds)
+		ID: IDRepetitionPeriod, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *WriteReplaceWarningRequest, r *per.Reader, enc per.Encoding) error {
+			n, err := per.DecodeInteger(r, enc, repetitionPeriodBounds)
 			m.RepetitionPeriod = uint16(n)
 
 			return err
 		},
-		encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) {
+		Encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) {
 			return integerIE(repetitionPeriodBounds, int64(m.RepetitionPeriod)), true
 		},
 	},
 	{
-		id: IDExtendedRepetitionPeriod, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *WriteReplaceWarningRequest, raw []byte, enc per.Encoding) error {
-			return decodeOptionalInteger(raw, extendedRepetitionPeriodBounds, &m.ExtendedRepetitionPeriod)
+		ID: IDExtendedRepetitionPeriod, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *WriteReplaceWarningRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeOptionalInteger(r, extendedRepetitionPeriodBounds, &m.ExtendedRepetitionPeriod)
 		},
-		encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) {
+		Encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) {
 			if m.ExtendedRepetitionPeriod == nil {
 				return nil, false
 			}
@@ -115,62 +115,62 @@ var writeReplaceWarningRequestIEs = []ieSpec[WriteReplaceWarningRequest]{
 		},
 	},
 	{
-		id: IDNumberofBroadcastRequest, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *WriteReplaceWarningRequest, raw []byte, enc per.Encoding) error {
-			n, err := per.DecodeInteger(per.NewReader(raw), enc, numberofBroadcastRequestBounds)
+		ID: IDNumberofBroadcastRequest, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *WriteReplaceWarningRequest, r *per.Reader, enc per.Encoding) error {
+			n, err := per.DecodeInteger(r, enc, numberofBroadcastRequestBounds)
 			m.NumberofBroadcastRequest = uint16(n)
 
 			return err
 		},
-		encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) {
+		Encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) {
 			return integerIE(numberofBroadcastRequestBounds, int64(m.NumberofBroadcastRequest)), true
 		},
 	},
 	{
-		id: IDWarningType, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *WriteReplaceWarningRequest, raw []byte, enc per.Encoding) error {
-			return decodeOptionalIE(raw, &m.WarningType)
+		ID: IDWarningType, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *WriteReplaceWarningRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeOptionalIE(r, &m.WarningType)
 		},
-		encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) { return optionalIE(m.WarningType) },
+		Encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) { return optionalIE(m.WarningType) },
 	},
 	{
-		id: IDWarningSecurityInfo, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *WriteReplaceWarningRequest, raw []byte, enc per.Encoding) error {
-			return decodeOptionalIE(raw, &m.WarningSecurityInfo)
+		ID: IDWarningSecurityInfo, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *WriteReplaceWarningRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeOptionalIE(r, &m.WarningSecurityInfo)
 		},
-		encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) { return optionalIE(m.WarningSecurityInfo) },
+		Encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) { return optionalIE(m.WarningSecurityInfo) },
 	},
 	{
-		id: IDDataCodingScheme, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *WriteReplaceWarningRequest, raw []byte, enc per.Encoding) error {
-			return decodeOptionalIE(raw, &m.DataCodingScheme)
+		ID: IDDataCodingScheme, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *WriteReplaceWarningRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeOptionalIE(r, &m.DataCodingScheme)
 		},
-		encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) { return optionalIE(m.DataCodingScheme) },
+		Encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) { return optionalIE(m.DataCodingScheme) },
 	},
 	{
-		id: IDWarningMessageContents, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *WriteReplaceWarningRequest, raw []byte, enc per.Encoding) error {
-			return decodeOptionalIE(raw, &m.WarningMessageContents)
+		ID: IDWarningMessageContents, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *WriteReplaceWarningRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeOptionalIE(r, &m.WarningMessageContents)
 		},
-		encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) {
+		Encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) {
 			return optionalIE(m.WarningMessageContents)
 		},
 	},
 	{
-		id: IDConcurrentWarningMessageIndicator, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *WriteReplaceWarningRequest, raw []byte, enc per.Encoding) error {
-			return decodeOptionalIE(raw, &m.ConcurrentWarningMessageIndicator)
+		ID: IDConcurrentWarningMessageIndicator, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *WriteReplaceWarningRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeOptionalIE(r, &m.ConcurrentWarningMessageIndicator)
 		},
-		encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) {
+		Encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) {
 			return optionalIE(m.ConcurrentWarningMessageIndicator)
 		},
 	},
 	{
-		id: IDWarningAreaCoordinates, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *WriteReplaceWarningRequest, raw []byte, enc per.Encoding) error {
-			return decodeOptionalIE(raw, &m.WarningAreaCoordinates)
+		ID: IDWarningAreaCoordinates, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *WriteReplaceWarningRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeOptionalIE(r, &m.WarningAreaCoordinates)
 		},
-		encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) {
+		Encode: func(m *WriteReplaceWarningRequest) (per.Marshaler, bool) {
 			return optionalIE(m.WarningAreaCoordinates)
 		},
 	},
@@ -200,6 +200,10 @@ func ParseWriteReplaceWarningRequest(value []byte) (*WriteReplaceWarningRequest,
 	return parseMessageBody[WriteReplaceWarningRequest](ProcWriteReplaceWarning, TriggeringInitiatingMessage, writeReplaceWarningRequestIEs, value)
 }
 
+func DecodeWriteReplaceWarningRequest(value []byte) (*WriteReplaceWarningRequest, error) {
+	return decodeMessageBody[WriteReplaceWarningRequest](ProcWriteReplaceWarning, writeReplaceWarningRequestIEs, value)
+}
+
 type WriteReplaceWarningResponse struct {
 	MessageIdentifier          MessageIdentifier
 	SerialNumber               SerialNumber
@@ -211,34 +215,34 @@ type WriteReplaceWarningResponse struct {
 
 var writeReplaceWarningResponseIEs = []ieSpec[WriteReplaceWarningResponse]{
 	{
-		id: IDMessageIdentifier, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *WriteReplaceWarningResponse, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.MessageIdentifier)
+		ID: IDMessageIdentifier, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *WriteReplaceWarningResponse, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.MessageIdentifier)
 		},
-		encode: func(m *WriteReplaceWarningResponse) (per.Marshaler, bool) { return &m.MessageIdentifier, true },
+		Encode: func(m *WriteReplaceWarningResponse) (per.Marshaler, bool) { return &m.MessageIdentifier, true },
 	},
 	{
-		id: IDSerialNumber, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *WriteReplaceWarningResponse, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.SerialNumber)
+		ID: IDSerialNumber, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *WriteReplaceWarningResponse, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.SerialNumber)
 		},
-		encode: func(m *WriteReplaceWarningResponse) (per.Marshaler, bool) { return &m.SerialNumber, true },
+		Encode: func(m *WriteReplaceWarningResponse) (per.Marshaler, bool) { return &m.SerialNumber, true },
 	},
 	{
-		id: IDBroadcastCompletedAreaList, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *WriteReplaceWarningResponse, raw []byte, enc per.Encoding) error {
-			return decodeOptionalIE(raw, &m.BroadcastCompletedAreaList)
+		ID: IDBroadcastCompletedAreaList, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *WriteReplaceWarningResponse, r *per.Reader, enc per.Encoding) error {
+			return decodeOptionalIE(r, &m.BroadcastCompletedAreaList)
 		},
-		encode: func(m *WriteReplaceWarningResponse) (per.Marshaler, bool) {
+		Encode: func(m *WriteReplaceWarningResponse) (per.Marshaler, bool) {
 			return optionalIE(m.BroadcastCompletedAreaList)
 		},
 	},
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *WriteReplaceWarningResponse, raw []byte, enc per.Encoding) error {
-			return decodeOptionalIE(raw, &m.CriticalityDiagnostics)
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *WriteReplaceWarningResponse, r *per.Reader, enc per.Encoding) error {
+			return decodeOptionalIE(r, &m.CriticalityDiagnostics)
 		},
-		encode: func(m *WriteReplaceWarningResponse) (per.Marshaler, bool) {
+		Encode: func(m *WriteReplaceWarningResponse) (per.Marshaler, bool) {
 			return optionalIE(m.CriticalityDiagnostics)
 		},
 	},
@@ -268,6 +272,10 @@ func ParseWriteReplaceWarningResponse(value []byte) (*WriteReplaceWarningRespons
 	return parseMessageBody[WriteReplaceWarningResponse](ProcWriteReplaceWarning, TriggeringSuccessfulOutcome, writeReplaceWarningResponseIEs, value)
 }
 
+func DecodeWriteReplaceWarningResponse(value []byte) (*WriteReplaceWarningResponse, error) {
+	return decodeMessageBody[WriteReplaceWarningResponse](ProcWriteReplaceWarning, writeReplaceWarningResponseIEs, value)
+}
+
 type KillRequest struct {
 	MessageIdentifier      MessageIdentifier
 	SerialNumber           SerialNumber
@@ -279,32 +287,32 @@ type KillRequest struct {
 
 var killRequestIEs = []ieSpec[KillRequest]{
 	{
-		id: IDMessageIdentifier, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *KillRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.MessageIdentifier)
+		ID: IDMessageIdentifier, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *KillRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.MessageIdentifier)
 		},
-		encode: func(m *KillRequest) (per.Marshaler, bool) { return &m.MessageIdentifier, true },
+		Encode: func(m *KillRequest) (per.Marshaler, bool) { return &m.MessageIdentifier, true },
 	},
 	{
-		id: IDSerialNumber, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *KillRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.SerialNumber)
+		ID: IDSerialNumber, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *KillRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.SerialNumber)
 		},
-		encode: func(m *KillRequest) (per.Marshaler, bool) { return &m.SerialNumber, true },
+		Encode: func(m *KillRequest) (per.Marshaler, bool) { return &m.SerialNumber, true },
 	},
 	{
-		id: IDWarningAreaList, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *KillRequest, raw []byte, enc per.Encoding) error {
-			return decodeOptionalIE(raw, &m.WarningAreaList)
+		ID: IDWarningAreaList, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *KillRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeOptionalIE(r, &m.WarningAreaList)
 		},
-		encode: func(m *KillRequest) (per.Marshaler, bool) { return optionalIE(m.WarningAreaList) },
+		Encode: func(m *KillRequest) (per.Marshaler, bool) { return optionalIE(m.WarningAreaList) },
 	},
 	{
-		id: IDKillAllWarningMessages, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *KillRequest, raw []byte, enc per.Encoding) error {
-			return decodeOptionalIE(raw, &m.KillAllWarningMessages)
+		ID: IDKillAllWarningMessages, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *KillRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeOptionalIE(r, &m.KillAllWarningMessages)
 		},
-		encode: func(m *KillRequest) (per.Marshaler, bool) { return optionalIE(m.KillAllWarningMessages) },
+		Encode: func(m *KillRequest) (per.Marshaler, bool) { return optionalIE(m.KillAllWarningMessages) },
 	},
 }
 
@@ -332,6 +340,10 @@ func ParseKillRequest(value []byte) (*KillRequest, error) {
 	return parseMessageBody[KillRequest](ProcKill, TriggeringInitiatingMessage, killRequestIEs, value)
 }
 
+func DecodeKillRequest(value []byte) (*KillRequest, error) {
+	return decodeMessageBody[KillRequest](ProcKill, killRequestIEs, value)
+}
+
 type KillResponse struct {
 	MessageIdentifier          MessageIdentifier
 	SerialNumber               SerialNumber
@@ -343,32 +355,32 @@ type KillResponse struct {
 
 var killResponseIEs = []ieSpec[KillResponse]{
 	{
-		id: IDMessageIdentifier, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *KillResponse, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.MessageIdentifier)
+		ID: IDMessageIdentifier, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *KillResponse, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.MessageIdentifier)
 		},
-		encode: func(m *KillResponse) (per.Marshaler, bool) { return &m.MessageIdentifier, true },
+		Encode: func(m *KillResponse) (per.Marshaler, bool) { return &m.MessageIdentifier, true },
 	},
 	{
-		id: IDSerialNumber, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *KillResponse, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.SerialNumber)
+		ID: IDSerialNumber, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *KillResponse, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.SerialNumber)
 		},
-		encode: func(m *KillResponse) (per.Marshaler, bool) { return &m.SerialNumber, true },
+		Encode: func(m *KillResponse) (per.Marshaler, bool) { return &m.SerialNumber, true },
 	},
 	{
-		id: IDBroadcastCancelledAreaList, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *KillResponse, raw []byte, enc per.Encoding) error {
-			return decodeOptionalIE(raw, &m.BroadcastCancelledAreaList)
+		ID: IDBroadcastCancelledAreaList, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *KillResponse, r *per.Reader, enc per.Encoding) error {
+			return decodeOptionalIE(r, &m.BroadcastCancelledAreaList)
 		},
-		encode: func(m *KillResponse) (per.Marshaler, bool) { return optionalIE(m.BroadcastCancelledAreaList) },
+		Encode: func(m *KillResponse) (per.Marshaler, bool) { return optionalIE(m.BroadcastCancelledAreaList) },
 	},
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *KillResponse, raw []byte, enc per.Encoding) error {
-			return decodeOptionalIE(raw, &m.CriticalityDiagnostics)
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *KillResponse, r *per.Reader, enc per.Encoding) error {
+			return decodeOptionalIE(r, &m.CriticalityDiagnostics)
 		},
-		encode: func(m *KillResponse) (per.Marshaler, bool) { return optionalIE(m.CriticalityDiagnostics) },
+		Encode: func(m *KillResponse) (per.Marshaler, bool) { return optionalIE(m.CriticalityDiagnostics) },
 	},
 }
 
@@ -396,6 +408,10 @@ func ParseKillResponse(value []byte) (*KillResponse, error) {
 	return parseMessageBody[KillResponse](ProcKill, TriggeringSuccessfulOutcome, killResponseIEs, value)
 }
 
+func DecodeKillResponse(value []byte) (*KillResponse, error) {
+	return decodeMessageBody[KillResponse](ProcKill, killResponseIEs, value)
+}
+
 type PWSRestartIndication struct {
 	ECGIListForRestart            []EUTRANCGI
 	GlobalENBID                   GlobalENBID
@@ -407,67 +423,61 @@ type PWSRestartIndication struct {
 
 var pWSRestartIndicationIEs = []ieSpec[PWSRestartIndication]{
 	{
-		id: IDECGIListForRestart, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *PWSRestartIndication, raw []byte, enc per.Encoding) error {
+		ID: IDECGIListForRestart, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *PWSRestartIndication, r *per.Reader, enc per.Encoding) error {
 			var err error
 
-			m.ECGIListForRestart, err = unmarshalSeqOf[EUTRANCGI](per.NewReader(raw), enc, 1, maxnoofCellsforRestart)
+			m.ECGIListForRestart, err = unmarshalSeqOf[EUTRANCGI](r, enc, 1, maxnoofCellsforRestart)
 
 			return err
 		},
-		encode: func(m *PWSRestartIndication) (per.Marshaler, bool) {
+		Encode: func(m *PWSRestartIndication) (per.Marshaler, bool) {
 			if len(m.ECGIListForRestart) == 0 {
 				return nil, false
 			}
 
-			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return marshalSeqOf(w, enc, 1, maxnoofCellsforRestart, m.ECGIListForRestart)
-			}), true
+			return seqOf(1, maxnoofCellsforRestart, m.ECGIListForRestart), true
 		},
 	},
 	{
-		id: IDGlobalENBID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *PWSRestartIndication, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.GlobalENBID)
+		ID: IDGlobalENBID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *PWSRestartIndication, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.GlobalENBID)
 		},
-		encode: func(m *PWSRestartIndication) (per.Marshaler, bool) { return &m.GlobalENBID, true },
+		Encode: func(m *PWSRestartIndication) (per.Marshaler, bool) { return &m.GlobalENBID, true },
 	},
 	{
-		id: IDTAIListForRestart, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *PWSRestartIndication, raw []byte, enc per.Encoding) error {
+		ID: IDTAIListForRestart, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *PWSRestartIndication, r *per.Reader, enc per.Encoding) error {
 			var err error
 
-			m.TAIListForRestart, err = unmarshalSeqOf[TAI](per.NewReader(raw), enc, 1, maxnoofRestartTAIs)
+			m.TAIListForRestart, err = unmarshalSeqOf[TAI](r, enc, 1, maxnoofRestartTAIs)
 
 			return err
 		},
-		encode: func(m *PWSRestartIndication) (per.Marshaler, bool) {
+		Encode: func(m *PWSRestartIndication) (per.Marshaler, bool) {
 			if len(m.TAIListForRestart) == 0 {
 				return nil, false
 			}
 
-			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return marshalSeqOf(w, enc, 1, maxnoofRestartTAIs, m.TAIListForRestart)
-			}), true
+			return seqOf(1, maxnoofRestartTAIs, m.TAIListForRestart), true
 		},
 	},
 	{
-		id: IDEmergencyAreaIDListForRestart, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *PWSRestartIndication, raw []byte, enc per.Encoding) error {
+		ID: IDEmergencyAreaIDListForRestart, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *PWSRestartIndication, r *per.Reader, enc per.Encoding) error {
 			var err error
 
-			m.EmergencyAreaIDListForRestart, err = unmarshalSeqOf[EmergencyAreaID](per.NewReader(raw), enc, 1, maxnoofRestartEmergencyAreaIDs)
+			m.EmergencyAreaIDListForRestart, err = unmarshalSeqOf[EmergencyAreaID](r, enc, 1, maxnoofRestartEmergencyAreaIDs)
 
 			return err
 		},
-		encode: func(m *PWSRestartIndication) (per.Marshaler, bool) {
+		Encode: func(m *PWSRestartIndication) (per.Marshaler, bool) {
 			if len(m.EmergencyAreaIDListForRestart) == 0 {
 				return nil, false
 			}
 
-			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return marshalSeqOf(w, enc, 1, maxnoofRestartEmergencyAreaIDs, m.EmergencyAreaIDListForRestart)
-			}), true
+			return seqOf(1, maxnoofRestartEmergencyAreaIDs, m.EmergencyAreaIDListForRestart), true
 		},
 	},
 }
@@ -496,6 +506,10 @@ func ParsePWSRestartIndication(value []byte) (*PWSRestartIndication, error) {
 	return parseMessageBody[PWSRestartIndication](ProcPWSRestartIndication, TriggeringInitiatingMessage, pWSRestartIndicationIEs, value)
 }
 
+func DecodePWSRestartIndication(value []byte) (*PWSRestartIndication, error) {
+	return decodeMessageBody[PWSRestartIndication](ProcPWSRestartIndication, pWSRestartIndicationIEs, value)
+}
+
 type PWSFailureIndication struct {
 	PWSFailedECGIList []EUTRANCGI
 	GlobalENBID       GlobalENBID
@@ -505,30 +519,28 @@ type PWSFailureIndication struct {
 
 var pWSFailureIndicationIEs = []ieSpec[PWSFailureIndication]{
 	{
-		id: IDPWSfailedECGIList, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *PWSFailureIndication, raw []byte, enc per.Encoding) error {
+		ID: IDPWSfailedECGIList, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *PWSFailureIndication, r *per.Reader, enc per.Encoding) error {
 			var err error
 
-			m.PWSFailedECGIList, err = unmarshalSeqOf[EUTRANCGI](per.NewReader(raw), enc, 1, maxnoofCellsineNB)
+			m.PWSFailedECGIList, err = unmarshalSeqOf[EUTRANCGI](r, enc, 1, maxnoofCellsineNB)
 
 			return err
 		},
-		encode: func(m *PWSFailureIndication) (per.Marshaler, bool) {
+		Encode: func(m *PWSFailureIndication) (per.Marshaler, bool) {
 			if len(m.PWSFailedECGIList) == 0 {
 				return nil, false
 			}
 
-			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return marshalSeqOf(w, enc, 1, maxnoofCellsineNB, m.PWSFailedECGIList)
-			}), true
+			return seqOf(1, maxnoofCellsineNB, m.PWSFailedECGIList), true
 		},
 	},
 	{
-		id: IDGlobalENBID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *PWSFailureIndication, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.GlobalENBID)
+		ID: IDGlobalENBID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *PWSFailureIndication, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.GlobalENBID)
 		},
-		encode: func(m *PWSFailureIndication) (per.Marshaler, bool) { return &m.GlobalENBID, true },
+		Encode: func(m *PWSFailureIndication) (per.Marshaler, bool) { return &m.GlobalENBID, true },
 	},
 }
 
@@ -554,4 +566,8 @@ func (m *PWSFailureIndication) Marshal() ([]byte, error) {
 
 func ParsePWSFailureIndication(value []byte) (*PWSFailureIndication, error) {
 	return parseMessageBody[PWSFailureIndication](ProcPWSFailureIndication, TriggeringInitiatingMessage, pWSFailureIndicationIEs, value)
+}
+
+func DecodePWSFailureIndication(value []byte) (*PWSFailureIndication, error) {
+	return decodeMessageBody[PWSFailureIndication](ProcPWSFailureIndication, pWSFailureIndicationIEs, value)
 }

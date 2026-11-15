@@ -12,12 +12,12 @@ import (
 var (
 	testCGI2   = s1ap.EUTRANCGI{PLMNIdentity: testPLMN, CellID: 0x0019b02}
 	testEAI    = s1ap.EmergencyAreaID{0x01, 0x02, 0x03}
-	testENB    = s1ap.GlobalENBID{PLMNIdentity: testPLMN, ENBID: s1ap.ENBID{Kind: s1ap.ENBIDMacro, Value: 0x12345}}
+	testENB    = s1ap.GlobalENBID{PLMNIdentity: testPLMN, ENBID: s1ap.ENBID{MacroENBID: s1ap.Ptr(s1ap.MacroENBID(0x12345))}}
 	testGUMMEI = s1ap.GUMMEI{PLMNIdentity: testPLMN, MMEGroupID: s1ap.MMEGroupID{0x80, 0x01}, MMECode: 1}
 )
 
 func testWarningAreaList() *s1ap.WarningAreaList {
-	return &s1ap.WarningAreaList{CellIDList: []s1ap.EUTRANCGI{testCGI, testCGI2}}
+	return &s1ap.WarningAreaList{CellIDList: &s1ap.ECGIList{testCGI, testCGI2}}
 }
 
 func addPWSOverloadCorpus(t *testing.T, corpus map[string][]byte) {
@@ -45,7 +45,7 @@ func addPWSOverloadCorpus(t *testing.T, corpus map[string][]byte) {
 		MessageIdentifier: 0x1112,
 		SerialNumber:      0x3001,
 		BroadcastCompletedAreaList: &s1ap.BroadcastCompletedAreaList{
-			TAIBroadcast: []s1ap.TAIBroadcastItem{{TAI: testTAI, CompletedCellInTAI: []s1ap.CompletedCellInTAIItem{{ECGI: testCGI}}}},
+			TAIBroadcast: &s1ap.TAIBroadcast{{TAI: testTAI, CompletedCellInTAI: []s1ap.CompletedCellInTAIItem{{ECGI: testCGI}}}},
 		},
 		CriticalityDiagnostics: testDiagnostics(),
 	})
@@ -53,7 +53,7 @@ func addPWSOverloadCorpus(t *testing.T, corpus map[string][]byte) {
 	corpus["kill_request_full"] = mustMarshal(t, &s1ap.KillRequest{
 		MessageIdentifier:      0x1112,
 		SerialNumber:           0x3001,
-		WarningAreaList:        &s1ap.WarningAreaList{EmergencyAreaIDList: []s1ap.EmergencyAreaID{testEAI}},
+		WarningAreaList:        &s1ap.WarningAreaList{EmergencyAreaIDList: &s1ap.EmergencyAreaIDList{testEAI}},
 		KillAllWarningMessages: s1ap.Ptr(s1ap.KillAllWarningMessagesTrue),
 	})
 
@@ -61,7 +61,7 @@ func addPWSOverloadCorpus(t *testing.T, corpus map[string][]byte) {
 		MessageIdentifier: 0x1112,
 		SerialNumber:      0x3001,
 		BroadcastCancelledAreaList: &s1ap.BroadcastCancelledAreaList{
-			EmergencyAreaIDCancelled: []s1ap.EmergencyAreaIDCancelledItem{{
+			EmergencyAreaIDCancelled: &s1ap.EmergencyAreaIDCancelled{{
 				EmergencyAreaID:    testEAI,
 				CancelledCellInEAI: []s1ap.CancelledCellInEAIItem{{ECGI: testCGI, NumberOfBroadcasts: 4}},
 			}},
@@ -82,7 +82,7 @@ func addPWSOverloadCorpus(t *testing.T, corpus map[string][]byte) {
 	})
 
 	corpus["overload_start_full"] = mustMarshal(t, &s1ap.OverloadStart{
-		OverloadResponse:               s1ap.OverloadResponse{OverloadAction: s1ap.OverloadActionRejectRRCCRSignalling},
+		OverloadResponse:               s1ap.OverloadResponse{OverloadAction: s1ap.Ptr(s1ap.OverloadActionRejectRRCCRSignalling)},
 		GUMMEIList:                     []s1ap.GUMMEI{testGUMMEI},
 		TrafficLoadReductionIndication: s1ap.Ptr(uint8(40)),
 	})

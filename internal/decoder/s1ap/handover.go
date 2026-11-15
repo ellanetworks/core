@@ -50,11 +50,11 @@ func targetID(t s1ap.TargetID) TargetID {
 			SelectedTAI: FiveGSTAI{PLMNID: plmnToID(n.SelectedTAI.PLMNIdentity), TAC: uint32(n.SelectedTAI.TAC)},
 		}
 
-		if g := n.GlobalRANNodeID.GNB; g != nil {
+		if g := n.GlobalRANNodeID.GNB; g != nil && g.GlobalGNBID.GNBID.GNBID != nil {
 			node.GlobalGNBID = &GlobalGNBID{
 				PLMNID: plmnToID(g.GlobalGNBID.PLMNIdentity),
-				GNBID:  g.GlobalGNBID.GNBID.Value,
-				Bits:   g.GlobalGNBID.GNBID.Bits,
+				GNBID:  g.GlobalGNBID.GNBID.GNBID.Value,
+				Bits:   g.GlobalGNBID.GNBID.GNBID.Bits,
 			}
 		}
 
@@ -64,6 +64,10 @@ func targetID(t s1ap.TargetID) TargetID {
 		}
 
 		return TargetID{NgRanNode: node}
+	}
+
+	if t.TargeteNBID == nil {
+		return TargetID{}
 	}
 
 	enb := globalENBID(t.TargeteNBID.GlobalENBID)
@@ -99,7 +103,7 @@ type ERABAdmitted struct {
 }
 
 func handoverType(t s1ap.HandoverType) utils.EnumField {
-	return utils.NamedEnum(uint8(t), t.Name())
+	return namedEnum(uint8(t), t.Name())
 }
 
 func securityContext(s s1ap.SecurityContext) SecurityContext {
@@ -138,7 +142,7 @@ func buildHandoverRequired(value []byte) (S1APMessageValue, string) {
 
 	if m.DirectForwardingPathAvailability != nil {
 		d := *m.DirectForwardingPathAvailability
-		ies = append(ies, ie(s1ap.IDDirectForwardingPathAvailability, s1ap.CriticalityIgnore, utils.NamedEnum(uint8(d), d.Name())))
+		ies = append(ies, ie(s1ap.IDDirectForwardingPathAvailability, s1ap.CriticalityIgnore, namedEnum(uint8(d), d.Name())))
 	}
 
 	ies = append(ies, ie(s1ap.IDSourceToTargetTransparentContainer, s1ap.CriticalityReject, sourceToTargetTransparentContainer(m.SourceToTarget, m.HandoverType == s1ap.HandoverTypeIntraLTE)))
@@ -169,13 +173,11 @@ func buildHandoverRequest(value []byte) (S1APMessageValue, string) {
 			ERABQoSExtensions:     qosExtensions(it.QoS),
 		}
 
-		if x := it.Extensions; x != nil {
-			e.ERABSetupExtensions = setupExtensions(nil, nil, x.BearerType, x.EthernetType, x.SecurityIndication)
+		e.ERABSetupExtensions = setupExtensions(nil, nil, it.BearerType, it.EthernetType, it.SecurityIndication)
 
-			if x.DataForwardingNotPossible != nil {
-				notPossible := true
-				e.DataForwardingNotPossible = &notPossible
-			}
+		if it.DataForwardingNotPossible != nil {
+			notPossible := true
+			e.DataForwardingNotPossible = &notPossible
 		}
 
 		erabs = append(erabs, e)
@@ -195,8 +197,8 @@ func buildHandoverRequest(value []byte) (S1APMessageValue, string) {
 		ie(s1ap.IDERABToBeSetupListHOReq, s1ap.CriticalityReject, erabs),
 		ie(s1ap.IDSourceToTargetTransparentContainer, s1ap.CriticalityReject, sourceToTargetTransparentContainer(m.SourceToTarget, true)),
 		ie(s1ap.IDUESecurityCapabilities, s1ap.CriticalityReject, UESecurityCapabilities{
-			EncryptionAlgorithms:          securityAlgorithms(m.UESecurityCapabilities.EncryptionAlgorithms, "EEA"),
-			IntegrityProtectionAlgorithms: securityAlgorithms(m.UESecurityCapabilities.IntegrityProtectionAlgorithms, "EIA"),
+			EncryptionAlgorithms:          securityAlgorithms(m.UESecurityCapabilities.EncryptionAlgorithms.Value, "EEA"),
+			IntegrityProtectionAlgorithms: securityAlgorithms(m.UESecurityCapabilities.IntegrityProtectionAlgorithms.Value, "EIA"),
 		}),
 	)
 
@@ -471,12 +473,12 @@ func buildMMEStatusTransfer(value []byte) (S1APMessageValue, string) {
 	return S1APMessageValue{IEs: ies}, fmt.Sprintf("MME Status Transfer (MME-UE %d, eNB-UE %d)", m.MMEUES1APID, m.ENBUES1APID)
 }
 
-func transportLayerAddressOrEmpty(b s1ap.TransportLayerAddress) string {
-	if len(b) == 0 {
+func transportLayerAddressOrEmpty(a *s1ap.TransportLayerAddress) string {
+	if a == nil {
 		return ""
 	}
 
-	return transportLayerAddress(b)
+	return transportLayerAddress(*a)
 }
 
 // HandoverRestrictionList is the decoded Handover Restriction List IE
@@ -528,7 +530,7 @@ func handoverRestrictionList(l s1ap.HandoverRestrictionList) HandoverRestriction
 
 	if l.ForbiddenInterRATs != nil {
 		r := *l.ForbiddenInterRATs
-		e := utils.NamedEnum(uint8(r), r.Name())
+		e := namedEnum(uint8(r), r.Name())
 		out.ForbiddenInterRATs = &e
 	}
 

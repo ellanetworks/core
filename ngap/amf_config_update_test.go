@@ -6,11 +6,11 @@ package ngap
 import (
 	"bytes"
 	"errors"
-	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 func TestAMFConfigurationUpdateRoundTrips(t *testing.T) {
@@ -98,7 +98,7 @@ func TestAMFConfigurationUpdateFailureRoundTrips(t *testing.T) {
 	ttw := TimeToWaitV2s
 
 	in := &AMFConfigurationUpdateFailure{
-		Cause:      Ptr(Cause{Group: CauseGroupProtocol, Value: CauseProtocolSemanticError}),
+		Cause:      Ptr(CauseProtocolSemanticError.Cause()),
 		TimeToWait: &ttw,
 	}
 
@@ -122,7 +122,7 @@ func TestAMFConfigurationUpdateFailureRoundTrips(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.Cause == nil || out.Cause.Group != CauseGroupProtocol {
+	if out.Cause == nil || out.Cause.Protocol == nil {
 		t.Fatalf("cause mismatch: %+v", out.Cause)
 	}
 
@@ -187,28 +187,28 @@ func TestAMFConfigurationUpdateUnsetPLMNSupportListLeavesEncodingUnchanged(t *te
 
 func goldAMFConfigurationUpdateRelay() *AMFConfigurationUpdate {
 	m := goldAMFConfigurationUpdatePLMNSupport()
-	m.PLMNSupportList[0].NPNSupport = &NPNSupport{SNPN: 0x123456789ab}
+	m.PLMNSupportList[0].NPNSupport = &NPNSupport{SNPN: Ptr(NID(0x123456789ab))}
 	m.PLMNSupportList[0].ExtendedSliceSupportList = ExtendedSliceSupportList{{SNSSAI: SNSSAI{SST: 3, SD: &SD{0x00, 0x00, 0x02}}}}
 	m.PLMNSupportList[1].OnboardingSupport = Ptr(OnboardingSupportTrue)
 	m.AMFTNLAssociationToAddList = AMFTNLAssociationToAddList{
 		{
-			AMFTNLAssociationAddress: CPTransportLayerInformation{EndpointIPAddress: TransportLayerAddress{10, 0, 0, 2}},
+			AMFTNLAssociationAddress: CPTransportLayerInformation{EndpointIPAddress: Ptr(tlaOf(10, 0, 0, 2))},
 			TNLAssociationUsage:      Ptr(TNLAssociationUsageBoth),
 			TNLAddressWeightFactor:   255,
 		},
 		{
 			AMFTNLAssociationAddress: CPTransportLayerInformation{EndpointIPAddressAndPort: &EndpointIPAddressAndPort{
-				EndpointIPAddress: TransportLayerAddress{10, 0, 0, 3}, PortNumber: 38412,
+				EndpointIPAddress: tlaOf(10, 0, 0, 3), PortNumber: 38412,
 			}},
 			TNLAddressWeightFactor: 1,
 		},
 	}
 	m.AMFTNLAssociationToRemoveList = AMFTNLAssociationToRemoveList{{
-		AMFTNLAssociationAddress:                 CPTransportLayerInformation{EndpointIPAddress: TransportLayerAddress{10, 0, 0, 4}},
-		TNLAssociationTransportLayerAddressNGRAN: &CPTransportLayerInformation{EndpointIPAddress: TransportLayerAddress{10, 0, 1, 4}},
+		AMFTNLAssociationAddress:                 CPTransportLayerInformation{EndpointIPAddress: Ptr(tlaOf(10, 0, 0, 4))},
+		TNLAssociationTransportLayerAddressNGRAN: &CPTransportLayerInformation{EndpointIPAddress: Ptr(tlaOf(10, 0, 1, 4))},
 	}}
 	m.AMFTNLAssociationToUpdateList = AMFTNLAssociationToUpdateList{{
-		AMFTNLAssociationAddress: CPTransportLayerInformation{EndpointIPAddress: TransportLayerAddress{10, 0, 0, 2}},
+		AMFTNLAssociationAddress: CPTransportLayerInformation{EndpointIPAddress: Ptr(tlaOf(10, 0, 0, 2))},
 		TNLAssociationUsage:      Ptr(TNLAssociationUsageNonUE),
 		TNLAddressWeightFactor:   Ptr(TNLAddressWeightFactor(7)),
 	}}
@@ -230,7 +230,7 @@ func amfConfigurationUpdateWireCases(t *testing.T) []wireCase {
 		check: func(t *testing.T, a any) {
 			t.Helper()
 
-			if !reflect.DeepEqual(a, goldAMFConfigurationUpdateRelay()) {
+			if !equalByMethod(a, goldAMFConfigurationUpdateRelay()) {
 				t.Fatalf("decoded\n got  %+v\n want %+v", a, goldAMFConfigurationUpdateRelay())
 			}
 		},
@@ -239,17 +239,15 @@ func amfConfigurationUpdateWireCases(t *testing.T) []wireCase {
 
 func TestPLMNSupportItemUnknownExtensionKeepsItsPosition(t *testing.T) {
 	item := goldAMFConfigurationUpdateRelay().PLMNSupportList[0]
-	item.iEExtensions = messageMeta{
-		unknownIEs: []rawIE{{id: 9999, crit: CriticalityIgnore, value: []byte{0x5a}}},
-		wire: []wireSlot{
-			{id: IDNPNSupport, crit: CriticalityReject, unknown: -1},
-			{id: 9999, crit: CriticalityIgnore, unknown: 0},
-			{id: IDExtendedSliceSupportList, crit: CriticalityReject, unknown: -1},
-		},
-	}
-
+	restore := swapTable(&extIEsPLMNSupportItem,
+		tableRow(extIEsPLMNSupportItem, IDNPNSupport, CriticalityReject),
+		rawRow[PLMNSupportItem](9999, CriticalityIgnore, []byte{0x5a}),
+		tableRow(extIEsPLMNSupportItem, IDExtendedSliceSupportList, CriticalityReject),
+	)
 	m := &AMFConfigurationUpdate{PLMNSupportList: PLMNSupportList{item}}
 	pdu := marshalT(t, m)
+
+	restore()
 
 	p, err := Unmarshal(pdu)
 	if err != nil {
@@ -262,7 +260,7 @@ func TestPLMNSupportItemUnknownExtensionKeepsItsPosition(t *testing.T) {
 	}
 
 	got := out.PLMNSupportList[0]
-	if got.NPNSupport == nil || len(got.ExtendedSliceSupportList) != 1 || len(got.iEExtensions.unknownIEs) != 1 {
+	if got.NPNSupport == nil || len(got.ExtendedSliceSupportList) != 1 || len(got.iEExtensions.UnknownIEs()) != 1 {
 		t.Fatalf("decoded %+v", got)
 	}
 
@@ -273,7 +271,7 @@ func TestPLMNSupportItemUnknownExtensionKeepsItsPosition(t *testing.T) {
 
 func TestPLMNSupportItemUnknownRejectExtensionRejectsProcedure(t *testing.T) {
 	item := goldAMFConfigurationUpdateRelay().PLMNSupportList[1]
-	item.iEExtensions = messageMeta{unknownIEs: []rawIE{{id: 9999, crit: CriticalityReject, value: []byte{0x5a}}}}
+	item.iEExtensions.Append(rawIE{ID: 9999, Criticality: CriticalityReject, Value: []byte{0x5a}})
 
 	p, err := Unmarshal(marshalT(t, &AMFConfigurationUpdate{PLMNSupportList: PLMNSupportList{item}}))
 	if err != nil {
@@ -302,7 +300,7 @@ func TestAMFTNLAssociationToRemoveItemNGRANAddressIsComprehended(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !reflect.DeepEqual(out, m) {
+	if !equalByMethod(out, m) {
 		t.Fatalf("decoded %+v, want %+v", out, m)
 	}
 }
@@ -310,14 +308,14 @@ func TestAMFTNLAssociationToRemoveItemNGRANAddressIsComprehended(t *testing.T) {
 func goldAMFConfigurationUpdateAcknowledgeTNL() *AMFConfigurationUpdateAcknowledge {
 	return &AMFConfigurationUpdateAcknowledge{
 		AMFTNLAssociationSetupList: AMFTNLAssociationSetupList{
-			{AMFTNLAssociationAddress: CPTransportLayerInformation{EndpointIPAddress: TransportLayerAddress{10, 0, 0, 2}}},
+			{AMFTNLAssociationAddress: CPTransportLayerInformation{EndpointIPAddress: Ptr(tlaOf(10, 0, 0, 2))}},
 			{AMFTNLAssociationAddress: CPTransportLayerInformation{EndpointIPAddressAndPort: &EndpointIPAddressAndPort{
-				EndpointIPAddress: TransportLayerAddress{10, 0, 0, 3}, PortNumber: 38412,
+				EndpointIPAddress: tlaOf(10, 0, 0, 3), PortNumber: 38412,
 			}}},
 		},
 		AMFTNLAssociationFailedToSetupList: TNLAssociationList{{
-			TNLAssociationAddress: CPTransportLayerInformation{EndpointIPAddress: TransportLayerAddress{10, 0, 0, 5}},
-			Cause:                 Cause{Group: CauseGroupTransport, Value: CauseTransportResourceUnavailable},
+			TNLAssociationAddress: CPTransportLayerInformation{EndpointIPAddress: Ptr(tlaOf(10, 0, 0, 5))},
+			Cause:                 CauseTransportResourceUnavailable.Cause(),
 		}},
 		CriticalityDiagnostics: &CriticalityDiagnostics{
 			ProcedureCode:     Ptr(ProcAMFConfigurationUpdate),
@@ -368,17 +366,17 @@ func tnlAssociationItemWithRawExtension(t *testing.T) []byte {
 		w.WriteBit(false)
 		w.WriteBit(true)
 
-		addr := CPTransportLayerInformation{EndpointIPAddress: TransportLayerAddress{10, 0, 0, 5}}
+		addr := CPTransportLayerInformation{EndpointIPAddress: Ptr(tlaOf(10, 0, 0, 5))}
 		if err := addr.MarshalPER(w, per.Aligned); err != nil {
 			return err
 		}
 
-		cause := Cause{Group: CauseGroupTransport, Value: CauseTransportUnspecified}
+		cause := CauseTransportUnspecified.Cause()
 		if err := cause.MarshalPER(w, per.Aligned); err != nil {
 			return err
 		}
 
-		return encodeExtensionContainer(w, per.Aligned, []ieField{{id: 9999, crit: CriticalityIgnore, raw: []byte{0x5a}}})
+		return encodeExtensionContainer(w, per.Aligned, []ieField{{ID: 9999, Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x5a})}})
 	}))
 	w.AlignToByte()
 
@@ -387,7 +385,7 @@ func tnlAssociationItemWithRawExtension(t *testing.T) []byte {
 
 func TestTNLAssociationItemRawExtensionRoundTrips(t *testing.T) {
 	value := container(t,
-		ieField{id: IDAMFTNLAssociationFailedToSetupList, crit: CriticalityIgnore, raw: tnlAssociationItemWithRawExtension(t)},
+		ieField{ID: IDAMFTNLAssociationFailedToSetupList, Criticality: CriticalityIgnore, Value: ap.RawValue(tnlAssociationItemWithRawExtension(t))},
 	)
 
 	out, err := ParseAMFConfigurationUpdateAcknowledge(value)
@@ -395,11 +393,11 @@ func TestTNLAssociationItemRawExtensionRoundTrips(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(out.AMFTNLAssociationFailedToSetupList) != 1 || out.AMFTNLAssociationFailedToSetupList[0].iEExtensions == nil {
+	if len(out.AMFTNLAssociationFailedToSetupList) != 1 || out.AMFTNLAssociationFailedToSetupList[0].iEExtensions == (extensionMeta{}) {
 		t.Fatalf("decoded %+v", out)
 	}
 
-	if got := out.AMFTNLAssociationFailedToSetupList[0].Cause; got.Group != CauseGroupTransport || got.Value != CauseTransportUnspecified {
+	if got := out.AMFTNLAssociationFailedToSetupList[0].Cause; !got.Equal(CauseTransportUnspecified.Cause()) {
 		t.Fatalf("cause = %+v", got)
 	}
 
@@ -414,16 +412,14 @@ func TestTNLAssociationItemRawExtensionRoundTrips(t *testing.T) {
 
 func TestServedGUAMIItemUnknownExtensionKeepsItsPosition(t *testing.T) {
 	item := goldAMFConfigurationUpdateServedGUAMIExtensions().ServedGUAMIList[0]
-	item.iEExtensions = messageMeta{
-		unknownIEs: []rawIE{{id: 9999, crit: CriticalityIgnore, value: []byte{0x5a}}},
-		wire: []wireSlot{
-			{id: IDGUAMIType, crit: CriticalityIgnore, unknown: -1},
-			{id: 9999, crit: CriticalityIgnore, unknown: 0},
-			{id: IDExtendedBackupAMFName, crit: CriticalityIgnore, unknown: -1},
-		},
-	}
-
+	restore := swapTable(&extIEsServedGUAMIItem,
+		tableRow(extIEsServedGUAMIItem, IDGUAMIType, CriticalityIgnore),
+		rawRow[ServedGUAMIItem](9999, CriticalityIgnore, []byte{0x5a}),
+		tableRow(extIEsServedGUAMIItem, IDExtendedBackupAMFName, CriticalityIgnore),
+	)
 	pdu := marshalT(t, &AMFConfigurationUpdate{ServedGUAMIList: ServedGUAMIList{item}})
+
+	restore()
 
 	p, err := Unmarshal(pdu)
 	if err != nil {
@@ -436,12 +432,8 @@ func TestServedGUAMIItemUnknownExtensionKeepsItsPosition(t *testing.T) {
 	}
 
 	got := out.ServedGUAMIList[0]
-	if got.GUAMIType == nil || got.ExtendedBackupAMFName == nil || len(got.iEExtensions.unknownIEs) != 1 {
+	if got.GUAMIType == nil || got.ExtendedBackupAMFName == nil || len(got.iEExtensions.UnknownIEs()) != 1 {
 		t.Fatalf("decoded %+v", got)
-	}
-
-	if !reflect.DeepEqual(got.iEExtensions.wire, item.iEExtensions.wire) {
-		t.Fatalf("wire order %+v, want %+v", got.iEExtensions.wire, item.iEExtensions.wire)
 	}
 
 	if re := marshalT(t, out); !bytes.Equal(re, pdu) {
@@ -451,7 +443,7 @@ func TestServedGUAMIItemUnknownExtensionKeepsItsPosition(t *testing.T) {
 
 func TestServedGUAMIItemUnknownRejectExtensionRejectsProcedure(t *testing.T) {
 	item := goldResponse().ServedGUAMIList[0]
-	item.iEExtensions = messageMeta{unknownIEs: []rawIE{{id: 9999, crit: CriticalityReject, value: []byte{0x5a}}}}
+	item.iEExtensions.Append(rawIE{ID: 9999, Criticality: CriticalityReject, Value: []byte{0x5a}})
 
 	p, err := Unmarshal(marshalT(t, &AMFConfigurationUpdate{ServedGUAMIList: ServedGUAMIList{item}}))
 	if err != nil {

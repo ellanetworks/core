@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 const (
@@ -33,14 +34,24 @@ const (
 )
 
 type SourceNGRANNodeToTargetNGRANNodeTransparentContainer struct {
-	RRCContainer                      RRCContainer
-	PDUSessionResourceInformationList PDUSessionResourceInformationList `per:",optional"`
-	ERABInformationList               ERABInformationList               `per:",optional"`
-	TargetCellID                      NGRANCGI
-	IndexToRFSP                       *IndexToRFSP `per:",optional"`
-	UEHistoryInformation              UEHistoryInformation
-	iEExtensions                      *transparentIEExtensions `per:",optional"`
-	extensions                        per.ExtensionAdditions   `per:",extraw"`
+	RRCContainer                                  RRCContainer
+	PDUSessionResourceInformationList             PDUSessionResourceInformationList `per:",optional"`
+	ERABInformationList                           ERABInformationList               `per:",optional"`
+	TargetCellID                                  NGRANCGI
+	IndexToRFSP                                   *IndexToRFSP `per:",optional"`
+	UEHistoryInformation                          UEHistoryInformation
+	SgNBUEX2APID                                  *SgNBUEX2APID                                 `per:",extie:IDSgNBUEX2APID,crit:ignore"`
+	UEHistoryInformationFromTheUE                 *UEHistoryInformationFromTheUE                `per:",extie:IDUEHistoryInformationFromTheUE,crit:ignore"`
+	SourceNodeID                                  *SourceNodeID                                 `per:",extie:IDSourceNodeID,crit:ignore"`
+	UEContextReferenceAtSource                    *RANUENGAPID                                  `per:",extie:IDUEContextReferenceAtSource,crit:ignore"`
+	MBSActiveSessionInformationSourcetoTargetList MBSActiveSessionInformationSourcetoTargetList `per:",extie:IDMBSActiveSessionInformationSourcetoTargetList,crit:ignore"`
+	QMCConfigInfo                                 *QMCConfigInfo                                `per:",extie:IDQMCConfigInfo,crit:ignore"`
+	NGAPIESupportInformationRequestList           NGAPIESupportInformationRequestList           `per:",extie:IDNGAPIESupportInformationRequestList,crit:ignore"`
+	CandidateRelayUEInformationList               CandidateRelayUEInformationList               `per:",extie:IDCandidateRelayUEInformationList,crit:reject"`
+	TimeBasedHandoverInformation                  *TimeBasedHandoverInformation                 `per:",extie:IDTimeBasedHandoverInformation,crit:ignore"`
+	SourceSNtoTargetSNQMCInfo                     *QMCConfigInfo                                `per:",extie:IDSourceSNtoTargetSNQMCInfo,crit:ignore"`
+	iEExtensions                                  extensionMeta                                 `per:",exttable"`
+	extensions                                    per.ExtensionAdditions                        `per:",extraw"`
 }
 
 func (c *SourceNGRANNodeToTargetNGRANNodeTransparentContainer) Marshal() (SourceToTargetTransparentContainer, error) {
@@ -55,14 +66,26 @@ func (c *SourceNGRANNodeToTargetNGRANNodeTransparentContainer) Marshal() (Source
 	return SourceToTargetTransparentContainer(w.Bytes()), nil
 }
 
-func ParseSourceNGRANNodeToTargetNGRANNodeTransparentContainer(b []byte) (*SourceNGRANNodeToTargetNGRANNodeTransparentContainer, error) {
-	var c SourceNGRANNodeToTargetNGRANNodeTransparentContainer
-
-	if err := c.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
+func DecodeSourceNGRANNodeToTargetNGRANNodeTransparentContainer(b []byte) (*SourceNGRANNodeToTargetNGRANNodeTransparentContainer, error) {
+	c, err := decodeTransfer[SourceNGRANNodeToTargetNGRANNodeTransparentContainer](b)
+	if err != nil {
 		return nil, fmt.Errorf("ngap: SourceNGRANNode-ToTargetNGRANNode-TransparentContainer: %w", err)
 	}
 
-	return &c, nil
+	return c, nil
+}
+
+func ParseSourceNGRANNodeToTargetNGRANNodeTransparentContainer(b []byte) (*SourceNGRANNodeToTargetNGRANNodeTransparentContainer, error) {
+	c, err := parseTransfer[SourceNGRANNodeToTargetNGRANNodeTransparentContainer](b)
+	if err != nil {
+		return nil, fmt.Errorf("ngap: SourceNGRANNode-ToTargetNGRANNode-TransparentContainer: %w", err)
+	}
+
+	return c, nil
+}
+
+func (c *SourceNGRANNodeToTargetNGRANNodeTransparentContainer) Diagnostics() Diagnostics {
+	return diagnosticsOf(c)
 }
 
 type RRCContainer []byte
@@ -86,7 +109,7 @@ type PDUSessionResourceInformationItem struct {
 	PDUSessionID              PDUSessionID
 	QosFlowInformationList    QosFlowInformationList
 	DRBsToQosFlowsMappingList DRBsToQosFlowsMappingList `per:",optional"`
-	iEExtensions              *transparentIEExtensions  `per:",optional"`
+	iEExtensions              extensionMeta             `per:",exttable"`
 	extensions                per.ExtensionAdditions    `per:",extraw"`
 }
 
@@ -108,10 +131,13 @@ func (l *PDUSessionResourceInformationList) UnmarshalPER(r *per.Reader, enc per.
 }
 
 type QosFlowInformationItem struct {
-	QosFlowIdentifier QosFlowIdentifier
-	DLForwarding      *DLForwarding            `per:",optional"`
-	iEExtensions      *transparentIEExtensions `per:",optional"`
-	extensions        per.ExtensionAdditions   `per:",extraw"`
+	QosFlowIdentifier     QosFlowIdentifier
+	DLForwarding          *DLForwarding          `per:",optional"`
+	ULForwarding          *ULForwarding          `per:",extie:IDULForwarding,crit:ignore"`
+	SourceTNLAddrInfo     *TransportLayerAddress `per:",extie:IDSourceTNLAddrInfo,crit:ignore"`
+	SourceNodeTNLAddrInfo *TransportLayerAddress `per:",extie:IDSourceNodeTNLAddrInfo,crit:ignore"`
+	iEExtensions          extensionMeta          `per:",exttable"`
+	extensions            per.ExtensionAdditions `per:",extraw"`
 }
 
 type QosFlowInformationList []QosFlowInformationItem
@@ -134,8 +160,9 @@ func (l *QosFlowInformationList) UnmarshalPER(r *per.Reader, enc per.Encoding) e
 type DRBsToQosFlowsMappingItem struct {
 	DRBID                 DRBID
 	AssociatedQosFlowList AssociatedQosFlowList
-	iEExtensions          *transparentIEExtensions `per:",optional"`
-	extensions            per.ExtensionAdditions   `per:",extraw"`
+	DAPSRequestInfo       *DAPSRequestInfo       `per:",extie:IDDAPSRequestInfo,crit:ignore"`
+	iEExtensions          extensionMeta          `per:",exttable"`
+	extensions            per.ExtensionAdditions `per:",extraw"`
 }
 
 type DRBsToQosFlowsMappingList []DRBsToQosFlowsMappingItem
@@ -159,30 +186,15 @@ type DLForwarding uint8
 
 const (
 	DLForwardingProposed DLForwarding = iota
-
-	dlForwardingRootCount = 1
 )
 
-func (d DLForwarding) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, dlForwardingRootCount, int64(d), "DLForwarding")
-}
-
-func (d *DLForwarding) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, dlForwardingRootCount, "DLForwarding")
-	if err != nil {
-		return err
-	}
-
-	*d = DLForwarding(idx)
-
-	return nil
-}
-
 type ERABInformationItem struct {
-	ERABID       ERABID
-	DLForwarding *DLForwarding            `per:",optional"`
-	iEExtensions *transparentIEExtensions `per:",optional"`
-	extensions   per.ExtensionAdditions   `per:",extraw"`
+	ERABID                ERABID
+	DLForwarding          *DLForwarding          `per:",optional"`
+	SourceTNLAddrInfo     *TransportLayerAddress `per:",extie:IDSourceTNLAddrInfo,crit:ignore"`
+	SourceNodeTNLAddrInfo *TransportLayerAddress `per:",extie:IDSourceNodeTNLAddrInfo,crit:ignore"`
+	iEExtensions          extensionMeta          `per:",exttable"`
+	extensions            per.ExtensionAdditions `per:",extraw"`
 }
 
 type ERABInformationList []ERABInformationItem
@@ -203,61 +215,9 @@ func (l *ERABInformationList) UnmarshalPER(r *per.Reader, enc per.Encoding) erro
 }
 
 type NGRANCGI struct {
-	NRCGI           *NRCGI
-	EUTRACGI        *EUTRACGI
-	choiceExtension *rawIE
-}
-
-func (c *NGRANCGI) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	idx, err := chosenAlternative("NGRAN-CGI", c.NRCGI != nil, c.EUTRACGI != nil, c.choiceExtension != nil)
-	if err != nil {
-		return err
-	}
-
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, ngranCGIAlternatives-1, idx); err != nil {
-		return err
-	}
-
-	switch idx {
-	case ngranCGINR:
-		return c.NRCGI.MarshalPER(w, enc)
-	case ngranCGIEUTRA:
-		return c.EUTRACGI.MarshalPER(w, enc)
-	default:
-		return encodeContainerField(w, enc, c.choiceExtension.field())
-	}
-}
-
-func (c *NGRANCGI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, ngranCGIAlternatives-1)
-	if err != nil {
-		return fmt.Errorf("ngap: NGRAN-CGI choice: %w", err)
-	}
-
-	*c = NGRANCGI{}
-
-	switch idx {
-	case ngranCGINR:
-		var v NRCGI
-		if err := v.UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-
-		c.NRCGI = &v
-	case ngranCGIEUTRA:
-		var v EUTRACGI
-		if err := v.UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-
-		c.EUTRACGI = &v
-	default:
-		c.choiceExtension, err = decodeTransparentChoiceExtension(r, enc)
-
-		return err
-	}
-
-	return nil
+	NRCGI           *NRCGI           `per:",choice:0"`
+	EUTRACGI        *EUTRACGI        `per:",choice:1"`
+	ChoiceExtension *SingleContainer `per:",choice:2,extie"`
 }
 
 type IndexToRFSP uint16
@@ -267,15 +227,17 @@ func (i IndexToRFSP) MarshalPER(w *per.Writer, enc per.Encoding) error {
 }
 
 func (i *IndexToRFSP) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := decodeExtensibleInt(r, enc, 1, 256, "IndexToRFSP")
+	v, err := decodeExtensibleInt[IndexToRFSP](r, enc, 1, 256)
 	if err != nil {
 		return err
 	}
 
-	*i = IndexToRFSP(v)
+	*i = v
 
 	return nil
 }
+
+func (v IndexToRFSP) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool { return outsideRoot(int64(v), 1, 256) }
 
 type UEHistoryInformation []LastVisitedCellItem
 
@@ -296,86 +258,16 @@ func (u *UEHistoryInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) err
 
 type LastVisitedCellItem struct {
 	LastVisitedCellInformation LastVisitedCellInformation
-	iEExtensions               *transparentIEExtensions `per:",optional"`
-	extensions                 per.ExtensionAdditions   `per:",extraw"`
+	iEExtensions               extensionMeta          `per:",exttable"`
+	extensions                 per.ExtensionAdditions `per:",extraw"`
 }
 
 type LastVisitedCellInformation struct {
-	NGRANCell       *LastVisitedNGRANCellInformation
-	EUTRANCell      *LastVisitedEUTRANCellInformation
-	UTRANCell       *LastVisitedUTRANCellInformation
-	GERANCell       *LastVisitedGERANCellInformation
-	choiceExtension *rawIE
-}
-
-func (l *LastVisitedCellInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	idx, err := chosenAlternative("LastVisitedCellInformation", l.NGRANCell != nil, l.EUTRANCell != nil, l.UTRANCell != nil, l.GERANCell != nil, l.choiceExtension != nil)
-	if err != nil {
-		return err
-	}
-
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, lastVisitedCellInformationAlternatives-1, idx); err != nil {
-		return err
-	}
-
-	switch idx {
-	case lastVisitedCellInformationNGRAN:
-		return l.NGRANCell.MarshalPER(w, enc)
-	case lastVisitedCellInformationEUTRAN:
-		return l.EUTRANCell.MarshalPER(w, enc)
-	case lastVisitedCellInformationUTRAN:
-		return l.UTRANCell.MarshalPER(w, enc)
-	case lastVisitedCellInformationGERAN:
-		return l.GERANCell.MarshalPER(w, enc)
-	default:
-		return encodeContainerField(w, enc, l.choiceExtension.field())
-	}
-}
-
-func (l *LastVisitedCellInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, lastVisitedCellInformationAlternatives-1)
-	if err != nil {
-		return fmt.Errorf("ngap: LastVisitedCellInformation choice: %w", err)
-	}
-
-	*l = LastVisitedCellInformation{}
-
-	switch idx {
-	case lastVisitedCellInformationNGRAN:
-		var v LastVisitedNGRANCellInformation
-		if err := v.UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-
-		l.NGRANCell = &v
-	case lastVisitedCellInformationEUTRAN:
-		var v LastVisitedEUTRANCellInformation
-		if err := v.UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-
-		l.EUTRANCell = &v
-	case lastVisitedCellInformationUTRAN:
-		var v LastVisitedUTRANCellInformation
-		if err := v.UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-
-		l.UTRANCell = &v
-	case lastVisitedCellInformationGERAN:
-		var v LastVisitedGERANCellInformation
-		if err := v.UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-
-		l.GERANCell = &v
-	default:
-		l.choiceExtension, err = decodeTransparentChoiceExtension(r, enc)
-
-		return err
-	}
-
-	return nil
+	NGRANCell       *LastVisitedNGRANCellInformation  `per:",choice:0"`
+	EUTRANCell      *LastVisitedEUTRANCellInformation `per:",choice:1"`
+	UTRANCell       *LastVisitedUTRANCellInformation  `per:",choice:2"`
+	GERANCell       *LastVisitedGERANCellInformation  `per:",choice:3"`
+	ChoiceExtension *SingleContainer                  `per:",choice:4,extie"`
 }
 
 type LastVisitedNGRANCellInformation struct {
@@ -384,14 +276,15 @@ type LastVisitedNGRANCellInformation struct {
 	TimeUEStayedInCell                    TimeUEStayedInCell
 	TimeUEStayedInCellEnhancedGranularity *TimeUEStayedInCellEnhancedGranularity `per:",optional"`
 	HOCauseValue                          *Cause                                 `per:",optional"`
-	iEExtensions                          *transparentIEExtensions               `per:",optional"`
+	LastVisitedPSCellList                 LastVisitedPSCellList                  `per:",extie:IDLastVisitedPSCellList,crit:ignore"`
+	iEExtensions                          extensionMeta                          `per:",exttable"`
 	extensions                            per.ExtensionAdditions                 `per:",extraw"`
 }
 
 type CellType struct {
 	CellSize     CellSize
-	iEExtensions *transparentIEExtensions `per:",optional"`
-	extensions   per.ExtensionAdditions   `per:",extraw"`
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 type CellSize uint8
@@ -401,24 +294,7 @@ const (
 	CellSizeSmall
 	CellSizeMedium
 	CellSizeLarge
-
-	cellSizeRootCount = 4
 )
-
-func (c CellSize) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, cellSizeRootCount, int64(c), "CellSize")
-}
-
-func (c *CellSize) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, cellSizeRootCount, "CellSize")
-	if err != nil {
-		return err
-	}
-
-	*c = CellSize(idx)
-
-	return nil
-}
 
 type TimeUEStayedInCell uint16
 
@@ -503,73 +379,4 @@ func (c *LastVisitedGERANCellInformation) UnmarshalPER(r *per.Reader, enc per.En
 	*c = LastVisitedGERANCellInformation(b)
 
 	return nil
-}
-
-func decodeTransparentChoiceExtension(r *per.Reader, enc per.Encoding) (*rawIE, error) {
-	id, err := per.DecodeConstrainedWholeNumber(r, enc, 0, maxProtocolIEs)
-	if err != nil {
-		return nil, err
-	}
-
-	crit, err := per.DecodeEnumerated(r, enc, criticalityRootCount, false)
-	if err != nil {
-		return nil, err
-	}
-
-	value, err := per.DecodeOpenTypeBytes(r, enc)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(value) == 0 {
-		return nil, fmt.Errorf("ngap: empty open type for choice-Extensions IE %d", id)
-	}
-
-	return &rawIE{id: ProtocolIEID(id), crit: Criticality(crit), value: value}, nil
-}
-
-type transparentIEExtensions struct {
-	data  []byte
-	nbits int
-}
-
-func (e *transparentIEExtensions) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	if enc == per.Aligned {
-		w.AlignToByte()
-	}
-
-	w.WriteBitString(e.data, e.nbits)
-
-	return nil
-}
-
-func (e *transparentIEExtensions) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	if enc == per.Aligned {
-		r.AlignToByte()
-	}
-
-	start := r.Offset()
-
-	n, err := per.DecodeConstrainedWholeNumber(r, enc, 1, maxProtocolExtensions)
-	if err != nil {
-		return err
-	}
-
-	for range n {
-		if _, err := per.DecodeConstrainedWholeNumber(r, enc, 0, maxProtocolIEs); err != nil {
-			return err
-		}
-
-		if _, err := per.DecodeEnumerated(r, enc, criticalityRootCount, false); err != nil {
-			return err
-		}
-
-		if err := per.SkipOpenType(r, enc); err != nil {
-			return err
-		}
-	}
-
-	e.data, e.nbits, err = r.Since(start)
-
-	return err
 }

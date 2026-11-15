@@ -22,11 +22,11 @@ type ErrorIndication struct {
 
 var errorIndicationIEs = []ieSpec[ErrorIndication]{
 	{
-		id: IDAMFUENGAPID, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
+		ID: IDAMFUENGAPID, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *ErrorIndication, r *per.Reader, enc per.Encoding) error {
 			var v AMFUENGAPID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return fmt.Errorf("ngap: ErrorIndication AMF-UE-NGAP-ID: %w", err)
 			}
 
@@ -34,7 +34,7 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 
 			return nil
 		},
-		encode: func(m *ErrorIndication) (per.Marshaler, bool) {
+		Encode: func(m *ErrorIndication) (per.Marshaler, bool) {
 			if m.AMFUENGAPID == nil {
 				return nil, false
 			}
@@ -43,11 +43,11 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 		},
 	},
 	{
-		id: IDRANUENGAPID, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
+		ID: IDRANUENGAPID, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *ErrorIndication, r *per.Reader, enc per.Encoding) error {
 			var v RANUENGAPID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return fmt.Errorf("ngap: ErrorIndication RAN-UE-NGAP-ID: %w", err)
 			}
 
@@ -55,7 +55,7 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 
 			return nil
 		},
-		encode: func(m *ErrorIndication) (per.Marshaler, bool) {
+		Encode: func(m *ErrorIndication) (per.Marshaler, bool) {
 			if m.RANUENGAPID == nil {
 				return nil, false
 			}
@@ -64,11 +64,11 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 		},
 	},
 	{
-		id: IDCause, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
+		ID: IDCause, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *ErrorIndication, r *per.Reader, enc per.Encoding) error {
 			var v Cause
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return fmt.Errorf("ngap: ErrorIndication Cause: %w", err)
 			}
 
@@ -76,7 +76,7 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 
 			return nil
 		},
-		encode: func(m *ErrorIndication) (per.Marshaler, bool) {
+		Encode: func(m *ErrorIndication) (per.Marshaler, bool) {
 			if m.Cause == nil {
 				return nil, false
 			}
@@ -85,11 +85,11 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 		},
 	},
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *ErrorIndication, r *per.Reader, enc per.Encoding) error {
 			var v CriticalityDiagnostics
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return fmt.Errorf("ngap: ErrorIndication CriticalityDiagnostics: %w", err)
 			}
 
@@ -97,7 +97,7 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 
 			return nil
 		},
-		encode: func(m *ErrorIndication) (per.Marshaler, bool) {
+		Encode: func(m *ErrorIndication) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -106,11 +106,11 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 		},
 	},
 	{
-		id: IDFiveGSTMSI, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *ErrorIndication, raw []byte, enc per.Encoding) error {
+		ID: IDFiveGSTMSI, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *ErrorIndication, r *per.Reader, enc per.Encoding) error {
 			var v FiveGSTMSI
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return fmt.Errorf("ngap: ErrorIndication FiveG-S-TMSI: %w", err)
 			}
 
@@ -118,7 +118,7 @@ var errorIndicationIEs = []ieSpec[ErrorIndication]{
 
 			return nil
 		},
-		encode: func(m *ErrorIndication) (per.Marshaler, bool) {
+		Encode: func(m *ErrorIndication) (per.Marshaler, bool) {
 			if m.FiveGSTMSI == nil {
 				return nil, false
 			}
@@ -156,4 +156,8 @@ func (m *ErrorIndication) Marshal() ([]byte, error) {
 
 func ParseErrorIndication(value []byte) (*ErrorIndication, error) {
 	return parseMessageBody[ErrorIndication](ProcErrorIndication, TriggeringInitiatingMessage, errorIndicationIEs, value)
+}
+
+func DecodeErrorIndication(value []byte) (*ErrorIndication, error) {
+	return decodeMessageBody[ErrorIndication](ProcErrorIndication, errorIndicationIEs, value)
 }

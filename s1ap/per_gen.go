@@ -4,26 +4,42 @@
 
 package s1ap
 
-import "github.com/ellanetworks/core/per"
+import (
+	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
+	"slices"
+)
 
 func (additionalGUTI *AdditionalGUTI) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsAdditionalGUTI, additionalGUTI, additionalGUTI.iEExtensions)
+	w.WriteBit(additionalGUTI.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := additionalGUTI.GUMMEI.MarshalPER(w, enc); err != nil {
 		return err
 	}
 	if err := additionalGUTI.MTMSI.MarshalPER(w, enc); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if additionalGUTI.extensions.Present() {
+		if err := additionalGUTI.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (additionalGUTI *AdditionalGUTI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*additionalGUTI = AdditionalGUTI{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -33,53 +49,45 @@ func (additionalGUTI *AdditionalGUTI) UnmarshalPER(r *per.Reader, enc per.Encodi
 	if err := (&additionalGUTI.MTMSI).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsAdditionalGUTI, additionalGUTI, &additionalGUTI.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := additionalGUTI.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsAdditionalGUTI []ap.IESpec[ProtocolIEID, AdditionalGUTI]
+
+func (additionalGUTI *AdditionalGUTI) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if additionalGUTI.GUMMEI.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsAdditionalGUTI, additionalGUTI, additionalGUTI.iEExtensions)
+	return notComprehended
+}
+
 func (allocationAndRetentionPriority *AllocationAndRetentionPriority) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsAllocationAndRetentionPriority, allocationAndRetentionPriority, allocationAndRetentionPriority.iEExtensions)
 	w.WriteBit(allocationAndRetentionPriority.extensions.Present())
-	w.WriteBit(allocationAndRetentionPriority.iEExtensions != nil)
+	w.WriteBit(len(ext) > 0)
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 15, HasUB: true}, int64(allocationAndRetentionPriority.PriorityLevel)); err != nil {
 		return err
 	}
-	if err := per.EncodeEnumerated(w, enc, 2, false, int64(allocationAndRetentionPriority.PreemptionCapability)); err != nil {
+	if err := allocationAndRetentionPriority.PreemptionCapability.MarshalPER(w, enc); err != nil {
 		return err
 	}
-	if err := per.EncodeEnumerated(w, enc, 2, false, int64(allocationAndRetentionPriority.PreemptionVulnerability)); err != nil {
+	if err := allocationAndRetentionPriority.PreemptionVulnerability.MarshalPER(w, enc); err != nil {
 		return err
 	}
-	if allocationAndRetentionPriority.iEExtensions != nil {
-		if err := (*allocationAndRetentionPriority.iEExtensions).MarshalPER(w, enc); err != nil {
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
 			return err
 		}
 	}
@@ -92,6 +100,7 @@ func (allocationAndRetentionPriority *AllocationAndRetentionPriority) MarshalPER
 }
 
 func (allocationAndRetentionPriority *AllocationAndRetentionPriority) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*allocationAndRetentionPriority = AllocationAndRetentionPriority{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
@@ -105,22 +114,16 @@ func (allocationAndRetentionPriority *AllocationAndRetentionPriority) UnmarshalP
 		return err
 	}
 	allocationAndRetentionPriority.PriorityLevel = uint8(n0)
-	e1, err := per.DecodeEnumerated(r, enc, 2, false)
-	if err != nil {
+	if err := (&allocationAndRetentionPriority.PreemptionCapability).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	allocationAndRetentionPriority.PreemptionCapability = PreemptionCapability(e1)
-	e2, err := per.DecodeEnumerated(r, enc, 2, false)
-	if err != nil {
+	if err := (&allocationAndRetentionPriority.PreemptionVulnerability).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	allocationAndRetentionPriority.PreemptionVulnerability = PreemptionVulnerability(e2)
 	if p_iEExtensions {
-		var v rawIEExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsAllocationAndRetentionPriority, allocationAndRetentionPriority, &allocationAndRetentionPriority.iEExtensions); err != nil {
 			return err
 		}
-		allocationAndRetentionPriority.iEExtensions = &v
 	}
 	if extBit {
 		if err := allocationAndRetentionPriority.extensions.UnmarshalPER(r, enc); err != nil {
@@ -130,24 +133,451 @@ func (allocationAndRetentionPriority *AllocationAndRetentionPriority) UnmarshalP
 	return nil
 }
 
+var extIEsAllocationAndRetentionPriority []ap.IESpec[ProtocolIEID, AllocationAndRetentionPriority]
+
+func (allocationAndRetentionPriority *AllocationAndRetentionPriority) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsAllocationAndRetentionPriority, allocationAndRetentionPriority, allocationAndRetentionPriority.iEExtensions)
+	return notComprehended
+}
+
+func (bearerType BearerType) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumBearerType.Encode(w, enc, bearerType)
+}
+
+func (bearerType *BearerType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumBearerType.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*bearerType = v
+	return nil
+}
+
+func (bearerType BearerType) Name() string {
+	return enumBearerType.Name(bearerType)
+}
+
+func (bearerType BearerType) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumBearerType.Known(bearerType)
+}
+
+func (broadcastCancelledAreaList *BroadcastCancelledAreaList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	set := 0
+	for _, ok := range [...]bool{broadcastCancelledAreaList.CellIDCancelled != nil, broadcastCancelledAreaList.TAICancelled != nil, broadcastCancelledAreaList.EmergencyAreaIDCancelled != nil, broadcastCancelledAreaList.Ext != nil} {
+		if ok {
+			set++
+		}
+	}
+	if set > 1 {
+		return per.ErrChoice
+	}
+	switch {
+	case broadcastCancelledAreaList.CellIDCancelled != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 2, 0); err != nil {
+			return err
+		}
+		if err := (*broadcastCancelledAreaList.CellIDCancelled).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case broadcastCancelledAreaList.TAICancelled != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 2, 1); err != nil {
+			return err
+		}
+		if err := (*broadcastCancelledAreaList.TAICancelled).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case broadcastCancelledAreaList.EmergencyAreaIDCancelled != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 2, 2); err != nil {
+			return err
+		}
+		if err := (*broadcastCancelledAreaList.EmergencyAreaIDCancelled).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case broadcastCancelledAreaList.Ext != nil:
+		w.WriteBit(true)
+		return broadcastCancelledAreaList.Ext.MarshalPER(w, enc)
+	default:
+		return per.ErrEmpty
+	}
+	return nil
+}
+
+func (broadcastCancelledAreaList *BroadcastCancelledAreaList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*broadcastCancelledAreaList = BroadcastCancelledAreaList{}
+	isExt, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if isExt {
+		extIdx, err := per.DecodeNormallySmall(r, enc)
+		if err != nil {
+			return err
+		}
+		broadcastCancelledAreaList.Ext, err = per.DecodeExtensionAlternative(r, enc, extIdx)
+		return err
+	}
+	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 2)
+	if err != nil {
+		return err
+	}
+	switch idx {
+	case 0:
+		var v CellIDCancelled
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		broadcastCancelledAreaList.CellIDCancelled = &v
+	case 1:
+		var v TAICancelled
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		broadcastCancelledAreaList.TAICancelled = &v
+	case 2:
+		var v EmergencyAreaIDCancelled
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		broadcastCancelledAreaList.EmergencyAreaIDCancelled = &v
+	default:
+		return per.ErrOverflow
+	}
+	return nil
+}
+
+func (broadcastCancelledAreaList *BroadcastCancelledAreaList) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	switch {
+	case broadcastCancelledAreaList.CellIDCancelled != nil:
+		return broadcastCancelledAreaList.CellIDCancelled.Diagnose(d)
+	case broadcastCancelledAreaList.TAICancelled != nil:
+		return broadcastCancelledAreaList.TAICancelled.Diagnose(d)
+	case broadcastCancelledAreaList.EmergencyAreaIDCancelled != nil:
+		return broadcastCancelledAreaList.EmergencyAreaIDCancelled.Diagnose(d)
+	case broadcastCancelledAreaList.Ext != nil:
+		return true
+	}
+	return false
+}
+
+func (broadcastCompletedAreaList *BroadcastCompletedAreaList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	set := 0
+	for _, ok := range [...]bool{broadcastCompletedAreaList.CellIDBroadcast != nil, broadcastCompletedAreaList.TAIBroadcast != nil, broadcastCompletedAreaList.EmergencyAreaIDBroadcast != nil, broadcastCompletedAreaList.Ext != nil} {
+		if ok {
+			set++
+		}
+	}
+	if set > 1 {
+		return per.ErrChoice
+	}
+	switch {
+	case broadcastCompletedAreaList.CellIDBroadcast != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 2, 0); err != nil {
+			return err
+		}
+		if err := (*broadcastCompletedAreaList.CellIDBroadcast).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case broadcastCompletedAreaList.TAIBroadcast != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 2, 1); err != nil {
+			return err
+		}
+		if err := (*broadcastCompletedAreaList.TAIBroadcast).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case broadcastCompletedAreaList.EmergencyAreaIDBroadcast != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 2, 2); err != nil {
+			return err
+		}
+		if err := (*broadcastCompletedAreaList.EmergencyAreaIDBroadcast).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case broadcastCompletedAreaList.Ext != nil:
+		w.WriteBit(true)
+		return broadcastCompletedAreaList.Ext.MarshalPER(w, enc)
+	default:
+		return per.ErrEmpty
+	}
+	return nil
+}
+
+func (broadcastCompletedAreaList *BroadcastCompletedAreaList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*broadcastCompletedAreaList = BroadcastCompletedAreaList{}
+	isExt, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if isExt {
+		extIdx, err := per.DecodeNormallySmall(r, enc)
+		if err != nil {
+			return err
+		}
+		broadcastCompletedAreaList.Ext, err = per.DecodeExtensionAlternative(r, enc, extIdx)
+		return err
+	}
+	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 2)
+	if err != nil {
+		return err
+	}
+	switch idx {
+	case 0:
+		var v CellIDBroadcast
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		broadcastCompletedAreaList.CellIDBroadcast = &v
+	case 1:
+		var v TAIBroadcast
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		broadcastCompletedAreaList.TAIBroadcast = &v
+	case 2:
+		var v EmergencyAreaIDBroadcast
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		broadcastCompletedAreaList.EmergencyAreaIDBroadcast = &v
+	default:
+		return per.ErrOverflow
+	}
+	return nil
+}
+
+func (broadcastCompletedAreaList *BroadcastCompletedAreaList) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	switch {
+	case broadcastCompletedAreaList.CellIDBroadcast != nil:
+		return broadcastCompletedAreaList.CellIDBroadcast.Diagnose(d)
+	case broadcastCompletedAreaList.TAIBroadcast != nil:
+		return broadcastCompletedAreaList.TAIBroadcast.Diagnose(d)
+	case broadcastCompletedAreaList.EmergencyAreaIDBroadcast != nil:
+		return broadcastCompletedAreaList.EmergencyAreaIDBroadcast.Diagnose(d)
+	case broadcastCompletedAreaList.Ext != nil:
+		return true
+	}
+	return false
+}
+
+func (cGI *CGI) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsCGI, cGI, cGI.iEExtensions)
+	w.WriteBit(cGI.extensions.Present())
+	w.WriteBit(cGI.RAC != nil)
+	w.WriteBit(len(ext) > 0)
+	if err := cGI.PLMNIdentity.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := cGI.LAC.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := cGI.CI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if cGI.RAC != nil {
+		if err := (*cGI.RAC).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if cGI.extensions.Present() {
+		if err := cGI.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (cGI *CGI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*cGI = CGI{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_RAC, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&cGI.PLMNIdentity).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&cGI.LAC).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&cGI.CI).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_RAC {
+		var v RAC
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		cGI.RAC = &v
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsCGI, cGI, &cGI.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := cGI.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsCGI []ap.IESpec[ProtocolIEID, CGI]
+
+func (cGI *CGI) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsCGI, cGI, cGI.iEExtensions)
+	return notComprehended
+}
+
+func (cNDomain CNDomain) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumCNDomain.Encode(w, enc, cNDomain)
+}
+
+func (cNDomain *CNDomain) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumCNDomain.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*cNDomain = v
+	return nil
+}
+
+func (cNDomain CNDomain) Name() string {
+	return enumCNDomain.Name(cNDomain)
+}
+
+func (cNType CNType) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumCNType.Encode(w, enc, cNType)
+}
+
+func (cNType *CNType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumCNType.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*cNType = v
+	return nil
+}
+
+func (cNType CNType) Name() string {
+	return enumCNType.Name(cNType)
+}
+
+func (cNType CNType) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumCNType.Known(cNType)
+}
+
+func (cNTypeRestrictionsItem *CNTypeRestrictionsItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsCNTypeRestrictionsItem, cNTypeRestrictionsItem, cNTypeRestrictionsItem.iEExtensions)
+	w.WriteBit(cNTypeRestrictionsItem.extensions.Present())
+	w.WriteBit(len(ext) > 0)
+	if err := cNTypeRestrictionsItem.PLMNIdentity.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := cNTypeRestrictionsItem.CNType.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if cNTypeRestrictionsItem.extensions.Present() {
+		if err := cNTypeRestrictionsItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (cNTypeRestrictionsItem *CNTypeRestrictionsItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*cNTypeRestrictionsItem = CNTypeRestrictionsItem{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&cNTypeRestrictionsItem.PLMNIdentity).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&cNTypeRestrictionsItem.CNType).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsCNTypeRestrictionsItem, cNTypeRestrictionsItem, &cNTypeRestrictionsItem.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := cNTypeRestrictionsItem.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsCNTypeRestrictionsItem []ap.IESpec[ProtocolIEID, CNTypeRestrictionsItem]
+
+func (cNTypeRestrictionsItem *CNTypeRestrictionsItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if cNTypeRestrictionsItem.CNType.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsCNTypeRestrictionsItem, cNTypeRestrictionsItem, cNTypeRestrictionsItem.iEExtensions)
+	return notComprehended
+}
+
 func (cancelledCellInEAIItem *CancelledCellInEAIItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsCancelledCellInEAIItem, cancelledCellInEAIItem, cancelledCellInEAIItem.iEExtensions)
+	w.WriteBit(cancelledCellInEAIItem.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := cancelledCellInEAIItem.ECGI.MarshalPER(w, enc); err != nil {
 		return err
 	}
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 65535, HasUB: true}, int64(cancelledCellInEAIItem.NumberOfBroadcasts)); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if cancelledCellInEAIItem.extensions.Present() {
+		if err := cancelledCellInEAIItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (cancelledCellInEAIItem *CancelledCellInEAIItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*cancelledCellInEAIItem = CancelledCellInEAIItem{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -159,57 +589,60 @@ func (cancelledCellInEAIItem *CancelledCellInEAIItem) UnmarshalPER(r *per.Reader
 		return err
 	}
 	cancelledCellInEAIItem.NumberOfBroadcasts = uint16(n1)
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsCancelledCellInEAIItem, cancelledCellInEAIItem, &cancelledCellInEAIItem.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := cancelledCellInEAIItem.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsCancelledCellInEAIItem []ap.IESpec[ProtocolIEID, CancelledCellInEAIItem]
+
+func (cancelledCellInEAIItem *CancelledCellInEAIItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if cancelledCellInEAIItem.ECGI.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsCancelledCellInEAIItem, cancelledCellInEAIItem, cancelledCellInEAIItem.iEExtensions)
+	return notComprehended
+}
+
 func (cancelledCellInTAIItem *CancelledCellInTAIItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsCancelledCellInTAIItem, cancelledCellInTAIItem, cancelledCellInTAIItem.iEExtensions)
+	w.WriteBit(cancelledCellInTAIItem.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := cancelledCellInTAIItem.ECGI.MarshalPER(w, enc); err != nil {
 		return err
 	}
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 65535, HasUB: true}, int64(cancelledCellInTAIItem.NumberOfBroadcasts)); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if cancelledCellInTAIItem.extensions.Present() {
+		if err := cancelledCellInTAIItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (cancelledCellInTAIItem *CancelledCellInTAIItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*cancelledCellInTAIItem = CancelledCellInTAIItem{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -221,111 +654,355 @@ func (cancelledCellInTAIItem *CancelledCellInTAIItem) UnmarshalPER(r *per.Reader
 		return err
 	}
 	cancelledCellInTAIItem.NumberOfBroadcasts = uint16(n1)
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsCancelledCellInTAIItem, cancelledCellInTAIItem, &cancelledCellInTAIItem.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := cancelledCellInTAIItem.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsCancelledCellInTAIItem []ap.IESpec[ProtocolIEID, CancelledCellInTAIItem]
+
+func (cancelledCellInTAIItem *CancelledCellInTAIItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if cancelledCellInTAIItem.ECGI.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsCancelledCellInTAIItem, cancelledCellInTAIItem, cancelledCellInTAIItem.iEExtensions)
+	return notComprehended
+}
+
+func (cause *Cause) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	set := 0
+	for _, ok := range [...]bool{cause.RadioNetwork != nil, cause.Transport != nil, cause.NAS != nil, cause.Protocol != nil, cause.Misc != nil, cause.Ext != nil} {
+		if ok {
+			set++
+		}
+	}
+	if set > 1 {
+		return per.ErrChoice
+	}
+	switch {
+	case cause.RadioNetwork != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 4, 0); err != nil {
+			return err
+		}
+		if err := (*cause.RadioNetwork).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case cause.Transport != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 4, 1); err != nil {
+			return err
+		}
+		if err := (*cause.Transport).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case cause.NAS != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 4, 2); err != nil {
+			return err
+		}
+		if err := (*cause.NAS).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case cause.Protocol != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 4, 3); err != nil {
+			return err
+		}
+		if err := (*cause.Protocol).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case cause.Misc != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 4, 4); err != nil {
+			return err
+		}
+		if err := (*cause.Misc).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case cause.Ext != nil:
+		w.WriteBit(true)
+		return cause.Ext.MarshalPER(w, enc)
+	default:
+		return per.ErrEmpty
+	}
+	return nil
+}
+
+func (cause *Cause) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*cause = Cause{}
+	isExt, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if isExt {
+		extIdx, err := per.DecodeNormallySmall(r, enc)
+		if err != nil {
+			return err
+		}
+		cause.Ext, err = per.DecodeExtensionAlternative(r, enc, extIdx)
+		return err
+	}
+	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 4)
+	if err != nil {
+		return err
+	}
+	switch idx {
+	case 0:
+		var v CauseRadioNetwork
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		cause.RadioNetwork = &v
+	case 1:
+		var v CauseTransport
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		cause.Transport = &v
+	case 2:
+		var v CauseNas
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		cause.NAS = &v
+	case 3:
+		var v CauseProtocol
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		cause.Protocol = &v
+	case 4:
+		var v CauseMisc
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		cause.Misc = &v
+	default:
+		return per.ErrOverflow
+	}
+	return nil
+}
+
+func (cause *Cause) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	switch {
+	case cause.RadioNetwork != nil:
+		return cause.RadioNetwork.Diagnose(d)
+	case cause.Transport != nil:
+		return cause.Transport.Diagnose(d)
+	case cause.NAS != nil:
+		return cause.NAS.Diagnose(d)
+	case cause.Protocol != nil:
+		return cause.Protocol.Diagnose(d)
+	case cause.Misc != nil:
+		return cause.Misc.Diagnose(d)
+	case cause.Ext != nil:
+		return true
+	}
+	return false
+}
+
+func (causeMisc CauseMisc) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumCauseMisc.Encode(w, enc, causeMisc)
+}
+
+func (causeMisc *CauseMisc) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumCauseMisc.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*causeMisc = v
+	return nil
+}
+
+func (causeMisc CauseMisc) Name() string {
+	return enumCauseMisc.Name(causeMisc)
+}
+
+func (causeMisc CauseMisc) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumCauseMisc.Known(causeMisc)
+}
+
+func (causeNas CauseNas) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumCauseNas.Encode(w, enc, causeNas)
+}
+
+func (causeNas *CauseNas) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumCauseNas.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*causeNas = v
+	return nil
+}
+
+func (causeNas CauseNas) Name() string {
+	return enumCauseNas.Name(causeNas)
+}
+
+func (causeNas CauseNas) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumCauseNas.Known(causeNas)
+}
+
+func (causeProtocol CauseProtocol) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumCauseProtocol.Encode(w, enc, causeProtocol)
+}
+
+func (causeProtocol *CauseProtocol) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumCauseProtocol.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*causeProtocol = v
+	return nil
+}
+
+func (causeProtocol CauseProtocol) Name() string {
+	return enumCauseProtocol.Name(causeProtocol)
+}
+
+func (causeProtocol CauseProtocol) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumCauseProtocol.Known(causeProtocol)
+}
+
+func (causeRadioNetwork CauseRadioNetwork) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumCauseRadioNetwork.Encode(w, enc, causeRadioNetwork)
+}
+
+func (causeRadioNetwork *CauseRadioNetwork) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumCauseRadioNetwork.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*causeRadioNetwork = v
+	return nil
+}
+
+func (causeRadioNetwork CauseRadioNetwork) Name() string {
+	return enumCauseRadioNetwork.Name(causeRadioNetwork)
+}
+
+func (causeRadioNetwork CauseRadioNetwork) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumCauseRadioNetwork.Known(causeRadioNetwork)
+}
+
+func (causeTransport CauseTransport) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumCauseTransport.Encode(w, enc, causeTransport)
+}
+
+func (causeTransport *CauseTransport) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumCauseTransport.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*causeTransport = v
+	return nil
+}
+
+func (causeTransport CauseTransport) Name() string {
+	return enumCauseTransport.Name(causeTransport)
+}
+
+func (causeTransport CauseTransport) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumCauseTransport.Known(causeTransport)
+}
+
 func (cellIDBroadcastItem *CellIDBroadcastItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsCellIDBroadcastItem, cellIDBroadcastItem, cellIDBroadcastItem.iEExtensions)
+	w.WriteBit(cellIDBroadcastItem.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := cellIDBroadcastItem.ECGI.MarshalPER(w, enc); err != nil {
 		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if cellIDBroadcastItem.extensions.Present() {
+		if err := cellIDBroadcastItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func (cellIDBroadcastItem *CellIDBroadcastItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*cellIDBroadcastItem = CellIDBroadcastItem{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f1, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
 	if err := (&cellIDBroadcastItem.ECGI).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f1 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsCellIDBroadcastItem, cellIDBroadcastItem, &cellIDBroadcastItem.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := cellIDBroadcastItem.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsCellIDBroadcastItem []ap.IESpec[ProtocolIEID, CellIDBroadcastItem]
+
+func (cellIDBroadcastItem *CellIDBroadcastItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if cellIDBroadcastItem.ECGI.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsCellIDBroadcastItem, cellIDBroadcastItem, cellIDBroadcastItem.iEExtensions)
+	return notComprehended
+}
+
 func (cellIDCancelledItem *CellIDCancelledItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsCellIDCancelledItem, cellIDCancelledItem, cellIDCancelledItem.iEExtensions)
+	w.WriteBit(cellIDCancelledItem.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := cellIDCancelledItem.ECGI.MarshalPER(w, enc); err != nil {
 		return err
 	}
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 65535, HasUB: true}, int64(cellIDCancelledItem.NumberOfBroadcasts)); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if cellIDCancelledItem.extensions.Present() {
+		if err := cellIDCancelledItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (cellIDCancelledItem *CellIDCancelledItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*cellIDCancelledItem = CellIDCancelledItem{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -337,47 +1014,60 @@ func (cellIDCancelledItem *CellIDCancelledItem) UnmarshalPER(r *per.Reader, enc 
 		return err
 	}
 	cellIDCancelledItem.NumberOfBroadcasts = uint16(n1)
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsCellIDCancelledItem, cellIDCancelledItem, &cellIDCancelledItem.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := cellIDCancelledItem.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsCellIDCancelledItem []ap.IESpec[ProtocolIEID, CellIDCancelledItem]
+
+func (cellIDCancelledItem *CellIDCancelledItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if cellIDCancelledItem.ECGI.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsCellIDCancelledItem, cellIDCancelledItem, cellIDCancelledItem.iEExtensions)
+	return notComprehended
+}
+
+func (cellSize CellSize) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumCellSize.Encode(w, enc, cellSize)
+}
+
+func (cellSize *CellSize) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumCellSize.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*cellSize = v
+	return nil
+}
+
+func (cellSize CellSize) Name() string {
+	return enumCellSize.Name(cellSize)
+}
+
+func (cellSize CellSize) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumCellSize.Known(cellSize)
+}
+
 func (cellType *CellType) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsCellType, cellType, cellType.iEExtensions)
 	w.WriteBit(cellType.extensions.Present())
-	w.WriteBit(cellType.iEExtensions != nil)
+	w.WriteBit(len(ext) > 0)
 	if err := cellType.CellSize.MarshalPER(w, enc); err != nil {
 		return err
 	}
-	if cellType.iEExtensions != nil {
-		if err := (*cellType.iEExtensions).MarshalPER(w, enc); err != nil {
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
 			return err
 		}
 	}
@@ -390,6 +1080,7 @@ func (cellType *CellType) MarshalPER(w *per.Writer, enc per.Encoding) error {
 }
 
 func (cellType *CellType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*cellType = CellType{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
@@ -402,11 +1093,9 @@ func (cellType *CellType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 		return err
 	}
 	if p_iEExtensions {
-		var v transparentIEExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsCellType, cellType, &cellType.iEExtensions); err != nil {
 			return err
 		}
-		cellType.iEExtensions = &v
 	}
 	if extBit {
 		if err := cellType.extensions.UnmarshalPER(r, enc); err != nil {
@@ -416,135 +1105,391 @@ func (cellType *CellType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
+var extIEsCellType []ap.IESpec[ProtocolIEID, CellType]
+
+func (cellType *CellType) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if cellType.CellSize.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsCellType, cellType, cellType.iEExtensions)
+	return notComprehended
+}
+
+func (coarseUELocationRequested CoarseUELocationRequested) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumCoarseUELocationRequested.Encode(w, enc, coarseUELocationRequested)
+}
+
+func (coarseUELocationRequested *CoarseUELocationRequested) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumCoarseUELocationRequested.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*coarseUELocationRequested = v
+	return nil
+}
+
+func (coarseUELocationRequested CoarseUELocationRequested) Name() string {
+	return enumCoarseUELocationRequested.Name(coarseUELocationRequested)
+}
+
+func (coarseUELocationRequested CoarseUELocationRequested) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumCoarseUELocationRequested.Known(coarseUELocationRequested)
+}
+
 func (completedCellInEAIItem *CompletedCellInEAIItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsCompletedCellInEAIItem, completedCellInEAIItem, completedCellInEAIItem.iEExtensions)
+	w.WriteBit(completedCellInEAIItem.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := completedCellInEAIItem.ECGI.MarshalPER(w, enc); err != nil {
 		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if completedCellInEAIItem.extensions.Present() {
+		if err := completedCellInEAIItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func (completedCellInEAIItem *CompletedCellInEAIItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*completedCellInEAIItem = CompletedCellInEAIItem{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f1, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
 	if err := (&completedCellInEAIItem.ECGI).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f1 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsCompletedCellInEAIItem, completedCellInEAIItem, &completedCellInEAIItem.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := completedCellInEAIItem.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsCompletedCellInEAIItem []ap.IESpec[ProtocolIEID, CompletedCellInEAIItem]
+
+func (completedCellInEAIItem *CompletedCellInEAIItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if completedCellInEAIItem.ECGI.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsCompletedCellInEAIItem, completedCellInEAIItem, completedCellInEAIItem.iEExtensions)
+	return notComprehended
+}
+
 func (completedCellInTAIItem *CompletedCellInTAIItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsCompletedCellInTAIItem, completedCellInTAIItem, completedCellInTAIItem.iEExtensions)
+	w.WriteBit(completedCellInTAIItem.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := completedCellInTAIItem.ECGI.MarshalPER(w, enc); err != nil {
 		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if completedCellInTAIItem.extensions.Present() {
+		if err := completedCellInTAIItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func (completedCellInTAIItem *CompletedCellInTAIItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*completedCellInTAIItem = CompletedCellInTAIItem{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f1, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
 	if err := (&completedCellInTAIItem.ECGI).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f1 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsCompletedCellInTAIItem, completedCellInTAIItem, &completedCellInTAIItem.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := completedCellInTAIItem.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsCompletedCellInTAIItem []ap.IESpec[ProtocolIEID, CompletedCellInTAIItem]
+
+func (completedCellInTAIItem *CompletedCellInTAIItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if completedCellInTAIItem.ECGI.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsCompletedCellInTAIItem, completedCellInTAIItem, completedCellInTAIItem.iEExtensions)
+	return notComprehended
+}
+
+func (contextatSource *ContextatSource) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsContextatSource, contextatSource, contextatSource.iEExtensions)
+	w.WriteBit(contextatSource.extensions.Present())
+	w.WriteBit(len(ext) > 0)
+	if err := contextatSource.SourceNGRANNodeID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := contextatSource.RANUENGAPID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if contextatSource.extensions.Present() {
+		if err := contextatSource.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (contextatSource *ContextatSource) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*contextatSource = ContextatSource{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&contextatSource.SourceNGRANNodeID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&contextatSource.RANUENGAPID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsContextatSource, contextatSource, &contextatSource.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := contextatSource.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsContextatSource []ap.IESpec[ProtocolIEID, ContextatSource]
+
+func (contextatSource *ContextatSource) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if contextatSource.SourceNGRANNodeID.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsContextatSource, contextatSource, contextatSource.iEExtensions)
+	return notComprehended
+}
+
+func (criticalityDiagnostics *CriticalityDiagnostics) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsCriticalityDiagnostics, criticalityDiagnostics, criticalityDiagnostics.iEExtensions)
+	w.WriteBit(criticalityDiagnostics.extensions.Present())
+	w.WriteBit(criticalityDiagnostics.ProcedureCode != nil)
+	w.WriteBit(criticalityDiagnostics.TriggeringMessage != nil)
+	w.WriteBit(criticalityDiagnostics.ProcedureCriticality != nil)
+	w.WriteBit(criticalityDiagnostics.IEsCriticalityDiagnostics != nil)
+	w.WriteBit(len(ext) > 0)
+	if criticalityDiagnostics.ProcedureCode != nil {
+		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true}, int64((*criticalityDiagnostics.ProcedureCode))); err != nil {
+			return err
+		}
+	}
+	if criticalityDiagnostics.TriggeringMessage != nil {
+		if err := (*criticalityDiagnostics.TriggeringMessage).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if criticalityDiagnostics.ProcedureCriticality != nil {
+		if err := per.EncodeEnumerated(w, enc, 3, false, int64((*criticalityDiagnostics.ProcedureCriticality))); err != nil {
+			return err
+		}
+	}
+	if criticalityDiagnostics.IEsCriticalityDiagnostics != nil {
+		off3 := 0
+		if err := per.EncodeLength(w, enc, 1, 256, true, int64(len(criticalityDiagnostics.IEsCriticalityDiagnostics)), func(count int64) error {
+			end := off3 + int(count)
+			for i := off3; i < end; i++ {
+				if err := criticalityDiagnostics.IEsCriticalityDiagnostics[i].MarshalPER(w, enc); err != nil {
+					return err
+				}
+			}
+			off3 = end
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if criticalityDiagnostics.extensions.Present() {
+		if err := criticalityDiagnostics.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (criticalityDiagnostics *CriticalityDiagnostics) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*criticalityDiagnostics = CriticalityDiagnostics{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ProcedureCode, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_TriggeringMessage, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ProcedureCriticality, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_IEsCriticalityDiagnostics, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if p_ProcedureCode {
+		var v ProcedureCode
+		n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: true})
+		if err != nil {
+			return err
+		}
+		v = ProcedureCode(n0)
+		criticalityDiagnostics.ProcedureCode = &v
+	}
+	if p_TriggeringMessage {
+		var v TriggeringMessage
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		criticalityDiagnostics.TriggeringMessage = &v
+	}
+	if p_ProcedureCriticality {
+		var v Criticality
+		e2, err := per.DecodeEnumerated(r, enc, 3, false)
+		if err != nil {
+			return err
+		}
+		v = Criticality(e2)
+		criticalityDiagnostics.ProcedureCriticality = &v
+	}
+	if p_IEsCriticalityDiagnostics {
+		criticalityDiagnostics.IEsCriticalityDiagnostics = nil
+		if err := per.DecodeLength(r, enc, 1, 256, true, func(count int64) error {
+			start := len(criticalityDiagnostics.IEsCriticalityDiagnostics)
+			criticalityDiagnostics.IEsCriticalityDiagnostics = append(criticalityDiagnostics.IEsCriticalityDiagnostics, make([]CriticalityDiagnosticsIEItem, count)...)
+			for i := int64(0); i < count; i++ {
+				if err := (&criticalityDiagnostics.IEsCriticalityDiagnostics[start+int(i)]).UnmarshalPER(r, enc); err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsCriticalityDiagnostics, criticalityDiagnostics, &criticalityDiagnostics.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := criticalityDiagnostics.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsCriticalityDiagnostics []ap.IESpec[ProtocolIEID, CriticalityDiagnostics]
+
+func (criticalityDiagnostics *CriticalityDiagnostics) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range criticalityDiagnostics.IEsCriticalityDiagnostics {
+		if criticalityDiagnostics.IEsCriticalityDiagnostics[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	ap.DiagnoseExtensions(d, extIEsCriticalityDiagnostics, criticalityDiagnostics, criticalityDiagnostics.iEExtensions)
+	return notComprehended
+}
+
 func (criticalityDiagnosticsIEItem *CriticalityDiagnosticsIEItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsCriticalityDiagnosticsIEItem, criticalityDiagnosticsIEItem, criticalityDiagnosticsIEItem.iEExtensions)
+	w.WriteBit(criticalityDiagnosticsIEItem.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := per.EncodeEnumerated(w, enc, 3, false, int64(criticalityDiagnosticsIEItem.IECriticality)); err != nil {
 		return err
 	}
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 65535, HasUB: true}, int64(criticalityDiagnosticsIEItem.IEID)); err != nil {
 		return err
 	}
-	if err := encodeRootEnumerated(w, enc, 2, int64(criticalityDiagnosticsIEItem.TypeOfError), "TypeOfError"); err != nil {
+	if err := criticalityDiagnosticsIEItem.TypeOfError.MarshalPER(w, enc); err != nil {
 		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if criticalityDiagnosticsIEItem.extensions.Present() {
+		if err := criticalityDiagnosticsIEItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func (criticalityDiagnosticsIEItem *CriticalityDiagnosticsIEItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*criticalityDiagnosticsIEItem = CriticalityDiagnosticsIEItem{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f3, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -558,51 +1503,375 @@ func (criticalityDiagnosticsIEItem *CriticalityDiagnosticsIEItem) UnmarshalPER(r
 		return err
 	}
 	criticalityDiagnosticsIEItem.IEID = ProtocolIEID(n1)
-	e2, err := decodeRootEnumerated(r, enc, 2, "TypeOfError")
-	if err != nil {
+	if err := (&criticalityDiagnosticsIEItem.TypeOfError).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	criticalityDiagnosticsIEItem.TypeOfError = TypeOfError(e2)
-	if p_f3 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsCriticalityDiagnosticsIEItem, criticalityDiagnosticsIEItem, &criticalityDiagnosticsIEItem.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := criticalityDiagnosticsIEItem.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsCriticalityDiagnosticsIEItem []ap.IESpec[ProtocolIEID, CriticalityDiagnosticsIEItem]
+
+func (criticalityDiagnosticsIEItem *CriticalityDiagnosticsIEItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if criticalityDiagnosticsIEItem.TypeOfError.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsCriticalityDiagnosticsIEItem, criticalityDiagnosticsIEItem, criticalityDiagnosticsIEItem.iEExtensions)
+	return notComprehended
+}
+
+func (dAPSIndicator DAPSIndicator) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumDAPSIndicator.Encode(w, enc, dAPSIndicator)
+}
+
+func (dAPSIndicator *DAPSIndicator) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumDAPSIndicator.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*dAPSIndicator = v
+	return nil
+}
+
+func (dAPSIndicator DAPSIndicator) Name() string {
+	return enumDAPSIndicator.Name(dAPSIndicator)
+}
+
+func (dAPSIndicator DAPSIndicator) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumDAPSIndicator.Known(dAPSIndicator)
+}
+
+func (dAPSRequestInfo *DAPSRequestInfo) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsDAPSRequestInfo, dAPSRequestInfo, dAPSRequestInfo.iEExtensions)
+	w.WriteBit(dAPSRequestInfo.extensions.Present())
+	w.WriteBit(len(ext) > 0)
+	if err := dAPSRequestInfo.DAPSIndicator.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if dAPSRequestInfo.extensions.Present() {
+		if err := dAPSRequestInfo.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (dAPSRequestInfo *DAPSRequestInfo) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*dAPSRequestInfo = DAPSRequestInfo{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&dAPSRequestInfo.DAPSIndicator).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsDAPSRequestInfo, dAPSRequestInfo, &dAPSRequestInfo.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := dAPSRequestInfo.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsDAPSRequestInfo []ap.IESpec[ProtocolIEID, DAPSRequestInfo]
+
+func (dAPSRequestInfo *DAPSRequestInfo) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if dAPSRequestInfo.DAPSIndicator.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsDAPSRequestInfo, dAPSRequestInfo, dAPSRequestInfo.iEExtensions)
+	return notComprehended
+}
+
+func (dLForwarding DLForwarding) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumDLForwarding.Encode(w, enc, dLForwarding)
+}
+
+func (dLForwarding *DLForwarding) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumDLForwarding.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*dLForwarding = v
+	return nil
+}
+
+func (dLForwarding DLForwarding) Name() string {
+	return enumDLForwarding.Name(dLForwarding)
+}
+
+func (dLForwarding DLForwarding) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumDLForwarding.Known(dLForwarding)
+}
+
+func (dataForwardingNotPossible DataForwardingNotPossible) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumDataForwardingNotPossible.Encode(w, enc, dataForwardingNotPossible)
+}
+
+func (dataForwardingNotPossible *DataForwardingNotPossible) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumDataForwardingNotPossible.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*dataForwardingNotPossible = v
+	return nil
+}
+
+func (dataForwardingNotPossible DataForwardingNotPossible) Name() string {
+	return enumDataForwardingNotPossible.Name(dataForwardingNotPossible)
+}
+
+func (dataForwardingNotPossible DataForwardingNotPossible) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumDataForwardingNotPossible.Known(dataForwardingNotPossible)
+}
+
+func (directForwardingPathAvailability DirectForwardingPathAvailability) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumDirectForwardingPathAvailability.Encode(w, enc, directForwardingPathAvailability)
+}
+
+func (directForwardingPathAvailability *DirectForwardingPathAvailability) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumDirectForwardingPathAvailability.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*directForwardingPathAvailability = v
+	return nil
+}
+
+func (directForwardingPathAvailability DirectForwardingPathAvailability) Name() string {
+	return enumDirectForwardingPathAvailability.Name(directForwardingPathAvailability)
+}
+
+func (directForwardingPathAvailability DirectForwardingPathAvailability) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumDirectForwardingPathAvailability.Known(directForwardingPathAvailability)
+}
+
+func (eNBID *ENBID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	set := 0
+	for _, ok := range [...]bool{eNBID.MacroENBID != nil, eNBID.HomeENBID != nil, eNBID.ShortMacroENBID != nil, eNBID.LongMacroENBID != nil, eNBID.Ext != nil} {
+		if ok {
+			set++
+		}
+	}
+	if set > 1 {
+		return per.ErrChoice
+	}
+	switch {
+	case eNBID.MacroENBID != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 0); err != nil {
+			return err
+		}
+		if err := (*eNBID.MacroENBID).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case eNBID.HomeENBID != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 1); err != nil {
+			return err
+		}
+		if err := (*eNBID.HomeENBID).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case eNBID.ShortMacroENBID != nil:
+		w.WriteBit(true)
+		if err := per.EncodeNormallySmall(w, enc, 0); err != nil {
+			return err
+		}
+		return per.EncodeOpenType(w, enc, eNBID.ShortMacroENBID)
+	case eNBID.LongMacroENBID != nil:
+		w.WriteBit(true)
+		if err := per.EncodeNormallySmall(w, enc, 1); err != nil {
+			return err
+		}
+		return per.EncodeOpenType(w, enc, eNBID.LongMacroENBID)
+	case eNBID.Ext != nil:
+		w.WriteBit(true)
+		return eNBID.Ext.MarshalPER(w, enc)
+	default:
+		return per.ErrEmpty
+	}
+	return nil
+}
+
+func (eNBID *ENBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*eNBID = ENBID{}
+	isExt, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if isExt {
+		extIdx, err := per.DecodeNormallySmall(r, enc)
+		if err != nil {
+			return err
+		}
+		switch extIdx {
+		case 0:
+			var v ShortMacroENBID
+			if err := per.DecodeOpenType(r, enc, &v); err != nil {
+				return err
+			}
+			eNBID.ShortMacroENBID = &v
+		case 1:
+			var v LongMacroENBID
+			if err := per.DecodeOpenType(r, enc, &v); err != nil {
+				return err
+			}
+			eNBID.LongMacroENBID = &v
+		default:
+			eNBID.Ext, err = per.DecodeExtensionAlternative(r, enc, extIdx)
+			return err
+		}
+		return nil
+	}
+	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 1)
+	if err != nil {
+		return err
+	}
+	switch idx {
+	case 0:
+		var v MacroENBID
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		eNBID.MacroENBID = &v
+	case 1:
+		var v HomeENBID
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		eNBID.HomeENBID = &v
+	default:
+		return per.ErrOverflow
+	}
+	return nil
+}
+
+func (eNBID *ENBID) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	switch {
+	case eNBID.MacroENBID != nil:
+	case eNBID.HomeENBID != nil:
+	case eNBID.ShortMacroENBID != nil:
+	case eNBID.LongMacroENBID != nil:
+	case eNBID.Ext != nil:
+		return true
+	}
+	return false
+}
+
+func (eNBX2ExtTLA *ENBX2ExtTLA) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsENBX2ExtTLA, eNBX2ExtTLA, eNBX2ExtTLA.iEExtensions)
+	w.WriteBit(eNBX2ExtTLA.extensions.Present())
+	w.WriteBit(eNBX2ExtTLA.IPsecTLA != nil)
+	w.WriteBit(eNBX2ExtTLA.GTPTLAa != nil)
+	w.WriteBit(len(ext) > 0)
+	if eNBX2ExtTLA.IPsecTLA != nil {
+		if err := (*eNBX2ExtTLA.IPsecTLA).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if eNBX2ExtTLA.GTPTLAa != nil {
+		if err := eNBX2ExtTLA.GTPTLAa.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if eNBX2ExtTLA.extensions.Present() {
+		if err := eNBX2ExtTLA.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (eNBX2ExtTLA *ENBX2ExtTLA) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*eNBX2ExtTLA = ENBX2ExtTLA{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_IPsecTLA, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_GTPTLAa, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if p_IPsecTLA {
+		var v TransportLayerAddress
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		eNBX2ExtTLA.IPsecTLA = &v
+	}
+	if p_GTPTLAa {
+		if err := (&eNBX2ExtTLA.GTPTLAa).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsENBX2ExtTLA, eNBX2ExtTLA, &eNBX2ExtTLA.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := eNBX2ExtTLA.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsENBX2ExtTLA []ap.IESpec[ProtocolIEID, ENBX2ExtTLA]
+
+func (eNBX2ExtTLA *ENBX2ExtTLA) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsENBX2ExtTLA, eNBX2ExtTLA, eNBX2ExtTLA.iEExtensions)
+	return notComprehended
+}
+
 func (eRABAdmittedItem *ERABAdmittedItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsERABAdmittedItem, eRABAdmittedItem, eRABAdmittedItem.iEExtensions)
 	w.WriteBit(eRABAdmittedItem.extensions.Present())
 	w.WriteBit(eRABAdmittedItem.DLTransportLayerAddr != nil)
 	w.WriteBit(eRABAdmittedItem.DLGTPTEID != nil)
 	w.WriteBit(eRABAdmittedItem.ULTransportLayerAddr != nil)
 	w.WriteBit(eRABAdmittedItem.ULGTPTEID != nil)
-	w.WriteBit(eRABAdmittedItem.iEExtensions != nil)
+	w.WriteBit(len(ext) > 0)
 	if err := eRABAdmittedItem.ERABID.MarshalPER(w, enc); err != nil {
 		return err
 	}
@@ -613,7 +1882,7 @@ func (eRABAdmittedItem *ERABAdmittedItem) MarshalPER(w *per.Writer, enc per.Enco
 		return err
 	}
 	if eRABAdmittedItem.DLTransportLayerAddr != nil {
-		if err := eRABAdmittedItem.DLTransportLayerAddr.MarshalPER(w, enc); err != nil {
+		if err := (*eRABAdmittedItem.DLTransportLayerAddr).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
@@ -623,7 +1892,7 @@ func (eRABAdmittedItem *ERABAdmittedItem) MarshalPER(w *per.Writer, enc per.Enco
 		}
 	}
 	if eRABAdmittedItem.ULTransportLayerAddr != nil {
-		if err := eRABAdmittedItem.ULTransportLayerAddr.MarshalPER(w, enc); err != nil {
+		if err := (*eRABAdmittedItem.ULTransportLayerAddr).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
@@ -632,8 +1901,8 @@ func (eRABAdmittedItem *ERABAdmittedItem) MarshalPER(w *per.Writer, enc per.Enco
 			return err
 		}
 	}
-	if eRABAdmittedItem.iEExtensions != nil {
-		if err := (*eRABAdmittedItem.iEExtensions).MarshalPER(w, enc); err != nil {
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
 			return err
 		}
 	}
@@ -646,6 +1915,7 @@ func (eRABAdmittedItem *ERABAdmittedItem) MarshalPER(w *per.Writer, enc per.Enco
 }
 
 func (eRABAdmittedItem *ERABAdmittedItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*eRABAdmittedItem = ERABAdmittedItem{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
@@ -680,9 +1950,11 @@ func (eRABAdmittedItem *ERABAdmittedItem) UnmarshalPER(r *per.Reader, enc per.En
 		return err
 	}
 	if p_DLTransportLayerAddr {
-		if err := (&eRABAdmittedItem.DLTransportLayerAddr).UnmarshalPER(r, enc); err != nil {
+		var v TransportLayerAddress
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
+		eRABAdmittedItem.DLTransportLayerAddr = &v
 	}
 	if p_DLGTPTEID {
 		var v GTPTEID
@@ -692,9 +1964,11 @@ func (eRABAdmittedItem *ERABAdmittedItem) UnmarshalPER(r *per.Reader, enc per.En
 		eRABAdmittedItem.DLGTPTEID = &v
 	}
 	if p_ULTransportLayerAddr {
-		if err := (&eRABAdmittedItem.ULTransportLayerAddr).UnmarshalPER(r, enc); err != nil {
+		var v TransportLayerAddress
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
+		eRABAdmittedItem.ULTransportLayerAddr = &v
 	}
 	if p_ULGTPTEID {
 		var v GTPTEID
@@ -704,11 +1978,9 @@ func (eRABAdmittedItem *ERABAdmittedItem) UnmarshalPER(r *per.Reader, enc per.En
 		eRABAdmittedItem.ULGTPTEID = &v
 	}
 	if p_iEExtensions {
-		var v rawIEExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsERABAdmittedItem, eRABAdmittedItem, &eRABAdmittedItem.iEExtensions); err != nil {
 			return err
 		}
-		eRABAdmittedItem.iEExtensions = &v
 	}
 	if extBit {
 		if err := eRABAdmittedItem.extensions.UnmarshalPER(r, enc); err != nil {
@@ -718,18 +1990,30 @@ func (eRABAdmittedItem *ERABAdmittedItem) UnmarshalPER(r *per.Reader, enc per.En
 	return nil
 }
 
+var extIEsERABAdmittedItem []ap.IESpec[ProtocolIEID, ERABAdmittedItem]
+
+func (eRABAdmittedItem *ERABAdmittedItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if eRABAdmittedItem.ERABID.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsERABAdmittedItem, eRABAdmittedItem, eRABAdmittedItem.iEExtensions)
+	return notComprehended
+}
+
 func (eRABDataForwardingItem *ERABDataForwardingItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsERABDataForwardingItem, eRABDataForwardingItem, eRABDataForwardingItem.iEExtensions)
 	w.WriteBit(eRABDataForwardingItem.extensions.Present())
 	w.WriteBit(eRABDataForwardingItem.DLTransportLayerAddr != nil)
 	w.WriteBit(eRABDataForwardingItem.DLGTPTEID != nil)
 	w.WriteBit(eRABDataForwardingItem.ULTransportLayerAddr != nil)
 	w.WriteBit(eRABDataForwardingItem.ULGTPTEID != nil)
-	w.WriteBit(eRABDataForwardingItem.iEExtensions != nil)
+	w.WriteBit(len(ext) > 0)
 	if err := eRABDataForwardingItem.ERABID.MarshalPER(w, enc); err != nil {
 		return err
 	}
 	if eRABDataForwardingItem.DLTransportLayerAddr != nil {
-		if err := eRABDataForwardingItem.DLTransportLayerAddr.MarshalPER(w, enc); err != nil {
+		if err := (*eRABDataForwardingItem.DLTransportLayerAddr).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
@@ -739,7 +2023,7 @@ func (eRABDataForwardingItem *ERABDataForwardingItem) MarshalPER(w *per.Writer, 
 		}
 	}
 	if eRABDataForwardingItem.ULTransportLayerAddr != nil {
-		if err := eRABDataForwardingItem.ULTransportLayerAddr.MarshalPER(w, enc); err != nil {
+		if err := (*eRABDataForwardingItem.ULTransportLayerAddr).MarshalPER(w, enc); err != nil {
 			return err
 		}
 	}
@@ -748,8 +2032,8 @@ func (eRABDataForwardingItem *ERABDataForwardingItem) MarshalPER(w *per.Writer, 
 			return err
 		}
 	}
-	if eRABDataForwardingItem.iEExtensions != nil {
-		if err := (*eRABDataForwardingItem.iEExtensions).MarshalPER(w, enc); err != nil {
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
 			return err
 		}
 	}
@@ -762,6 +2046,7 @@ func (eRABDataForwardingItem *ERABDataForwardingItem) MarshalPER(w *per.Writer, 
 }
 
 func (eRABDataForwardingItem *ERABDataForwardingItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*eRABDataForwardingItem = ERABDataForwardingItem{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
@@ -790,9 +2075,11 @@ func (eRABDataForwardingItem *ERABDataForwardingItem) UnmarshalPER(r *per.Reader
 		return err
 	}
 	if p_DLTransportLayerAddr {
-		if err := (&eRABDataForwardingItem.DLTransportLayerAddr).UnmarshalPER(r, enc); err != nil {
+		var v TransportLayerAddress
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
+		eRABDataForwardingItem.DLTransportLayerAddr = &v
 	}
 	if p_DLGTPTEID {
 		var v GTPTEID
@@ -802,9 +2089,11 @@ func (eRABDataForwardingItem *ERABDataForwardingItem) UnmarshalPER(r *per.Reader
 		eRABDataForwardingItem.DLGTPTEID = &v
 	}
 	if p_ULTransportLayerAddr {
-		if err := (&eRABDataForwardingItem.ULTransportLayerAddr).UnmarshalPER(r, enc); err != nil {
+		var v TransportLayerAddress
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
+		eRABDataForwardingItem.ULTransportLayerAddr = &v
 	}
 	if p_ULGTPTEID {
 		var v GTPTEID
@@ -814,11 +2103,9 @@ func (eRABDataForwardingItem *ERABDataForwardingItem) UnmarshalPER(r *per.Reader
 		eRABDataForwardingItem.ULGTPTEID = &v
 	}
 	if p_iEExtensions {
-		var v rawIEExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsERABDataForwardingItem, eRABDataForwardingItem, &eRABDataForwardingItem.iEExtensions); err != nil {
 			return err
 		}
-		eRABDataForwardingItem.iEExtensions = &v
 	}
 	if extBit {
 		if err := eRABDataForwardingItem.extensions.UnmarshalPER(r, enc); err != nil {
@@ -828,10 +2115,22 @@ func (eRABDataForwardingItem *ERABDataForwardingItem) UnmarshalPER(r *per.Reader
 	return nil
 }
 
+var extIEsERABDataForwardingItem []ap.IESpec[ProtocolIEID, ERABDataForwardingItem]
+
+func (eRABDataForwardingItem *ERABDataForwardingItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if eRABDataForwardingItem.ERABID.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsERABDataForwardingItem, eRABDataForwardingItem, eRABDataForwardingItem.iEExtensions)
+	return notComprehended
+}
+
 func (eRABInformationListItem *ERABInformationListItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsERABInformationListItem, eRABInformationListItem, eRABInformationListItem.iEExtensions)
 	w.WriteBit(eRABInformationListItem.extensions.Present())
 	w.WriteBit(eRABInformationListItem.DLForwarding != nil)
-	w.WriteBit(eRABInformationListItem.iEExtensions != nil)
+	w.WriteBit(len(ext) > 0)
 	if err := eRABInformationListItem.ERABID.MarshalPER(w, enc); err != nil {
 		return err
 	}
@@ -840,8 +2139,8 @@ func (eRABInformationListItem *ERABInformationListItem) MarshalPER(w *per.Writer
 			return err
 		}
 	}
-	if eRABInformationListItem.iEExtensions != nil {
-		if err := (*eRABInformationListItem.iEExtensions).MarshalPER(w, enc); err != nil {
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
 			return err
 		}
 	}
@@ -854,6 +2153,7 @@ func (eRABInformationListItem *ERABInformationListItem) MarshalPER(w *per.Writer
 }
 
 func (eRABInformationListItem *ERABInformationListItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*eRABInformationListItem = ERABInformationListItem{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
@@ -877,11 +2177,9 @@ func (eRABInformationListItem *ERABInformationListItem) UnmarshalPER(r *per.Read
 		eRABInformationListItem.DLForwarding = &v
 	}
 	if p_iEExtensions {
-		var v transparentIEExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsERABInformationListItem, eRABInformationListItem, &eRABInformationListItem.iEExtensions); err != nil {
 			return err
 		}
-		eRABInformationListItem.iEExtensions = &v
 	}
 	if extBit {
 		if err := eRABInformationListItem.extensions.UnmarshalPER(r, enc); err != nil {
@@ -891,24 +2189,127 @@ func (eRABInformationListItem *ERABInformationListItem) UnmarshalPER(r *per.Read
 	return nil
 }
 
+var extIEsERABInformationListItem = []ap.IESpec[ProtocolIEID, ERABInformationListItem]{
+	{
+		ID:          IDDAPSRequestInfo,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *ERABInformationListItem, r *per.Reader, enc per.Encoding) error {
+			var v DAPSRequestInfo
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.DAPSRequestInfo = &v
+			return nil
+		},
+		Encode: func(x *ERABInformationListItem) (per.Marshaler, bool) {
+			if x.DAPSRequestInfo == nil {
+				return nil, false
+			}
+			return x.DAPSRequestInfo, true
+		},
+	},
+	{
+		ID:          IDSourceTransportLayerAddress,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *ERABInformationListItem, r *per.Reader, enc per.Encoding) error {
+			var v TransportLayerAddress
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.SourceTransportLayerAddress = &v
+			return nil
+		},
+		Encode: func(x *ERABInformationListItem) (per.Marshaler, bool) {
+			if x.SourceTransportLayerAddress == nil {
+				return nil, false
+			}
+			return x.SourceTransportLayerAddress, true
+		},
+	},
+	{
+		ID:          IDSecurityIndication,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *ERABInformationListItem, r *per.Reader, enc per.Encoding) error {
+			var v SecurityIndication
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.SecurityIndication = &v
+			return nil
+		},
+		Encode: func(x *ERABInformationListItem) (per.Marshaler, bool) {
+			if x.SecurityIndication == nil {
+				return nil, false
+			}
+			return x.SecurityIndication, true
+		},
+	},
+	{
+		ID:          IDSourceNodeTransportLayerAddress,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *ERABInformationListItem, r *per.Reader, enc per.Encoding) error {
+			var v TransportLayerAddress
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.SourceNodeTransportLayerAddress = &v
+			return nil
+		},
+		Encode: func(x *ERABInformationListItem) (per.Marshaler, bool) {
+			if x.SourceNodeTransportLayerAddress == nil {
+				return nil, false
+			}
+			return x.SourceNodeTransportLayerAddress, true
+		},
+	},
+}
+
+func (eRABInformationListItem *ERABInformationListItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if eRABInformationListItem.ERABID.Diagnose(d) {
+		notComprehended = true
+	}
+	if eRABInformationListItem.DLForwarding != nil && eRABInformationListItem.DLForwarding.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsERABInformationListItem, eRABInformationListItem, eRABInformationListItem.iEExtensions)
+	return notComprehended
+}
+
 func (eRABItem *ERABItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsERABItem, eRABItem, eRABItem.iEExtensions)
+	w.WriteBit(eRABItem.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := eRABItem.ERABID.MarshalPER(w, enc); err != nil {
 		return err
 	}
 	if err := eRABItem.Cause.MarshalPER(w, enc); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if eRABItem.extensions.Present() {
+		if err := eRABItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (eRABItem *ERABItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*eRABItem = ERABItem{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -918,41 +2319,35 @@ func (eRABItem *ERABItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if err := (&eRABItem.Cause).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsERABItem, eRABItem, &eRABItem.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := eRABItem.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsERABItem []ap.IESpec[ProtocolIEID, ERABItem]
+
+func (eRABItem *ERABItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if eRABItem.ERABID.Diagnose(d) {
+		notComprehended = true
+	}
+	if eRABItem.Cause.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsERABItem, eRABItem, eRABItem.iEExtensions)
+	return notComprehended
+}
+
 func (eRABLevelQoSParameters *ERABLevelQoSParameters) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	ext := extensionFields(eRABLevelQoSParametersExtIEs, eRABLevelQoSParameters, &eRABLevelQoSParameters.iEExtensions)
+	ext := ap.ExtensionFields(extIEsERABLevelQoSParameters, eRABLevelQoSParameters, eRABLevelQoSParameters.iEExtensions)
 	w.WriteBit(eRABLevelQoSParameters.extensions.Present())
 	w.WriteBit(eRABLevelQoSParameters.GBR != nil)
 	w.WriteBit(len(ext) > 0)
@@ -968,7 +2363,7 @@ func (eRABLevelQoSParameters *ERABLevelQoSParameters) MarshalPER(w *per.Writer, 
 		}
 	}
 	if len(ext) > 0 {
-		if err := encodeExtensionContainer(w, enc, ext); err != nil {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
 			return err
 		}
 	}
@@ -981,6 +2376,7 @@ func (eRABLevelQoSParameters *ERABLevelQoSParameters) MarshalPER(w *per.Writer, 
 }
 
 func (eRABLevelQoSParameters *ERABLevelQoSParameters) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*eRABLevelQoSParameters = ERABLevelQoSParameters{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
@@ -1007,7 +2403,7 @@ func (eRABLevelQoSParameters *ERABLevelQoSParameters) UnmarshalPER(r *per.Reader
 		eRABLevelQoSParameters.GBR = &v
 	}
 	if p_iEExtensions {
-		if err := decodeExtensionContainer(r, enc, eRABLevelQoSParametersExtIEs, eRABLevelQoSParameters, &eRABLevelQoSParameters.iEExtensions); err != nil {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsERABLevelQoSParameters, eRABLevelQoSParameters, &eRABLevelQoSParameters.iEExtensions); err != nil {
 			return err
 		}
 	}
@@ -1019,117 +2415,177 @@ func (eRABLevelQoSParameters *ERABLevelQoSParameters) UnmarshalPER(r *per.Reader
 	return nil
 }
 
+var extIEsERABLevelQoSParameters = []ap.IESpec[ProtocolIEID, ERABLevelQoSParameters]{
+	{
+		ID:          IDDownlinkPacketLossRate,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *ERABLevelQoSParameters, r *per.Reader, enc per.Encoding) error {
+			var v PacketLossRate
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.DownlinkPacketLossRate = &v
+			return nil
+		},
+		Encode: func(x *ERABLevelQoSParameters) (per.Marshaler, bool) {
+			if x.DownlinkPacketLossRate == nil {
+				return nil, false
+			}
+			return x.DownlinkPacketLossRate, true
+		},
+	},
+	{
+		ID:          IDUplinkPacketLossRate,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *ERABLevelQoSParameters, r *per.Reader, enc per.Encoding) error {
+			var v PacketLossRate
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.UplinkPacketLossRate = &v
+			return nil
+		},
+		Encode: func(x *ERABLevelQoSParameters) (per.Marshaler, bool) {
+			if x.UplinkPacketLossRate == nil {
+				return nil, false
+			}
+			return x.UplinkPacketLossRate, true
+		},
+	},
+}
+
+func (eRABLevelQoSParameters *ERABLevelQoSParameters) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if eRABLevelQoSParameters.ARP.Diagnose(d) {
+		notComprehended = true
+	}
+	if eRABLevelQoSParameters.GBR != nil && eRABLevelQoSParameters.GBR.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsERABLevelQoSParameters, eRABLevelQoSParameters, eRABLevelQoSParameters.iEExtensions)
+	return notComprehended
+}
+
 func (eRABModifyItemBearerModRes *ERABModifyItemBearerModRes) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsERABModifyItemBearerModRes, eRABModifyItemBearerModRes, eRABModifyItemBearerModRes.iEExtensions)
+	w.WriteBit(eRABModifyItemBearerModRes.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := eRABModifyItemBearerModRes.ERABID.MarshalPER(w, enc); err != nil {
 		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if eRABModifyItemBearerModRes.extensions.Present() {
+		if err := eRABModifyItemBearerModRes.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func (eRABModifyItemBearerModRes *ERABModifyItemBearerModRes) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*eRABModifyItemBearerModRes = ERABModifyItemBearerModRes{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f1, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
 	if err := (&eRABModifyItemBearerModRes.ERABID).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f1 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsERABModifyItemBearerModRes, eRABModifyItemBearerModRes, &eRABModifyItemBearerModRes.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := eRABModifyItemBearerModRes.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsERABModifyItemBearerModRes []ap.IESpec[ProtocolIEID, ERABModifyItemBearerModRes]
+
+func (eRABModifyItemBearerModRes *ERABModifyItemBearerModRes) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if eRABModifyItemBearerModRes.ERABID.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsERABModifyItemBearerModRes, eRABModifyItemBearerModRes, eRABModifyItemBearerModRes.iEExtensions)
+	return notComprehended
+}
+
 func (eRABReleaseItemBearerRelComp *ERABReleaseItemBearerRelComp) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsERABReleaseItemBearerRelComp, eRABReleaseItemBearerRelComp, eRABReleaseItemBearerRelComp.iEExtensions)
+	w.WriteBit(eRABReleaseItemBearerRelComp.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := eRABReleaseItemBearerRelComp.ERABID.MarshalPER(w, enc); err != nil {
 		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if eRABReleaseItemBearerRelComp.extensions.Present() {
+		if err := eRABReleaseItemBearerRelComp.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func (eRABReleaseItemBearerRelComp *ERABReleaseItemBearerRelComp) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*eRABReleaseItemBearerRelComp = ERABReleaseItemBearerRelComp{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f1, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
 	if err := (&eRABReleaseItemBearerRelComp.ERABID).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f1 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsERABReleaseItemBearerRelComp, eRABReleaseItemBearerRelComp, &eRABReleaseItemBearerRelComp.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := eRABReleaseItemBearerRelComp.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsERABReleaseItemBearerRelComp []ap.IESpec[ProtocolIEID, ERABReleaseItemBearerRelComp]
+
+func (eRABReleaseItemBearerRelComp *ERABReleaseItemBearerRelComp) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if eRABReleaseItemBearerRelComp.ERABID.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsERABReleaseItemBearerRelComp, eRABReleaseItemBearerRelComp, eRABReleaseItemBearerRelComp.iEExtensions)
+	return notComprehended
+}
+
 func (eRABSetupItemCtxtSURes *ERABSetupItemCtxtSURes) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsERABSetupItemCtxtSURes, eRABSetupItemCtxtSURes, eRABSetupItemCtxtSURes.iEExtensions)
 	w.WriteBit(eRABSetupItemCtxtSURes.extensions.Present())
-	w.WriteBit(eRABSetupItemCtxtSURes.iEExtensions != nil)
+	w.WriteBit(len(ext) > 0)
 	if err := eRABSetupItemCtxtSURes.ERABID.MarshalPER(w, enc); err != nil {
 		return err
 	}
@@ -1139,8 +2595,8 @@ func (eRABSetupItemCtxtSURes *ERABSetupItemCtxtSURes) MarshalPER(w *per.Writer, 
 	if err := eRABSetupItemCtxtSURes.GTPTEID.MarshalPER(w, enc); err != nil {
 		return err
 	}
-	if eRABSetupItemCtxtSURes.iEExtensions != nil {
-		if err := (*eRABSetupItemCtxtSURes.iEExtensions).MarshalPER(w, enc); err != nil {
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
 			return err
 		}
 	}
@@ -1153,6 +2609,7 @@ func (eRABSetupItemCtxtSURes *ERABSetupItemCtxtSURes) MarshalPER(w *per.Writer, 
 }
 
 func (eRABSetupItemCtxtSURes *ERABSetupItemCtxtSURes) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*eRABSetupItemCtxtSURes = ERABSetupItemCtxtSURes{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
@@ -1171,11 +2628,9 @@ func (eRABSetupItemCtxtSURes *ERABSetupItemCtxtSURes) UnmarshalPER(r *per.Reader
 		return err
 	}
 	if p_iEExtensions {
-		var v rawIEExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsERABSetupItemCtxtSURes, eRABSetupItemCtxtSURes, &eRABSetupItemCtxtSURes.iEExtensions); err != nil {
 			return err
 		}
-		eRABSetupItemCtxtSURes.iEExtensions = &v
 	}
 	if extBit {
 		if err := eRABSetupItemCtxtSURes.extensions.UnmarshalPER(r, enc); err != nil {
@@ -1185,9 +2640,21 @@ func (eRABSetupItemCtxtSURes *ERABSetupItemCtxtSURes) UnmarshalPER(r *per.Reader
 	return nil
 }
 
+var extIEsERABSetupItemCtxtSURes []ap.IESpec[ProtocolIEID, ERABSetupItemCtxtSURes]
+
+func (eRABSetupItemCtxtSURes *ERABSetupItemCtxtSURes) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if eRABSetupItemCtxtSURes.ERABID.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsERABSetupItemCtxtSURes, eRABSetupItemCtxtSURes, eRABSetupItemCtxtSURes.iEExtensions)
+	return notComprehended
+}
+
 func (eRABToBeModifiedItemBearerModInd *ERABToBeModifiedItemBearerModInd) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsERABToBeModifiedItemBearerModInd, eRABToBeModifiedItemBearerModInd, eRABToBeModifiedItemBearerModInd.iEExtensions)
 	w.WriteBit(eRABToBeModifiedItemBearerModInd.extensions.Present())
-	w.WriteBit(eRABToBeModifiedItemBearerModInd.iEExtensions != nil)
+	w.WriteBit(len(ext) > 0)
 	if err := eRABToBeModifiedItemBearerModInd.ERABID.MarshalPER(w, enc); err != nil {
 		return err
 	}
@@ -1197,8 +2664,8 @@ func (eRABToBeModifiedItemBearerModInd *ERABToBeModifiedItemBearerModInd) Marsha
 	if err := eRABToBeModifiedItemBearerModInd.DLGTPTEID.MarshalPER(w, enc); err != nil {
 		return err
 	}
-	if eRABToBeModifiedItemBearerModInd.iEExtensions != nil {
-		if err := (*eRABToBeModifiedItemBearerModInd.iEExtensions).MarshalPER(w, enc); err != nil {
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
 			return err
 		}
 	}
@@ -1211,6 +2678,7 @@ func (eRABToBeModifiedItemBearerModInd *ERABToBeModifiedItemBearerModInd) Marsha
 }
 
 func (eRABToBeModifiedItemBearerModInd *ERABToBeModifiedItemBearerModInd) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*eRABToBeModifiedItemBearerModInd = ERABToBeModifiedItemBearerModInd{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
@@ -1229,11 +2697,9 @@ func (eRABToBeModifiedItemBearerModInd *ERABToBeModifiedItemBearerModInd) Unmars
 		return err
 	}
 	if p_iEExtensions {
-		var v rawIEExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsERABToBeModifiedItemBearerModInd, eRABToBeModifiedItemBearerModInd, &eRABToBeModifiedItemBearerModInd.iEExtensions); err != nil {
 			return err
 		}
-		eRABToBeModifiedItemBearerModInd.iEExtensions = &v
 	}
 	if extBit {
 		if err := eRABToBeModifiedItemBearerModInd.extensions.UnmarshalPER(r, enc); err != nil {
@@ -1243,8 +2709,19 @@ func (eRABToBeModifiedItemBearerModInd *ERABToBeModifiedItemBearerModInd) Unmars
 	return nil
 }
 
+var extIEsERABToBeModifiedItemBearerModInd []ap.IESpec[ProtocolIEID, ERABToBeModifiedItemBearerModInd]
+
+func (eRABToBeModifiedItemBearerModInd *ERABToBeModifiedItemBearerModInd) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if eRABToBeModifiedItemBearerModInd.ERABID.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsERABToBeModifiedItemBearerModInd, eRABToBeModifiedItemBearerModInd, eRABToBeModifiedItemBearerModInd.iEExtensions)
+	return notComprehended
+}
+
 func (eRABToBeModifiedItemBearerModReq *ERABToBeModifiedItemBearerModReq) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	ext := extensionFields(eRABToBeModifyItemBearerModReqExtIEs, eRABToBeModifiedItemBearerModReq, &eRABToBeModifiedItemBearerModReq.iEExtensions)
+	ext := ap.ExtensionFields(extIEsERABToBeModifiedItemBearerModReq, eRABToBeModifiedItemBearerModReq, eRABToBeModifiedItemBearerModReq.iEExtensions)
 	w.WriteBit(eRABToBeModifiedItemBearerModReq.extensions.Present())
 	w.WriteBit(len(ext) > 0)
 	if err := eRABToBeModifiedItemBearerModReq.ERABID.MarshalPER(w, enc); err != nil {
@@ -1257,7 +2734,7 @@ func (eRABToBeModifiedItemBearerModReq *ERABToBeModifiedItemBearerModReq) Marsha
 		return err
 	}
 	if len(ext) > 0 {
-		if err := encodeExtensionContainer(w, enc, ext); err != nil {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
 			return err
 		}
 	}
@@ -1270,6 +2747,7 @@ func (eRABToBeModifiedItemBearerModReq *ERABToBeModifiedItemBearerModReq) Marsha
 }
 
 func (eRABToBeModifiedItemBearerModReq *ERABToBeModifiedItemBearerModReq) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*eRABToBeModifiedItemBearerModReq = ERABToBeModifiedItemBearerModReq{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
@@ -1288,7 +2766,7 @@ func (eRABToBeModifiedItemBearerModReq *ERABToBeModifiedItemBearerModReq) Unmars
 		return err
 	}
 	if p_iEExtensions {
-		if err := decodeExtensionContainer(r, enc, eRABToBeModifyItemBearerModReqExtIEs, eRABToBeModifiedItemBearerModReq, &eRABToBeModifiedItemBearerModReq.iEExtensions); err != nil {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsERABToBeModifiedItemBearerModReq, eRABToBeModifiedItemBearerModReq, &eRABToBeModifiedItemBearerModReq.iEExtensions); err != nil {
 			return err
 		}
 	}
@@ -1300,8 +2778,42 @@ func (eRABToBeModifiedItemBearerModReq *ERABToBeModifiedItemBearerModReq) Unmars
 	return nil
 }
 
+var extIEsERABToBeModifiedItemBearerModReq = []ap.IESpec[ProtocolIEID, ERABToBeModifiedItemBearerModReq]{
+	{
+		ID:          IDTransportInformation,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityReject,
+		Decode: func(x *ERABToBeModifiedItemBearerModReq, r *per.Reader, enc per.Encoding) error {
+			var v TransportInformation
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.TransportInformation = &v
+			return nil
+		},
+		Encode: func(x *ERABToBeModifiedItemBearerModReq) (per.Marshaler, bool) {
+			if x.TransportInformation == nil {
+				return nil, false
+			}
+			return x.TransportInformation, true
+		},
+	},
+}
+
+func (eRABToBeModifiedItemBearerModReq *ERABToBeModifiedItemBearerModReq) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if eRABToBeModifiedItemBearerModReq.ERABID.Diagnose(d) {
+		notComprehended = true
+	}
+	if eRABToBeModifiedItemBearerModReq.QoS.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsERABToBeModifiedItemBearerModReq, eRABToBeModifiedItemBearerModReq, eRABToBeModifiedItemBearerModReq.iEExtensions)
+	return notComprehended
+}
+
 func (eRABToBeSetupItemBearerSUReq *ERABToBeSetupItemBearerSUReq) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	ext := extensionFields(eRABToBeSetupItemBearerSUReqExtIEs, eRABToBeSetupItemBearerSUReq, &eRABToBeSetupItemBearerSUReq.iEExtensions)
+	ext := ap.ExtensionFields(extIEsERABToBeSetupItemBearerSUReq, eRABToBeSetupItemBearerSUReq, eRABToBeSetupItemBearerSUReq.iEExtensions)
 	w.WriteBit(eRABToBeSetupItemBearerSUReq.extensions.Present())
 	w.WriteBit(len(ext) > 0)
 	if err := eRABToBeSetupItemBearerSUReq.ERABID.MarshalPER(w, enc); err != nil {
@@ -1320,7 +2832,7 @@ func (eRABToBeSetupItemBearerSUReq *ERABToBeSetupItemBearerSUReq) MarshalPER(w *
 		return err
 	}
 	if len(ext) > 0 {
-		if err := encodeExtensionContainer(w, enc, ext); err != nil {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
 			return err
 		}
 	}
@@ -1333,6 +2845,7 @@ func (eRABToBeSetupItemBearerSUReq *ERABToBeSetupItemBearerSUReq) MarshalPER(w *
 }
 
 func (eRABToBeSetupItemBearerSUReq *ERABToBeSetupItemBearerSUReq) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*eRABToBeSetupItemBearerSUReq = ERABToBeSetupItemBearerSUReq{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
@@ -1357,7 +2870,7 @@ func (eRABToBeSetupItemBearerSUReq *ERABToBeSetupItemBearerSUReq) UnmarshalPER(r
 		return err
 	}
 	if p_iEExtensions {
-		if err := decodeExtensionContainer(r, enc, eRABToBeSetupItemBearerSUReqExtIEs, eRABToBeSetupItemBearerSUReq, &eRABToBeSetupItemBearerSUReq.iEExtensions); err != nil {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsERABToBeSetupItemBearerSUReq, eRABToBeSetupItemBearerSUReq, &eRABToBeSetupItemBearerSUReq.iEExtensions); err != nil {
 			return err
 		}
 	}
@@ -1369,8 +2882,118 @@ func (eRABToBeSetupItemBearerSUReq *ERABToBeSetupItemBearerSUReq) UnmarshalPER(r
 	return nil
 }
 
+var extIEsERABToBeSetupItemBearerSUReq = []ap.IESpec[ProtocolIEID, ERABToBeSetupItemBearerSUReq]{
+	{
+		ID:          IDCorrelationID,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *ERABToBeSetupItemBearerSUReq, r *per.Reader, enc per.Encoding) error {
+			var v CorrelationID
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.CorrelationID = &v
+			return nil
+		},
+		Encode: func(x *ERABToBeSetupItemBearerSUReq) (per.Marshaler, bool) {
+			if x.CorrelationID == nil {
+				return nil, false
+			}
+			return x.CorrelationID, true
+		},
+	},
+	{
+		ID:          IDSIPTOCorrelationID,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *ERABToBeSetupItemBearerSUReq, r *per.Reader, enc per.Encoding) error {
+			var v CorrelationID
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.SIPTOCorrelationID = &v
+			return nil
+		},
+		Encode: func(x *ERABToBeSetupItemBearerSUReq) (per.Marshaler, bool) {
+			if x.SIPTOCorrelationID == nil {
+				return nil, false
+			}
+			return x.SIPTOCorrelationID, true
+		},
+	},
+	{
+		ID:          IDBearerType,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityReject,
+		Decode: func(x *ERABToBeSetupItemBearerSUReq, r *per.Reader, enc per.Encoding) error {
+			var v BearerType
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.BearerType = &v
+			return nil
+		},
+		Encode: func(x *ERABToBeSetupItemBearerSUReq) (per.Marshaler, bool) {
+			if x.BearerType == nil {
+				return nil, false
+			}
+			return x.BearerType, true
+		},
+	},
+	{
+		ID:          IDEthernetType,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *ERABToBeSetupItemBearerSUReq, r *per.Reader, enc per.Encoding) error {
+			var v EthernetType
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.EthernetType = &v
+			return nil
+		},
+		Encode: func(x *ERABToBeSetupItemBearerSUReq) (per.Marshaler, bool) {
+			if x.EthernetType == nil {
+				return nil, false
+			}
+			return x.EthernetType, true
+		},
+	},
+	{
+		ID:          IDSecurityIndication,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityReject,
+		Decode: func(x *ERABToBeSetupItemBearerSUReq, r *per.Reader, enc per.Encoding) error {
+			var v SecurityIndication
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.SecurityIndication = &v
+			return nil
+		},
+		Encode: func(x *ERABToBeSetupItemBearerSUReq) (per.Marshaler, bool) {
+			if x.SecurityIndication == nil {
+				return nil, false
+			}
+			return x.SecurityIndication, true
+		},
+	},
+}
+
+func (eRABToBeSetupItemBearerSUReq *ERABToBeSetupItemBearerSUReq) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if eRABToBeSetupItemBearerSUReq.ERABID.Diagnose(d) {
+		notComprehended = true
+	}
+	if eRABToBeSetupItemBearerSUReq.QoS.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsERABToBeSetupItemBearerSUReq, eRABToBeSetupItemBearerSUReq, eRABToBeSetupItemBearerSUReq.iEExtensions)
+	return notComprehended
+}
+
 func (eRABToBeSetupItemCtxtSUReq *ERABToBeSetupItemCtxtSUReq) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	ext := extensionFields(eRABToBeSetupItemCtxtSUReqExtIEs, eRABToBeSetupItemCtxtSUReq, &eRABToBeSetupItemCtxtSUReq.iEExtensions)
+	ext := ap.ExtensionFields(extIEsERABToBeSetupItemCtxtSUReq, eRABToBeSetupItemCtxtSUReq, eRABToBeSetupItemCtxtSUReq.iEExtensions)
 	w.WriteBit(eRABToBeSetupItemCtxtSUReq.extensions.Present())
 	w.WriteBit(eRABToBeSetupItemCtxtSUReq.NASPDU != nil)
 	w.WriteBit(len(ext) > 0)
@@ -1392,7 +3015,7 @@ func (eRABToBeSetupItemCtxtSUReq *ERABToBeSetupItemCtxtSUReq) MarshalPER(w *per.
 		}
 	}
 	if len(ext) > 0 {
-		if err := encodeExtensionContainer(w, enc, ext); err != nil {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
 			return err
 		}
 	}
@@ -1405,6 +3028,7 @@ func (eRABToBeSetupItemCtxtSUReq *ERABToBeSetupItemCtxtSUReq) MarshalPER(w *per.
 }
 
 func (eRABToBeSetupItemCtxtSUReq *ERABToBeSetupItemCtxtSUReq) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*eRABToBeSetupItemCtxtSUReq = ERABToBeSetupItemCtxtSUReq{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
@@ -1435,7 +3059,7 @@ func (eRABToBeSetupItemCtxtSUReq *ERABToBeSetupItemCtxtSUReq) UnmarshalPER(r *pe
 		}
 	}
 	if p_iEExtensions {
-		if err := decodeExtensionContainer(r, enc, eRABToBeSetupItemCtxtSUReqExtIEs, eRABToBeSetupItemCtxtSUReq, &eRABToBeSetupItemCtxtSUReq.iEExtensions); err != nil {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsERABToBeSetupItemCtxtSUReq, eRABToBeSetupItemCtxtSUReq, &eRABToBeSetupItemCtxtSUReq.iEExtensions); err != nil {
 			return err
 		}
 	}
@@ -1447,9 +3071,120 @@ func (eRABToBeSetupItemCtxtSUReq *ERABToBeSetupItemCtxtSUReq) UnmarshalPER(r *pe
 	return nil
 }
 
+var extIEsERABToBeSetupItemCtxtSUReq = []ap.IESpec[ProtocolIEID, ERABToBeSetupItemCtxtSUReq]{
+	{
+		ID:          IDCorrelationID,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *ERABToBeSetupItemCtxtSUReq, r *per.Reader, enc per.Encoding) error {
+			var v CorrelationID
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.CorrelationID = &v
+			return nil
+		},
+		Encode: func(x *ERABToBeSetupItemCtxtSUReq) (per.Marshaler, bool) {
+			if x.CorrelationID == nil {
+				return nil, false
+			}
+			return x.CorrelationID, true
+		},
+	},
+	{
+		ID:          IDSIPTOCorrelationID,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *ERABToBeSetupItemCtxtSUReq, r *per.Reader, enc per.Encoding) error {
+			var v CorrelationID
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.SIPTOCorrelationID = &v
+			return nil
+		},
+		Encode: func(x *ERABToBeSetupItemCtxtSUReq) (per.Marshaler, bool) {
+			if x.SIPTOCorrelationID == nil {
+				return nil, false
+			}
+			return x.SIPTOCorrelationID, true
+		},
+	},
+	{
+		ID:          IDBearerType,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityReject,
+		Decode: func(x *ERABToBeSetupItemCtxtSUReq, r *per.Reader, enc per.Encoding) error {
+			var v BearerType
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.BearerType = &v
+			return nil
+		},
+		Encode: func(x *ERABToBeSetupItemCtxtSUReq) (per.Marshaler, bool) {
+			if x.BearerType == nil {
+				return nil, false
+			}
+			return x.BearerType, true
+		},
+	},
+	{
+		ID:          IDEthernetType,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *ERABToBeSetupItemCtxtSUReq, r *per.Reader, enc per.Encoding) error {
+			var v EthernetType
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.EthernetType = &v
+			return nil
+		},
+		Encode: func(x *ERABToBeSetupItemCtxtSUReq) (per.Marshaler, bool) {
+			if x.EthernetType == nil {
+				return nil, false
+			}
+			return x.EthernetType, true
+		},
+	},
+	{
+		ID:          IDSecurityIndication,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityReject,
+		Decode: func(x *ERABToBeSetupItemCtxtSUReq, r *per.Reader, enc per.Encoding) error {
+			var v SecurityIndication
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.SecurityIndication = &v
+			return nil
+		},
+		Encode: func(x *ERABToBeSetupItemCtxtSUReq) (per.Marshaler, bool) {
+			if x.SecurityIndication == nil {
+				return nil, false
+			}
+			return x.SecurityIndication, true
+		},
+	},
+}
+
+func (eRABToBeSetupItemCtxtSUReq *ERABToBeSetupItemCtxtSUReq) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if eRABToBeSetupItemCtxtSUReq.ERABID.Diagnose(d) {
+		notComprehended = true
+	}
+	if eRABToBeSetupItemCtxtSUReq.QoS.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsERABToBeSetupItemCtxtSUReq, eRABToBeSetupItemCtxtSUReq, eRABToBeSetupItemCtxtSUReq.iEExtensions)
+	return notComprehended
+}
+
 func (eRABToBeSetupItemHOReq *ERABToBeSetupItemHOReq) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsERABToBeSetupItemHOReq, eRABToBeSetupItemHOReq, eRABToBeSetupItemHOReq.iEExtensions)
 	w.WriteBit(eRABToBeSetupItemHOReq.extensions.Present())
-	w.WriteBit(eRABToBeSetupItemHOReq.Extensions != nil)
+	w.WriteBit(len(ext) > 0)
 	if err := eRABToBeSetupItemHOReq.ERABID.MarshalPER(w, enc); err != nil {
 		return err
 	}
@@ -1462,8 +3197,8 @@ func (eRABToBeSetupItemHOReq *ERABToBeSetupItemHOReq) MarshalPER(w *per.Writer, 
 	if err := eRABToBeSetupItemHOReq.QoS.MarshalPER(w, enc); err != nil {
 		return err
 	}
-	if eRABToBeSetupItemHOReq.Extensions != nil {
-		if err := (*eRABToBeSetupItemHOReq.Extensions).MarshalPER(w, enc); err != nil {
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
 			return err
 		}
 	}
@@ -1476,11 +3211,12 @@ func (eRABToBeSetupItemHOReq *ERABToBeSetupItemHOReq) MarshalPER(w *per.Writer, 
 }
 
 func (eRABToBeSetupItemHOReq *ERABToBeSetupItemHOReq) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*eRABToBeSetupItemHOReq = ERABToBeSetupItemHOReq{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_Extensions, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -1496,12 +3232,10 @@ func (eRABToBeSetupItemHOReq *ERABToBeSetupItemHOReq) UnmarshalPER(r *per.Reader
 	if err := (&eRABToBeSetupItemHOReq.QoS).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_Extensions {
-		var v ERABToBeSetupItemHOReqExtIEs
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsERABToBeSetupItemHOReq, eRABToBeSetupItemHOReq, &eRABToBeSetupItemHOReq.iEExtensions); err != nil {
 			return err
 		}
-		eRABToBeSetupItemHOReq.Extensions = &v
 	}
 	if extBit {
 		if err := eRABToBeSetupItemHOReq.extensions.UnmarshalPER(r, enc); err != nil {
@@ -1511,8 +3245,99 @@ func (eRABToBeSetupItemHOReq *ERABToBeSetupItemHOReq) UnmarshalPER(r *per.Reader
 	return nil
 }
 
+var extIEsERABToBeSetupItemHOReq = []ap.IESpec[ProtocolIEID, ERABToBeSetupItemHOReq]{
+	{
+		ID:          IDDataForwardingNotPossible,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *ERABToBeSetupItemHOReq, r *per.Reader, enc per.Encoding) error {
+			var v DataForwardingNotPossible
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.DataForwardingNotPossible = &v
+			return nil
+		},
+		Encode: func(x *ERABToBeSetupItemHOReq) (per.Marshaler, bool) {
+			if x.DataForwardingNotPossible == nil {
+				return nil, false
+			}
+			return x.DataForwardingNotPossible, true
+		},
+	},
+	{
+		ID:          IDBearerType,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityReject,
+		Decode: func(x *ERABToBeSetupItemHOReq, r *per.Reader, enc per.Encoding) error {
+			var v BearerType
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.BearerType = &v
+			return nil
+		},
+		Encode: func(x *ERABToBeSetupItemHOReq) (per.Marshaler, bool) {
+			if x.BearerType == nil {
+				return nil, false
+			}
+			return x.BearerType, true
+		},
+	},
+	{
+		ID:          IDEthernetType,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *ERABToBeSetupItemHOReq, r *per.Reader, enc per.Encoding) error {
+			var v EthernetType
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.EthernetType = &v
+			return nil
+		},
+		Encode: func(x *ERABToBeSetupItemHOReq) (per.Marshaler, bool) {
+			if x.EthernetType == nil {
+				return nil, false
+			}
+			return x.EthernetType, true
+		},
+	},
+	{
+		ID:          IDSecurityIndication,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityReject,
+		Decode: func(x *ERABToBeSetupItemHOReq, r *per.Reader, enc per.Encoding) error {
+			var v SecurityIndication
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.SecurityIndication = &v
+			return nil
+		},
+		Encode: func(x *ERABToBeSetupItemHOReq) (per.Marshaler, bool) {
+			if x.SecurityIndication == nil {
+				return nil, false
+			}
+			return x.SecurityIndication, true
+		},
+	},
+}
+
+func (eRABToBeSetupItemHOReq *ERABToBeSetupItemHOReq) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if eRABToBeSetupItemHOReq.ERABID.Diagnose(d) {
+		notComprehended = true
+	}
+	if eRABToBeSetupItemHOReq.QoS.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsERABToBeSetupItemHOReq, eRABToBeSetupItemHOReq, eRABToBeSetupItemHOReq.iEExtensions)
+	return notComprehended
+}
+
 func (eRABToBeSwitchedDLItem *ERABToBeSwitchedDLItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	ext := extensionFields(eRABToBeSwitchedDLItemExtIEs, eRABToBeSwitchedDLItem, &eRABToBeSwitchedDLItem.iEExtensions)
+	ext := ap.ExtensionFields(extIEsERABToBeSwitchedDLItem, eRABToBeSwitchedDLItem, eRABToBeSwitchedDLItem.iEExtensions)
 	w.WriteBit(eRABToBeSwitchedDLItem.extensions.Present())
 	w.WriteBit(len(ext) > 0)
 	if err := eRABToBeSwitchedDLItem.ERABID.MarshalPER(w, enc); err != nil {
@@ -1525,7 +3350,7 @@ func (eRABToBeSwitchedDLItem *ERABToBeSwitchedDLItem) MarshalPER(w *per.Writer, 
 		return err
 	}
 	if len(ext) > 0 {
-		if err := encodeExtensionContainer(w, enc, ext); err != nil {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
 			return err
 		}
 	}
@@ -1538,6 +3363,7 @@ func (eRABToBeSwitchedDLItem *ERABToBeSwitchedDLItem) MarshalPER(w *per.Writer, 
 }
 
 func (eRABToBeSwitchedDLItem *ERABToBeSwitchedDLItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*eRABToBeSwitchedDLItem = ERABToBeSwitchedDLItem{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
@@ -1556,7 +3382,7 @@ func (eRABToBeSwitchedDLItem *ERABToBeSwitchedDLItem) UnmarshalPER(r *per.Reader
 		return err
 	}
 	if p_iEExtensions {
-		if err := decodeExtensionContainer(r, enc, eRABToBeSwitchedDLItemExtIEs, eRABToBeSwitchedDLItem, &eRABToBeSwitchedDLItem.iEExtensions); err != nil {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsERABToBeSwitchedDLItem, eRABToBeSwitchedDLItem, &eRABToBeSwitchedDLItem.iEExtensions); err != nil {
 			return err
 		}
 	}
@@ -1568,9 +3394,41 @@ func (eRABToBeSwitchedDLItem *ERABToBeSwitchedDLItem) UnmarshalPER(r *per.Reader
 	return nil
 }
 
+var extIEsERABToBeSwitchedDLItem = []ap.IESpec[ProtocolIEID, ERABToBeSwitchedDLItem]{
+	{
+		ID:          IDSecurityIndication,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *ERABToBeSwitchedDLItem, r *per.Reader, enc per.Encoding) error {
+			var v SecurityIndication
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.SecurityIndication = &v
+			return nil
+		},
+		Encode: func(x *ERABToBeSwitchedDLItem) (per.Marshaler, bool) {
+			if x.SecurityIndication == nil {
+				return nil, false
+			}
+			return x.SecurityIndication, true
+		},
+	},
+}
+
+func (eRABToBeSwitchedDLItem *ERABToBeSwitchedDLItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if eRABToBeSwitchedDLItem.ERABID.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsERABToBeSwitchedDLItem, eRABToBeSwitchedDLItem, eRABToBeSwitchedDLItem.iEExtensions)
+	return notComprehended
+}
+
 func (eRABToBeSwitchedULItem *ERABToBeSwitchedULItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsERABToBeSwitchedULItem, eRABToBeSwitchedULItem, eRABToBeSwitchedULItem.iEExtensions)
 	w.WriteBit(eRABToBeSwitchedULItem.extensions.Present())
-	w.WriteBit(eRABToBeSwitchedULItem.iEExtensions != nil)
+	w.WriteBit(len(ext) > 0)
 	if err := eRABToBeSwitchedULItem.ERABID.MarshalPER(w, enc); err != nil {
 		return err
 	}
@@ -1580,8 +3438,8 @@ func (eRABToBeSwitchedULItem *ERABToBeSwitchedULItem) MarshalPER(w *per.Writer, 
 	if err := eRABToBeSwitchedULItem.GTPTEID.MarshalPER(w, enc); err != nil {
 		return err
 	}
-	if eRABToBeSwitchedULItem.iEExtensions != nil {
-		if err := (*eRABToBeSwitchedULItem.iEExtensions).MarshalPER(w, enc); err != nil {
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
 			return err
 		}
 	}
@@ -1594,6 +3452,7 @@ func (eRABToBeSwitchedULItem *ERABToBeSwitchedULItem) MarshalPER(w *per.Writer, 
 }
 
 func (eRABToBeSwitchedULItem *ERABToBeSwitchedULItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*eRABToBeSwitchedULItem = ERABToBeSwitchedULItem{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
@@ -1612,11 +3471,9 @@ func (eRABToBeSwitchedULItem *ERABToBeSwitchedULItem) UnmarshalPER(r *per.Reader
 		return err
 	}
 	if p_iEExtensions {
-		var v rawIEExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsERABToBeSwitchedULItem, eRABToBeSwitchedULItem, &eRABToBeSwitchedULItem.iEExtensions); err != nil {
 			return err
 		}
-		eRABToBeSwitchedULItem.iEExtensions = &v
 	}
 	if extBit {
 		if err := eRABToBeSwitchedULItem.extensions.UnmarshalPER(r, enc); err != nil {
@@ -1626,9 +3483,81 @@ func (eRABToBeSwitchedULItem *ERABToBeSwitchedULItem) UnmarshalPER(r *per.Reader
 	return nil
 }
 
+var extIEsERABToBeSwitchedULItem []ap.IESpec[ProtocolIEID, ERABToBeSwitchedULItem]
+
+func (eRABToBeSwitchedULItem *ERABToBeSwitchedULItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if eRABToBeSwitchedULItem.ERABID.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsERABToBeSwitchedULItem, eRABToBeSwitchedULItem, eRABToBeSwitchedULItem.iEExtensions)
+	return notComprehended
+}
+
+func (eUTRANCGI *EUTRANCGI) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsEUTRANCGI, eUTRANCGI, eUTRANCGI.iEExtensions)
+	w.WriteBit(eUTRANCGI.extensions.Present())
+	w.WriteBit(len(ext) > 0)
+	if err := eUTRANCGI.PLMNIdentity.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := eUTRANCGI.CellID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if eUTRANCGI.extensions.Present() {
+		if err := eUTRANCGI.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (eUTRANCGI *EUTRANCGI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*eUTRANCGI = EUTRANCGI{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&eUTRANCGI.PLMNIdentity).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&eUTRANCGI.CellID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsEUTRANCGI, eUTRANCGI, &eUTRANCGI.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := eUTRANCGI.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsEUTRANCGI []ap.IESpec[ProtocolIEID, EUTRANCGI]
+
+func (eUTRANCGI *EUTRANCGI) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsEUTRANCGI, eUTRANCGI, eUTRANCGI.iEExtensions)
+	return notComprehended
+}
+
 func (emergencyAreaIDBroadcastItem *EmergencyAreaIDBroadcastItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsEmergencyAreaIDBroadcastItem, emergencyAreaIDBroadcastItem, emergencyAreaIDBroadcastItem.iEExtensions)
+	w.WriteBit(emergencyAreaIDBroadcastItem.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := emergencyAreaIDBroadcastItem.EmergencyAreaID.MarshalPER(w, enc); err != nil {
 		return err
 	}
@@ -1645,15 +3574,26 @@ func (emergencyAreaIDBroadcastItem *EmergencyAreaIDBroadcastItem) MarshalPER(w *
 	}); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if emergencyAreaIDBroadcastItem.extensions.Present() {
+		if err := emergencyAreaIDBroadcastItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (emergencyAreaIDBroadcastItem *EmergencyAreaIDBroadcastItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*emergencyAreaIDBroadcastItem = EmergencyAreaIDBroadcastItem{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -1673,42 +3613,36 @@ func (emergencyAreaIDBroadcastItem *EmergencyAreaIDBroadcastItem) UnmarshalPER(r
 	}); err != nil {
 		return err
 	}
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsEmergencyAreaIDBroadcastItem, emergencyAreaIDBroadcastItem, &emergencyAreaIDBroadcastItem.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := emergencyAreaIDBroadcastItem.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsEmergencyAreaIDBroadcastItem []ap.IESpec[ProtocolIEID, EmergencyAreaIDBroadcastItem]
+
+func (emergencyAreaIDBroadcastItem *EmergencyAreaIDBroadcastItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range emergencyAreaIDBroadcastItem.CompletedCellInEAI {
+		if emergencyAreaIDBroadcastItem.CompletedCellInEAI[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	ap.DiagnoseExtensions(d, extIEsEmergencyAreaIDBroadcastItem, emergencyAreaIDBroadcastItem, emergencyAreaIDBroadcastItem.iEExtensions)
+	return notComprehended
+}
+
 func (emergencyAreaIDCancelledItem *EmergencyAreaIDCancelledItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsEmergencyAreaIDCancelledItem, emergencyAreaIDCancelledItem, emergencyAreaIDCancelledItem.iEExtensions)
+	w.WriteBit(emergencyAreaIDCancelledItem.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := emergencyAreaIDCancelledItem.EmergencyAreaID.MarshalPER(w, enc); err != nil {
 		return err
 	}
@@ -1725,15 +3659,26 @@ func (emergencyAreaIDCancelledItem *EmergencyAreaIDCancelledItem) MarshalPER(w *
 	}); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if emergencyAreaIDCancelledItem.extensions.Present() {
+		if err := emergencyAreaIDCancelledItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (emergencyAreaIDCancelledItem *EmergencyAreaIDCancelledItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*emergencyAreaIDCancelledItem = EmergencyAreaIDCancelledItem{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -1753,57 +3698,125 @@ func (emergencyAreaIDCancelledItem *EmergencyAreaIDCancelledItem) UnmarshalPER(r
 	}); err != nil {
 		return err
 	}
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsEmergencyAreaIDCancelledItem, emergencyAreaIDCancelledItem, &emergencyAreaIDCancelledItem.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := emergencyAreaIDCancelledItem.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsEmergencyAreaIDCancelledItem []ap.IESpec[ProtocolIEID, EmergencyAreaIDCancelledItem]
+
+func (emergencyAreaIDCancelledItem *EmergencyAreaIDCancelledItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range emergencyAreaIDCancelledItem.CancelledCellInEAI {
+		if emergencyAreaIDCancelledItem.CancelledCellInEAI[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	ap.DiagnoseExtensions(d, extIEsEmergencyAreaIDCancelledItem, emergencyAreaIDCancelledItem, emergencyAreaIDCancelledItem.iEExtensions)
+	return notComprehended
+}
+
+func (emergencyIndicator EmergencyIndicator) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumEmergencyIndicator.Encode(w, enc, emergencyIndicator)
+}
+
+func (emergencyIndicator *EmergencyIndicator) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumEmergencyIndicator.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*emergencyIndicator = v
+	return nil
+}
+
+func (emergencyIndicator EmergencyIndicator) Name() string {
+	return enumEmergencyIndicator.Name(emergencyIndicator)
+}
+
+func (emergencyIndicator EmergencyIndicator) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumEmergencyIndicator.Known(emergencyIndicator)
+}
+
+func (ethernetType EthernetType) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumEthernetType.Encode(w, enc, ethernetType)
+}
+
+func (ethernetType *EthernetType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumEthernetType.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*ethernetType = v
+	return nil
+}
+
+func (ethernetType EthernetType) Name() string {
+	return enumEthernetType.Name(ethernetType)
+}
+
+func (ethernetType EthernetType) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumEthernetType.Known(ethernetType)
+}
+
+func (eventType EventType) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumEventType.Encode(w, enc, eventType)
+}
+
+func (eventType *EventType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumEventType.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*eventType = v
+	return nil
+}
+
+func (eventType EventType) Name() string {
+	return enumEventType.Name(eventType)
+}
+
+func (eventType EventType) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumEventType.Known(eventType)
+}
+
 func (fiveGSTAI *FiveGSTAI) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsFiveGSTAI, fiveGSTAI, fiveGSTAI.iEExtensions)
+	w.WriteBit(fiveGSTAI.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := fiveGSTAI.PLMNIdentity.MarshalPER(w, enc); err != nil {
 		return err
 	}
 	if err := fiveGSTAI.TAC.MarshalPER(w, enc); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if fiveGSTAI.extensions.Present() {
+		if err := fiveGSTAI.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (fiveGSTAI *FiveGSTAI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*fiveGSTAI = FiveGSTAI{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -1813,57 +3826,78 @@ func (fiveGSTAI *FiveGSTAI) UnmarshalPER(r *per.Reader, enc per.Encoding) error 
 	if err := (&fiveGSTAI.TAC).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsFiveGSTAI, fiveGSTAI, &fiveGSTAI.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := fiveGSTAI.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsFiveGSTAI []ap.IESpec[ProtocolIEID, FiveGSTAI]
+
+func (fiveGSTAI *FiveGSTAI) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsFiveGSTAI, fiveGSTAI, fiveGSTAI.iEExtensions)
+	return notComprehended
+}
+
+func (forbiddenInterRATs ForbiddenInterRATs) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumForbiddenInterRATs.Encode(w, enc, forbiddenInterRATs)
+}
+
+func (forbiddenInterRATs *ForbiddenInterRATs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumForbiddenInterRATs.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*forbiddenInterRATs = v
+	return nil
+}
+
+func (forbiddenInterRATs ForbiddenInterRATs) Name() string {
+	return enumForbiddenInterRATs.Name(forbiddenInterRATs)
+}
+
+func (forbiddenInterRATs ForbiddenInterRATs) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumForbiddenInterRATs.Known(forbiddenInterRATs)
+}
+
 func (forbiddenLAsItem *ForbiddenLAsItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsForbiddenLAsItem, forbiddenLAsItem, forbiddenLAsItem.iEExtensions)
+	w.WriteBit(forbiddenLAsItem.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := forbiddenLAsItem.PLMNIdentity.MarshalPER(w, enc); err != nil {
 		return err
 	}
 	if err := forbiddenLAsItem.ForbiddenLACs.MarshalPER(w, enc); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if forbiddenLAsItem.extensions.Present() {
+		if err := forbiddenLAsItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (forbiddenLAsItem *ForbiddenLAsItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*forbiddenLAsItem = ForbiddenLAsItem{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -1873,57 +3907,57 @@ func (forbiddenLAsItem *ForbiddenLAsItem) UnmarshalPER(r *per.Reader, enc per.En
 	if err := (&forbiddenLAsItem.ForbiddenLACs).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsForbiddenLAsItem, forbiddenLAsItem, &forbiddenLAsItem.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := forbiddenLAsItem.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsForbiddenLAsItem []ap.IESpec[ProtocolIEID, ForbiddenLAsItem]
+
+func (forbiddenLAsItem *ForbiddenLAsItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsForbiddenLAsItem, forbiddenLAsItem, forbiddenLAsItem.iEExtensions)
+	return notComprehended
+}
+
 func (forbiddenTAsItem *ForbiddenTAsItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsForbiddenTAsItem, forbiddenTAsItem, forbiddenTAsItem.iEExtensions)
+	w.WriteBit(forbiddenTAsItem.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := forbiddenTAsItem.PLMNIdentity.MarshalPER(w, enc); err != nil {
 		return err
 	}
 	if err := forbiddenTAsItem.ForbiddenTACs.MarshalPER(w, enc); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if forbiddenTAsItem.extensions.Present() {
+		if err := forbiddenTAsItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (forbiddenTAsItem *ForbiddenTAsItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*forbiddenTAsItem = ForbiddenTAsItem{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -1933,41 +3967,29 @@ func (forbiddenTAsItem *ForbiddenTAsItem) UnmarshalPER(r *per.Reader, enc per.En
 	if err := (&forbiddenTAsItem.ForbiddenTACs).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsForbiddenTAsItem, forbiddenTAsItem, &forbiddenTAsItem.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := forbiddenTAsItem.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsForbiddenTAsItem []ap.IESpec[ProtocolIEID, ForbiddenTAsItem]
+
+func (forbiddenTAsItem *ForbiddenTAsItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsForbiddenTAsItem, forbiddenTAsItem, forbiddenTAsItem.iEExtensions)
+	return notComprehended
+}
+
 func (gBRQosInformation *GBRQosInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	ext := extensionFields(gBRQosInformationExtIEs, gBRQosInformation, &gBRQosInformation.iEExtensions)
+	ext := ap.ExtensionFields(extIEsGBRQosInformation, gBRQosInformation, gBRQosInformation.iEExtensions)
 	w.WriteBit(gBRQosInformation.extensions.Present())
 	w.WriteBit(len(ext) > 0)
 	if err := gBRQosInformation.MaximumBitrateDL.MarshalPER(w, enc); err != nil {
@@ -1983,7 +4005,7 @@ func (gBRQosInformation *GBRQosInformation) MarshalPER(w *per.Writer, enc per.En
 		return err
 	}
 	if len(ext) > 0 {
-		if err := encodeExtensionContainer(w, enc, ext); err != nil {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
 			return err
 		}
 	}
@@ -1996,6 +4018,7 @@ func (gBRQosInformation *GBRQosInformation) MarshalPER(w *per.Writer, enc per.En
 }
 
 func (gBRQosInformation *GBRQosInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*gBRQosInformation = GBRQosInformation{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
@@ -2017,7 +4040,7 @@ func (gBRQosInformation *GBRQosInformation) UnmarshalPER(r *per.Reader, enc per.
 		return err
 	}
 	if p_iEExtensions {
-		if err := decodeExtensionContainer(r, enc, gBRQosInformationExtIEs, gBRQosInformation, &gBRQosInformation.iEExtensions); err != nil {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsGBRQosInformation, gBRQosInformation, &gBRQosInformation.iEExtensions); err != nil {
 			return err
 		}
 	}
@@ -2029,63 +4052,214 @@ func (gBRQosInformation *GBRQosInformation) UnmarshalPER(r *per.Reader, enc per.
 	return nil
 }
 
+var extIEsGBRQosInformation = []ap.IESpec[ProtocolIEID, GBRQosInformation]{
+	{
+		ID:          IDExtendedERABMaximumBitrateDL,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *GBRQosInformation, r *per.Reader, enc per.Encoding) error {
+			var v ExtendedBitRate
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.ExtendedMaximumBitrateDL = &v
+			return nil
+		},
+		Encode: func(x *GBRQosInformation) (per.Marshaler, bool) {
+			if x.ExtendedMaximumBitrateDL == nil {
+				return nil, false
+			}
+			return x.ExtendedMaximumBitrateDL, true
+		},
+	},
+	{
+		ID:          IDExtendedERABMaximumBitrateUL,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *GBRQosInformation, r *per.Reader, enc per.Encoding) error {
+			var v ExtendedBitRate
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.ExtendedMaximumBitrateUL = &v
+			return nil
+		},
+		Encode: func(x *GBRQosInformation) (per.Marshaler, bool) {
+			if x.ExtendedMaximumBitrateUL == nil {
+				return nil, false
+			}
+			return x.ExtendedMaximumBitrateUL, true
+		},
+	},
+	{
+		ID:          IDExtendedERABGuaranteedBitrateDL,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *GBRQosInformation, r *per.Reader, enc per.Encoding) error {
+			var v ExtendedBitRate
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.ExtendedGuaranteedBitrateDL = &v
+			return nil
+		},
+		Encode: func(x *GBRQosInformation) (per.Marshaler, bool) {
+			if x.ExtendedGuaranteedBitrateDL == nil {
+				return nil, false
+			}
+			return x.ExtendedGuaranteedBitrateDL, true
+		},
+	},
+	{
+		ID:          IDExtendedERABGuaranteedBitrateUL,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *GBRQosInformation, r *per.Reader, enc per.Encoding) error {
+			var v ExtendedBitRate
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.ExtendedGuaranteedBitrateUL = &v
+			return nil
+		},
+		Encode: func(x *GBRQosInformation) (per.Marshaler, bool) {
+			if x.ExtendedGuaranteedBitrateUL == nil {
+				return nil, false
+			}
+			return x.ExtendedGuaranteedBitrateUL, true
+		},
+	},
+}
+
+func (gBRQosInformation *GBRQosInformation) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsGBRQosInformation, gBRQosInformation, gBRQosInformation.iEExtensions)
+	return notComprehended
+}
+
 func (gNB *GNB) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsGNB, gNB, gNB.iEExtensions)
+	w.WriteBit(gNB.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := gNB.GlobalGNBID.MarshalPER(w, enc); err != nil {
 		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if gNB.extensions.Present() {
+		if err := gNB.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func (gNB *GNB) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*gNB = GNB{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f1, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
 	if err := (&gNB.GlobalGNBID).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f1 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsGNB, gNB, &gNB.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := gNB.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsGNB []ap.IESpec[ProtocolIEID, GNB]
+
+func (gNB *GNB) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if gNB.GlobalGNBID.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsGNB, gNB, gNB.iEExtensions)
+	return notComprehended
+}
+
+func (gNBIdentity *GNBIdentity) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	set := 0
+	for _, ok := range [...]bool{gNBIdentity.GNBID != nil, gNBIdentity.Ext != nil} {
+		if ok {
+			set++
+		}
+	}
+	if set > 1 {
+		return per.ErrChoice
+	}
+	switch {
+	case gNBIdentity.GNBID != nil:
+		w.WriteBit(false)
+		if err := (*gNBIdentity.GNBID).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case gNBIdentity.Ext != nil:
+		w.WriteBit(true)
+		return gNBIdentity.Ext.MarshalPER(w, enc)
+	default:
+		return per.ErrEmpty
+	}
+	return nil
+}
+
+func (gNBIdentity *GNBIdentity) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*gNBIdentity = GNBIdentity{}
+	isExt, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if isExt {
+		extIdx, err := per.DecodeNormallySmall(r, enc)
+		if err != nil {
+			return err
+		}
+		gNBIdentity.Ext, err = per.DecodeExtensionAlternative(r, enc, extIdx)
+		return err
+	}
+	var idx int64 = 0
+	switch idx {
+	case 0:
+		var v GNBID
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		gNBIdentity.GNBID = &v
+	default:
+		return per.ErrOverflow
+	}
+	return nil
+}
+
+func (gNBIdentity *GNBIdentity) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	switch {
+	case gNBIdentity.GNBID != nil:
+	case gNBIdentity.Ext != nil:
+		return true
+	}
+	return false
+}
+
 func (gUMMEI *GUMMEI) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsGUMMEI, gUMMEI, gUMMEI.iEExtensions)
+	w.WriteBit(gUMMEI.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := gUMMEI.PLMNIdentity.MarshalPER(w, enc); err != nil {
 		return err
 	}
@@ -2095,15 +4269,26 @@ func (gUMMEI *GUMMEI) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	if err := gUMMEI.MMECode.MarshalPER(w, enc); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if gUMMEI.extensions.Present() {
+		if err := gUMMEI.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (gUMMEI *GUMMEI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*gUMMEI = GUMMEI{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f3, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -2116,57 +4301,99 @@ func (gUMMEI *GUMMEI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if err := (&gUMMEI.MMECode).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f3 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsGUMMEI, gUMMEI, &gUMMEI.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := gUMMEI.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsGUMMEI []ap.IESpec[ProtocolIEID, GUMMEI]
+
+func (gUMMEI *GUMMEI) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsGUMMEI, gUMMEI, gUMMEI.iEExtensions)
+	return notComprehended
+}
+
+func (gUMMEIType GUMMEIType) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumGUMMEIType.Encode(w, enc, gUMMEIType)
+}
+
+func (gUMMEIType *GUMMEIType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumGUMMEIType.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*gUMMEIType = v
+	return nil
+}
+
+func (gUMMEIType GUMMEIType) Name() string {
+	return enumGUMMEIType.Name(gUMMEIType)
+}
+
+func (gUMMEIType GUMMEIType) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumGUMMEIType.Known(gUMMEIType)
+}
+
+func (gWContextReleaseIndication GWContextReleaseIndication) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumGWContextReleaseIndication.Encode(w, enc, gWContextReleaseIndication)
+}
+
+func (gWContextReleaseIndication *GWContextReleaseIndication) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumGWContextReleaseIndication.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*gWContextReleaseIndication = v
+	return nil
+}
+
+func (gWContextReleaseIndication GWContextReleaseIndication) Name() string {
+	return enumGWContextReleaseIndication.Name(gWContextReleaseIndication)
+}
+
+func (gWContextReleaseIndication GWContextReleaseIndication) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumGWContextReleaseIndication.Known(gWContextReleaseIndication)
+}
+
 func (globalENBID *GlobalENBID) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsGlobalENBID, globalENBID, globalENBID.iEExtensions)
+	w.WriteBit(globalENBID.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := globalENBID.PLMNIdentity.MarshalPER(w, enc); err != nil {
 		return err
 	}
 	if err := globalENBID.ENBID.MarshalPER(w, enc); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if globalENBID.extensions.Present() {
+		if err := globalENBID.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (globalENBID *GlobalENBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*globalENBID = GlobalENBID{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -2176,57 +4403,60 @@ func (globalENBID *GlobalENBID) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 	if err := (&globalENBID.ENBID).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsGlobalENBID, globalENBID, &globalENBID.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := globalENBID.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsGlobalENBID []ap.IESpec[ProtocolIEID, GlobalENBID]
+
+func (globalENBID *GlobalENBID) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if globalENBID.ENBID.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsGlobalENBID, globalENBID, globalENBID.iEExtensions)
+	return notComprehended
+}
+
 func (globalGNBID *GlobalGNBID) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsGlobalGNBID, globalGNBID, globalGNBID.iEExtensions)
+	w.WriteBit(globalGNBID.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := globalGNBID.PLMNIdentity.MarshalPER(w, enc); err != nil {
 		return err
 	}
 	if err := globalGNBID.GNBID.MarshalPER(w, enc); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if globalGNBID.extensions.Present() {
+		if err := globalGNBID.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (globalGNBID *GlobalGNBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*globalGNBID = GlobalGNBID{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -2236,46 +4466,123 @@ func (globalGNBID *GlobalGNBID) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 	if err := (&globalGNBID.GNBID).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsGlobalGNBID, globalGNBID, &globalGNBID.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := globalGNBID.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsGlobalGNBID []ap.IESpec[ProtocolIEID, GlobalGNBID]
+
+func (globalGNBID *GlobalGNBID) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if globalGNBID.GNBID.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsGlobalGNBID, globalGNBID, globalGNBID.iEExtensions)
+	return notComprehended
+}
+
+func (globalRANNodeID *GlobalRANNodeID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	set := 0
+	for _, ok := range [...]bool{globalRANNodeID.GNB != nil, globalRANNodeID.NgENB != nil, globalRANNodeID.Ext != nil} {
+		if ok {
+			set++
+		}
+	}
+	if set > 1 {
+		return per.ErrChoice
+	}
+	switch {
+	case globalRANNodeID.GNB != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 0); err != nil {
+			return err
+		}
+		if err := (*globalRANNodeID.GNB).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case globalRANNodeID.NgENB != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 1); err != nil {
+			return err
+		}
+		if err := (*globalRANNodeID.NgENB).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case globalRANNodeID.Ext != nil:
+		w.WriteBit(true)
+		return globalRANNodeID.Ext.MarshalPER(w, enc)
+	default:
+		return per.ErrEmpty
+	}
+	return nil
+}
+
+func (globalRANNodeID *GlobalRANNodeID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*globalRANNodeID = GlobalRANNodeID{}
+	isExt, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if isExt {
+		extIdx, err := per.DecodeNormallySmall(r, enc)
+		if err != nil {
+			return err
+		}
+		globalRANNodeID.Ext, err = per.DecodeExtensionAlternative(r, enc, extIdx)
+		return err
+	}
+	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 1)
+	if err != nil {
+		return err
+	}
+	switch idx {
+	case 0:
+		var v GNB
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		globalRANNodeID.GNB = &v
+	case 1:
+		var v NgENB
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		globalRANNodeID.NgENB = &v
+	default:
+		return per.ErrOverflow
+	}
+	return nil
+}
+
+func (globalRANNodeID *GlobalRANNodeID) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	switch {
+	case globalRANNodeID.GNB != nil:
+		return globalRANNodeID.GNB.Diagnose(d)
+	case globalRANNodeID.NgENB != nil:
+		return globalRANNodeID.NgENB.Diagnose(d)
+	case globalRANNodeID.Ext != nil:
+		return true
+	}
+	return false
+}
+
 func (handoverRestrictionList *HandoverRestrictionList) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsHandoverRestrictionList, handoverRestrictionList, handoverRestrictionList.iEExtensions)
+	w.WriteBit(handoverRestrictionList.extensions.Present())
 	w.WriteBit(handoverRestrictionList.EquivalentPLMNs != nil)
 	w.WriteBit(handoverRestrictionList.ForbiddenTAs != nil)
 	w.WriteBit(handoverRestrictionList.ForbiddenLAs != nil)
 	w.WriteBit(handoverRestrictionList.ForbiddenInterRATs != nil)
-	w.WriteBit(false)
+	w.WriteBit(len(ext) > 0)
 	if err := handoverRestrictionList.ServingPLMN.MarshalPER(w, enc); err != nil {
 		return err
 	}
@@ -2299,10 +4606,21 @@ func (handoverRestrictionList *HandoverRestrictionList) MarshalPER(w *per.Writer
 			return err
 		}
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if handoverRestrictionList.extensions.Present() {
+		if err := handoverRestrictionList.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (handoverRestrictionList *HandoverRestrictionList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*handoverRestrictionList = HandoverRestrictionList{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
@@ -2323,7 +4641,7 @@ func (handoverRestrictionList *HandoverRestrictionList) UnmarshalPER(r *per.Read
 	if err != nil {
 		return err
 	}
-	p_f5, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -2352,42 +4670,859 @@ func (handoverRestrictionList *HandoverRestrictionList) UnmarshalPER(r *per.Read
 		}
 		handoverRestrictionList.ForbiddenInterRATs = &v
 	}
-	if p_f5 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsHandoverRestrictionList, handoverRestrictionList, &handoverRestrictionList.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := handoverRestrictionList.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsHandoverRestrictionList = []ap.IESpec[ProtocolIEID, HandoverRestrictionList]{
+	{
+		ID:          IDNRrestrictioninEPSasSecondaryRAT,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *HandoverRestrictionList, r *per.Reader, enc per.Encoding) error {
+			var v NRrestrictioninEPSasSecondaryRAT
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.NRrestrictioninEPSasSecondaryRAT = &v
+			return nil
+		},
+		Encode: func(x *HandoverRestrictionList) (per.Marshaler, bool) {
+			if x.NRrestrictioninEPSasSecondaryRAT == nil {
+				return nil, false
+			}
+			return x.NRrestrictioninEPSasSecondaryRAT, true
+		},
+	},
+	{
+		ID:          IDUnlicensedSpectrumRestriction,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *HandoverRestrictionList, r *per.Reader, enc per.Encoding) error {
+			var v UnlicensedSpectrumRestriction
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.UnlicensedSpectrumRestriction = &v
+			return nil
+		},
+		Encode: func(x *HandoverRestrictionList) (per.Marshaler, bool) {
+			if x.UnlicensedSpectrumRestriction == nil {
+				return nil, false
+			}
+			return x.UnlicensedSpectrumRestriction, true
+		},
+	},
+	{
+		ID:          IDCNTypeRestrictions,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *HandoverRestrictionList, r *per.Reader, enc per.Encoding) error {
+			var v CNTypeRestrictions
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.CNTypeRestrictions = v
+			return nil
+		},
+		Encode: func(x *HandoverRestrictionList) (per.Marshaler, bool) {
+			if len(x.CNTypeRestrictions) == 0 {
+				return nil, false
+			}
+			return x.CNTypeRestrictions, true
+		},
+	},
+	{
+		ID:          IDNRrestrictionin5GS,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *HandoverRestrictionList, r *per.Reader, enc per.Encoding) error {
+			var v NRrestrictionin5GS
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.NRrestrictionin5GS = &v
+			return nil
+		},
+		Encode: func(x *HandoverRestrictionList) (per.Marshaler, bool) {
+			if x.NRrestrictionin5GS == nil {
+				return nil, false
+			}
+			return x.NRrestrictionin5GS, true
+		},
+	},
+	{
+		ID:          IDLastNGRANPLMNIdentity,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *HandoverRestrictionList, r *per.Reader, enc per.Encoding) error {
+			var v PLMNIdentity
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.LastNGRANPLMNIdentity = &v
+			return nil
+		},
+		Encode: func(x *HandoverRestrictionList) (per.Marshaler, bool) {
+			if x.LastNGRANPLMNIdentity == nil {
+				return nil, false
+			}
+			return x.LastNGRANPLMNIdentity, true
+		},
+	},
+	{
+		ID:          IDRATRestrictions,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *HandoverRestrictionList, r *per.Reader, enc per.Encoding) error {
+			var v RATRestrictions
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.RATRestrictions = v
+			return nil
+		},
+		Encode: func(x *HandoverRestrictionList) (per.Marshaler, bool) {
+			if len(x.RATRestrictions) == 0 {
+				return nil, false
+			}
+			return x.RATRestrictions, true
+		},
+	},
+}
+
+func (handoverRestrictionList *HandoverRestrictionList) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if handoverRestrictionList.ForbiddenTAs.Diagnose(d) {
+		notComprehended = true
+	}
+	if handoverRestrictionList.ForbiddenLAs.Diagnose(d) {
+		notComprehended = true
+	}
+	if handoverRestrictionList.ForbiddenInterRATs != nil && handoverRestrictionList.ForbiddenInterRATs.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsHandoverRestrictionList, handoverRestrictionList, handoverRestrictionList.iEExtensions)
+	return notComprehended
+}
+
+func (handoverType HandoverType) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumHandoverType.Encode(w, enc, handoverType)
+}
+
+func (handoverType *HandoverType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumHandoverType.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*handoverType = v
+	return nil
+}
+
+func (handoverType HandoverType) Name() string {
+	return enumHandoverType.Name(handoverType)
+}
+
+func (handoverType HandoverType) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumHandoverType.Known(handoverType)
+}
+
+func (iMSvoiceEPSfallbackfrom5G IMSvoiceEPSfallbackfrom5G) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumIMSvoiceEPSfallbackfrom5G.Encode(w, enc, iMSvoiceEPSfallbackfrom5G)
+}
+
+func (iMSvoiceEPSfallbackfrom5G *IMSvoiceEPSfallbackfrom5G) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumIMSvoiceEPSfallbackfrom5G.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*iMSvoiceEPSfallbackfrom5G = v
+	return nil
+}
+
+func (iMSvoiceEPSfallbackfrom5G IMSvoiceEPSfallbackfrom5G) Name() string {
+	return enumIMSvoiceEPSfallbackfrom5G.Name(iMSvoiceEPSfallbackfrom5G)
+}
+
+func (iMSvoiceEPSfallbackfrom5G IMSvoiceEPSfallbackfrom5G) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumIMSvoiceEPSfallbackfrom5G.Known(iMSvoiceEPSfallbackfrom5G)
+}
+
+func (integrityProtectionIndication IntegrityProtectionIndication) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumIntegrityProtectionIndication.Encode(w, enc, integrityProtectionIndication)
+}
+
+func (integrityProtectionIndication *IntegrityProtectionIndication) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumIntegrityProtectionIndication.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*integrityProtectionIndication = v
+	return nil
+}
+
+func (integrityProtectionIndication IntegrityProtectionIndication) Name() string {
+	return enumIntegrityProtectionIndication.Name(integrityProtectionIndication)
+}
+
+func (integrityProtectionIndication IntegrityProtectionIndication) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumIntegrityProtectionIndication.Known(integrityProtectionIndication)
+}
+
+func (interSystemMeasurementItem *InterSystemMeasurementItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsInterSystemMeasurementItem, interSystemMeasurementItem, interSystemMeasurementItem.iEExtensions)
+	w.WriteBit(interSystemMeasurementItem.MaxRSIndexCellQual != nil)
+	w.WriteBit(interSystemMeasurementItem.SMTC != nil)
+	w.WriteBit(interSystemMeasurementItem.ThreshRSIndexR15 != nil)
+	w.WriteBit(interSystemMeasurementItem.SSBToMeasure != nil)
+	w.WriteBit(interSystemMeasurementItem.SSRSSIMeasurement != nil)
+	w.WriteBit(interSystemMeasurementItem.QuantityConfigNRR15 != nil)
+	w.WriteBit(interSystemMeasurementItem.ExcludedCellsToAddModList != nil)
+	w.WriteBit(len(ext) > 0)
+	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 1, HasLB: true, UB: 1024, HasUB: true}, int64(interSystemMeasurementItem.FreqBandIndicatorNR)); err != nil {
+		return err
+	}
+	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 3279165, HasUB: true}, int64(interSystemMeasurementItem.SSBFrequencies)); err != nil {
+		return err
+	}
+	if err := interSystemMeasurementItem.SubcarrierSpacingSSB.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if interSystemMeasurementItem.MaxRSIndexCellQual != nil {
+		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 1, HasLB: true, UB: 16, HasUB: true}, int64((*interSystemMeasurementItem.MaxRSIndexCellQual))); err != nil {
+			return err
+		}
+	}
+	if interSystemMeasurementItem.SMTC != nil {
+		if err := per.EncodeOctetString(w, enc, 0, 0, false, false, false, interSystemMeasurementItem.SMTC); err != nil {
+			return err
+		}
+	}
+	if interSystemMeasurementItem.ThreshRSIndexR15 != nil {
+		if err := per.EncodeOctetString(w, enc, 0, 0, false, false, false, interSystemMeasurementItem.ThreshRSIndexR15); err != nil {
+			return err
+		}
+	}
+	if interSystemMeasurementItem.SSBToMeasure != nil {
+		if err := per.EncodeOctetString(w, enc, 0, 0, false, false, false, interSystemMeasurementItem.SSBToMeasure); err != nil {
+			return err
+		}
+	}
+	if interSystemMeasurementItem.SSRSSIMeasurement != nil {
+		if err := per.EncodeOctetString(w, enc, 0, 0, false, false, false, interSystemMeasurementItem.SSRSSIMeasurement); err != nil {
+			return err
+		}
+	}
+	if interSystemMeasurementItem.QuantityConfigNRR15 != nil {
+		if err := per.EncodeOctetString(w, enc, 0, 0, false, false, false, interSystemMeasurementItem.QuantityConfigNRR15); err != nil {
+			return err
+		}
+	}
+	if interSystemMeasurementItem.ExcludedCellsToAddModList != nil {
+		if err := per.EncodeOctetString(w, enc, 0, 0, false, false, false, interSystemMeasurementItem.ExcludedCellsToAddModList); err != nil {
+			return err
+		}
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (interSystemMeasurementItem *InterSystemMeasurementItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*interSystemMeasurementItem = InterSystemMeasurementItem{}
+	p_MaxRSIndexCellQual, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_SMTC, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ThreshRSIndexR15, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_SSBToMeasure, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_SSRSSIMeasurement, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_QuantityConfigNRR15, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ExcludedCellsToAddModList, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 1, HasLB: true, UB: 1024, HasUB: true})
+	if err != nil {
+		return err
+	}
+	interSystemMeasurementItem.FreqBandIndicatorNR = uint16(n0)
+	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 3279165, HasUB: true})
+	if err != nil {
+		return err
+	}
+	interSystemMeasurementItem.SSBFrequencies = uint32(n1)
+	if err := (&interSystemMeasurementItem.SubcarrierSpacingSSB).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_MaxRSIndexCellQual {
+		var v uint8
+		n3, err := per.DecodeInteger(r, enc, per.Bounds{LB: 1, HasLB: true, UB: 16, HasUB: true})
+		if err != nil {
+			return err
+		}
+		v = uint8(n3)
+		interSystemMeasurementItem.MaxRSIndexCellQual = &v
+	}
+	if p_SMTC {
+		p4, err := per.DecodeOctetString(r, enc, 0, 0, false, false, false)
+		if err != nil {
+			return err
+		}
+		interSystemMeasurementItem.SMTC = p4
+	}
+	if p_ThreshRSIndexR15 {
+		p5, err := per.DecodeOctetString(r, enc, 0, 0, false, false, false)
+		if err != nil {
+			return err
+		}
+		interSystemMeasurementItem.ThreshRSIndexR15 = p5
+	}
+	if p_SSBToMeasure {
+		p6, err := per.DecodeOctetString(r, enc, 0, 0, false, false, false)
+		if err != nil {
+			return err
+		}
+		interSystemMeasurementItem.SSBToMeasure = p6
+	}
+	if p_SSRSSIMeasurement {
+		p7, err := per.DecodeOctetString(r, enc, 0, 0, false, false, false)
+		if err != nil {
+			return err
+		}
+		interSystemMeasurementItem.SSRSSIMeasurement = p7
+	}
+	if p_QuantityConfigNRR15 {
+		p8, err := per.DecodeOctetString(r, enc, 0, 0, false, false, false)
+		if err != nil {
+			return err
+		}
+		interSystemMeasurementItem.QuantityConfigNRR15 = p8
+	}
+	if p_ExcludedCellsToAddModList {
+		p9, err := per.DecodeOctetString(r, enc, 0, 0, false, false, false)
+		if err != nil {
+			return err
+		}
+		interSystemMeasurementItem.ExcludedCellsToAddModList = p9
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsInterSystemMeasurementItem, interSystemMeasurementItem, &interSystemMeasurementItem.iEExtensions); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsInterSystemMeasurementItem []ap.IESpec[ProtocolIEID, InterSystemMeasurementItem]
+
+func (interSystemMeasurementItem *InterSystemMeasurementItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if interSystemMeasurementItem.SubcarrierSpacingSSB.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsInterSystemMeasurementItem, interSystemMeasurementItem, interSystemMeasurementItem.iEExtensions)
+	return notComprehended
+}
+
+func (interSystemMeasurementParameters *InterSystemMeasurementParameters) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsInterSystemMeasurementParameters, interSystemMeasurementParameters, interSystemMeasurementParameters.iEExtensions)
+	w.WriteBit(interSystemMeasurementParameters.extensions.Present())
+	w.WriteBit(interSystemMeasurementParameters.InterSystemMeasurementList != nil)
+	w.WriteBit(len(ext) > 0)
+	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 1, HasLB: true, UB: 100, HasUB: true}, int64(interSystemMeasurementParameters.MeasurementDuration)); err != nil {
+		return err
+	}
+	if interSystemMeasurementParameters.InterSystemMeasurementList != nil {
+		if err := interSystemMeasurementParameters.InterSystemMeasurementList.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if interSystemMeasurementParameters.extensions.Present() {
+		if err := interSystemMeasurementParameters.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (interSystemMeasurementParameters *InterSystemMeasurementParameters) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*interSystemMeasurementParameters = InterSystemMeasurementParameters{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_InterSystemMeasurementList, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 1, HasLB: true, UB: 100, HasUB: true})
+	if err != nil {
+		return err
+	}
+	interSystemMeasurementParameters.MeasurementDuration = uint8(n0)
+	if p_InterSystemMeasurementList {
+		if err := (&interSystemMeasurementParameters.InterSystemMeasurementList).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsInterSystemMeasurementParameters, interSystemMeasurementParameters, &interSystemMeasurementParameters.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := interSystemMeasurementParameters.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsInterSystemMeasurementParameters []ap.IESpec[ProtocolIEID, InterSystemMeasurementParameters]
+
+func (interSystemMeasurementParameters *InterSystemMeasurementParameters) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if interSystemMeasurementParameters.InterSystemMeasurementList.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsInterSystemMeasurementParameters, interSystemMeasurementParameters, interSystemMeasurementParameters.iEExtensions)
+	return notComprehended
+}
+
+func (intersystemMeasurementConfiguration *IntersystemMeasurementConfiguration) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsIntersystemMeasurementConfiguration, intersystemMeasurementConfiguration, intersystemMeasurementConfiguration.iEExtensions)
+	w.WriteBit(intersystemMeasurementConfiguration.extensions.Present())
+	w.WriteBit(intersystemMeasurementConfiguration.RSRP != nil)
+	w.WriteBit(intersystemMeasurementConfiguration.RSRQ != nil)
+	w.WriteBit(intersystemMeasurementConfiguration.SINR != nil)
+	w.WriteBit(len(ext) > 0)
+	if intersystemMeasurementConfiguration.RSRP != nil {
+		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true}, int64((*intersystemMeasurementConfiguration.RSRP))); err != nil {
+			return err
+		}
+	}
+	if intersystemMeasurementConfiguration.RSRQ != nil {
+		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true}, int64((*intersystemMeasurementConfiguration.RSRQ))); err != nil {
+			return err
+		}
+	}
+	if intersystemMeasurementConfiguration.SINR != nil {
+		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true}, int64((*intersystemMeasurementConfiguration.SINR))); err != nil {
+			return err
+		}
+	}
+	if err := intersystemMeasurementConfiguration.InterSystemMeasurementParameters.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if intersystemMeasurementConfiguration.extensions.Present() {
+		if err := intersystemMeasurementConfiguration.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (intersystemMeasurementConfiguration *IntersystemMeasurementConfiguration) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*intersystemMeasurementConfiguration = IntersystemMeasurementConfiguration{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_RSRP, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_RSRQ, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_SINR, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if p_RSRP {
+		var v uint8
+		n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true})
+		if err != nil {
+			return err
+		}
+		v = uint8(n0)
+		intersystemMeasurementConfiguration.RSRP = &v
+	}
+	if p_RSRQ {
+		var v uint8
+		n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true})
+		if err != nil {
+			return err
+		}
+		v = uint8(n1)
+		intersystemMeasurementConfiguration.RSRQ = &v
+	}
+	if p_SINR {
+		var v uint8
+		n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 127, HasUB: true})
+		if err != nil {
+			return err
+		}
+		v = uint8(n2)
+		intersystemMeasurementConfiguration.SINR = &v
+	}
+	if err := (&intersystemMeasurementConfiguration.InterSystemMeasurementParameters).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsIntersystemMeasurementConfiguration, intersystemMeasurementConfiguration, &intersystemMeasurementConfiguration.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := intersystemMeasurementConfiguration.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsIntersystemMeasurementConfiguration []ap.IESpec[ProtocolIEID, IntersystemMeasurementConfiguration]
+
+func (intersystemMeasurementConfiguration *IntersystemMeasurementConfiguration) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if intersystemMeasurementConfiguration.InterSystemMeasurementParameters.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsIntersystemMeasurementConfiguration, intersystemMeasurementConfiguration, intersystemMeasurementConfiguration.iEExtensions)
+	return notComprehended
+}
+
+func (lAI *LAI) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsLAI, lAI, lAI.iEExtensions)
+	w.WriteBit(lAI.extensions.Present())
+	w.WriteBit(len(ext) > 0)
+	if err := lAI.PLMNIdentity.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := lAI.LAC.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if lAI.extensions.Present() {
+		if err := lAI.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (lAI *LAI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*lAI = LAI{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&lAI.PLMNIdentity).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&lAI.LAC).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsLAI, lAI, &lAI.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := lAI.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsLAI []ap.IESpec[ProtocolIEID, LAI]
+
+func (lAI *LAI) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsLAI, lAI, lAI.iEExtensions)
+	return notComprehended
+}
+
+func (lTENTNTAIInformation *LTENTNTAIInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsLTENTNTAIInformation, lTENTNTAIInformation, lTENTNTAIInformation.iEExtensions)
+	w.WriteBit(lTENTNTAIInformation.extensions.Present())
+	w.WriteBit(lTENTNTAIInformation.UELocationDerivedTAC != nil)
+	w.WriteBit(len(ext) > 0)
+	if err := lTENTNTAIInformation.ServingPLMN.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	off1 := 0
+	if err := per.EncodeLength(w, enc, 1, 12, true, int64(len(lTENTNTAIInformation.TACListInLTENTN)), func(count int64) error {
+		end := off1 + int(count)
+		for i := off1; i < end; i++ {
+			if err := lTENTNTAIInformation.TACListInLTENTN[i].MarshalPER(w, enc); err != nil {
+				return err
+			}
+		}
+		off1 = end
+		return nil
+	}); err != nil {
+		return err
+	}
+	if lTENTNTAIInformation.UELocationDerivedTAC != nil {
+		if err := (*lTENTNTAIInformation.UELocationDerivedTAC).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if lTENTNTAIInformation.extensions.Present() {
+		if err := lTENTNTAIInformation.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (lTENTNTAIInformation *LTENTNTAIInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*lTENTNTAIInformation = LTENTNTAIInformation{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_UELocationDerivedTAC, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&lTENTNTAIInformation.ServingPLMN).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	lTENTNTAIInformation.TACListInLTENTN = nil
+	if err := per.DecodeLength(r, enc, 1, 12, true, func(count int64) error {
+		start := len(lTENTNTAIInformation.TACListInLTENTN)
+		lTENTNTAIInformation.TACListInLTENTN = append(lTENTNTAIInformation.TACListInLTENTN, make([]TAC, count)...)
+		for i := int64(0); i < count; i++ {
+			if err := (&lTENTNTAIInformation.TACListInLTENTN[start+int(i)]).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	if p_UELocationDerivedTAC {
+		var v TAC
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		lTENTNTAIInformation.UELocationDerivedTAC = &v
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsLTENTNTAIInformation, lTENTNTAIInformation, &lTENTNTAIInformation.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := lTENTNTAIInformation.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsLTENTNTAIInformation []ap.IESpec[ProtocolIEID, LTENTNTAIInformation]
+
+func (lTENTNTAIInformation *LTENTNTAIInformation) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsLTENTNTAIInformation, lTENTNTAIInformation, lTENTNTAIInformation.iEExtensions)
+	return notComprehended
+}
+
+func (lastVisitedCellItem *LastVisitedCellItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	set := 0
+	for _, ok := range [...]bool{lastVisitedCellItem.EUTRANCell != nil, lastVisitedCellItem.UTRANCell != nil, lastVisitedCellItem.GERANCell != nil, lastVisitedCellItem.NGRANCell != nil, lastVisitedCellItem.Ext != nil} {
+		if ok {
+			set++
+		}
+	}
+	if set > 1 {
+		return per.ErrChoice
+	}
+	switch {
+	case lastVisitedCellItem.EUTRANCell != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 2, 0); err != nil {
+			return err
+		}
+		if err := (*lastVisitedCellItem.EUTRANCell).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case lastVisitedCellItem.UTRANCell != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 2, 1); err != nil {
+			return err
+		}
+		if err := (*lastVisitedCellItem.UTRANCell).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case lastVisitedCellItem.GERANCell != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 2, 2); err != nil {
+			return err
+		}
+		if err := (*lastVisitedCellItem.GERANCell).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case lastVisitedCellItem.NGRANCell != nil:
+		w.WriteBit(true)
+		if err := per.EncodeNormallySmall(w, enc, 0); err != nil {
+			return err
+		}
+		return per.EncodeOpenType(w, enc, lastVisitedCellItem.NGRANCell)
+	case lastVisitedCellItem.Ext != nil:
+		w.WriteBit(true)
+		return lastVisitedCellItem.Ext.MarshalPER(w, enc)
+	default:
+		return per.ErrEmpty
+	}
+	return nil
+}
+
+func (lastVisitedCellItem *LastVisitedCellItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*lastVisitedCellItem = LastVisitedCellItem{}
+	isExt, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if isExt {
+		extIdx, err := per.DecodeNormallySmall(r, enc)
+		if err != nil {
+			return err
+		}
+		switch extIdx {
+		case 0:
+			var v LastVisitedNGRANCellInformation
+			if err := per.DecodeOpenType(r, enc, &v); err != nil {
+				return err
+			}
+			lastVisitedCellItem.NGRANCell = &v
+		default:
+			lastVisitedCellItem.Ext, err = per.DecodeExtensionAlternative(r, enc, extIdx)
+			return err
+		}
+		return nil
+	}
+	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 2)
+	if err != nil {
+		return err
+	}
+	switch idx {
+	case 0:
+		var v LastVisitedEUTRANCellInformation
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		lastVisitedCellItem.EUTRANCell = &v
+	case 1:
+		var v LastVisitedUTRANCellInformation
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		lastVisitedCellItem.UTRANCell = &v
+	case 2:
+		var v LastVisitedGERANCellInformation
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		lastVisitedCellItem.GERANCell = &v
+	default:
+		return per.ErrOverflow
+	}
+	return nil
+}
+
+func (lastVisitedCellItem *LastVisitedCellItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	switch {
+	case lastVisitedCellItem.EUTRANCell != nil:
+		return lastVisitedCellItem.EUTRANCell.Diagnose(d)
+	case lastVisitedCellItem.UTRANCell != nil:
+	case lastVisitedCellItem.GERANCell != nil:
+		return lastVisitedCellItem.GERANCell.Diagnose(d)
+	case lastVisitedCellItem.NGRANCell != nil:
+	case lastVisitedCellItem.Ext != nil:
+		return true
+	}
+	return false
+}
+
 func (lastVisitedEUTRANCellInformation *LastVisitedEUTRANCellInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsLastVisitedEUTRANCellInformation, lastVisitedEUTRANCellInformation, lastVisitedEUTRANCellInformation.iEExtensions)
 	w.WriteBit(lastVisitedEUTRANCellInformation.extensions.Present())
-	w.WriteBit(lastVisitedEUTRANCellInformation.iEExtensions != nil)
+	w.WriteBit(len(ext) > 0)
 	if err := lastVisitedEUTRANCellInformation.GlobalCellID.MarshalPER(w, enc); err != nil {
 		return err
 	}
@@ -2397,8 +5532,8 @@ func (lastVisitedEUTRANCellInformation *LastVisitedEUTRANCellInformation) Marsha
 	if err := lastVisitedEUTRANCellInformation.TimeUEStayedInCell.MarshalPER(w, enc); err != nil {
 		return err
 	}
-	if lastVisitedEUTRANCellInformation.iEExtensions != nil {
-		if err := (*lastVisitedEUTRANCellInformation.iEExtensions).MarshalPER(w, enc); err != nil {
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
 			return err
 		}
 	}
@@ -2411,6 +5546,7 @@ func (lastVisitedEUTRANCellInformation *LastVisitedEUTRANCellInformation) Marsha
 }
 
 func (lastVisitedEUTRANCellInformation *LastVisitedEUTRANCellInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*lastVisitedEUTRANCellInformation = LastVisitedEUTRANCellInformation{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
@@ -2429,11 +5565,9 @@ func (lastVisitedEUTRANCellInformation *LastVisitedEUTRANCellInformation) Unmars
 		return err
 	}
 	if p_iEExtensions {
-		var v transparentIEExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsLastVisitedEUTRANCellInformation, lastVisitedEUTRANCellInformation, &lastVisitedEUTRANCellInformation.iEExtensions); err != nil {
 			return err
 		}
-		lastVisitedEUTRANCellInformation.iEExtensions = &v
 	}
 	if extBit {
 		if err := lastVisitedEUTRANCellInformation.extensions.UnmarshalPER(r, enc); err != nil {
@@ -2443,142 +5577,1798 @@ func (lastVisitedEUTRANCellInformation *LastVisitedEUTRANCellInformation) Unmars
 	return nil
 }
 
+var extIEsLastVisitedEUTRANCellInformation = []ap.IESpec[ProtocolIEID, LastVisitedEUTRANCellInformation]{
+	{
+		ID:          IDTimeUEStayedInCellEnhancedGranularity,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *LastVisitedEUTRANCellInformation, r *per.Reader, enc per.Encoding) error {
+			var v TimeUEStayedInCellEnhancedGranularity
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.TimeUEStayedInCellEnhancedGranularity = &v
+			return nil
+		},
+		Encode: func(x *LastVisitedEUTRANCellInformation) (per.Marshaler, bool) {
+			if x.TimeUEStayedInCellEnhancedGranularity == nil {
+				return nil, false
+			}
+			return x.TimeUEStayedInCellEnhancedGranularity, true
+		},
+	},
+	{
+		ID:          IDHOCause,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *LastVisitedEUTRANCellInformation, r *per.Reader, enc per.Encoding) error {
+			var v Cause
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.HOCause = &v
+			return nil
+		},
+		Encode: func(x *LastVisitedEUTRANCellInformation) (per.Marshaler, bool) {
+			if x.HOCause == nil {
+				return nil, false
+			}
+			return x.HOCause, true
+		},
+	},
+	{
+		ID:          IDLastVisitedPSCellList,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *LastVisitedEUTRANCellInformation, r *per.Reader, enc per.Encoding) error {
+			var v LastVisitedPSCellList
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.LastVisitedPSCellList = v
+			return nil
+		},
+		Encode: func(x *LastVisitedEUTRANCellInformation) (per.Marshaler, bool) {
+			if len(x.LastVisitedPSCellList) == 0 {
+				return nil, false
+			}
+			return x.LastVisitedPSCellList, true
+		},
+	},
+}
+
+func (lastVisitedEUTRANCellInformation *LastVisitedEUTRANCellInformation) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if lastVisitedEUTRANCellInformation.GlobalCellID.Diagnose(d) {
+		notComprehended = true
+	}
+	if lastVisitedEUTRANCellInformation.CellType.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsLastVisitedEUTRANCellInformation, lastVisitedEUTRANCellInformation, lastVisitedEUTRANCellInformation.iEExtensions)
+	return notComprehended
+}
+
+func (lastVisitedGERANCellInformation *LastVisitedGERANCellInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	set := 0
+	for _, ok := range [...]bool{lastVisitedGERANCellInformation.Undefined != nil, lastVisitedGERANCellInformation.Ext != nil} {
+		if ok {
+			set++
+		}
+	}
+	if set > 1 {
+		return per.ErrChoice
+	}
+	switch {
+	case lastVisitedGERANCellInformation.Undefined != nil:
+		w.WriteBit(false)
+		if err := (*lastVisitedGERANCellInformation.Undefined).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case lastVisitedGERANCellInformation.Ext != nil:
+		w.WriteBit(true)
+		return lastVisitedGERANCellInformation.Ext.MarshalPER(w, enc)
+	default:
+		return per.ErrEmpty
+	}
+	return nil
+}
+
+func (lastVisitedGERANCellInformation *LastVisitedGERANCellInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*lastVisitedGERANCellInformation = LastVisitedGERANCellInformation{}
+	isExt, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if isExt {
+		extIdx, err := per.DecodeNormallySmall(r, enc)
+		if err != nil {
+			return err
+		}
+		lastVisitedGERANCellInformation.Ext, err = per.DecodeExtensionAlternative(r, enc, extIdx)
+		return err
+	}
+	var idx int64 = 0
+	switch idx {
+	case 0:
+		var v per.Null
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		lastVisitedGERANCellInformation.Undefined = &v
+	default:
+		return per.ErrOverflow
+	}
+	return nil
+}
+
+func (lastVisitedGERANCellInformation *LastVisitedGERANCellInformation) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	switch {
+	case lastVisitedGERANCellInformation.Undefined != nil:
+	case lastVisitedGERANCellInformation.Ext != nil:
+		return true
+	}
+	return false
+}
+
+func (lastVisitedPSCellInformation *LastVisitedPSCellInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsLastVisitedPSCellInformation, lastVisitedPSCellInformation, lastVisitedPSCellInformation.iEExtensions)
+	w.WriteBit(lastVisitedPSCellInformation.extensions.Present())
+	w.WriteBit(lastVisitedPSCellInformation.PSCellID != nil)
+	w.WriteBit(len(ext) > 0)
+	if lastVisitedPSCellInformation.PSCellID != nil {
+		if err := (*lastVisitedPSCellInformation.PSCellID).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 40950, HasUB: true}, int64(lastVisitedPSCellInformation.TimeStay)); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if lastVisitedPSCellInformation.extensions.Present() {
+		if err := lastVisitedPSCellInformation.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (lastVisitedPSCellInformation *LastVisitedPSCellInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*lastVisitedPSCellInformation = LastVisitedPSCellInformation{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_PSCellID, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if p_PSCellID {
+		var v PSCellInformation
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		lastVisitedPSCellInformation.PSCellID = &v
+	}
+	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 40950, HasUB: true})
+	if err != nil {
+		return err
+	}
+	lastVisitedPSCellInformation.TimeStay = uint16(n1)
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsLastVisitedPSCellInformation, lastVisitedPSCellInformation, &lastVisitedPSCellInformation.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := lastVisitedPSCellInformation.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsLastVisitedPSCellInformation []ap.IESpec[ProtocolIEID, LastVisitedPSCellInformation]
+
+func (lastVisitedPSCellInformation *LastVisitedPSCellInformation) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if lastVisitedPSCellInformation.PSCellID != nil && lastVisitedPSCellInformation.PSCellID.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsLastVisitedPSCellInformation, lastVisitedPSCellInformation, lastVisitedPSCellInformation.iEExtensions)
+	return notComprehended
+}
+
+func (listeningSubframePattern *ListeningSubframePattern) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsListeningSubframePattern, listeningSubframePattern, listeningSubframePattern.iEExtensions)
+	w.WriteBit(listeningSubframePattern.extensions.Present())
+	w.WriteBit(len(ext) > 0)
+	if err := listeningSubframePattern.PatternPeriod.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := listeningSubframePattern.PatternOffset.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if listeningSubframePattern.extensions.Present() {
+		if err := listeningSubframePattern.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (listeningSubframePattern *ListeningSubframePattern) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*listeningSubframePattern = ListeningSubframePattern{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&listeningSubframePattern.PatternPeriod).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&listeningSubframePattern.PatternOffset).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsListeningSubframePattern, listeningSubframePattern, &listeningSubframePattern.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := listeningSubframePattern.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsListeningSubframePattern []ap.IESpec[ProtocolIEID, ListeningSubframePattern]
+
+func (listeningSubframePattern *ListeningSubframePattern) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if listeningSubframePattern.PatternPeriod.Diagnose(d) {
+		notComprehended = true
+	}
+	if listeningSubframePattern.PatternOffset.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsListeningSubframePattern, listeningSubframePattern, listeningSubframePattern.iEExtensions)
+	return notComprehended
+}
+
+func (mutingAvailabilityIndication MutingAvailabilityIndication) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumMutingAvailabilityIndication.Encode(w, enc, mutingAvailabilityIndication)
+}
+
+func (mutingAvailabilityIndication *MutingAvailabilityIndication) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumMutingAvailabilityIndication.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*mutingAvailabilityIndication = v
+	return nil
+}
+
+func (mutingAvailabilityIndication MutingAvailabilityIndication) Name() string {
+	return enumMutingAvailabilityIndication.Name(mutingAvailabilityIndication)
+}
+
+func (mutingAvailabilityIndication MutingAvailabilityIndication) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumMutingAvailabilityIndication.Known(mutingAvailabilityIndication)
+}
+
+func (mutingPatternInformation *MutingPatternInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsMutingPatternInformation, mutingPatternInformation, mutingPatternInformation.iEExtensions)
+	w.WriteBit(mutingPatternInformation.extensions.Present())
+	w.WriteBit(mutingPatternInformation.MutingPatternOffset != nil)
+	w.WriteBit(len(ext) > 0)
+	if err := mutingPatternInformation.MutingPatternPeriod.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if mutingPatternInformation.MutingPatternOffset != nil {
+		if err := (*mutingPatternInformation.MutingPatternOffset).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if mutingPatternInformation.extensions.Present() {
+		if err := mutingPatternInformation.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (mutingPatternInformation *MutingPatternInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*mutingPatternInformation = MutingPatternInformation{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_MutingPatternOffset, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&mutingPatternInformation.MutingPatternPeriod).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_MutingPatternOffset {
+		var v PatternOffset
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		mutingPatternInformation.MutingPatternOffset = &v
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsMutingPatternInformation, mutingPatternInformation, &mutingPatternInformation.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := mutingPatternInformation.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsMutingPatternInformation []ap.IESpec[ProtocolIEID, MutingPatternInformation]
+
+func (mutingPatternInformation *MutingPatternInformation) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if mutingPatternInformation.MutingPatternPeriod.Diagnose(d) {
+		notComprehended = true
+	}
+	if mutingPatternInformation.MutingPatternOffset != nil && mutingPatternInformation.MutingPatternOffset.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsMutingPatternInformation, mutingPatternInformation, mutingPatternInformation.iEExtensions)
+	return notComprehended
+}
+
+func (mutingPatternPeriod MutingPatternPeriod) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumMutingPatternPeriod.Encode(w, enc, mutingPatternPeriod)
+}
+
+func (mutingPatternPeriod *MutingPatternPeriod) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumMutingPatternPeriod.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*mutingPatternPeriod = v
+	return nil
+}
+
+func (mutingPatternPeriod MutingPatternPeriod) Name() string {
+	return enumMutingPatternPeriod.Name(mutingPatternPeriod)
+}
+
+func (mutingPatternPeriod MutingPatternPeriod) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumMutingPatternPeriod.Known(mutingPatternPeriod)
+}
+
+func (nRCGI *NRCGI) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsNRCGI, nRCGI, nRCGI.iEExtensions)
+	w.WriteBit(nRCGI.extensions.Present())
+	w.WriteBit(len(ext) > 0)
+	if err := nRCGI.PLMNIdentity.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := nRCGI.NRCellIdentity.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if nRCGI.extensions.Present() {
+		if err := nRCGI.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (nRCGI *NRCGI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*nRCGI = NRCGI{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&nRCGI.PLMNIdentity).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&nRCGI.NRCellIdentity).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsNRCGI, nRCGI, &nRCGI.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := nRCGI.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsNRCGI []ap.IESpec[ProtocolIEID, NRCGI]
+
+func (nRCGI *NRCGI) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsNRCGI, nRCGI, nRCGI.iEExtensions)
+	return notComprehended
+}
+
+func (nRrestrictionin5GS NRrestrictionin5GS) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumNRrestrictionin5GS.Encode(w, enc, nRrestrictionin5GS)
+}
+
+func (nRrestrictionin5GS *NRrestrictionin5GS) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumNRrestrictionin5GS.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*nRrestrictionin5GS = v
+	return nil
+}
+
+func (nRrestrictionin5GS NRrestrictionin5GS) Name() string {
+	return enumNRrestrictionin5GS.Name(nRrestrictionin5GS)
+}
+
+func (nRrestrictionin5GS NRrestrictionin5GS) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumNRrestrictionin5GS.Known(nRrestrictionin5GS)
+}
+
+func (nRrestrictioninEPSasSecondaryRAT NRrestrictioninEPSasSecondaryRAT) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumNRrestrictioninEPSasSecondaryRAT.Encode(w, enc, nRrestrictioninEPSasSecondaryRAT)
+}
+
+func (nRrestrictioninEPSasSecondaryRAT *NRrestrictioninEPSasSecondaryRAT) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumNRrestrictioninEPSasSecondaryRAT.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*nRrestrictioninEPSasSecondaryRAT = v
+	return nil
+}
+
+func (nRrestrictioninEPSasSecondaryRAT NRrestrictioninEPSasSecondaryRAT) Name() string {
+	return enumNRrestrictioninEPSasSecondaryRAT.Name(nRrestrictioninEPSasSecondaryRAT)
+}
+
+func (nRrestrictioninEPSasSecondaryRAT NRrestrictioninEPSasSecondaryRAT) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumNRrestrictioninEPSasSecondaryRAT.Known(nRrestrictioninEPSasSecondaryRAT)
+}
+
 func (ngENB *NgENB) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsNgENB, ngENB, ngENB.iEExtensions)
+	w.WriteBit(ngENB.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := ngENB.GlobalNgENBID.MarshalPER(w, enc); err != nil {
 		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if ngENB.extensions.Present() {
+		if err := ngENB.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func (ngENB *NgENB) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*ngENB = NgENB{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f1, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
 	if err := (&ngENB.GlobalNgENBID).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f1 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsNgENB, ngENB, &ngENB.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := ngENB.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
-func (requestType *RequestType) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
-	if err := encodeRootEnumerated(w, enc, 3, int64(requestType.EventType), "EventType"); err != nil {
+var extIEsNgENB []ap.IESpec[ProtocolIEID, NgENB]
+
+func (ngENB *NgENB) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if ngENB.GlobalNgENBID.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsNgENB, ngENB, ngENB.iEExtensions)
+	return notComprehended
+}
+
+func (overloadAction OverloadAction) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumOverloadAction.Encode(w, enc, overloadAction)
+}
+
+func (overloadAction *OverloadAction) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumOverloadAction.Decode(r, enc)
+	if err != nil {
 		return err
 	}
-	if err := encodeRootEnumerated(w, enc, 1, int64(requestType.ReportArea), "ReportArea"); err != nil {
+	*overloadAction = v
+	return nil
+}
+
+func (overloadAction OverloadAction) Name() string {
+	return enumOverloadAction.Name(overloadAction)
+}
+
+func (overloadAction OverloadAction) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumOverloadAction.Known(overloadAction)
+}
+
+func (overloadResponse *OverloadResponse) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	set := 0
+	for _, ok := range [...]bool{overloadResponse.OverloadAction != nil, overloadResponse.Ext != nil} {
+		if ok {
+			set++
+		}
+	}
+	if set > 1 {
+		return per.ErrChoice
+	}
+	switch {
+	case overloadResponse.OverloadAction != nil:
+		w.WriteBit(false)
+		if err := (*overloadResponse.OverloadAction).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case overloadResponse.Ext != nil:
+		w.WriteBit(true)
+		return overloadResponse.Ext.MarshalPER(w, enc)
+	default:
+		return per.ErrEmpty
+	}
+	return nil
+}
+
+func (overloadResponse *OverloadResponse) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*overloadResponse = OverloadResponse{}
+	isExt, err := r.ReadBit()
+	if err != nil {
 		return err
+	}
+	if isExt {
+		extIdx, err := per.DecodeNormallySmall(r, enc)
+		if err != nil {
+			return err
+		}
+		overloadResponse.Ext, err = per.DecodeExtensionAlternative(r, enc, extIdx)
+		return err
+	}
+	var idx int64 = 0
+	switch idx {
+	case 0:
+		var v OverloadAction
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		overloadResponse.OverloadAction = &v
+	default:
+		return per.ErrOverflow
+	}
+	return nil
+}
+
+func (overloadResponse *OverloadResponse) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	switch {
+	case overloadResponse.OverloadAction != nil:
+		return overloadResponse.OverloadAction.Diagnose(d)
+	case overloadResponse.Ext != nil:
+		return true
+	}
+	return false
+}
+
+func (pSCellInformation *PSCellInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsPSCellInformation, pSCellInformation, pSCellInformation.iEExtensions)
+	w.WriteBit(pSCellInformation.extensions.Present())
+	w.WriteBit(len(ext) > 0)
+	if err := pSCellInformation.NCGI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if pSCellInformation.extensions.Present() {
+		if err := pSCellInformation.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (pSCellInformation *PSCellInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*pSCellInformation = PSCellInformation{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&pSCellInformation.NCGI).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsPSCellInformation, pSCellInformation, &pSCellInformation.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := pSCellInformation.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsPSCellInformation []ap.IESpec[ProtocolIEID, PSCellInformation]
+
+func (pSCellInformation *PSCellInformation) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if pSCellInformation.NCGI.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsPSCellInformation, pSCellInformation, pSCellInformation.iEExtensions)
+	return notComprehended
+}
+
+func (pagingDRX PagingDRX) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumPagingDRX.Encode(w, enc, pagingDRX)
+}
+
+func (pagingDRX *PagingDRX) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumPagingDRX.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*pagingDRX = v
+	return nil
+}
+
+func (pagingDRX PagingDRX) Name() string {
+	return enumPagingDRX.Name(pagingDRX)
+}
+
+func (pagingDRX PagingDRX) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumPagingDRX.Known(pagingDRX)
+}
+
+func (pagingPriority PagingPriority) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumPagingPriority.Encode(w, enc, pagingPriority)
+}
+
+func (pagingPriority *PagingPriority) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumPagingPriority.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*pagingPriority = v
+	return nil
+}
+
+func (pagingPriority PagingPriority) Name() string {
+	return enumPagingPriority.Name(pagingPriority)
+}
+
+func (pagingPriority PagingPriority) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumPagingPriority.Known(pagingPriority)
+}
+
+func (patternPeriod PatternPeriod) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumPatternPeriod.Encode(w, enc, patternPeriod)
+}
+
+func (patternPeriod *PatternPeriod) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumPatternPeriod.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*patternPeriod = v
+	return nil
+}
+
+func (patternPeriod PatternPeriod) Name() string {
+	return enumPatternPeriod.Name(patternPeriod)
+}
+
+func (patternPeriod PatternPeriod) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumPatternPeriod.Known(patternPeriod)
+}
+
+func (preemptionCapability PreemptionCapability) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumPreemptionCapability.Encode(w, enc, preemptionCapability)
+}
+
+func (preemptionCapability *PreemptionCapability) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumPreemptionCapability.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*preemptionCapability = v
+	return nil
+}
+
+func (preemptionCapability PreemptionCapability) Name() string {
+	return enumPreemptionCapability.Name(preemptionCapability)
+}
+
+func (preemptionVulnerability PreemptionVulnerability) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumPreemptionVulnerability.Encode(w, enc, preemptionVulnerability)
+}
+
+func (preemptionVulnerability *PreemptionVulnerability) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumPreemptionVulnerability.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*preemptionVulnerability = v
+	return nil
+}
+
+func (preemptionVulnerability PreemptionVulnerability) Name() string {
+	return enumPreemptionVulnerability.Name(preemptionVulnerability)
+}
+
+func (rATRestrictionsItem *RATRestrictionsItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsRATRestrictionsItem, rATRestrictionsItem, rATRestrictionsItem.iEExtensions)
+	w.WriteBit(rATRestrictionsItem.extensions.Present())
+	w.WriteBit(len(ext) > 0)
+	if err := rATRestrictionsItem.PLMNIdentity.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := rATRestrictionsItem.RATRestrictionInformation.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if rATRestrictionsItem.extensions.Present() {
+		if err := rATRestrictionsItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (rATRestrictionsItem *RATRestrictionsItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*rATRestrictionsItem = RATRestrictionsItem{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&rATRestrictionsItem.PLMNIdentity).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&rATRestrictionsItem.RATRestrictionInformation).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsRATRestrictionsItem, rATRestrictionsItem, &rATRestrictionsItem.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := rATRestrictionsItem.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsRATRestrictionsItem []ap.IESpec[ProtocolIEID, RATRestrictionsItem]
+
+func (rATRestrictionsItem *RATRestrictionsItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsRATRestrictionsItem, rATRestrictionsItem, rATRestrictionsItem.iEExtensions)
+	return notComprehended
+}
+
+func (rATType RATType) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumRATType.Encode(w, enc, rATType)
+}
+
+func (rATType *RATType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumRATType.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*rATType = v
+	return nil
+}
+
+func (rATType RATType) Name() string {
+	return enumRATType.Name(rATType)
+}
+
+func (rATType RATType) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumRATType.Known(rATType)
+}
+
+func (rLFReportInformation *RLFReportInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsRLFReportInformation, rLFReportInformation, rLFReportInformation.iEExtensions)
+	w.WriteBit(rLFReportInformation.extensions.Present())
+	w.WriteBit(rLFReportInformation.UERLFReportContainerForExtendedBands != nil)
+	w.WriteBit(len(ext) > 0)
+	if err := rLFReportInformation.UERLFReportContainer.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if rLFReportInformation.UERLFReportContainerForExtendedBands != nil {
+		if err := (*rLFReportInformation.UERLFReportContainerForExtendedBands).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if rLFReportInformation.extensions.Present() {
+		if err := rLFReportInformation.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (rLFReportInformation *RLFReportInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*rLFReportInformation = RLFReportInformation{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_UERLFReportContainerForExtendedBands, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&rLFReportInformation.UERLFReportContainer).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_UERLFReportContainerForExtendedBands {
+		var v RLFReportContainer
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		rLFReportInformation.UERLFReportContainerForExtendedBands = &v
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsRLFReportInformation, rLFReportInformation, &rLFReportInformation.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := rLFReportInformation.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsRLFReportInformation = []ap.IESpec[ProtocolIEID, RLFReportInformation]{
+	{
+		ID:          IDNBIoTRLFReportContainer,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *RLFReportInformation, r *per.Reader, enc per.Encoding) error {
+			var v RLFReportContainer
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.NBIoTRLFReportContainer = &v
+			return nil
+		},
+		Encode: func(x *RLFReportInformation) (per.Marshaler, bool) {
+			if x.NBIoTRLFReportContainer == nil {
+				return nil, false
+			}
+			return x.NBIoTRLFReportContainer, true
+		},
+	},
+}
+
+func (rLFReportInformation *RLFReportInformation) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsRLFReportInformation, rLFReportInformation, rLFReportInformation.iEExtensions)
+	return notComprehended
+}
+
+func (rRCEstablishmentCause RRCEstablishmentCause) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumRRCEstablishmentCause.Encode(w, enc, rRCEstablishmentCause)
+}
+
+func (rRCEstablishmentCause *RRCEstablishmentCause) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumRRCEstablishmentCause.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*rRCEstablishmentCause = v
+	return nil
+}
+
+func (rRCEstablishmentCause RRCEstablishmentCause) Name() string {
+	return enumRRCEstablishmentCause.Name(rRCEstablishmentCause)
+}
+
+func (rRCEstablishmentCause RRCEstablishmentCause) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumRRCEstablishmentCause.Known(rRCEstablishmentCause)
+}
+
+func (reportArea ReportArea) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumReportArea.Encode(w, enc, reportArea)
+}
+
+func (reportArea *ReportArea) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumReportArea.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*reportArea = v
+	return nil
+}
+
+func (reportArea ReportArea) Name() string {
+	return enumReportArea.Name(reportArea)
+}
+
+func (reportArea ReportArea) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumReportArea.Known(reportArea)
+}
+
+func (requestType *RequestType) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsRequestType, requestType, requestType.iEExtensions)
+	w.WriteBit(requestType.extensions.Present())
+	w.WriteBit(len(ext) > 0)
+	if err := requestType.EventType.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := requestType.ReportArea.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if requestType.extensions.Present() {
+		if err := requestType.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func (requestType *RequestType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*requestType = RequestType{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	e0, err := decodeRootEnumerated(r, enc, 3, "EventType")
-	if err != nil {
+	if err := (&requestType.EventType).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	requestType.EventType = EventType(e0)
-	e1, err := decodeRootEnumerated(r, enc, 1, "ReportArea")
-	if err != nil {
+	if err := (&requestType.ReportArea).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	requestType.ReportArea = ReportArea(e1)
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsRequestType, requestType, &requestType.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := requestType.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsRequestType = []ap.IESpec[ProtocolIEID, RequestType]{
+	{
+		ID:          IDRequestTypeAdditionalInfo,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *RequestType, r *per.Reader, enc per.Encoding) error {
+			var v RequestTypeAdditionalInfo
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.RequestTypeAdditionalInfo = &v
+			return nil
+		},
+		Encode: func(x *RequestType) (per.Marshaler, bool) {
+			if x.RequestTypeAdditionalInfo == nil {
+				return nil, false
+			}
+			return x.RequestTypeAdditionalInfo, true
+		},
+	},
+}
+
+func (requestType *RequestType) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if requestType.EventType.Diagnose(d) {
+		notComprehended = true
+	}
+	if requestType.ReportArea.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsRequestType, requestType, requestType.iEExtensions)
+	return notComprehended
+}
+
+func (requestTypeAdditionalInfo RequestTypeAdditionalInfo) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumRequestTypeAdditionalInfo.Encode(w, enc, requestTypeAdditionalInfo)
+}
+
+func (requestTypeAdditionalInfo *RequestTypeAdditionalInfo) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumRequestTypeAdditionalInfo.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*requestTypeAdditionalInfo = v
+	return nil
+}
+
+func (requestTypeAdditionalInfo RequestTypeAdditionalInfo) Name() string {
+	return enumRequestTypeAdditionalInfo.Name(requestTypeAdditionalInfo)
+}
+
+func (requestTypeAdditionalInfo RequestTypeAdditionalInfo) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumRequestTypeAdditionalInfo.Known(requestTypeAdditionalInfo)
+}
+
+func (requestedTNLInfo *RequestedTNLInfo) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsRequestedTNLInfo, requestedTNLInfo, requestedTNLInfo.iEExtensions)
+	w.WriteBit(requestedTNLInfo.extensions.Present())
+	w.WriteBit(len(ext) > 0)
+	if err := requestedTNLInfo.PLMNIdentity.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if requestedTNLInfo.extensions.Present() {
+		if err := requestedTNLInfo.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (requestedTNLInfo *RequestedTNLInfo) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*requestedTNLInfo = RequestedTNLInfo{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&requestedTNLInfo.PLMNIdentity).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsRequestedTNLInfo, requestedTNLInfo, &requestedTNLInfo.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := requestedTNLInfo.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsRequestedTNLInfo []ap.IESpec[ProtocolIEID, RequestedTNLInfo]
+
+func (requestedTNLInfo *RequestedTNLInfo) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsRequestedTNLInfo, requestedTNLInfo, requestedTNLInfo.iEExtensions)
+	return notComprehended
+}
+
+func (resetAll ResetAll) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumResetAll.Encode(w, enc, resetAll)
+}
+
+func (resetAll *ResetAll) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumResetAll.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*resetAll = v
+	return nil
+}
+
+func (resetAll ResetAll) Name() string {
+	return enumResetAll.Name(resetAll)
+}
+
+func (resetAll ResetAll) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumResetAll.Known(resetAll)
+}
+
+func (resetType *ResetType) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	set := 0
+	for _, ok := range [...]bool{resetType.S1Interface != nil, resetType.PartOfS1Interface != nil, resetType.Ext != nil} {
+		if ok {
+			set++
+		}
+	}
+	if set > 1 {
+		return per.ErrChoice
+	}
+	switch {
+	case resetType.S1Interface != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 0); err != nil {
+			return err
+		}
+		if err := (*resetType.S1Interface).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case resetType.PartOfS1Interface != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 1); err != nil {
+			return err
+		}
+		if err := (*resetType.PartOfS1Interface).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case resetType.Ext != nil:
+		w.WriteBit(true)
+		return resetType.Ext.MarshalPER(w, enc)
+	default:
+		return per.ErrEmpty
+	}
+	return nil
+}
+
+func (resetType *ResetType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*resetType = ResetType{}
+	isExt, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if isExt {
+		extIdx, err := per.DecodeNormallySmall(r, enc)
+		if err != nil {
+			return err
+		}
+		resetType.Ext, err = per.DecodeExtensionAlternative(r, enc, extIdx)
+		return err
+	}
+	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 1)
+	if err != nil {
+		return err
+	}
+	switch idx {
+	case 0:
+		var v ResetAll
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		resetType.S1Interface = &v
+	case 1:
+		var v UEAssociatedLogicalS1ConnectionListRes
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		resetType.PartOfS1Interface = &v
+	default:
+		return per.ErrOverflow
+	}
+	return nil
+}
+
+func (resetType *ResetType) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	switch {
+	case resetType.S1Interface != nil:
+		return resetType.S1Interface.Diagnose(d)
+	case resetType.PartOfS1Interface != nil:
+		return resetType.PartOfS1Interface.Diagnose(d)
+	case resetType.Ext != nil:
+		return true
+	}
+	return false
+}
+
+func (sONConfigurationTransfer *SONConfigurationTransfer) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsSONConfigurationTransfer, sONConfigurationTransfer, sONConfigurationTransfer.iEExtensions)
+	w.WriteBit(sONConfigurationTransfer.extensions.Present())
+	w.WriteBit(len(ext) > 0)
+	if err := sONConfigurationTransfer.TargeteNBID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := sONConfigurationTransfer.SourceeNBID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := sONConfigurationTransfer.SONInformation.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if sONConfigurationTransfer.extensions.Present() {
+		if err := sONConfigurationTransfer.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (sONConfigurationTransfer *SONConfigurationTransfer) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*sONConfigurationTransfer = SONConfigurationTransfer{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&sONConfigurationTransfer.TargeteNBID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&sONConfigurationTransfer.SourceeNBID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&sONConfigurationTransfer.SONInformation).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsSONConfigurationTransfer, sONConfigurationTransfer, &sONConfigurationTransfer.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := sONConfigurationTransfer.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsSONConfigurationTransfer = []ap.IESpec[ProtocolIEID, SONConfigurationTransfer]{
+	{
+		ID:          IDX2TNLConfigurationInfo,
+		Presence:    ap.PresenceConditional,
+		Criticality: ap.CriticalityIgnore,
+		Condition:   sonRequestsX2TNLConfigurationInfo,
+		Decode: func(x *SONConfigurationTransfer, r *per.Reader, enc per.Encoding) error {
+			var v X2TNLConfigurationInfo
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.X2TNLConfigurationInfo = &v
+			return nil
+		},
+		Encode: func(x *SONConfigurationTransfer) (per.Marshaler, bool) {
+			if x.X2TNLConfigurationInfo == nil {
+				return nil, false
+			}
+			return x.X2TNLConfigurationInfo, true
+		},
+	},
+	{
+		ID:          IDSynchronisationInformation,
+		Presence:    ap.PresenceConditional,
+		Criticality: ap.CriticalityIgnore,
+		Condition:   sonRequestsActivateMuting,
+		Decode: func(x *SONConfigurationTransfer, r *per.Reader, enc per.Encoding) error {
+			var v SynchronisationInformation
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.SynchronisationInformation = &v
+			return nil
+		},
+		Encode: func(x *SONConfigurationTransfer) (per.Marshaler, bool) {
+			if x.SynchronisationInformation == nil {
+				return nil, false
+			}
+			return x.SynchronisationInformation, true
+		},
+	},
+	{
+		ID:          IDRequestedTNLInfo,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *SONConfigurationTransfer, r *per.Reader, enc per.Encoding) error {
+			var v RequestedTNLInfo
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.RequestedTNLInfo = &v
+			return nil
+		},
+		Encode: func(x *SONConfigurationTransfer) (per.Marshaler, bool) {
+			if x.RequestedTNLInfo == nil {
+				return nil, false
+			}
+			return x.RequestedTNLInfo, true
+		},
+	},
+}
+
+func (sONConfigurationTransfer *SONConfigurationTransfer) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if sONConfigurationTransfer.TargeteNBID.Diagnose(d) {
+		notComprehended = true
+	}
+	if sONConfigurationTransfer.SourceeNBID.Diagnose(d) {
+		notComprehended = true
+	}
+	if sONConfigurationTransfer.SONInformation.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsSONConfigurationTransfer, sONConfigurationTransfer, sONConfigurationTransfer.iEExtensions)
+	return notComprehended
+}
+
+func (sONInformation *SONInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	set := 0
+	for _, ok := range [...]bool{sONInformation.SONInformationRequest != nil, sONInformation.SONInformationReply != nil, sONInformation.SONInformationExtension != nil, sONInformation.Ext != nil} {
+		if ok {
+			set++
+		}
+	}
+	if set > 1 {
+		return per.ErrChoice
+	}
+	switch {
+	case sONInformation.SONInformationRequest != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 0); err != nil {
+			return err
+		}
+		if err := (*sONInformation.SONInformationRequest).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case sONInformation.SONInformationReply != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 1); err != nil {
+			return err
+		}
+		if err := (*sONInformation.SONInformationReply).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case sONInformation.SONInformationExtension != nil:
+		w.WriteBit(true)
+		if err := per.EncodeNormallySmall(w, enc, 0); err != nil {
+			return err
+		}
+		return per.EncodeOpenType(w, enc, sONInformation.SONInformationExtension)
+	case sONInformation.Ext != nil:
+		w.WriteBit(true)
+		return sONInformation.Ext.MarshalPER(w, enc)
+	default:
+		return per.ErrEmpty
+	}
+	return nil
+}
+
+func (sONInformation *SONInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*sONInformation = SONInformation{}
+	isExt, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if isExt {
+		extIdx, err := per.DecodeNormallySmall(r, enc)
+		if err != nil {
+			return err
+		}
+		switch extIdx {
+		case 0:
+			var v SONInformationExtension
+			if err := per.DecodeOpenType(r, enc, &v); err != nil {
+				return err
+			}
+			sONInformation.SONInformationExtension = &v
+		default:
+			sONInformation.Ext, err = per.DecodeExtensionAlternative(r, enc, extIdx)
+			return err
+		}
+		return nil
+	}
+	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 1)
+	if err != nil {
+		return err
+	}
+	switch idx {
+	case 0:
+		var v SONInformationRequest
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		sONInformation.SONInformationRequest = &v
+	case 1:
+		var v SONInformationReply
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		sONInformation.SONInformationReply = &v
+	default:
+		return per.ErrOverflow
+	}
+	return nil
+}
+
+func (sONInformation *SONInformation) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	switch {
+	case sONInformation.SONInformationRequest != nil:
+		return sONInformation.SONInformationRequest.Diagnose(d)
+	case sONInformation.SONInformationReply != nil:
+		return sONInformation.SONInformationReply.Diagnose(d)
+	case sONInformation.SONInformationExtension != nil:
+		return sONInformation.SONInformationExtension.Diagnose(d)
+	case sONInformation.Ext != nil:
+		return true
+	}
+	return false
+}
+
+func (sONInformationExtension *SONInformationExtension) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	set := 0
+	for _, ok := range [...]bool{sONInformationExtension.SONInformationReport != nil, sONInformationExtension.ChoiceExtension != nil} {
+		if ok {
+			set++
+		}
+	}
+	if set > 1 {
+		return per.ErrChoice
+	}
+	switch {
+	case sONInformationExtension.SONInformationReport != nil:
+		return ap.EncodeField(profile, w, enc, ap.FieldValue[ProtocolIEID]{ID: IDSONInformationReport, Criticality: sONInformationExtension.choiceCriticality.Of(ap.CriticalityIgnore), Value: sONInformationExtension.SONInformationReport})
+	case sONInformationExtension.ChoiceExtension != nil:
+		return ap.EncodeField(profile, w, enc, sONInformationExtension.ChoiceExtension.Field())
+	default:
+		return per.ErrEmpty
+	}
+}
+
+func (sONInformationExtension *SONInformationExtension) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*sONInformationExtension = SONInformationExtension{}
+	var idx int64 = 0
+	switch idx {
+	case 0:
+		f, err := ap.DecodeSingleContainerValue[ProtocolIEID](profile, r, enc)
+		if err != nil {
+			return err
+		}
+		switch f.ID {
+		case IDSONInformationReport:
+			var v SONInformationReport
+			if err := (&v).UnmarshalPER(per.NewReader([]byte(f.Value)), enc); err != nil {
+				return err
+			}
+			if !ap.Comprehended[ProtocolIEID](&v) {
+				sONInformationExtension.ChoiceExtension = &f
+				break
+			}
+			sONInformationExtension.SONInformationReport = &v
+			sONInformationExtension.choiceCriticality = ap.Wire(f.Criticality, ap.CriticalityIgnore)
+		default:
+			sONInformationExtension.ChoiceExtension = &f
+		}
+	default:
+		return per.ErrOverflow
+	}
+	return nil
+}
+
+func (sONInformationExtension *SONInformationExtension) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	switch {
+	case sONInformationExtension.SONInformationReport != nil:
+		d.IE(IDSONInformationReport, sONInformationExtension.choiceCriticality.Of(ap.CriticalityIgnore), sONInformationExtension.SONInformationReport)
+	case sONInformationExtension.ChoiceExtension != nil:
+		d.Unknown(sONInformationExtension.ChoiceExtension.ID, sONInformationExtension.ChoiceExtension.Criticality)
+	}
+	return false
+}
+
+func (sONInformationReply *SONInformationReply) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsSONInformationReply, sONInformationReply, sONInformationReply.iEExtensions)
+	w.WriteBit(sONInformationReply.extensions.Present())
+	w.WriteBit(sONInformationReply.X2TNLConfigurationInfo != nil)
+	w.WriteBit(len(ext) > 0)
+	if sONInformationReply.X2TNLConfigurationInfo != nil {
+		if err := (*sONInformationReply.X2TNLConfigurationInfo).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if sONInformationReply.extensions.Present() {
+		if err := sONInformationReply.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (sONInformationReply *SONInformationReply) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*sONInformationReply = SONInformationReply{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_X2TNLConfigurationInfo, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if p_X2TNLConfigurationInfo {
+		var v X2TNLConfigurationInfo
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		sONInformationReply.X2TNLConfigurationInfo = &v
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsSONInformationReply, sONInformationReply, &sONInformationReply.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := sONInformationReply.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsSONInformationReply = []ap.IESpec[ProtocolIEID, SONInformationReply]{
+	{
+		ID:          IDTimeSynchronisationInfo,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *SONInformationReply, r *per.Reader, enc per.Encoding) error {
+			var v TimeSynchronisationInfo
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.TimeSynchronisationInfo = &v
+			return nil
+		},
+		Encode: func(x *SONInformationReply) (per.Marshaler, bool) {
+			if x.TimeSynchronisationInfo == nil {
+				return nil, false
+			}
+			return x.TimeSynchronisationInfo, true
+		},
+	},
+	{
+		ID:          IDMutingPatternInformation,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *SONInformationReply, r *per.Reader, enc per.Encoding) error {
+			var v MutingPatternInformation
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.MutingPatternInformation = &v
+			return nil
+		},
+		Encode: func(x *SONInformationReply) (per.Marshaler, bool) {
+			if x.MutingPatternInformation == nil {
+				return nil, false
+			}
+			return x.MutingPatternInformation, true
+		},
+	},
+}
+
+func (sONInformationReply *SONInformationReply) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if sONInformationReply.X2TNLConfigurationInfo != nil && sONInformationReply.X2TNLConfigurationInfo.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsSONInformationReply, sONInformationReply, sONInformationReply.iEExtensions)
+	return notComprehended
+}
+
+func (sONInformationReport *SONInformationReport) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	set := 0
+	for _, ok := range [...]bool{sONInformationReport.RLFReportInformation != nil, sONInformationReport.Ext != nil} {
+		if ok {
+			set++
+		}
+	}
+	if set > 1 {
+		return per.ErrChoice
+	}
+	switch {
+	case sONInformationReport.RLFReportInformation != nil:
+		w.WriteBit(false)
+		if err := (*sONInformationReport.RLFReportInformation).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case sONInformationReport.Ext != nil:
+		w.WriteBit(true)
+		return sONInformationReport.Ext.MarshalPER(w, enc)
+	default:
+		return per.ErrEmpty
+	}
+	return nil
+}
+
+func (sONInformationReport *SONInformationReport) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*sONInformationReport = SONInformationReport{}
+	isExt, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if isExt {
+		extIdx, err := per.DecodeNormallySmall(r, enc)
+		if err != nil {
+			return err
+		}
+		sONInformationReport.Ext, err = per.DecodeExtensionAlternative(r, enc, extIdx)
+		return err
+	}
+	var idx int64 = 0
+	switch idx {
+	case 0:
+		var v RLFReportInformation
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		sONInformationReport.RLFReportInformation = &v
+	default:
+		return per.ErrOverflow
+	}
+	return nil
+}
+
+func (sONInformationReport *SONInformationReport) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	switch {
+	case sONInformationReport.RLFReportInformation != nil:
+		return sONInformationReport.RLFReportInformation.Diagnose(d)
+	case sONInformationReport.Ext != nil:
+		return true
+	}
+	return false
+}
+
+func (sONInformationRequest SONInformationRequest) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumSONInformationRequest.Encode(w, enc, sONInformationRequest)
+}
+
+func (sONInformationRequest *SONInformationRequest) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumSONInformationRequest.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*sONInformationRequest = v
+	return nil
+}
+
+func (sONInformationRequest SONInformationRequest) Name() string {
+	return enumSONInformationRequest.Name(sONInformationRequest)
+}
+
+func (sONInformationRequest SONInformationRequest) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumSONInformationRequest.Known(sONInformationRequest)
+}
+
 func (sTMSI *STMSI) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsSTMSI, sTMSI, sTMSI.iEExtensions)
+	w.WriteBit(sTMSI.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := sTMSI.MMEC.MarshalPER(w, enc); err != nil {
 		return err
 	}
 	if err := sTMSI.MTMSI.MarshalPER(w, enc); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if sTMSI.extensions.Present() {
+		if err := sTMSI.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (sTMSI *STMSI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*sTMSI = STMSI{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -2588,57 +7378,57 @@ func (sTMSI *STMSI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if err := (&sTMSI.MTMSI).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsSTMSI, sTMSI, &sTMSI.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := sTMSI.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsSTMSI []ap.IESpec[ProtocolIEID, STMSI]
+
+func (sTMSI *STMSI) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsSTMSI, sTMSI, sTMSI.iEExtensions)
+	return notComprehended
+}
+
 func (securityContext *SecurityContext) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsSecurityContext, securityContext, securityContext.iEExtensions)
+	w.WriteBit(securityContext.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 7, HasUB: true}, int64(securityContext.NextHopChainingCount)); err != nil {
 		return err
 	}
 	if err := securityContext.NextHopParameter.MarshalPER(w, enc); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if securityContext.extensions.Present() {
+		if err := securityContext.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (securityContext *SecurityContext) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*securityContext = SecurityContext{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -2650,47 +7440,36 @@ func (securityContext *SecurityContext) UnmarshalPER(r *per.Reader, enc per.Enco
 	if err := (&securityContext.NextHopParameter).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsSecurityContext, securityContext, &securityContext.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := securityContext.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsSecurityContext []ap.IESpec[ProtocolIEID, SecurityContext]
+
+func (securityContext *SecurityContext) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsSecurityContext, securityContext, securityContext.iEExtensions)
+	return notComprehended
+}
+
 func (securityIndication *SecurityIndication) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsSecurityIndication, securityIndication, securityIndication.iEExtensions)
 	w.WriteBit(securityIndication.extensions.Present())
-	w.WriteBit(securityIndication.iEExtensions != nil)
+	w.WriteBit(len(ext) > 0)
 	if err := securityIndication.IntegrityProtectionIndication.MarshalPER(w, enc); err != nil {
 		return err
 	}
-	if securityIndication.iEExtensions != nil {
-		if err := (*securityIndication.iEExtensions).MarshalPER(w, enc); err != nil {
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
 			return err
 		}
 	}
@@ -2703,6 +7482,7 @@ func (securityIndication *SecurityIndication) MarshalPER(w *per.Writer, enc per.
 }
 
 func (securityIndication *SecurityIndication) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*securityIndication = SecurityIndication{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
@@ -2715,11 +7495,9 @@ func (securityIndication *SecurityIndication) UnmarshalPER(r *per.Reader, enc pe
 		return err
 	}
 	if p_iEExtensions {
-		var v rawIEExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsSecurityIndication, securityIndication, &securityIndication.iEExtensions); err != nil {
 			return err
 		}
-		securityIndication.iEExtensions = &v
 	}
 	if extBit {
 		if err := securityIndication.extensions.UnmarshalPER(r, enc); err != nil {
@@ -2729,9 +7507,21 @@ func (securityIndication *SecurityIndication) UnmarshalPER(r *per.Reader, enc pe
 	return nil
 }
 
+var extIEsSecurityIndication []ap.IESpec[ProtocolIEID, SecurityIndication]
+
+func (securityIndication *SecurityIndication) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if securityIndication.IntegrityProtectionIndication.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsSecurityIndication, securityIndication, securityIndication.iEExtensions)
+	return notComprehended
+}
+
 func (servedGUMMEIsItem *ServedGUMMEIsItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsServedGUMMEIsItem, servedGUMMEIsItem, servedGUMMEIsItem.iEExtensions)
+	w.WriteBit(servedGUMMEIsItem.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	off0 := 0
 	if err := per.EncodeLength(w, enc, 1, 32, true, int64(len(servedGUMMEIsItem.ServedPLMNs)), func(count int64) error {
 		end := off0 + int(count)
@@ -2771,15 +7561,26 @@ func (servedGUMMEIsItem *ServedGUMMEIsItem) MarshalPER(w *per.Writer, enc per.En
 	}); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if servedGUMMEIsItem.extensions.Present() {
+		if err := servedGUMMEIsItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (servedGUMMEIsItem *ServedGUMMEIsItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*servedGUMMEIsItem = ServedGUMMEIsItem{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f3, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -2822,44 +7623,237 @@ func (servedGUMMEIsItem *ServedGUMMEIsItem) UnmarshalPER(r *per.Reader, enc per.
 	}); err != nil {
 		return err
 	}
-	if p_f3 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsServedGUMMEIsItem, servedGUMMEIsItem, &servedGUMMEIsItem.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := servedGUMMEIsItem.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsServedGUMMEIsItem = []ap.IESpec[ProtocolIEID, ServedGUMMEIsItem]{
+	{
+		ID:          IDGUMMEIType,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *ServedGUMMEIsItem, r *per.Reader, enc per.Encoding) error {
+			var v GUMMEIType
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.GUMMEIType = &v
+			return nil
+		},
+		Encode: func(x *ServedGUMMEIsItem) (per.Marshaler, bool) {
+			if x.GUMMEIType == nil {
+				return nil, false
+			}
+			return x.GUMMEIType, true
+		},
+	},
+}
+
+func (servedGUMMEIsItem *ServedGUMMEIsItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsServedGUMMEIsItem, servedGUMMEIsItem, servedGUMMEIsItem.iEExtensions)
+	return notComprehended
+}
+
+func (sourceNgRanNodeID *SourceNgRanNodeID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsSourceNgRanNodeID, sourceNgRanNodeID, sourceNgRanNodeID.iEExtensions)
+	w.WriteBit(sourceNgRanNodeID.extensions.Present())
+	w.WriteBit(len(ext) > 0)
+	if err := sourceNgRanNodeID.GlobalRANNodeID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := sourceNgRanNodeID.SelectedTAI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if sourceNgRanNodeID.extensions.Present() {
+		if err := sourceNgRanNodeID.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (sourceNgRanNodeID *SourceNgRanNodeID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*sourceNgRanNodeID = SourceNgRanNodeID{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&sourceNgRanNodeID.GlobalRANNodeID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&sourceNgRanNodeID.SelectedTAI).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsSourceNgRanNodeID, sourceNgRanNodeID, &sourceNgRanNodeID.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := sourceNgRanNodeID.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsSourceNgRanNodeID []ap.IESpec[ProtocolIEID, SourceNgRanNodeID]
+
+func (sourceNgRanNodeID *SourceNgRanNodeID) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if sourceNgRanNodeID.GlobalRANNodeID.Diagnose(d) {
+		notComprehended = true
+	}
+	if sourceNgRanNodeID.SelectedTAI.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsSourceNgRanNodeID, sourceNgRanNodeID, sourceNgRanNodeID.iEExtensions)
+	return notComprehended
+}
+
+func (sourceNodeID *SourceNodeID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	set := 0
+	for _, ok := range [...]bool{sourceNodeID.SourceNgRanNodeID != nil, sourceNodeID.ChoiceExtension != nil} {
+		if ok {
+			set++
+		}
+	}
+	if set > 1 {
+		return per.ErrChoice
+	}
+	switch {
+	case sourceNodeID.SourceNgRanNodeID != nil:
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 0); err != nil {
+			return err
+		}
+		if err := (*sourceNodeID.SourceNgRanNodeID).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case sourceNodeID.ChoiceExtension != nil:
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 1); err != nil {
+			return err
+		}
+		return ap.EncodeField(profile, w, enc, sourceNodeID.ChoiceExtension.Field())
+	default:
+		return per.ErrEmpty
+	}
+	return nil
+}
+
+func (sourceNodeID *SourceNodeID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*sourceNodeID = SourceNodeID{}
+	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 1)
+	if err != nil {
+		return err
+	}
+	switch idx {
+	case 0:
+		var v SourceNgRanNodeID
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		sourceNodeID.SourceNgRanNodeID = &v
+	case 1:
+		f, err := ap.DecodeSingleContainerValue[ProtocolIEID](profile, r, enc)
+		if err != nil {
+			return err
+		}
+		switch f.ID {
+		default:
+			sourceNodeID.ChoiceExtension = &f
+		}
+	default:
+		return per.ErrOverflow
+	}
+	return nil
+}
+
+func (sourceNodeID *SourceNodeID) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	switch {
+	case sourceNodeID.SourceNgRanNodeID != nil:
+		return sourceNodeID.SourceNgRanNodeID.Diagnose(d)
+	case sourceNodeID.ChoiceExtension != nil:
+		d.Unknown(sourceNodeID.ChoiceExtension.ID, sourceNodeID.ChoiceExtension.Criticality)
+	}
+	return false
+}
+
+func (sourceeNBID *SourceeNBID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsSourceeNBID, sourceeNBID, sourceeNBID.iEExtensions)
+	w.WriteBit(len(ext) > 0)
+	if err := sourceeNBID.GlobalENBID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := sourceeNBID.SelectedTAI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (sourceeNBID *SourceeNBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*sourceeNBID = SourceeNBID{}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&sourceeNBID.GlobalENBID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&sourceeNBID.SelectedTAI).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsSourceeNBID, sourceeNBID, &sourceeNBID.iEExtensions); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsSourceeNBID []ap.IESpec[ProtocolIEID, SourceeNBID]
+
+func (sourceeNBID *SourceeNBID) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if sourceeNBID.GlobalENBID.Diagnose(d) {
+		notComprehended = true
+	}
+	if sourceeNBID.SelectedTAI.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsSourceeNBID, sourceeNBID, sourceeNBID.iEExtensions)
+	return notComprehended
+}
+
 func (sourceeNBToTargeteNBTransparentContainer *SourceeNBToTargeteNBTransparentContainer) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsSourceeNBToTargeteNBTransparentContainer, sourceeNBToTargeteNBTransparentContainer, sourceeNBToTargeteNBTransparentContainer.iEExtensions)
 	w.WriteBit(sourceeNBToTargeteNBTransparentContainer.extensions.Present())
 	w.WriteBit(sourceeNBToTargeteNBTransparentContainer.ERABInformationList != nil)
 	w.WriteBit(sourceeNBToTargeteNBTransparentContainer.SubscriberProfileIDforRFP != nil)
-	w.WriteBit(sourceeNBToTargeteNBTransparentContainer.iEExtensions != nil)
+	w.WriteBit(len(ext) > 0)
 	if err := sourceeNBToTargeteNBTransparentContainer.RRCContainer.MarshalPER(w, enc); err != nil {
 		return err
 	}
@@ -2879,8 +7873,8 @@ func (sourceeNBToTargeteNBTransparentContainer *SourceeNBToTargeteNBTransparentC
 	if err := sourceeNBToTargeteNBTransparentContainer.UEHistoryInformation.MarshalPER(w, enc); err != nil {
 		return err
 	}
-	if sourceeNBToTargeteNBTransparentContainer.iEExtensions != nil {
-		if err := (*sourceeNBToTargeteNBTransparentContainer.iEExtensions).MarshalPER(w, enc); err != nil {
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
 			return err
 		}
 	}
@@ -2893,6 +7887,7 @@ func (sourceeNBToTargeteNBTransparentContainer *SourceeNBToTargeteNBTransparentC
 }
 
 func (sourceeNBToTargeteNBTransparentContainer *SourceeNBToTargeteNBTransparentContainer) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*sourceeNBToTargeteNBTransparentContainer = SourceeNBToTargeteNBTransparentContainer{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
@@ -2931,11 +7926,9 @@ func (sourceeNBToTargeteNBTransparentContainer *SourceeNBToTargeteNBTransparentC
 		return err
 	}
 	if p_iEExtensions {
-		var v transparentIEExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsSourceeNBToTargeteNBTransparentContainer, sourceeNBToTargeteNBTransparentContainer, &sourceeNBToTargeteNBTransparentContainer.iEExtensions); err != nil {
 			return err
 		}
-		sourceeNBToTargeteNBTransparentContainer.iEExtensions = &v
 	}
 	if extBit {
 		if err := sourceeNBToTargeteNBTransparentContainer.extensions.UnmarshalPER(r, enc); err != nil {
@@ -2945,24 +7938,303 @@ func (sourceeNBToTargeteNBTransparentContainer *SourceeNBToTargeteNBTransparentC
 	return nil
 }
 
+var extIEsSourceeNBToTargeteNBTransparentContainer = []ap.IESpec[ProtocolIEID, SourceeNBToTargeteNBTransparentContainer]{
+	{
+		ID:          IDMobilityInformation,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *SourceeNBToTargeteNBTransparentContainer, r *per.Reader, enc per.Encoding) error {
+			var v MobilityInformation
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.MobilityInformation = &v
+			return nil
+		},
+		Encode: func(x *SourceeNBToTargeteNBTransparentContainer) (per.Marshaler, bool) {
+			if x.MobilityInformation == nil {
+				return nil, false
+			}
+			return x.MobilityInformation, true
+		},
+	},
+	{
+		ID:          IDUEHistoryInformationFromTheUE,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *SourceeNBToTargeteNBTransparentContainer, r *per.Reader, enc per.Encoding) error {
+			var v UEHistoryInformationFromTheUE
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.UEHistoryInformationFromTheUE = &v
+			return nil
+		},
+		Encode: func(x *SourceeNBToTargeteNBTransparentContainer) (per.Marshaler, bool) {
+			if x.UEHistoryInformationFromTheUE == nil {
+				return nil, false
+			}
+			return x.UEHistoryInformationFromTheUE, true
+		},
+	},
+	{
+		ID:          IDIMSvoiceEPSfallbackfrom5G,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *SourceeNBToTargeteNBTransparentContainer, r *per.Reader, enc per.Encoding) error {
+			var v IMSvoiceEPSfallbackfrom5G
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.IMSvoiceEPSfallbackfrom5G = &v
+			return nil
+		},
+		Encode: func(x *SourceeNBToTargeteNBTransparentContainer) (per.Marshaler, bool) {
+			if x.IMSvoiceEPSfallbackfrom5G == nil {
+				return nil, false
+			}
+			return x.IMSvoiceEPSfallbackfrom5G, true
+		},
+	},
+	{
+		ID:          IDAdditionalRRMPriorityIndex,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *SourceeNBToTargeteNBTransparentContainer, r *per.Reader, enc per.Encoding) error {
+			var v AdditionalRRMPriorityIndex
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.AdditionalRRMPriorityIndex = &v
+			return nil
+		},
+		Encode: func(x *SourceeNBToTargeteNBTransparentContainer) (per.Marshaler, bool) {
+			if x.AdditionalRRMPriorityIndex == nil {
+				return nil, false
+			}
+			return x.AdditionalRRMPriorityIndex, true
+		},
+	},
+	{
+		ID:          IDContextatSource,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *SourceeNBToTargeteNBTransparentContainer, r *per.Reader, enc per.Encoding) error {
+			var v ContextatSource
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.ContextatSource = &v
+			return nil
+		},
+		Encode: func(x *SourceeNBToTargeteNBTransparentContainer) (per.Marshaler, bool) {
+			if x.ContextatSource == nil {
+				return nil, false
+			}
+			return x.ContextatSource, true
+		},
+	},
+	{
+		ID:          IDIntersystemMeasurementConfiguration,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *SourceeNBToTargeteNBTransparentContainer, r *per.Reader, enc per.Encoding) error {
+			var v IntersystemMeasurementConfiguration
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.IntersystemMeasurementConfiguration = &v
+			return nil
+		},
+		Encode: func(x *SourceeNBToTargeteNBTransparentContainer) (per.Marshaler, bool) {
+			if x.IntersystemMeasurementConfiguration == nil {
+				return nil, false
+			}
+			return x.IntersystemMeasurementConfiguration, true
+		},
+	},
+	{
+		ID:          IDSourceNodeID,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *SourceeNBToTargeteNBTransparentContainer, r *per.Reader, enc per.Encoding) error {
+			var v SourceNodeID
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.SourceNodeID = &v
+			return nil
+		},
+		Encode: func(x *SourceeNBToTargeteNBTransparentContainer) (per.Marshaler, bool) {
+			if x.SourceNodeID == nil {
+				return nil, false
+			}
+			return x.SourceNodeID, true
+		},
+	},
+	{
+		ID:          IDEmergencyIndicator,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *SourceeNBToTargeteNBTransparentContainer, r *per.Reader, enc per.Encoding) error {
+			var v EmergencyIndicator
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.EmergencyIndicator = &v
+			return nil
+		},
+		Encode: func(x *SourceeNBToTargeteNBTransparentContainer) (per.Marshaler, bool) {
+			if x.EmergencyIndicator == nil {
+				return nil, false
+			}
+			return x.EmergencyIndicator, true
+		},
+	},
+	{
+		ID:          IDUEContextReferenceatSourceeNB,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *SourceeNBToTargeteNBTransparentContainer, r *per.Reader, enc per.Encoding) error {
+			var v ENBUES1APID
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.UEContextReferenceatSourceeNB = &v
+			return nil
+		},
+		Encode: func(x *SourceeNBToTargeteNBTransparentContainer) (per.Marshaler, bool) {
+			if x.UEContextReferenceatSourceeNB == nil {
+				return nil, false
+			}
+			return x.UEContextReferenceatSourceeNB, true
+		},
+	},
+	{
+		ID:          IDSourceSNID,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *SourceeNBToTargeteNBTransparentContainer, r *per.Reader, enc per.Encoding) error {
+			var v GlobalRANNodeID
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.SourceSNID = &v
+			return nil
+		},
+		Encode: func(x *SourceeNBToTargeteNBTransparentContainer) (per.Marshaler, bool) {
+			if x.SourceSNID == nil {
+				return nil, false
+			}
+			return x.SourceSNID, true
+		},
+	},
+	{
+		ID:          IDDirectForwardingPathAvailability,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *SourceeNBToTargeteNBTransparentContainer, r *per.Reader, enc per.Encoding) error {
+			var v DirectForwardingPathAvailability
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.DirectForwardingPathAvailability = &v
+			return nil
+		},
+		Encode: func(x *SourceeNBToTargeteNBTransparentContainer) (per.Marshaler, bool) {
+			if x.DirectForwardingPathAvailability == nil {
+				return nil, false
+			}
+			return x.DirectForwardingPathAvailability, true
+		},
+	},
+	{
+		ID:          IDTimeBasedHandoverInformation,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *SourceeNBToTargeteNBTransparentContainer, r *per.Reader, enc per.Encoding) error {
+			var v TimeBasedHandoverInformation
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.TimeBasedHandoverInformation = &v
+			return nil
+		},
+		Encode: func(x *SourceeNBToTargeteNBTransparentContainer) (per.Marshaler, bool) {
+			if x.TimeBasedHandoverInformation == nil {
+				return nil, false
+			}
+			return x.TimeBasedHandoverInformation, true
+		},
+	},
+}
+
+func (sourceeNBToTargeteNBTransparentContainer *SourceeNBToTargeteNBTransparentContainer) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if sourceeNBToTargeteNBTransparentContainer.ERABInformationList.Diagnose(d) {
+		notComprehended = true
+	}
+	if sourceeNBToTargeteNBTransparentContainer.TargetCellID.Diagnose(d) {
+		notComprehended = true
+	}
+	if sourceeNBToTargeteNBTransparentContainer.UEHistoryInformation.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsSourceeNBToTargeteNBTransparentContainer, sourceeNBToTargeteNBTransparentContainer, sourceeNBToTargeteNBTransparentContainer.iEExtensions)
+	return notComprehended
+}
+
+func (subcarrierSpacingSSB SubcarrierSpacingSSB) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumSubcarrierSpacingSSB.Encode(w, enc, subcarrierSpacingSSB)
+}
+
+func (subcarrierSpacingSSB *SubcarrierSpacingSSB) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumSubcarrierSpacingSSB.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*subcarrierSpacingSSB = v
+	return nil
+}
+
+func (subcarrierSpacingSSB SubcarrierSpacingSSB) Name() string {
+	return enumSubcarrierSpacingSSB.Name(subcarrierSpacingSSB)
+}
+
+func (subcarrierSpacingSSB SubcarrierSpacingSSB) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumSubcarrierSpacingSSB.Known(subcarrierSpacingSSB)
+}
+
 func (supportedTAItem *SupportedTAItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsSupportedTAItem, supportedTAItem, supportedTAItem.iEExtensions)
+	w.WriteBit(supportedTAItem.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := supportedTAItem.TAC.MarshalPER(w, enc); err != nil {
 		return err
 	}
 	if err := supportedTAItem.BroadcastPLMNs.MarshalPER(w, enc); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if supportedTAItem.extensions.Present() {
+		if err := supportedTAItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (supportedTAItem *SupportedTAItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*supportedTAItem = SupportedTAItem{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -2972,57 +8244,226 @@ func (supportedTAItem *SupportedTAItem) UnmarshalPER(r *per.Reader, enc per.Enco
 	if err := (&supportedTAItem.BroadcastPLMNs).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsSupportedTAItem, supportedTAItem, &supportedTAItem.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := supportedTAItem.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsSupportedTAItem = []ap.IESpec[ProtocolIEID, SupportedTAItem]{
+	{
+		ID:          IDRATType,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityReject,
+		Decode: func(x *SupportedTAItem, r *per.Reader, enc per.Encoding) error {
+			var v RATType
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.RATType = &v
+			return nil
+		},
+		Encode: func(x *SupportedTAItem) (per.Marshaler, bool) {
+			if x.RATType == nil {
+				return nil, false
+			}
+			return x.RATType, true
+		},
+	},
+}
+
+func (supportedTAItem *SupportedTAItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsSupportedTAItem, supportedTAItem, supportedTAItem.iEExtensions)
+	return notComprehended
+}
+
+func (synchronisationInformation *SynchronisationInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsSynchronisationInformation, synchronisationInformation, synchronisationInformation.iEExtensions)
+	w.WriteBit(synchronisationInformation.extensions.Present())
+	w.WriteBit(synchronisationInformation.SourceStratumLevel != nil)
+	w.WriteBit(synchronisationInformation.ListeningSubframePattern != nil)
+	w.WriteBit(synchronisationInformation.AggressoreCGIList != nil)
+	w.WriteBit(len(ext) > 0)
+	if synchronisationInformation.SourceStratumLevel != nil {
+		if err := (*synchronisationInformation.SourceStratumLevel).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if synchronisationInformation.ListeningSubframePattern != nil {
+		if err := (*synchronisationInformation.ListeningSubframePattern).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if synchronisationInformation.AggressoreCGIList != nil {
+		off2 := 0
+		if err := per.EncodeLength(w, enc, 1, 256, true, int64(len(synchronisationInformation.AggressoreCGIList)), func(count int64) error {
+			end := off2 + int(count)
+			for i := off2; i < end; i++ {
+				if err := synchronisationInformation.AggressoreCGIList[i].MarshalPER(w, enc); err != nil {
+					return err
+				}
+			}
+			off2 = end
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if synchronisationInformation.extensions.Present() {
+		if err := synchronisationInformation.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (synchronisationInformation *SynchronisationInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*synchronisationInformation = SynchronisationInformation{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_SourceStratumLevel, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ListeningSubframePattern, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_AggressoreCGIList, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if p_SourceStratumLevel {
+		var v StratumLevel
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		synchronisationInformation.SourceStratumLevel = &v
+	}
+	if p_ListeningSubframePattern {
+		var v ListeningSubframePattern
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		synchronisationInformation.ListeningSubframePattern = &v
+	}
+	if p_AggressoreCGIList {
+		synchronisationInformation.AggressoreCGIList = nil
+		if err := per.DecodeLength(r, enc, 1, 256, true, func(count int64) error {
+			start := len(synchronisationInformation.AggressoreCGIList)
+			synchronisationInformation.AggressoreCGIList = append(synchronisationInformation.AggressoreCGIList, make([]EUTRANCGI, count)...)
+			for i := int64(0); i < count; i++ {
+				if err := (&synchronisationInformation.AggressoreCGIList[start+int(i)]).UnmarshalPER(r, enc); err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsSynchronisationInformation, synchronisationInformation, &synchronisationInformation.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := synchronisationInformation.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsSynchronisationInformation []ap.IESpec[ProtocolIEID, SynchronisationInformation]
+
+func (synchronisationInformation *SynchronisationInformation) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if synchronisationInformation.SourceStratumLevel != nil && synchronisationInformation.SourceStratumLevel.Diagnose(d) {
+		notComprehended = true
+	}
+	if synchronisationInformation.ListeningSubframePattern != nil && synchronisationInformation.ListeningSubframePattern.Diagnose(d) {
+		notComprehended = true
+	}
+	for i := range synchronisationInformation.AggressoreCGIList {
+		if synchronisationInformation.AggressoreCGIList[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	ap.DiagnoseExtensions(d, extIEsSynchronisationInformation, synchronisationInformation, synchronisationInformation.iEExtensions)
+	return notComprehended
+}
+
+func (synchronisationStatus SynchronisationStatus) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumSynchronisationStatus.Encode(w, enc, synchronisationStatus)
+}
+
+func (synchronisationStatus *SynchronisationStatus) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumSynchronisationStatus.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*synchronisationStatus = v
+	return nil
+}
+
+func (synchronisationStatus SynchronisationStatus) Name() string {
+	return enumSynchronisationStatus.Name(synchronisationStatus)
+}
+
+func (synchronisationStatus SynchronisationStatus) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumSynchronisationStatus.Known(synchronisationStatus)
+}
+
 func (tAI *TAI) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsTAI, tAI, tAI.iEExtensions)
+	w.WriteBit(tAI.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := tAI.PLMNIdentity.MarshalPER(w, enc); err != nil {
 		return err
 	}
 	if err := tAI.TAC.MarshalPER(w, enc); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if tAI.extensions.Present() {
+		if err := tAI.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (tAI *TAI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*tAI = TAI{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -3032,42 +8473,31 @@ func (tAI *TAI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	if err := (&tAI.TAC).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsTAI, tAI, &tAI.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := tAI.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsTAI []ap.IESpec[ProtocolIEID, TAI]
+
+func (tAI *TAI) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsTAI, tAI, tAI.iEExtensions)
+	return notComprehended
+}
+
 func (tAIBroadcastItem *TAIBroadcastItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsTAIBroadcastItem, tAIBroadcastItem, tAIBroadcastItem.iEExtensions)
+	w.WriteBit(tAIBroadcastItem.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := tAIBroadcastItem.TAI.MarshalPER(w, enc); err != nil {
 		return err
 	}
@@ -3084,15 +8514,26 @@ func (tAIBroadcastItem *TAIBroadcastItem) MarshalPER(w *per.Writer, enc per.Enco
 	}); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if tAIBroadcastItem.extensions.Present() {
+		if err := tAIBroadcastItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (tAIBroadcastItem *TAIBroadcastItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*tAIBroadcastItem = TAIBroadcastItem{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -3112,42 +8553,39 @@ func (tAIBroadcastItem *TAIBroadcastItem) UnmarshalPER(r *per.Reader, enc per.En
 	}); err != nil {
 		return err
 	}
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsTAIBroadcastItem, tAIBroadcastItem, &tAIBroadcastItem.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := tAIBroadcastItem.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsTAIBroadcastItem []ap.IESpec[ProtocolIEID, TAIBroadcastItem]
+
+func (tAIBroadcastItem *TAIBroadcastItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if tAIBroadcastItem.TAI.Diagnose(d) {
+		notComprehended = true
+	}
+	for i := range tAIBroadcastItem.CompletedCellInTAI {
+		if tAIBroadcastItem.CompletedCellInTAI[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	ap.DiagnoseExtensions(d, extIEsTAIBroadcastItem, tAIBroadcastItem, tAIBroadcastItem.iEExtensions)
+	return notComprehended
+}
+
 func (tAICancelledItem *TAICancelledItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsTAICancelledItem, tAICancelledItem, tAICancelledItem.iEExtensions)
+	w.WriteBit(tAICancelledItem.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := tAICancelledItem.TAI.MarshalPER(w, enc); err != nil {
 		return err
 	}
@@ -3164,15 +8602,26 @@ func (tAICancelledItem *TAICancelledItem) MarshalPER(w *per.Writer, enc per.Enco
 	}); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if tAICancelledItem.extensions.Present() {
+		if err := tAICancelledItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (tAICancelledItem *TAICancelledItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*tAICancelledItem = TAICancelledItem{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -3192,57 +8641,241 @@ func (tAICancelledItem *TAICancelledItem) UnmarshalPER(r *per.Reader, enc per.En
 	}); err != nil {
 		return err
 	}
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsTAICancelledItem, tAICancelledItem, &tAICancelledItem.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := tAICancelledItem.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsTAICancelledItem []ap.IESpec[ProtocolIEID, TAICancelledItem]
+
+func (tAICancelledItem *TAICancelledItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if tAICancelledItem.TAI.Diagnose(d) {
+		notComprehended = true
+	}
+	for i := range tAICancelledItem.CancelledCellInTAI {
+		if tAICancelledItem.CancelledCellInTAI[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	ap.DiagnoseExtensions(d, extIEsTAICancelledItem, tAICancelledItem, tAICancelledItem.iEExtensions)
+	return notComprehended
+}
+
+func (tAIItem *TAIItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsTAIItem, tAIItem, tAIItem.iEExtensions)
+	w.WriteBit(tAIItem.extensions.Present())
+	w.WriteBit(len(ext) > 0)
+	if err := tAIItem.TAI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if tAIItem.extensions.Present() {
+		if err := tAIItem.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (tAIItem *TAIItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*tAIItem = TAIItem{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&tAIItem.TAI).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsTAIItem, tAIItem, &tAIItem.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := tAIItem.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsTAIItem []ap.IESpec[ProtocolIEID, TAIItem]
+
+func (tAIItem *TAIItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if tAIItem.TAI.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsTAIItem, tAIItem, tAIItem.iEExtensions)
+	return notComprehended
+}
+
+func (targetID *TargetID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	set := 0
+	for _, ok := range [...]bool{targetID.TargeteNBID != nil, targetID.TargetRNCID != nil, targetID.CGI != nil, targetID.TargetNgRanNodeID != nil, targetID.Ext != nil} {
+		if ok {
+			set++
+		}
+	}
+	if set > 1 {
+		return per.ErrChoice
+	}
+	switch {
+	case targetID.TargeteNBID != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 2, 0); err != nil {
+			return err
+		}
+		if err := (*targetID.TargeteNBID).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case targetID.TargetRNCID != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 2, 1); err != nil {
+			return err
+		}
+		if err := (*targetID.TargetRNCID).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case targetID.CGI != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 2, 2); err != nil {
+			return err
+		}
+		if err := (*targetID.CGI).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case targetID.TargetNgRanNodeID != nil:
+		w.WriteBit(true)
+		if err := per.EncodeNormallySmall(w, enc, 0); err != nil {
+			return err
+		}
+		return per.EncodeOpenType(w, enc, targetID.TargetNgRanNodeID)
+	case targetID.Ext != nil:
+		w.WriteBit(true)
+		return targetID.Ext.MarshalPER(w, enc)
+	default:
+		return per.ErrEmpty
+	}
+	return nil
+}
+
+func (targetID *TargetID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*targetID = TargetID{}
+	isExt, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if isExt {
+		extIdx, err := per.DecodeNormallySmall(r, enc)
+		if err != nil {
+			return err
+		}
+		switch extIdx {
+		case 0:
+			var v TargetNgRanNodeID
+			if err := per.DecodeOpenType(r, enc, &v); err != nil {
+				return err
+			}
+			targetID.TargetNgRanNodeID = &v
+		default:
+			targetID.Ext, err = per.DecodeExtensionAlternative(r, enc, extIdx)
+			return err
+		}
+		return nil
+	}
+	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 2)
+	if err != nil {
+		return err
+	}
+	switch idx {
+	case 0:
+		var v TargeteNBID
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		targetID.TargeteNBID = &v
+	case 1:
+		var v TargetRNCID
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		targetID.TargetRNCID = &v
+	case 2:
+		var v CGI
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		targetID.CGI = &v
+	default:
+		return per.ErrOverflow
+	}
+	return nil
+}
+
+func (targetID *TargetID) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	switch {
+	case targetID.TargeteNBID != nil:
+		return targetID.TargeteNBID.Diagnose(d)
+	case targetID.TargetRNCID != nil:
+		return targetID.TargetRNCID.Diagnose(d)
+	case targetID.CGI != nil:
+		return targetID.CGI.Diagnose(d)
+	case targetID.TargetNgRanNodeID != nil:
+		return targetID.TargetNgRanNodeID.Diagnose(d)
+	case targetID.Ext != nil:
+		return true
+	}
+	return false
+}
+
 func (targetNgRanNodeID *TargetNgRanNodeID) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsTargetNgRanNodeID, targetNgRanNodeID, targetNgRanNodeID.iEExtensions)
+	w.WriteBit(targetNgRanNodeID.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := targetNgRanNodeID.GlobalRANNodeID.MarshalPER(w, enc); err != nil {
 		return err
 	}
 	if err := targetNgRanNodeID.SelectedTAI.MarshalPER(w, enc); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if targetNgRanNodeID.extensions.Present() {
+		if err := targetNgRanNodeID.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (targetNgRanNodeID *TargetNgRanNodeID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*targetNgRanNodeID = TargetNgRanNodeID{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -3252,57 +8885,164 @@ func (targetNgRanNodeID *TargetNgRanNodeID) UnmarshalPER(r *per.Reader, enc per.
 	if err := (&targetNgRanNodeID.SelectedTAI).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsTargetNgRanNodeID, targetNgRanNodeID, &targetNgRanNodeID.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := targetNgRanNodeID.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsTargetNgRanNodeID []ap.IESpec[ProtocolIEID, TargetNgRanNodeID]
+
+func (targetNgRanNodeID *TargetNgRanNodeID) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if targetNgRanNodeID.GlobalRANNodeID.Diagnose(d) {
+		notComprehended = true
+	}
+	if targetNgRanNodeID.SelectedTAI.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsTargetNgRanNodeID, targetNgRanNodeID, targetNgRanNodeID.iEExtensions)
+	return notComprehended
+}
+
+func (targetRNCID *TargetRNCID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsTargetRNCID, targetRNCID, targetRNCID.iEExtensions)
+	w.WriteBit(targetRNCID.extensions.Present())
+	w.WriteBit(targetRNCID.RAC != nil)
+	w.WriteBit(targetRNCID.ExtendedRNCID != nil)
+	w.WriteBit(len(ext) > 0)
+	if err := targetRNCID.LAI.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if targetRNCID.RAC != nil {
+		if err := (*targetRNCID.RAC).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 4095, HasUB: true}, int64(targetRNCID.RNCID)); err != nil {
+		return err
+	}
+	if targetRNCID.ExtendedRNCID != nil {
+		if err := per.EncodeInteger(w, enc, per.Bounds{LB: 4096, HasLB: true, UB: 65535, HasUB: true}, int64((*targetRNCID.ExtendedRNCID))); err != nil {
+			return err
+		}
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if targetRNCID.extensions.Present() {
+		if err := targetRNCID.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (targetRNCID *TargetRNCID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*targetRNCID = TargetRNCID{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_RAC, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_ExtendedRNCID, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&targetRNCID.LAI).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_RAC {
+		var v RAC
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		targetRNCID.RAC = &v
+	}
+	n2, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 4095, HasUB: true})
+	if err != nil {
+		return err
+	}
+	targetRNCID.RNCID = uint16(n2)
+	if p_ExtendedRNCID {
+		var v uint16
+		n3, err := per.DecodeInteger(r, enc, per.Bounds{LB: 4096, HasLB: true, UB: 65535, HasUB: true})
+		if err != nil {
+			return err
+		}
+		v = uint16(n3)
+		targetRNCID.ExtendedRNCID = &v
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsTargetRNCID, targetRNCID, &targetRNCID.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := targetRNCID.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsTargetRNCID []ap.IESpec[ProtocolIEID, TargetRNCID]
+
+func (targetRNCID *TargetRNCID) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if targetRNCID.LAI.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsTargetRNCID, targetRNCID, targetRNCID.iEExtensions)
+	return notComprehended
+}
+
 func (targeteNBID *TargeteNBID) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsTargeteNBID, targeteNBID, targeteNBID.iEExtensions)
+	w.WriteBit(targeteNBID.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := targeteNBID.GlobalENBID.MarshalPER(w, enc); err != nil {
 		return err
 	}
 	if err := targeteNBID.SelectedTAI.MarshalPER(w, enc); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if targeteNBID.extensions.Present() {
+		if err := targeteNBID.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (targeteNBID *TargeteNBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*targeteNBID = TargeteNBID{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -3312,37 +9052,358 @@ func (targeteNBID *TargeteNBID) UnmarshalPER(r *per.Reader, enc per.Encoding) er
 	if err := (&targeteNBID.SelectedTAI).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsTargeteNBID, targeteNBID, &targeteNBID.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := targeteNBID.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
+}
+
+var extIEsTargeteNBID []ap.IESpec[ProtocolIEID, TargeteNBID]
+
+func (targeteNBID *TargeteNBID) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if targeteNBID.GlobalENBID.Diagnose(d) {
+		notComprehended = true
+	}
+	if targeteNBID.SelectedTAI.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsTargeteNBID, targeteNBID, targeteNBID.iEExtensions)
+	return notComprehended
+}
+
+func (timeBasedHandoverInformation *TimeBasedHandoverInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsTimeBasedHandoverInformation, timeBasedHandoverInformation, timeBasedHandoverInformation.iEExtensions)
+	w.WriteBit(timeBasedHandoverInformation.extensions.Present())
+	w.WriteBit(len(ext) > 0)
+	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 1048575, HasUB: true}, int64(timeBasedHandoverInformation.HOWindowStart)); err != nil {
+		return err
+	}
+	if err := per.EncodeInteger(w, enc, per.Bounds{LB: 1, HasLB: true, UB: 6000, HasUB: true}, int64(timeBasedHandoverInformation.HOWindowDuration)); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if timeBasedHandoverInformation.extensions.Present() {
+		if err := timeBasedHandoverInformation.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (timeBasedHandoverInformation *TimeBasedHandoverInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*timeBasedHandoverInformation = TimeBasedHandoverInformation{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	n0, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 1048575, HasUB: true})
+	if err != nil {
+		return err
+	}
+	timeBasedHandoverInformation.HOWindowStart = uint32(n0)
+	n1, err := per.DecodeInteger(r, enc, per.Bounds{LB: 1, HasLB: true, UB: 6000, HasUB: true})
+	if err != nil {
+		return err
+	}
+	timeBasedHandoverInformation.HOWindowDuration = uint16(n1)
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsTimeBasedHandoverInformation, timeBasedHandoverInformation, &timeBasedHandoverInformation.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := timeBasedHandoverInformation.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsTimeBasedHandoverInformation []ap.IESpec[ProtocolIEID, TimeBasedHandoverInformation]
+
+func (timeBasedHandoverInformation *TimeBasedHandoverInformation) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsTimeBasedHandoverInformation, timeBasedHandoverInformation, timeBasedHandoverInformation.iEExtensions)
+	return notComprehended
+}
+
+func (timeRefDistribution TimeRefDistribution) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumTimeRefDistribution.Encode(w, enc, timeRefDistribution)
+}
+
+func (timeRefDistribution *TimeRefDistribution) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumTimeRefDistribution.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*timeRefDistribution = v
+	return nil
+}
+
+func (timeRefDistribution TimeRefDistribution) Name() string {
+	return enumTimeRefDistribution.Name(timeRefDistribution)
+}
+
+func (timeRefDistribution TimeRefDistribution) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumTimeRefDistribution.Known(timeRefDistribution)
+}
+
+func (timeSynchronisationInfo *TimeSynchronisationInfo) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsTimeSynchronisationInfo, timeSynchronisationInfo, timeSynchronisationInfo.iEExtensions)
+	w.WriteBit(timeSynchronisationInfo.extensions.Present())
+	w.WriteBit(len(ext) > 0)
+	if err := timeSynchronisationInfo.StratumLevel.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := timeSynchronisationInfo.SynchronisationStatus.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if timeSynchronisationInfo.extensions.Present() {
+		if err := timeSynchronisationInfo.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (timeSynchronisationInfo *TimeSynchronisationInfo) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*timeSynchronisationInfo = TimeSynchronisationInfo{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&timeSynchronisationInfo.StratumLevel).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&timeSynchronisationInfo.SynchronisationStatus).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsTimeSynchronisationInfo, timeSynchronisationInfo, &timeSynchronisationInfo.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := timeSynchronisationInfo.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsTimeSynchronisationInfo = []ap.IESpec[ProtocolIEID, TimeSynchronisationInfo]{
+	{
+		ID:          IDMutingAvailabilityIndication,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *TimeSynchronisationInfo, r *per.Reader, enc per.Encoding) error {
+			var v MutingAvailabilityIndication
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.MutingAvailabilityIndication = &v
+			return nil
+		},
+		Encode: func(x *TimeSynchronisationInfo) (per.Marshaler, bool) {
+			if x.MutingAvailabilityIndication == nil {
+				return nil, false
+			}
+			return x.MutingAvailabilityIndication, true
+		},
+	},
+}
+
+func (timeSynchronisationInfo *TimeSynchronisationInfo) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if timeSynchronisationInfo.StratumLevel.Diagnose(d) {
+		notComprehended = true
+	}
+	if timeSynchronisationInfo.SynchronisationStatus.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsTimeSynchronisationInfo, timeSynchronisationInfo, timeSynchronisationInfo.iEExtensions)
+	return notComprehended
+}
+
+func (timeToWait TimeToWait) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumTimeToWait.Encode(w, enc, timeToWait)
+}
+
+func (timeToWait *TimeToWait) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumTimeToWait.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*timeToWait = v
+	return nil
+}
+
+func (timeToWait TimeToWait) Name() string {
+	return enumTimeToWait.Name(timeToWait)
+}
+
+func (timeToWait TimeToWait) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumTimeToWait.Known(timeToWait)
+}
+
+func (traceActivation *TraceActivation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsTraceActivation, traceActivation, traceActivation.iEExtensions)
+	w.WriteBit(traceActivation.extensions.Present())
+	w.WriteBit(len(ext) > 0)
+	if err := traceActivation.EUTRANTraceID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := traceActivation.InterfacesToTrace.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := traceActivation.TraceDepth.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := traceActivation.TraceCollectionEntityIPAddress.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if traceActivation.extensions.Present() {
+		if err := traceActivation.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (traceActivation *TraceActivation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*traceActivation = TraceActivation{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&traceActivation.EUTRANTraceID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&traceActivation.InterfacesToTrace).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&traceActivation.TraceDepth).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&traceActivation.TraceCollectionEntityIPAddress).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsTraceActivation, traceActivation, &traceActivation.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := traceActivation.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsTraceActivation = []ap.IESpec[ProtocolIEID, TraceActivation]{
+	{
+		ID:          IDMDTConfigurationNR,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *TraceActivation, r *per.Reader, enc per.Encoding) error {
+			var v MDTConfigurationNR
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.MDTConfigurationNR = &v
+			return nil
+		},
+		Encode: func(x *TraceActivation) (per.Marshaler, bool) {
+			if x.MDTConfigurationNR == nil {
+				return nil, false
+			}
+			return x.MDTConfigurationNR, true
+		},
+	},
+	{
+		ID:          IDTraceCollectionEntityURI,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *TraceActivation, r *per.Reader, enc per.Encoding) error {
+			var v URIAddress
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.TraceCollectionEntityURI = &v
+			return nil
+		},
+		Encode: func(x *TraceActivation) (per.Marshaler, bool) {
+			if x.TraceCollectionEntityURI == nil {
+				return nil, false
+			}
+			return x.TraceCollectionEntityURI, true
+		},
+	},
+}
+
+func (traceActivation *TraceActivation) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if traceActivation.TraceDepth.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsTraceActivation, traceActivation, traceActivation.iEExtensions)
+	return notComprehended
+}
+
+func (traceDepth TraceDepth) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumTraceDepth.Encode(w, enc, traceDepth)
+}
+
+func (traceDepth *TraceDepth) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumTraceDepth.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*traceDepth = v
+	return nil
+}
+
+func (traceDepth TraceDepth) Name() string {
+	return enumTraceDepth.Name(traceDepth)
+}
+
+func (traceDepth TraceDepth) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumTraceDepth.Known(traceDepth)
 }
 
 func (transportInformation *TransportInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
@@ -3362,6 +9423,7 @@ func (transportInformation *TransportInformation) MarshalPER(w *per.Writer, enc 
 }
 
 func (transportInformation *TransportInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*transportInformation = TransportInformation{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
@@ -3380,24 +9442,145 @@ func (transportInformation *TransportInformation) UnmarshalPER(r *per.Reader, en
 	return nil
 }
 
+func (triggeringMessage TriggeringMessage) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumTriggeringMessage.Encode(w, enc, triggeringMessage)
+}
+
+func (triggeringMessage *TriggeringMessage) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumTriggeringMessage.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*triggeringMessage = v
+	return nil
+}
+
+func (triggeringMessage TriggeringMessage) Name() string {
+	return enumTriggeringMessage.Name(triggeringMessage)
+}
+
+func (tunnelInformation *TunnelInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsTunnelInformation, tunnelInformation, tunnelInformation.iEExtensions)
+	w.WriteBit(tunnelInformation.extensions.Present())
+	w.WriteBit(tunnelInformation.UDPPortNumber != nil)
+	w.WriteBit(len(ext) > 0)
+	if err := tunnelInformation.TransportLayerAddress.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if tunnelInformation.UDPPortNumber != nil {
+		if err := (*tunnelInformation.UDPPortNumber).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if tunnelInformation.extensions.Present() {
+		if err := tunnelInformation.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (tunnelInformation *TunnelInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*tunnelInformation = TunnelInformation{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_UDPPortNumber, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&tunnelInformation.TransportLayerAddress).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_UDPPortNumber {
+		var v PortNumber
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		tunnelInformation.UDPPortNumber = &v
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsTunnelInformation, tunnelInformation, &tunnelInformation.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := tunnelInformation.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsTunnelInformation []ap.IESpec[ProtocolIEID, TunnelInformation]
+
+func (tunnelInformation *TunnelInformation) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsTunnelInformation, tunnelInformation, tunnelInformation.iEExtensions)
+	return notComprehended
+}
+
+func (typeOfError TypeOfError) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumTypeOfError.Encode(w, enc, typeOfError)
+}
+
+func (typeOfError *TypeOfError) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumTypeOfError.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*typeOfError = v
+	return nil
+}
+
+func (typeOfError TypeOfError) Name() string {
+	return enumTypeOfError.Name(typeOfError)
+}
+
+func (typeOfError TypeOfError) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumTypeOfError.Known(typeOfError)
+}
+
 func (uEAggregateMaximumBitRate *UEAggregateMaximumBitRate) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsUEAggregateMaximumBitRate, uEAggregateMaximumBitRate, uEAggregateMaximumBitRate.iEExtensions)
+	w.WriteBit(uEAggregateMaximumBitRate.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := uEAggregateMaximumBitRate.DL.MarshalPER(w, enc); err != nil {
 		return err
 	}
 	if err := uEAggregateMaximumBitRate.UL.MarshalPER(w, enc); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if uEAggregateMaximumBitRate.extensions.Present() {
+		if err := uEAggregateMaximumBitRate.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (uEAggregateMaximumBitRate *UEAggregateMaximumBitRate) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*uEAggregateMaximumBitRate = UEAggregateMaximumBitRate{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -3407,44 +9590,72 @@ func (uEAggregateMaximumBitRate *UEAggregateMaximumBitRate) UnmarshalPER(r *per.
 	if err := (&uEAggregateMaximumBitRate.UL).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f2 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsUEAggregateMaximumBitRate, uEAggregateMaximumBitRate, &uEAggregateMaximumBitRate.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := uEAggregateMaximumBitRate.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
+var extIEsUEAggregateMaximumBitRate = []ap.IESpec[ProtocolIEID, UEAggregateMaximumBitRate]{
+	{
+		ID:          IDExtendedUEAggregateMaximumBitRateDL,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *UEAggregateMaximumBitRate, r *per.Reader, enc per.Encoding) error {
+			var v ExtendedBitRate
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.ExtendedDL = &v
+			return nil
+		},
+		Encode: func(x *UEAggregateMaximumBitRate) (per.Marshaler, bool) {
+			if x.ExtendedDL == nil {
+				return nil, false
+			}
+			return x.ExtendedDL, true
+		},
+	},
+	{
+		ID:          IDExtendedUEAggregateMaximumBitRateUL,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *UEAggregateMaximumBitRate, r *per.Reader, enc per.Encoding) error {
+			var v ExtendedBitRate
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.ExtendedUL = &v
+			return nil
+		},
+		Encode: func(x *UEAggregateMaximumBitRate) (per.Marshaler, bool) {
+			if x.ExtendedUL == nil {
+				return nil, false
+			}
+			return x.ExtendedUL, true
+		},
+	},
+}
+
+func (uEAggregateMaximumBitRate *UEAggregateMaximumBitRate) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsUEAggregateMaximumBitRate, uEAggregateMaximumBitRate, uEAggregateMaximumBitRate.iEExtensions)
+	return notComprehended
+}
+
 func (uEAssociatedLogicalS1ConnectionItem *UEAssociatedLogicalS1ConnectionItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsUEAssociatedLogicalS1ConnectionItem, uEAssociatedLogicalS1ConnectionItem, uEAssociatedLogicalS1ConnectionItem.iEExtensions)
 	w.WriteBit(uEAssociatedLogicalS1ConnectionItem.extensions.Present())
 	w.WriteBit(uEAssociatedLogicalS1ConnectionItem.MMEUES1APID != nil)
 	w.WriteBit(uEAssociatedLogicalS1ConnectionItem.ENBUES1APID != nil)
-	w.WriteBit(uEAssociatedLogicalS1ConnectionItem.iEExtensions != nil)
+	w.WriteBit(len(ext) > 0)
 	if uEAssociatedLogicalS1ConnectionItem.MMEUES1APID != nil {
 		if err := (*uEAssociatedLogicalS1ConnectionItem.MMEUES1APID).MarshalPER(w, enc); err != nil {
 			return err
@@ -3455,8 +9666,8 @@ func (uEAssociatedLogicalS1ConnectionItem *UEAssociatedLogicalS1ConnectionItem) 
 			return err
 		}
 	}
-	if uEAssociatedLogicalS1ConnectionItem.iEExtensions != nil {
-		if err := (*uEAssociatedLogicalS1ConnectionItem.iEExtensions).MarshalPER(w, enc); err != nil {
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
 			return err
 		}
 	}
@@ -3469,6 +9680,7 @@ func (uEAssociatedLogicalS1ConnectionItem *UEAssociatedLogicalS1ConnectionItem) 
 }
 
 func (uEAssociatedLogicalS1ConnectionItem *UEAssociatedLogicalS1ConnectionItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*uEAssociatedLogicalS1ConnectionItem = UEAssociatedLogicalS1ConnectionItem{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
@@ -3500,11 +9712,9 @@ func (uEAssociatedLogicalS1ConnectionItem *UEAssociatedLogicalS1ConnectionItem) 
 		uEAssociatedLogicalS1ConnectionItem.ENBUES1APID = &v
 	}
 	if p_iEExtensions {
-		var v rawIEExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsUEAssociatedLogicalS1ConnectionItem, uEAssociatedLogicalS1ConnectionItem, &uEAssociatedLogicalS1ConnectionItem.iEExtensions); err != nil {
 			return err
 		}
-		uEAssociatedLogicalS1ConnectionItem.iEExtensions = &v
 	}
 	if extBit {
 		if err := uEAssociatedLogicalS1ConnectionItem.extensions.UnmarshalPER(r, enc); err != nil {
@@ -3514,24 +9724,374 @@ func (uEAssociatedLogicalS1ConnectionItem *UEAssociatedLogicalS1ConnectionItem) 
 	return nil
 }
 
+var extIEsUEAssociatedLogicalS1ConnectionItem []ap.IESpec[ProtocolIEID, UEAssociatedLogicalS1ConnectionItem]
+
+func (uEAssociatedLogicalS1ConnectionItem *UEAssociatedLogicalS1ConnectionItem) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsUEAssociatedLogicalS1ConnectionItem, uEAssociatedLogicalS1ConnectionItem, uEAssociatedLogicalS1ConnectionItem.iEExtensions)
+	return notComprehended
+}
+
+func (uEPagingID *UEPagingID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	set := 0
+	for _, ok := range [...]bool{uEPagingID.STMSI != nil, uEPagingID.IMSI != nil, uEPagingID.Ext != nil} {
+		if ok {
+			set++
+		}
+	}
+	if set > 1 {
+		return per.ErrChoice
+	}
+	switch {
+	case uEPagingID.STMSI != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 0); err != nil {
+			return err
+		}
+		if err := (*uEPagingID.STMSI).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case uEPagingID.IMSI != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 1); err != nil {
+			return err
+		}
+		if err := (*uEPagingID.IMSI).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case uEPagingID.Ext != nil:
+		w.WriteBit(true)
+		return uEPagingID.Ext.MarshalPER(w, enc)
+	default:
+		return per.ErrEmpty
+	}
+	return nil
+}
+
+func (uEPagingID *UEPagingID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*uEPagingID = UEPagingID{}
+	isExt, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if isExt {
+		extIdx, err := per.DecodeNormallySmall(r, enc)
+		if err != nil {
+			return err
+		}
+		uEPagingID.Ext, err = per.DecodeExtensionAlternative(r, enc, extIdx)
+		return err
+	}
+	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 1)
+	if err != nil {
+		return err
+	}
+	switch idx {
+	case 0:
+		var v STMSI
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		uEPagingID.STMSI = &v
+	case 1:
+		var v IMSI
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		uEPagingID.IMSI = &v
+	default:
+		return per.ErrOverflow
+	}
+	return nil
+}
+
+func (uEPagingID *UEPagingID) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	switch {
+	case uEPagingID.STMSI != nil:
+		return uEPagingID.STMSI.Diagnose(d)
+	case uEPagingID.IMSI != nil:
+	case uEPagingID.Ext != nil:
+		return true
+	}
+	return false
+}
+
+func (uERetentionInformation UERetentionInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumUERetentionInformation.Encode(w, enc, uERetentionInformation)
+}
+
+func (uERetentionInformation *UERetentionInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumUERetentionInformation.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*uERetentionInformation = v
+	return nil
+}
+
+func (uERetentionInformation UERetentionInformation) Name() string {
+	return enumUERetentionInformation.Name(uERetentionInformation)
+}
+
+func (uERetentionInformation UERetentionInformation) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumUERetentionInformation.Known(uERetentionInformation)
+}
+
+func (uES1APIDPair *UES1APIDPair) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsUES1APIDPair, uES1APIDPair, uES1APIDPair.iEExtensions)
+	w.WriteBit(uES1APIDPair.extensions.Present())
+	w.WriteBit(len(ext) > 0)
+	if err := uES1APIDPair.MMEUES1APID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := uES1APIDPair.ENBUES1APID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if uES1APIDPair.extensions.Present() {
+		if err := uES1APIDPair.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (uES1APIDPair *UES1APIDPair) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*uES1APIDPair = UES1APIDPair{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&uES1APIDPair.MMEUES1APID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&uES1APIDPair.ENBUES1APID).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsUES1APIDPair, uES1APIDPair, &uES1APIDPair.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := uES1APIDPair.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsUES1APIDPair []ap.IESpec[ProtocolIEID, UES1APIDPair]
+
+func (uES1APIDPair *UES1APIDPair) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsUES1APIDPair, uES1APIDPair, uES1APIDPair.iEExtensions)
+	return notComprehended
+}
+
+func (uES1APIDs *UES1APIDs) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	set := 0
+	for _, ok := range [...]bool{uES1APIDs.UES1APIDPair != nil, uES1APIDs.MMEUES1APID != nil, uES1APIDs.Ext != nil} {
+		if ok {
+			set++
+		}
+	}
+	if set > 1 {
+		return per.ErrChoice
+	}
+	switch {
+	case uES1APIDs.UES1APIDPair != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 0); err != nil {
+			return err
+		}
+		if err := (*uES1APIDs.UES1APIDPair).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case uES1APIDs.MMEUES1APID != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 1); err != nil {
+			return err
+		}
+		if err := (*uES1APIDs.MMEUES1APID).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case uES1APIDs.Ext != nil:
+		w.WriteBit(true)
+		return uES1APIDs.Ext.MarshalPER(w, enc)
+	default:
+		return per.ErrEmpty
+	}
+	return nil
+}
+
+func (uES1APIDs *UES1APIDs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*uES1APIDs = UES1APIDs{}
+	isExt, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if isExt {
+		extIdx, err := per.DecodeNormallySmall(r, enc)
+		if err != nil {
+			return err
+		}
+		uES1APIDs.Ext, err = per.DecodeExtensionAlternative(r, enc, extIdx)
+		return err
+	}
+	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 1)
+	if err != nil {
+		return err
+	}
+	switch idx {
+	case 0:
+		var v UES1APIDPair
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		uES1APIDs.UES1APIDPair = &v
+	case 1:
+		var v MMEUES1APID
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		uES1APIDs.MMEUES1APID = &v
+	default:
+		return per.ErrOverflow
+	}
+	return nil
+}
+
+func (uES1APIDs *UES1APIDs) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	switch {
+	case uES1APIDs.UES1APIDPair != nil:
+		return uES1APIDs.UES1APIDPair.Diagnose(d)
+	case uES1APIDs.MMEUES1APID != nil:
+	case uES1APIDs.Ext != nil:
+		return true
+	}
+	return false
+}
+
+func (uESecurityCapabilities *UESecurityCapabilities) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsUESecurityCapabilities, uESecurityCapabilities, uESecurityCapabilities.iEExtensions)
+	w.WriteBit(uESecurityCapabilities.extensions.Present())
+	w.WriteBit(len(ext) > 0)
+	if err := uESecurityCapabilities.EncryptionAlgorithms.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if err := uESecurityCapabilities.IntegrityProtectionAlgorithms.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if uESecurityCapabilities.extensions.Present() {
+		if err := uESecurityCapabilities.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (uESecurityCapabilities *UESecurityCapabilities) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*uESecurityCapabilities = UESecurityCapabilities{}
+	extBit, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	p_iEExtensions, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if err := (&uESecurityCapabilities.EncryptionAlgorithms).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if err := (&uESecurityCapabilities.IntegrityProtectionAlgorithms).UnmarshalPER(r, enc); err != nil {
+		return err
+	}
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsUESecurityCapabilities, uESecurityCapabilities, &uESecurityCapabilities.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := uESecurityCapabilities.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsUESecurityCapabilities []ap.IESpec[ProtocolIEID, UESecurityCapabilities]
+
+func (uESecurityCapabilities *UESecurityCapabilities) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsUESecurityCapabilities, uESecurityCapabilities, uESecurityCapabilities.iEExtensions)
+	return notComprehended
+}
+
+func (unlicensedSpectrumRestriction UnlicensedSpectrumRestriction) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return enumUnlicensedSpectrumRestriction.Encode(w, enc, unlicensedSpectrumRestriction)
+}
+
+func (unlicensedSpectrumRestriction *UnlicensedSpectrumRestriction) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := enumUnlicensedSpectrumRestriction.Decode(r, enc)
+	if err != nil {
+		return err
+	}
+	*unlicensedSpectrumRestriction = v
+	return nil
+}
+
+func (unlicensedSpectrumRestriction UnlicensedSpectrumRestriction) Name() string {
+	return enumUnlicensedSpectrumRestriction.Name(unlicensedSpectrumRestriction)
+}
+
+func (unlicensedSpectrumRestriction UnlicensedSpectrumRestriction) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return !enumUnlicensedSpectrumRestriction.Known(unlicensedSpectrumRestriction)
+}
+
 func (userLocationInformation *UserLocationInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
+	ext := ap.ExtensionFields(extIEsUserLocationInformation, userLocationInformation, userLocationInformation.iEExtensions)
+	w.WriteBit(userLocationInformation.extensions.Present())
+	w.WriteBit(len(ext) > 0)
 	if err := userLocationInformation.EUTRANCGI.MarshalPER(w, enc); err != nil {
 		return err
 	}
 	if err := userLocationInformation.TAI.MarshalPER(w, enc); err != nil {
 		return err
 	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if userLocationInformation.extensions.Present() {
+		if err := userLocationInformation.extensions.MarshalPER(w, enc); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func (userLocationInformation *UserLocationInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*userLocationInformation = UserLocationInformation{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f2, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
@@ -3541,143 +10101,2716 @@ func (userLocationInformation *UserLocationInformation) UnmarshalPER(r *per.Read
 	if err := (&userLocationInformation.TAI).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f2 {
-		var v ieExtensions
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsUserLocationInformation, userLocationInformation, &userLocationInformation.iEExtensions); err != nil {
+			return err
+		}
+	}
+	if extBit {
+		if err := userLocationInformation.extensions.UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var extIEsUserLocationInformation = []ap.IESpec[ProtocolIEID, UserLocationInformation]{
+	{
+		ID:          IDPSCellInformation,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *UserLocationInformation, r *per.Reader, enc per.Encoding) error {
+			var v PSCellInformation
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.PSCellInformation = &v
+			return nil
+		},
+		Encode: func(x *UserLocationInformation) (per.Marshaler, bool) {
+			if x.PSCellInformation == nil {
+				return nil, false
+			}
+			return x.PSCellInformation, true
+		},
+	},
+	{
+		ID:          IDLTENTNTAIInformation,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *UserLocationInformation, r *per.Reader, enc per.Encoding) error {
+			var v LTENTNTAIInformation
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.LTENTNTAIInformation = &v
+			return nil
+		},
+		Encode: func(x *UserLocationInformation) (per.Marshaler, bool) {
+			if x.LTENTNTAIInformation == nil {
+				return nil, false
+			}
+			return x.LTENTNTAIInformation, true
+		},
+	},
+}
+
+func (userLocationInformation *UserLocationInformation) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if userLocationInformation.EUTRANCGI.Diagnose(d) {
+		notComprehended = true
+	}
+	if userLocationInformation.TAI.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEsUserLocationInformation, userLocationInformation, userLocationInformation.iEExtensions)
+	return notComprehended
+}
+
+func (warningAreaList *WarningAreaList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	set := 0
+	for _, ok := range [...]bool{warningAreaList.CellIDList != nil, warningAreaList.TrackingAreaListforWarning != nil, warningAreaList.EmergencyAreaIDList != nil, warningAreaList.Ext != nil} {
+		if ok {
+			set++
+		}
+	}
+	if set > 1 {
+		return per.ErrChoice
+	}
+	switch {
+	case warningAreaList.CellIDList != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 2, 0); err != nil {
+			return err
+		}
+		if err := (*warningAreaList.CellIDList).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case warningAreaList.TrackingAreaListforWarning != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 2, 1); err != nil {
+			return err
+		}
+		if err := (*warningAreaList.TrackingAreaListforWarning).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case warningAreaList.EmergencyAreaIDList != nil:
+		w.WriteBit(false)
+		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 2, 2); err != nil {
+			return err
+		}
+		if err := (*warningAreaList.EmergencyAreaIDList).MarshalPER(w, enc); err != nil {
+			return err
+		}
+	case warningAreaList.Ext != nil:
+		w.WriteBit(true)
+		return warningAreaList.Ext.MarshalPER(w, enc)
+	default:
+		return per.ErrEmpty
+	}
+	return nil
+}
+
+func (warningAreaList *WarningAreaList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*warningAreaList = WarningAreaList{}
+	isExt, err := r.ReadBit()
+	if err != nil {
+		return err
+	}
+	if isExt {
+		extIdx, err := per.DecodeNormallySmall(r, enc)
+		if err != nil {
+			return err
+		}
+		warningAreaList.Ext, err = per.DecodeExtensionAlternative(r, enc, extIdx)
+		return err
+	}
+	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 2)
+	if err != nil {
+		return err
+	}
+	switch idx {
+	case 0:
+		var v ECGIList
 		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-		_ = v
-	}
-	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		warningAreaList.CellIDList = &v
+	case 1:
+		var v TAIListforWarning
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
+		warningAreaList.TrackingAreaListforWarning = &v
+	case 2:
+		var v EmergencyAreaIDList
+		if err := (&v).UnmarshalPER(r, enc); err != nil {
+			return err
+		}
+		warningAreaList.EmergencyAreaIDList = &v
+	default:
+		return per.ErrOverflow
+	}
+	return nil
+}
+
+func (warningAreaList *WarningAreaList) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	switch {
+	case warningAreaList.CellIDList != nil:
+		return warningAreaList.CellIDList.Diagnose(d)
+	case warningAreaList.TrackingAreaListforWarning != nil:
+		return warningAreaList.TrackingAreaListforWarning.Diagnose(d)
+	case warningAreaList.EmergencyAreaIDList != nil:
+	case warningAreaList.Ext != nil:
+		return true
+	}
+	return false
+}
+
+func (x2TNLConfigurationInfo *X2TNLConfigurationInfo) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEsX2TNLConfigurationInfo, x2TNLConfigurationInfo, x2TNLConfigurationInfo.iEExtensions)
+	w.WriteBit(x2TNLConfigurationInfo.extensions.Present())
+	w.WriteBit(len(ext) > 0)
+	if err := x2TNLConfigurationInfo.ENBX2TransportLayerAddresses.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if x2TNLConfigurationInfo.extensions.Present() {
+		if err := x2TNLConfigurationInfo.extensions.MarshalPER(w, enc); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
-func (erabModifyItemBearerModConf *erabModifyItemBearerModConf) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
-	if err := erabModifyItemBearerModConf.erabID.MarshalPER(w, enc); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (erabModifyItemBearerModConf *erabModifyItemBearerModConf) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+func (x2TNLConfigurationInfo *X2TNLConfigurationInfo) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*x2TNLConfigurationInfo = X2TNLConfigurationInfo{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f1, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	if err := (&erabModifyItemBearerModConf.erabID).UnmarshalPER(r, enc); err != nil {
+	if err := (&x2TNLConfigurationInfo.ENBX2TransportLayerAddresses).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f1 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEsX2TNLConfigurationInfo, x2TNLConfigurationInfo, &x2TNLConfigurationInfo.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := x2TNLConfigurationInfo.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
 		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
+	}
+	return nil
+}
+
+var extIEsX2TNLConfigurationInfo = []ap.IESpec[ProtocolIEID, X2TNLConfigurationInfo]{
+	{
+		ID:          IDENBX2ExtendedTransportLayerAddresses,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *X2TNLConfigurationInfo, r *per.Reader, enc per.Encoding) error {
+			var v ENBX2ExtTLAs
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
 				return err
 			}
+			x.ENBX2ExtendedTransportLayerAddresses = v
+			return nil
+		},
+		Encode: func(x *X2TNLConfigurationInfo) (per.Marshaler, bool) {
+			if len(x.ENBX2ExtendedTransportLayerAddresses) == 0 {
+				return nil, false
+			}
+			return x.ENBX2ExtendedTransportLayerAddresses, true
+		},
+	},
+	{
+		ID:          IDENBIndirectX2TransportLayerAddresses,
+		Presence:    ap.PresenceOptional,
+		Criticality: ap.CriticalityIgnore,
+		Decode: func(x *X2TNLConfigurationInfo, r *per.Reader, enc per.Encoding) error {
+			var v ENBX2TLAs
+			if err := (&v).UnmarshalPER(r, enc); err != nil {
+				return err
+			}
+			x.ENBIndirectX2TransportLayerAddresses = v
+			return nil
+		},
+		Encode: func(x *X2TNLConfigurationInfo) (per.Marshaler, bool) {
+			if len(x.ENBIndirectX2TransportLayerAddresses) == 0 {
+				return nil, false
+			}
+			return x.ENBIndirectX2TransportLayerAddresses, true
+		},
+	},
+}
+
+func (x2TNLConfigurationInfo *X2TNLConfigurationInfo) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	ap.DiagnoseExtensions(d, extIEsX2TNLConfigurationInfo, x2TNLConfigurationInfo, x2TNLConfigurationInfo.iEExtensions)
+	return notComprehended
+}
+
+func (x *erabModifyItemBearerModConf) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	ext := ap.ExtensionFields(extIEserabModifyItemBearerModConf, x, x.iEExtensions)
+	w.WriteBit(x.extensions.Present())
+	w.WriteBit(len(ext) > 0)
+	if err := x.erabID.MarshalPER(w, enc); err != nil {
+		return err
+	}
+	if len(ext) > 0 {
+		if err := ap.EncodeExtensionContainer(profile, w, enc, ext); err != nil {
+			return err
+		}
+	}
+	if x.extensions.Present() {
+		if err := x.extensions.MarshalPER(w, enc); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
-func (taiItem *taiItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
-	if err := taiItem.TAI.MarshalPER(w, enc); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (taiItem *taiItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+func (x *erabModifyItemBearerModConf) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	*x = erabModifyItemBearerModConf{}
 	extBit, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	p_f1, err := r.ReadBit()
+	p_iEExtensions, err := r.ReadBit()
 	if err != nil {
 		return err
 	}
-	if err := (&taiItem.TAI).UnmarshalPER(r, enc); err != nil {
+	if err := (&x.erabID).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	if p_f1 {
-		var v ieExtensions
-		if err := (&v).UnmarshalPER(r, enc); err != nil {
+	if p_iEExtensions {
+		if err := ap.DecodeExtensionContainer(profile, r, enc, extIEserabModifyItemBearerModConf, x, &x.iEExtensions); err != nil {
 			return err
 		}
-		_ = v
 	}
 	if extBit {
-		var extBits []bool
-		if err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-			for i := int64(0); i < count; i++ {
-				b, err := r.ReadBit()
-				if err != nil {
-					return err
-				}
-				extBits = append(extBits, b)
-			}
-			return nil
-		}); err != nil {
+		if err := x.extensions.UnmarshalPER(r, enc); err != nil {
 			return err
-		}
-		for _, present := range extBits {
-			if !present {
-				continue
-			}
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
+}
+
+var extIEserabModifyItemBearerModConf []ap.IESpec[ProtocolIEID, erabModifyItemBearerModConf]
+
+func (x *erabModifyItemBearerModConf) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	if x.erabID.Diagnose(d) {
+		notComprehended = true
+	}
+	ap.DiagnoseExtensions(d, extIEserabModifyItemBearerModConf, x, x.iEExtensions)
+	return notComprehended
+}
+
+func (cNTypeRestrictions CNTypeRestrictions) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range cNTypeRestrictions {
+		if cNTypeRestrictions[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (cellIDBroadcast CellIDBroadcast) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range cellIDBroadcast {
+		if cellIDBroadcast[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (cellIDCancelled CellIDCancelled) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range cellIDCancelled {
+		if cellIDCancelled[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (eCGIList ECGIList) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range eCGIList {
+		if eCGIList[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (eNBX2ExtTLAs ENBX2ExtTLAs) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range eNBX2ExtTLAs {
+		if eNBX2ExtTLAs[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (eRABAdmittedList ERABAdmittedList) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range eRABAdmittedList {
+		if eRABAdmittedList[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (eRABInformationList ERABInformationList) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range eRABInformationList {
+		if eRABInformationList[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (eRABNotToBeModifiedListBearerModInd ERABNotToBeModifiedListBearerModInd) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range eRABNotToBeModifiedListBearerModInd {
+		if eRABNotToBeModifiedListBearerModInd[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (eRABSetupListBearerSURes ERABSetupListBearerSURes) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range eRABSetupListBearerSURes {
+		if eRABSetupListBearerSURes[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (eRABSetupListCtxtSURes ERABSetupListCtxtSURes) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range eRABSetupListCtxtSURes {
+		if eRABSetupListCtxtSURes[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (eRABSubjecttoDataForwardingList ERABSubjecttoDataForwardingList) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range eRABSubjecttoDataForwardingList {
+		if eRABSubjecttoDataForwardingList[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (eRABToBeModifiedListBearerModInd ERABToBeModifiedListBearerModInd) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range eRABToBeModifiedListBearerModInd {
+		if eRABToBeModifiedListBearerModInd[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (eRABToBeModifiedListBearerModReq ERABToBeModifiedListBearerModReq) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range eRABToBeModifiedListBearerModReq {
+		if eRABToBeModifiedListBearerModReq[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (eRABToBeSetupListBearerSUReq ERABToBeSetupListBearerSUReq) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range eRABToBeSetupListBearerSUReq {
+		if eRABToBeSetupListBearerSUReq[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (eRABToBeSetupListCtxtSUReq ERABToBeSetupListCtxtSUReq) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range eRABToBeSetupListCtxtSUReq {
+		if eRABToBeSetupListCtxtSUReq[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (eRABToBeSetupListHOReq ERABToBeSetupListHOReq) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range eRABToBeSetupListHOReq {
+		if eRABToBeSetupListHOReq[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (eRABToBeSwitchedDLList ERABToBeSwitchedDLList) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range eRABToBeSwitchedDLList {
+		if eRABToBeSwitchedDLList[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (eRABToBeSwitchedULList ERABToBeSwitchedULList) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range eRABToBeSwitchedULList {
+		if eRABToBeSwitchedULList[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (emergencyAreaIDBroadcast EmergencyAreaIDBroadcast) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range emergencyAreaIDBroadcast {
+		if emergencyAreaIDBroadcast[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (emergencyAreaIDCancelled EmergencyAreaIDCancelled) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range emergencyAreaIDCancelled {
+		if emergencyAreaIDCancelled[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (forbiddenLAs ForbiddenLAs) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range forbiddenLAs {
+		if forbiddenLAs[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (forbiddenTAs ForbiddenTAs) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range forbiddenTAs {
+		if forbiddenTAs[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (interSystemMeasurementList InterSystemMeasurementList) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range interSystemMeasurementList {
+		if interSystemMeasurementList[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (lastVisitedPSCellList LastVisitedPSCellList) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range lastVisitedPSCellList {
+		if lastVisitedPSCellList[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (rATRestrictions RATRestrictions) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range rATRestrictions {
+		if rATRestrictions[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (servedGUMMEIs ServedGUMMEIs) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range servedGUMMEIs {
+		if servedGUMMEIs[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (supportedTAs SupportedTAs) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range supportedTAs {
+		if supportedTAs[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (tAIBroadcast TAIBroadcast) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range tAIBroadcast {
+		if tAIBroadcast[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (tAICancelled TAICancelled) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range tAICancelled {
+		if tAICancelled[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (tAIList TAIList) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range tAIList {
+		if tAIList[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (tAIListforWarning TAIListforWarning) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range tAIListforWarning {
+		if tAIListforWarning[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (uEAssociatedLogicalS1ConnectionListRes UEAssociatedLogicalS1ConnectionListRes) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range uEAssociatedLogicalS1ConnectionListRes {
+		if uEAssociatedLogicalS1ConnectionListRes[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (uEHistoryInformation UEHistoryInformation) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	notComprehended := false
+	for i := range uEHistoryInformation {
+		if uEHistoryInformation[i].Diagnose(d) {
+			notComprehended = true
+		}
+	}
+	return notComprehended
+}
+
+func (additionalGUTI AdditionalGUTI) Equal(y AdditionalGUTI) bool {
+	return additionalGUTI == y
+}
+
+func (allocationAndRetentionPriority AllocationAndRetentionPriority) Equal(y AllocationAndRetentionPriority) bool {
+	return allocationAndRetentionPriority == y
+}
+
+func (bPLMNs BPLMNs) Equal(y BPLMNs) bool {
+	if len(bPLMNs) != len(y) {
+		return false
+	}
+	for i := range bPLMNs {
+		if !(bPLMNs[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (broadcastCancelledAreaList BroadcastCancelledAreaList) Equal(y BroadcastCancelledAreaList) bool {
+	return (broadcastCancelledAreaList.CellIDCancelled == nil) == (y.CellIDCancelled == nil) && (broadcastCancelledAreaList.CellIDCancelled == nil || (*broadcastCancelledAreaList.CellIDCancelled).Equal(*y.CellIDCancelled)) &&
+		(broadcastCancelledAreaList.TAICancelled == nil) == (y.TAICancelled == nil) && (broadcastCancelledAreaList.TAICancelled == nil || (*broadcastCancelledAreaList.TAICancelled).Equal(*y.TAICancelled)) &&
+		(broadcastCancelledAreaList.EmergencyAreaIDCancelled == nil) == (y.EmergencyAreaIDCancelled == nil) && (broadcastCancelledAreaList.EmergencyAreaIDCancelled == nil || (*broadcastCancelledAreaList.EmergencyAreaIDCancelled).Equal(*y.EmergencyAreaIDCancelled)) &&
+		(broadcastCancelledAreaList.Ext == nil) == (y.Ext == nil) && (broadcastCancelledAreaList.Ext == nil || (*broadcastCancelledAreaList.Ext) == *y.Ext)
+}
+
+func (broadcastCompletedAreaList BroadcastCompletedAreaList) Equal(y BroadcastCompletedAreaList) bool {
+	return (broadcastCompletedAreaList.CellIDBroadcast == nil) == (y.CellIDBroadcast == nil) && (broadcastCompletedAreaList.CellIDBroadcast == nil || (*broadcastCompletedAreaList.CellIDBroadcast).Equal(*y.CellIDBroadcast)) &&
+		(broadcastCompletedAreaList.TAIBroadcast == nil) == (y.TAIBroadcast == nil) && (broadcastCompletedAreaList.TAIBroadcast == nil || (*broadcastCompletedAreaList.TAIBroadcast).Equal(*y.TAIBroadcast)) &&
+		(broadcastCompletedAreaList.EmergencyAreaIDBroadcast == nil) == (y.EmergencyAreaIDBroadcast == nil) && (broadcastCompletedAreaList.EmergencyAreaIDBroadcast == nil || (*broadcastCompletedAreaList.EmergencyAreaIDBroadcast).Equal(*y.EmergencyAreaIDBroadcast)) &&
+		(broadcastCompletedAreaList.Ext == nil) == (y.Ext == nil) && (broadcastCompletedAreaList.Ext == nil || (*broadcastCompletedAreaList.Ext) == *y.Ext)
+}
+
+func (cGI CGI) Equal(y CGI) bool {
+	return cGI.PLMNIdentity == y.PLMNIdentity &&
+		cGI.LAC == y.LAC &&
+		cGI.CI == y.CI &&
+		(cGI.RAC == nil) == (y.RAC == nil) && (cGI.RAC == nil || (*cGI.RAC) == *y.RAC) &&
+		cGI.iEExtensions == y.iEExtensions &&
+		cGI.extensions == y.extensions
+}
+
+func (cNTypeRestrictions CNTypeRestrictions) Equal(y CNTypeRestrictions) bool {
+	if len(cNTypeRestrictions) != len(y) {
+		return false
+	}
+	for i := range cNTypeRestrictions {
+		if !(cNTypeRestrictions[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (cNTypeRestrictionsItem CNTypeRestrictionsItem) Equal(y CNTypeRestrictionsItem) bool {
+	return cNTypeRestrictionsItem == y
+}
+
+func (cancelledCellInEAIItem CancelledCellInEAIItem) Equal(y CancelledCellInEAIItem) bool {
+	return cancelledCellInEAIItem == y
+}
+
+func (cancelledCellInTAIItem CancelledCellInTAIItem) Equal(y CancelledCellInTAIItem) bool {
+	return cancelledCellInTAIItem == y
+}
+
+func (cause Cause) Equal(y Cause) bool {
+	return (cause.RadioNetwork == nil) == (y.RadioNetwork == nil) && (cause.RadioNetwork == nil || (*cause.RadioNetwork) == *y.RadioNetwork) &&
+		(cause.Transport == nil) == (y.Transport == nil) && (cause.Transport == nil || (*cause.Transport) == *y.Transport) &&
+		(cause.NAS == nil) == (y.NAS == nil) && (cause.NAS == nil || (*cause.NAS) == *y.NAS) &&
+		(cause.Protocol == nil) == (y.Protocol == nil) && (cause.Protocol == nil || (*cause.Protocol) == *y.Protocol) &&
+		(cause.Misc == nil) == (y.Misc == nil) && (cause.Misc == nil || (*cause.Misc) == *y.Misc) &&
+		(cause.Ext == nil) == (y.Ext == nil) && (cause.Ext == nil || (*cause.Ext) == *y.Ext)
+}
+
+func (cellIDBroadcast CellIDBroadcast) Equal(y CellIDBroadcast) bool {
+	if len(cellIDBroadcast) != len(y) {
+		return false
+	}
+	for i := range cellIDBroadcast {
+		if !(cellIDBroadcast[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (cellIDBroadcastItem CellIDBroadcastItem) Equal(y CellIDBroadcastItem) bool {
+	return cellIDBroadcastItem == y
+}
+
+func (cellIDCancelled CellIDCancelled) Equal(y CellIDCancelled) bool {
+	if len(cellIDCancelled) != len(y) {
+		return false
+	}
+	for i := range cellIDCancelled {
+		if !(cellIDCancelled[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (cellIDCancelledItem CellIDCancelledItem) Equal(y CellIDCancelledItem) bool {
+	return cellIDCancelledItem == y
+}
+
+func (cellType CellType) Equal(y CellType) bool {
+	return cellType == y
+}
+
+func (coarseUELocation CoarseUELocation) Equal(y CoarseUELocation) bool {
+	if len(coarseUELocation) != len(y) {
+		return false
+	}
+	for i := range coarseUELocation {
+		if !(coarseUELocation[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (completedCellInEAIItem CompletedCellInEAIItem) Equal(y CompletedCellInEAIItem) bool {
+	return completedCellInEAIItem == y
+}
+
+func (completedCellInTAIItem CompletedCellInTAIItem) Equal(y CompletedCellInTAIItem) bool {
+	return completedCellInTAIItem == y
+}
+
+func (contextatSource ContextatSource) Equal(y ContextatSource) bool {
+	return contextatSource.SourceNGRANNodeID.Equal(y.SourceNGRANNodeID) &&
+		contextatSource.RANUENGAPID == y.RANUENGAPID &&
+		contextatSource.iEExtensions == y.iEExtensions &&
+		contextatSource.extensions == y.extensions
+}
+
+func (criticalityDiagnostics CriticalityDiagnostics) Equal(y CriticalityDiagnostics) bool {
+	return (criticalityDiagnostics.ProcedureCode == nil) == (y.ProcedureCode == nil) && (criticalityDiagnostics.ProcedureCode == nil || (*criticalityDiagnostics.ProcedureCode) == *y.ProcedureCode) &&
+		(criticalityDiagnostics.TriggeringMessage == nil) == (y.TriggeringMessage == nil) && (criticalityDiagnostics.TriggeringMessage == nil || (*criticalityDiagnostics.TriggeringMessage) == *y.TriggeringMessage) &&
+		(criticalityDiagnostics.ProcedureCriticality == nil) == (y.ProcedureCriticality == nil) && (criticalityDiagnostics.ProcedureCriticality == nil || (*criticalityDiagnostics.ProcedureCriticality) == *y.ProcedureCriticality) &&
+		(criticalityDiagnostics.IEsCriticalityDiagnostics == nil) == (y.IEsCriticalityDiagnostics == nil) && slices.Equal(criticalityDiagnostics.IEsCriticalityDiagnostics, y.IEsCriticalityDiagnostics) &&
+		criticalityDiagnostics.iEExtensions == y.iEExtensions &&
+		criticalityDiagnostics.extensions == y.extensions
+}
+
+func (criticalityDiagnosticsIEItem CriticalityDiagnosticsIEItem) Equal(y CriticalityDiagnosticsIEItem) bool {
+	return criticalityDiagnosticsIEItem == y
+}
+
+func (dAPSRequestInfo DAPSRequestInfo) Equal(y DAPSRequestInfo) bool {
+	return dAPSRequestInfo == y
+}
+
+func (downlinkNASTransport DownlinkNASTransport) Equal(y DownlinkNASTransport) bool {
+	return downlinkNASTransport.MMEUES1APID == y.MMEUES1APID &&
+		downlinkNASTransport.ENBUES1APID == y.ENBUES1APID &&
+		downlinkNASTransport.NASPDU.Equal(y.NASPDU) &&
+		(downlinkNASTransport.CoarseUELocation == nil) == (y.CoarseUELocation == nil) && (downlinkNASTransport.CoarseUELocation == nil || (*downlinkNASTransport.CoarseUELocation).Equal(*y.CoarseUELocation)) &&
+		downlinkNASTransport.messageMeta.Equal(y.messageMeta)
+}
+
+func (downlinkNonUEAssociatedLPPaTransport DownlinkNonUEAssociatedLPPaTransport) Equal(y DownlinkNonUEAssociatedLPPaTransport) bool {
+	return downlinkNonUEAssociatedLPPaTransport.RoutingID == y.RoutingID &&
+		downlinkNonUEAssociatedLPPaTransport.LPPaPDU.Equal(y.LPPaPDU) &&
+		downlinkNonUEAssociatedLPPaTransport.messageMeta.Equal(y.messageMeta)
+}
+
+func (downlinkUEAssociatedLPPaTransport DownlinkUEAssociatedLPPaTransport) Equal(y DownlinkUEAssociatedLPPaTransport) bool {
+	return downlinkUEAssociatedLPPaTransport.MMEUES1APID == y.MMEUES1APID &&
+		downlinkUEAssociatedLPPaTransport.ENBUES1APID == y.ENBUES1APID &&
+		downlinkUEAssociatedLPPaTransport.RoutingID == y.RoutingID &&
+		downlinkUEAssociatedLPPaTransport.LPPaPDU.Equal(y.LPPaPDU) &&
+		downlinkUEAssociatedLPPaTransport.messageMeta.Equal(y.messageMeta)
+}
+
+func (eCGIList ECGIList) Equal(y ECGIList) bool {
+	if len(eCGIList) != len(y) {
+		return false
+	}
+	for i := range eCGIList {
+		if !(eCGIList[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (eNBConfigurationTransfer ENBConfigurationTransfer) Equal(y ENBConfigurationTransfer) bool {
+	return (eNBConfigurationTransfer.SONConfigurationTransfer == nil) == (y.SONConfigurationTransfer == nil) && (eNBConfigurationTransfer.SONConfigurationTransfer == nil || (*eNBConfigurationTransfer.SONConfigurationTransfer).Equal(*y.SONConfigurationTransfer)) &&
+		eNBConfigurationTransfer.messageMeta.Equal(y.messageMeta)
+}
+
+func (eNBConfigurationUpdate ENBConfigurationUpdate) Equal(y ENBConfigurationUpdate) bool {
+	return (eNBConfigurationUpdate.ENBName == nil) == (y.ENBName == nil) && (eNBConfigurationUpdate.ENBName == nil || (*eNBConfigurationUpdate.ENBName) == *y.ENBName) &&
+		eNBConfigurationUpdate.SupportedTAs.Equal(y.SupportedTAs) &&
+		(eNBConfigurationUpdate.DefaultPagingDRX == nil) == (y.DefaultPagingDRX == nil) && (eNBConfigurationUpdate.DefaultPagingDRX == nil || (*eNBConfigurationUpdate.DefaultPagingDRX) == *y.DefaultPagingDRX) &&
+		eNBConfigurationUpdate.messageMeta.Equal(y.messageMeta)
+}
+
+func (eNBConfigurationUpdateAcknowledge ENBConfigurationUpdateAcknowledge) Equal(y ENBConfigurationUpdateAcknowledge) bool {
+	return (eNBConfigurationUpdateAcknowledge.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (eNBConfigurationUpdateAcknowledge.CriticalityDiagnostics == nil || (*eNBConfigurationUpdateAcknowledge.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		eNBConfigurationUpdateAcknowledge.messageMeta.Equal(y.messageMeta)
+}
+
+func (eNBConfigurationUpdateFailure ENBConfigurationUpdateFailure) Equal(y ENBConfigurationUpdateFailure) bool {
+	return (eNBConfigurationUpdateFailure.Cause == nil) == (y.Cause == nil) && (eNBConfigurationUpdateFailure.Cause == nil || (*eNBConfigurationUpdateFailure.Cause).Equal(*y.Cause)) &&
+		(eNBConfigurationUpdateFailure.TimeToWait == nil) == (y.TimeToWait == nil) && (eNBConfigurationUpdateFailure.TimeToWait == nil || (*eNBConfigurationUpdateFailure.TimeToWait) == *y.TimeToWait) &&
+		(eNBConfigurationUpdateFailure.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (eNBConfigurationUpdateFailure.CriticalityDiagnostics == nil || (*eNBConfigurationUpdateFailure.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		eNBConfigurationUpdateFailure.messageMeta.Equal(y.messageMeta)
+}
+
+func (eNBID ENBID) Equal(y ENBID) bool {
+	return (eNBID.MacroENBID == nil) == (y.MacroENBID == nil) && (eNBID.MacroENBID == nil || (*eNBID.MacroENBID) == *y.MacroENBID) &&
+		(eNBID.HomeENBID == nil) == (y.HomeENBID == nil) && (eNBID.HomeENBID == nil || (*eNBID.HomeENBID) == *y.HomeENBID) &&
+		(eNBID.ShortMacroENBID == nil) == (y.ShortMacroENBID == nil) && (eNBID.ShortMacroENBID == nil || (*eNBID.ShortMacroENBID) == *y.ShortMacroENBID) &&
+		(eNBID.LongMacroENBID == nil) == (y.LongMacroENBID == nil) && (eNBID.LongMacroENBID == nil || (*eNBID.LongMacroENBID) == *y.LongMacroENBID) &&
+		(eNBID.Ext == nil) == (y.Ext == nil) && (eNBID.Ext == nil || (*eNBID.Ext) == *y.Ext)
+}
+
+func (eNBStatusTransfer ENBStatusTransfer) Equal(y ENBStatusTransfer) bool {
+	return eNBStatusTransfer.MMEUES1APID == y.MMEUES1APID &&
+		eNBStatusTransfer.ENBUES1APID == y.ENBUES1APID &&
+		eNBStatusTransfer.Container.Equal(y.Container) &&
+		eNBStatusTransfer.messageMeta.Equal(y.messageMeta)
+}
+
+func (eNBX2ExtTLA ENBX2ExtTLA) Equal(y ENBX2ExtTLA) bool {
+	return (eNBX2ExtTLA.IPsecTLA == nil) == (y.IPsecTLA == nil) && (eNBX2ExtTLA.IPsecTLA == nil || (*eNBX2ExtTLA.IPsecTLA) == *y.IPsecTLA) &&
+		(eNBX2ExtTLA.GTPTLAa == nil) == (y.GTPTLAa == nil) && eNBX2ExtTLA.GTPTLAa.Equal(y.GTPTLAa) &&
+		eNBX2ExtTLA.iEExtensions == y.iEExtensions &&
+		eNBX2ExtTLA.extensions == y.extensions
+}
+
+func (eNBX2ExtTLAs ENBX2ExtTLAs) Equal(y ENBX2ExtTLAs) bool {
+	if len(eNBX2ExtTLAs) != len(y) {
+		return false
+	}
+	for i := range eNBX2ExtTLAs {
+		if !(eNBX2ExtTLAs[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (eNBX2GTPTLAs ENBX2GTPTLAs) Equal(y ENBX2GTPTLAs) bool {
+	if len(eNBX2GTPTLAs) != len(y) {
+		return false
+	}
+	for i := range eNBX2GTPTLAs {
+		if !(eNBX2GTPTLAs[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (eNBX2TLAs ENBX2TLAs) Equal(y ENBX2TLAs) bool {
+	if len(eNBX2TLAs) != len(y) {
+		return false
+	}
+	for i := range eNBX2TLAs {
+		if !(eNBX2TLAs[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (ePLMNs EPLMNs) Equal(y EPLMNs) bool {
+	if len(ePLMNs) != len(y) {
+		return false
+	}
+	for i := range ePLMNs {
+		if !(ePLMNs[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (eRABAdmittedItem ERABAdmittedItem) Equal(y ERABAdmittedItem) bool {
+	return eRABAdmittedItem.ERABID == y.ERABID &&
+		eRABAdmittedItem.TransportLayerAddress == y.TransportLayerAddress &&
+		eRABAdmittedItem.GTPTEID == y.GTPTEID &&
+		(eRABAdmittedItem.DLTransportLayerAddr == nil) == (y.DLTransportLayerAddr == nil) && (eRABAdmittedItem.DLTransportLayerAddr == nil || (*eRABAdmittedItem.DLTransportLayerAddr) == *y.DLTransportLayerAddr) &&
+		(eRABAdmittedItem.DLGTPTEID == nil) == (y.DLGTPTEID == nil) && (eRABAdmittedItem.DLGTPTEID == nil || (*eRABAdmittedItem.DLGTPTEID) == *y.DLGTPTEID) &&
+		(eRABAdmittedItem.ULTransportLayerAddr == nil) == (y.ULTransportLayerAddr == nil) && (eRABAdmittedItem.ULTransportLayerAddr == nil || (*eRABAdmittedItem.ULTransportLayerAddr) == *y.ULTransportLayerAddr) &&
+		(eRABAdmittedItem.ULGTPTEID == nil) == (y.ULGTPTEID == nil) && (eRABAdmittedItem.ULGTPTEID == nil || (*eRABAdmittedItem.ULGTPTEID) == *y.ULGTPTEID) &&
+		eRABAdmittedItem.iEExtensions == y.iEExtensions &&
+		eRABAdmittedItem.extensions == y.extensions &&
+		eRABAdmittedItem.containerCrit == y.containerCrit
+}
+
+func (eRABAdmittedList ERABAdmittedList) Equal(y ERABAdmittedList) bool {
+	if len(eRABAdmittedList) != len(y) {
+		return false
+	}
+	for i := range eRABAdmittedList {
+		if !(eRABAdmittedList[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (eRABDataForwardingItem ERABDataForwardingItem) Equal(y ERABDataForwardingItem) bool {
+	return eRABDataForwardingItem.ERABID == y.ERABID &&
+		(eRABDataForwardingItem.DLTransportLayerAddr == nil) == (y.DLTransportLayerAddr == nil) && (eRABDataForwardingItem.DLTransportLayerAddr == nil || (*eRABDataForwardingItem.DLTransportLayerAddr) == *y.DLTransportLayerAddr) &&
+		(eRABDataForwardingItem.DLGTPTEID == nil) == (y.DLGTPTEID == nil) && (eRABDataForwardingItem.DLGTPTEID == nil || (*eRABDataForwardingItem.DLGTPTEID) == *y.DLGTPTEID) &&
+		(eRABDataForwardingItem.ULTransportLayerAddr == nil) == (y.ULTransportLayerAddr == nil) && (eRABDataForwardingItem.ULTransportLayerAddr == nil || (*eRABDataForwardingItem.ULTransportLayerAddr) == *y.ULTransportLayerAddr) &&
+		(eRABDataForwardingItem.ULGTPTEID == nil) == (y.ULGTPTEID == nil) && (eRABDataForwardingItem.ULGTPTEID == nil || (*eRABDataForwardingItem.ULGTPTEID) == *y.ULGTPTEID) &&
+		eRABDataForwardingItem.iEExtensions == y.iEExtensions &&
+		eRABDataForwardingItem.extensions == y.extensions &&
+		eRABDataForwardingItem.containerCrit == y.containerCrit
+}
+
+func (eRABInformationList ERABInformationList) Equal(y ERABInformationList) bool {
+	if len(eRABInformationList) != len(y) {
+		return false
+	}
+	for i := range eRABInformationList {
+		if !(eRABInformationList[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (eRABInformationListItem ERABInformationListItem) Equal(y ERABInformationListItem) bool {
+	return eRABInformationListItem.ERABID == y.ERABID &&
+		(eRABInformationListItem.DLForwarding == nil) == (y.DLForwarding == nil) && (eRABInformationListItem.DLForwarding == nil || (*eRABInformationListItem.DLForwarding) == *y.DLForwarding) &&
+		(eRABInformationListItem.DAPSRequestInfo == nil) == (y.DAPSRequestInfo == nil) && (eRABInformationListItem.DAPSRequestInfo == nil || (*eRABInformationListItem.DAPSRequestInfo).Equal(*y.DAPSRequestInfo)) &&
+		(eRABInformationListItem.SourceTransportLayerAddress == nil) == (y.SourceTransportLayerAddress == nil) && (eRABInformationListItem.SourceTransportLayerAddress == nil || (*eRABInformationListItem.SourceTransportLayerAddress) == *y.SourceTransportLayerAddress) &&
+		(eRABInformationListItem.SecurityIndication == nil) == (y.SecurityIndication == nil) && (eRABInformationListItem.SecurityIndication == nil || (*eRABInformationListItem.SecurityIndication).Equal(*y.SecurityIndication)) &&
+		(eRABInformationListItem.SourceNodeTransportLayerAddress == nil) == (y.SourceNodeTransportLayerAddress == nil) && (eRABInformationListItem.SourceNodeTransportLayerAddress == nil || (*eRABInformationListItem.SourceNodeTransportLayerAddress) == *y.SourceNodeTransportLayerAddress) &&
+		eRABInformationListItem.iEExtensions == y.iEExtensions &&
+		eRABInformationListItem.extensions == y.extensions
+}
+
+func (eRABItem ERABItem) Equal(y ERABItem) bool {
+	return eRABItem.extensions == y.extensions &&
+		eRABItem.ERABID == y.ERABID &&
+		eRABItem.Cause.Equal(y.Cause) &&
+		eRABItem.iEExtensions == y.iEExtensions
+}
+
+func (eRABLevelQoSParameters ERABLevelQoSParameters) Equal(y ERABLevelQoSParameters) bool {
+	return eRABLevelQoSParameters.QCI == y.QCI &&
+		eRABLevelQoSParameters.ARP.Equal(y.ARP) &&
+		(eRABLevelQoSParameters.GBR == nil) == (y.GBR == nil) && (eRABLevelQoSParameters.GBR == nil || (*eRABLevelQoSParameters.GBR).Equal(*y.GBR)) &&
+		(eRABLevelQoSParameters.DownlinkPacketLossRate == nil) == (y.DownlinkPacketLossRate == nil) && (eRABLevelQoSParameters.DownlinkPacketLossRate == nil || (*eRABLevelQoSParameters.DownlinkPacketLossRate) == *y.DownlinkPacketLossRate) &&
+		(eRABLevelQoSParameters.UplinkPacketLossRate == nil) == (y.UplinkPacketLossRate == nil) && (eRABLevelQoSParameters.UplinkPacketLossRate == nil || (*eRABLevelQoSParameters.UplinkPacketLossRate) == *y.UplinkPacketLossRate) &&
+		eRABLevelQoSParameters.iEExtensions == y.iEExtensions &&
+		eRABLevelQoSParameters.extensions == y.extensions
+}
+
+func (eRABModificationConfirm ERABModificationConfirm) Equal(y ERABModificationConfirm) bool {
+	return (eRABModificationConfirm.MMEUES1APID == nil) == (y.MMEUES1APID == nil) && (eRABModificationConfirm.MMEUES1APID == nil || (*eRABModificationConfirm.MMEUES1APID) == *y.MMEUES1APID) &&
+		(eRABModificationConfirm.ENBUES1APID == nil) == (y.ENBUES1APID == nil) && (eRABModificationConfirm.ENBUES1APID == nil || (*eRABModificationConfirm.ENBUES1APID) == *y.ENBUES1APID) &&
+		slices.Equal(eRABModificationConfirm.ModifiedERABs, y.ModifiedERABs) &&
+		slices.EqualFunc(eRABModificationConfirm.FailedToModify, y.FailedToModify, ERABItem.Equal) &&
+		slices.EqualFunc(eRABModificationConfirm.ToBeReleased, y.ToBeReleased, ERABItem.Equal) &&
+		(eRABModificationConfirm.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (eRABModificationConfirm.CriticalityDiagnostics == nil || (*eRABModificationConfirm.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		eRABModificationConfirm.messageMeta.Equal(y.messageMeta)
+}
+
+func (eRABModificationIndication ERABModificationIndication) Equal(y ERABModificationIndication) bool {
+	return eRABModificationIndication.MMEUES1APID == y.MMEUES1APID &&
+		eRABModificationIndication.ENBUES1APID == y.ENBUES1APID &&
+		eRABModificationIndication.ToBeModified.Equal(y.ToBeModified) &&
+		eRABModificationIndication.NotToBeModified.Equal(y.NotToBeModified) &&
+		(eRABModificationIndication.UserLocationInformation == nil) == (y.UserLocationInformation == nil) && (eRABModificationIndication.UserLocationInformation == nil || (*eRABModificationIndication.UserLocationInformation).Equal(*y.UserLocationInformation)) &&
+		(eRABModificationIndication.TunnelInformationForBBF == nil) == (y.TunnelInformationForBBF == nil) && (eRABModificationIndication.TunnelInformationForBBF == nil || (*eRABModificationIndication.TunnelInformationForBBF).Equal(*y.TunnelInformationForBBF)) &&
+		eRABModificationIndication.messageMeta.Equal(y.messageMeta)
+}
+
+func (eRABModifyItemBearerModRes ERABModifyItemBearerModRes) Equal(y ERABModifyItemBearerModRes) bool {
+	return eRABModifyItemBearerModRes == y
+}
+
+func (eRABModifyRequest ERABModifyRequest) Equal(y ERABModifyRequest) bool {
+	return eRABModifyRequest.MMEUES1APID == y.MMEUES1APID &&
+		eRABModifyRequest.ENBUES1APID == y.ENBUES1APID &&
+		(eRABModifyRequest.UEAggregateMaximumBitRate == nil) == (y.UEAggregateMaximumBitRate == nil) && (eRABModifyRequest.UEAggregateMaximumBitRate == nil || (*eRABModifyRequest.UEAggregateMaximumBitRate).Equal(*y.UEAggregateMaximumBitRate)) &&
+		eRABModifyRequest.ERABToBeModified.Equal(y.ERABToBeModified) &&
+		eRABModifyRequest.messageMeta.Equal(y.messageMeta)
+}
+
+func (eRABModifyResponse ERABModifyResponse) Equal(y ERABModifyResponse) bool {
+	return (eRABModifyResponse.MMEUES1APID == nil) == (y.MMEUES1APID == nil) && (eRABModifyResponse.MMEUES1APID == nil || (*eRABModifyResponse.MMEUES1APID) == *y.MMEUES1APID) &&
+		(eRABModifyResponse.ENBUES1APID == nil) == (y.ENBUES1APID == nil) && (eRABModifyResponse.ENBUES1APID == nil || (*eRABModifyResponse.ENBUES1APID) == *y.ENBUES1APID) &&
+		slices.Equal(eRABModifyResponse.ERABModify, y.ERABModify) &&
+		slices.EqualFunc(eRABModifyResponse.ERABFailedToModify, y.ERABFailedToModify, ERABItem.Equal) &&
+		(eRABModifyResponse.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (eRABModifyResponse.CriticalityDiagnostics == nil || (*eRABModifyResponse.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		(eRABModifyResponse.UserLocationInformation == nil) == (y.UserLocationInformation == nil) && (eRABModifyResponse.UserLocationInformation == nil || (*eRABModifyResponse.UserLocationInformation).Equal(*y.UserLocationInformation)) &&
+		eRABModifyResponse.messageMeta.Equal(y.messageMeta)
+}
+
+func (eRABNotToBeModifiedListBearerModInd ERABNotToBeModifiedListBearerModInd) Equal(y ERABNotToBeModifiedListBearerModInd) bool {
+	if len(eRABNotToBeModifiedListBearerModInd) != len(y) {
+		return false
+	}
+	for i := range eRABNotToBeModifiedListBearerModInd {
+		if !(eRABNotToBeModifiedListBearerModInd[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (eRABReleaseCommand ERABReleaseCommand) Equal(y ERABReleaseCommand) bool {
+	return eRABReleaseCommand.MMEUES1APID == y.MMEUES1APID &&
+		eRABReleaseCommand.ENBUES1APID == y.ENBUES1APID &&
+		(eRABReleaseCommand.UEAggregateMaximumBitRate == nil) == (y.UEAggregateMaximumBitRate == nil) && (eRABReleaseCommand.UEAggregateMaximumBitRate == nil || (*eRABReleaseCommand.UEAggregateMaximumBitRate).Equal(*y.UEAggregateMaximumBitRate)) &&
+		slices.EqualFunc(eRABReleaseCommand.ERABToBeReleased, y.ERABToBeReleased, ERABItem.Equal) &&
+		eRABReleaseCommand.NASPDU.Equal(y.NASPDU) &&
+		eRABReleaseCommand.messageMeta.Equal(y.messageMeta)
+}
+
+func (eRABReleaseIndication ERABReleaseIndication) Equal(y ERABReleaseIndication) bool {
+	return eRABReleaseIndication.MMEUES1APID == y.MMEUES1APID &&
+		eRABReleaseIndication.ENBUES1APID == y.ENBUES1APID &&
+		slices.EqualFunc(eRABReleaseIndication.ERABReleased, y.ERABReleased, ERABItem.Equal) &&
+		(eRABReleaseIndication.UserLocationInformation == nil) == (y.UserLocationInformation == nil) && (eRABReleaseIndication.UserLocationInformation == nil || (*eRABReleaseIndication.UserLocationInformation).Equal(*y.UserLocationInformation)) &&
+		eRABReleaseIndication.messageMeta.Equal(y.messageMeta)
+}
+
+func (eRABReleaseItemBearerRelComp ERABReleaseItemBearerRelComp) Equal(y ERABReleaseItemBearerRelComp) bool {
+	return eRABReleaseItemBearerRelComp == y
+}
+
+func (eRABReleaseResponse ERABReleaseResponse) Equal(y ERABReleaseResponse) bool {
+	return (eRABReleaseResponse.MMEUES1APID == nil) == (y.MMEUES1APID == nil) && (eRABReleaseResponse.MMEUES1APID == nil || (*eRABReleaseResponse.MMEUES1APID) == *y.MMEUES1APID) &&
+		(eRABReleaseResponse.ENBUES1APID == nil) == (y.ENBUES1APID == nil) && (eRABReleaseResponse.ENBUES1APID == nil || (*eRABReleaseResponse.ENBUES1APID) == *y.ENBUES1APID) &&
+		slices.Equal(eRABReleaseResponse.ERABReleased, y.ERABReleased) &&
+		slices.EqualFunc(eRABReleaseResponse.ERABFailedToRelease, y.ERABFailedToRelease, ERABItem.Equal) &&
+		(eRABReleaseResponse.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (eRABReleaseResponse.CriticalityDiagnostics == nil || (*eRABReleaseResponse.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		(eRABReleaseResponse.UserLocationInformation == nil) == (y.UserLocationInformation == nil) && (eRABReleaseResponse.UserLocationInformation == nil || (*eRABReleaseResponse.UserLocationInformation).Equal(*y.UserLocationInformation)) &&
+		eRABReleaseResponse.messageMeta.Equal(y.messageMeta)
+}
+
+func (eRABSetupItemCtxtSURes ERABSetupItemCtxtSURes) Equal(y ERABSetupItemCtxtSURes) bool {
+	return eRABSetupItemCtxtSURes == y
+}
+
+func (eRABSetupListBearerSURes ERABSetupListBearerSURes) Equal(y ERABSetupListBearerSURes) bool {
+	if len(eRABSetupListBearerSURes) != len(y) {
+		return false
+	}
+	for i := range eRABSetupListBearerSURes {
+		if !(eRABSetupListBearerSURes[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (eRABSetupListCtxtSURes ERABSetupListCtxtSURes) Equal(y ERABSetupListCtxtSURes) bool {
+	if len(eRABSetupListCtxtSURes) != len(y) {
+		return false
+	}
+	for i := range eRABSetupListCtxtSURes {
+		if !(eRABSetupListCtxtSURes[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (eRABSetupRequest ERABSetupRequest) Equal(y ERABSetupRequest) bool {
+	return eRABSetupRequest.MMEUES1APID == y.MMEUES1APID &&
+		eRABSetupRequest.ENBUES1APID == y.ENBUES1APID &&
+		(eRABSetupRequest.UEAggregateMaximumBitRate == nil) == (y.UEAggregateMaximumBitRate == nil) && (eRABSetupRequest.UEAggregateMaximumBitRate == nil || (*eRABSetupRequest.UEAggregateMaximumBitRate).Equal(*y.UEAggregateMaximumBitRate)) &&
+		eRABSetupRequest.ERABToBeSetup.Equal(y.ERABToBeSetup) &&
+		eRABSetupRequest.messageMeta.Equal(y.messageMeta)
+}
+
+func (eRABSetupResponse ERABSetupResponse) Equal(y ERABSetupResponse) bool {
+	return (eRABSetupResponse.MMEUES1APID == nil) == (y.MMEUES1APID == nil) && (eRABSetupResponse.MMEUES1APID == nil || (*eRABSetupResponse.MMEUES1APID) == *y.MMEUES1APID) &&
+		(eRABSetupResponse.ENBUES1APID == nil) == (y.ENBUES1APID == nil) && (eRABSetupResponse.ENBUES1APID == nil || (*eRABSetupResponse.ENBUES1APID) == *y.ENBUES1APID) &&
+		eRABSetupResponse.ERABSetup.Equal(y.ERABSetup) &&
+		slices.EqualFunc(eRABSetupResponse.ERABFailedToSetup, y.ERABFailedToSetup, ERABItem.Equal) &&
+		(eRABSetupResponse.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (eRABSetupResponse.CriticalityDiagnostics == nil || (*eRABSetupResponse.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		(eRABSetupResponse.UserLocationInformation == nil) == (y.UserLocationInformation == nil) && (eRABSetupResponse.UserLocationInformation == nil || (*eRABSetupResponse.UserLocationInformation).Equal(*y.UserLocationInformation)) &&
+		eRABSetupResponse.messageMeta.Equal(y.messageMeta)
+}
+
+func (eRABSubjecttoDataForwardingList ERABSubjecttoDataForwardingList) Equal(y ERABSubjecttoDataForwardingList) bool {
+	if len(eRABSubjecttoDataForwardingList) != len(y) {
+		return false
+	}
+	for i := range eRABSubjecttoDataForwardingList {
+		if !(eRABSubjecttoDataForwardingList[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (eRABToBeModifiedItemBearerModInd ERABToBeModifiedItemBearerModInd) Equal(y ERABToBeModifiedItemBearerModInd) bool {
+	return eRABToBeModifiedItemBearerModInd == y
+}
+
+func (eRABToBeModifiedItemBearerModReq ERABToBeModifiedItemBearerModReq) Equal(y ERABToBeModifiedItemBearerModReq) bool {
+	return eRABToBeModifiedItemBearerModReq.ERABID == y.ERABID &&
+		eRABToBeModifiedItemBearerModReq.QoS.Equal(y.QoS) &&
+		eRABToBeModifiedItemBearerModReq.NASPDU.Equal(y.NASPDU) &&
+		(eRABToBeModifiedItemBearerModReq.TransportInformation == nil) == (y.TransportInformation == nil) && (eRABToBeModifiedItemBearerModReq.TransportInformation == nil || (*eRABToBeModifiedItemBearerModReq.TransportInformation).Equal(*y.TransportInformation)) &&
+		eRABToBeModifiedItemBearerModReq.iEExtensions == y.iEExtensions &&
+		eRABToBeModifiedItemBearerModReq.extensions == y.extensions &&
+		eRABToBeModifiedItemBearerModReq.containerCrit == y.containerCrit
+}
+
+func (eRABToBeModifiedListBearerModInd ERABToBeModifiedListBearerModInd) Equal(y ERABToBeModifiedListBearerModInd) bool {
+	if len(eRABToBeModifiedListBearerModInd) != len(y) {
+		return false
+	}
+	for i := range eRABToBeModifiedListBearerModInd {
+		if !(eRABToBeModifiedListBearerModInd[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (eRABToBeModifiedListBearerModReq ERABToBeModifiedListBearerModReq) Equal(y ERABToBeModifiedListBearerModReq) bool {
+	if len(eRABToBeModifiedListBearerModReq) != len(y) {
+		return false
+	}
+	for i := range eRABToBeModifiedListBearerModReq {
+		if !(eRABToBeModifiedListBearerModReq[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (eRABToBeSetupItemBearerSUReq ERABToBeSetupItemBearerSUReq) Equal(y ERABToBeSetupItemBearerSUReq) bool {
+	return eRABToBeSetupItemBearerSUReq.ERABID == y.ERABID &&
+		eRABToBeSetupItemBearerSUReq.QoS.Equal(y.QoS) &&
+		eRABToBeSetupItemBearerSUReq.TransportLayerAddress == y.TransportLayerAddress &&
+		eRABToBeSetupItemBearerSUReq.GTPTEID == y.GTPTEID &&
+		eRABToBeSetupItemBearerSUReq.NASPDU.Equal(y.NASPDU) &&
+		(eRABToBeSetupItemBearerSUReq.CorrelationID == nil) == (y.CorrelationID == nil) && (eRABToBeSetupItemBearerSUReq.CorrelationID == nil || (*eRABToBeSetupItemBearerSUReq.CorrelationID) == *y.CorrelationID) &&
+		(eRABToBeSetupItemBearerSUReq.SIPTOCorrelationID == nil) == (y.SIPTOCorrelationID == nil) && (eRABToBeSetupItemBearerSUReq.SIPTOCorrelationID == nil || (*eRABToBeSetupItemBearerSUReq.SIPTOCorrelationID) == *y.SIPTOCorrelationID) &&
+		(eRABToBeSetupItemBearerSUReq.BearerType == nil) == (y.BearerType == nil) && (eRABToBeSetupItemBearerSUReq.BearerType == nil || (*eRABToBeSetupItemBearerSUReq.BearerType) == *y.BearerType) &&
+		(eRABToBeSetupItemBearerSUReq.EthernetType == nil) == (y.EthernetType == nil) && (eRABToBeSetupItemBearerSUReq.EthernetType == nil || (*eRABToBeSetupItemBearerSUReq.EthernetType) == *y.EthernetType) &&
+		(eRABToBeSetupItemBearerSUReq.SecurityIndication == nil) == (y.SecurityIndication == nil) && (eRABToBeSetupItemBearerSUReq.SecurityIndication == nil || (*eRABToBeSetupItemBearerSUReq.SecurityIndication).Equal(*y.SecurityIndication)) &&
+		eRABToBeSetupItemBearerSUReq.iEExtensions == y.iEExtensions &&
+		eRABToBeSetupItemBearerSUReq.extensions == y.extensions &&
+		eRABToBeSetupItemBearerSUReq.containerCrit == y.containerCrit
+}
+
+func (eRABToBeSetupItemCtxtSUReq ERABToBeSetupItemCtxtSUReq) Equal(y ERABToBeSetupItemCtxtSUReq) bool {
+	return eRABToBeSetupItemCtxtSUReq.ERABID == y.ERABID &&
+		eRABToBeSetupItemCtxtSUReq.QoS.Equal(y.QoS) &&
+		eRABToBeSetupItemCtxtSUReq.TransportLayerAddress == y.TransportLayerAddress &&
+		eRABToBeSetupItemCtxtSUReq.GTPTEID == y.GTPTEID &&
+		(eRABToBeSetupItemCtxtSUReq.NASPDU == nil) == (y.NASPDU == nil) && eRABToBeSetupItemCtxtSUReq.NASPDU.Equal(y.NASPDU) &&
+		(eRABToBeSetupItemCtxtSUReq.CorrelationID == nil) == (y.CorrelationID == nil) && (eRABToBeSetupItemCtxtSUReq.CorrelationID == nil || (*eRABToBeSetupItemCtxtSUReq.CorrelationID) == *y.CorrelationID) &&
+		(eRABToBeSetupItemCtxtSUReq.SIPTOCorrelationID == nil) == (y.SIPTOCorrelationID == nil) && (eRABToBeSetupItemCtxtSUReq.SIPTOCorrelationID == nil || (*eRABToBeSetupItemCtxtSUReq.SIPTOCorrelationID) == *y.SIPTOCorrelationID) &&
+		(eRABToBeSetupItemCtxtSUReq.BearerType == nil) == (y.BearerType == nil) && (eRABToBeSetupItemCtxtSUReq.BearerType == nil || (*eRABToBeSetupItemCtxtSUReq.BearerType) == *y.BearerType) &&
+		(eRABToBeSetupItemCtxtSUReq.EthernetType == nil) == (y.EthernetType == nil) && (eRABToBeSetupItemCtxtSUReq.EthernetType == nil || (*eRABToBeSetupItemCtxtSUReq.EthernetType) == *y.EthernetType) &&
+		(eRABToBeSetupItemCtxtSUReq.SecurityIndication == nil) == (y.SecurityIndication == nil) && (eRABToBeSetupItemCtxtSUReq.SecurityIndication == nil || (*eRABToBeSetupItemCtxtSUReq.SecurityIndication).Equal(*y.SecurityIndication)) &&
+		eRABToBeSetupItemCtxtSUReq.iEExtensions == y.iEExtensions &&
+		eRABToBeSetupItemCtxtSUReq.extensions == y.extensions &&
+		eRABToBeSetupItemCtxtSUReq.containerCrit == y.containerCrit
+}
+
+func (eRABToBeSetupItemHOReq ERABToBeSetupItemHOReq) Equal(y ERABToBeSetupItemHOReq) bool {
+	return eRABToBeSetupItemHOReq.ERABID == y.ERABID &&
+		eRABToBeSetupItemHOReq.TransportLayerAddress == y.TransportLayerAddress &&
+		eRABToBeSetupItemHOReq.GTPTEID == y.GTPTEID &&
+		eRABToBeSetupItemHOReq.QoS.Equal(y.QoS) &&
+		(eRABToBeSetupItemHOReq.DataForwardingNotPossible == nil) == (y.DataForwardingNotPossible == nil) && (eRABToBeSetupItemHOReq.DataForwardingNotPossible == nil || (*eRABToBeSetupItemHOReq.DataForwardingNotPossible) == *y.DataForwardingNotPossible) &&
+		(eRABToBeSetupItemHOReq.BearerType == nil) == (y.BearerType == nil) && (eRABToBeSetupItemHOReq.BearerType == nil || (*eRABToBeSetupItemHOReq.BearerType) == *y.BearerType) &&
+		(eRABToBeSetupItemHOReq.EthernetType == nil) == (y.EthernetType == nil) && (eRABToBeSetupItemHOReq.EthernetType == nil || (*eRABToBeSetupItemHOReq.EthernetType) == *y.EthernetType) &&
+		(eRABToBeSetupItemHOReq.SecurityIndication == nil) == (y.SecurityIndication == nil) && (eRABToBeSetupItemHOReq.SecurityIndication == nil || (*eRABToBeSetupItemHOReq.SecurityIndication).Equal(*y.SecurityIndication)) &&
+		eRABToBeSetupItemHOReq.iEExtensions == y.iEExtensions &&
+		eRABToBeSetupItemHOReq.extensions == y.extensions &&
+		eRABToBeSetupItemHOReq.containerCrit == y.containerCrit
+}
+
+func (eRABToBeSetupListBearerSUReq ERABToBeSetupListBearerSUReq) Equal(y ERABToBeSetupListBearerSUReq) bool {
+	if len(eRABToBeSetupListBearerSUReq) != len(y) {
+		return false
+	}
+	for i := range eRABToBeSetupListBearerSUReq {
+		if !(eRABToBeSetupListBearerSUReq[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (eRABToBeSetupListCtxtSUReq ERABToBeSetupListCtxtSUReq) Equal(y ERABToBeSetupListCtxtSUReq) bool {
+	if len(eRABToBeSetupListCtxtSUReq) != len(y) {
+		return false
+	}
+	for i := range eRABToBeSetupListCtxtSUReq {
+		if !(eRABToBeSetupListCtxtSUReq[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (eRABToBeSetupListHOReq ERABToBeSetupListHOReq) Equal(y ERABToBeSetupListHOReq) bool {
+	if len(eRABToBeSetupListHOReq) != len(y) {
+		return false
+	}
+	for i := range eRABToBeSetupListHOReq {
+		if !(eRABToBeSetupListHOReq[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (eRABToBeSwitchedDLItem ERABToBeSwitchedDLItem) Equal(y ERABToBeSwitchedDLItem) bool {
+	return eRABToBeSwitchedDLItem.ERABID == y.ERABID &&
+		eRABToBeSwitchedDLItem.TransportLayerAddress == y.TransportLayerAddress &&
+		eRABToBeSwitchedDLItem.GTPTEID == y.GTPTEID &&
+		(eRABToBeSwitchedDLItem.SecurityIndication == nil) == (y.SecurityIndication == nil) && (eRABToBeSwitchedDLItem.SecurityIndication == nil || (*eRABToBeSwitchedDLItem.SecurityIndication).Equal(*y.SecurityIndication)) &&
+		eRABToBeSwitchedDLItem.iEExtensions == y.iEExtensions &&
+		eRABToBeSwitchedDLItem.extensions == y.extensions &&
+		eRABToBeSwitchedDLItem.containerCrit == y.containerCrit
+}
+
+func (eRABToBeSwitchedDLList ERABToBeSwitchedDLList) Equal(y ERABToBeSwitchedDLList) bool {
+	if len(eRABToBeSwitchedDLList) != len(y) {
+		return false
+	}
+	for i := range eRABToBeSwitchedDLList {
+		if !(eRABToBeSwitchedDLList[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (eRABToBeSwitchedULItem ERABToBeSwitchedULItem) Equal(y ERABToBeSwitchedULItem) bool {
+	return eRABToBeSwitchedULItem == y
+}
+
+func (eRABToBeSwitchedULList ERABToBeSwitchedULList) Equal(y ERABToBeSwitchedULList) bool {
+	if len(eRABToBeSwitchedULList) != len(y) {
+		return false
+	}
+	for i := range eRABToBeSwitchedULList {
+		if !(eRABToBeSwitchedULList[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (eUTRANCGI EUTRANCGI) Equal(y EUTRANCGI) bool {
+	return eUTRANCGI == y
+}
+
+func (emergencyAreaIDBroadcast EmergencyAreaIDBroadcast) Equal(y EmergencyAreaIDBroadcast) bool {
+	if len(emergencyAreaIDBroadcast) != len(y) {
+		return false
+	}
+	for i := range emergencyAreaIDBroadcast {
+		if !(emergencyAreaIDBroadcast[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (emergencyAreaIDBroadcastItem EmergencyAreaIDBroadcastItem) Equal(y EmergencyAreaIDBroadcastItem) bool {
+	return emergencyAreaIDBroadcastItem.extensions == y.extensions &&
+		emergencyAreaIDBroadcastItem.EmergencyAreaID == y.EmergencyAreaID &&
+		slices.Equal(emergencyAreaIDBroadcastItem.CompletedCellInEAI, y.CompletedCellInEAI) &&
+		emergencyAreaIDBroadcastItem.iEExtensions == y.iEExtensions
+}
+
+func (emergencyAreaIDCancelled EmergencyAreaIDCancelled) Equal(y EmergencyAreaIDCancelled) bool {
+	if len(emergencyAreaIDCancelled) != len(y) {
+		return false
+	}
+	for i := range emergencyAreaIDCancelled {
+		if !(emergencyAreaIDCancelled[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (emergencyAreaIDCancelledItem EmergencyAreaIDCancelledItem) Equal(y EmergencyAreaIDCancelledItem) bool {
+	return emergencyAreaIDCancelledItem.extensions == y.extensions &&
+		emergencyAreaIDCancelledItem.EmergencyAreaID == y.EmergencyAreaID &&
+		slices.Equal(emergencyAreaIDCancelledItem.CancelledCellInEAI, y.CancelledCellInEAI) &&
+		emergencyAreaIDCancelledItem.iEExtensions == y.iEExtensions
+}
+
+func (emergencyAreaIDList EmergencyAreaIDList) Equal(y EmergencyAreaIDList) bool {
+	if len(emergencyAreaIDList) != len(y) {
+		return false
+	}
+	for i := range emergencyAreaIDList {
+		if !(emergencyAreaIDList[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (errorIndication ErrorIndication) Equal(y ErrorIndication) bool {
+	return (errorIndication.MMEUES1APID == nil) == (y.MMEUES1APID == nil) && (errorIndication.MMEUES1APID == nil || (*errorIndication.MMEUES1APID) == *y.MMEUES1APID) &&
+		(errorIndication.ENBUES1APID == nil) == (y.ENBUES1APID == nil) && (errorIndication.ENBUES1APID == nil || (*errorIndication.ENBUES1APID) == *y.ENBUES1APID) &&
+		(errorIndication.Cause == nil) == (y.Cause == nil) && (errorIndication.Cause == nil || (*errorIndication.Cause).Equal(*y.Cause)) &&
+		(errorIndication.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (errorIndication.CriticalityDiagnostics == nil || (*errorIndication.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		(errorIndication.STMSI == nil) == (y.STMSI == nil) && (errorIndication.STMSI == nil || (*errorIndication.STMSI).Equal(*y.STMSI)) &&
+		errorIndication.messageMeta.Equal(y.messageMeta)
+}
+
+func (fiveGSTAI FiveGSTAI) Equal(y FiveGSTAI) bool {
+	return fiveGSTAI == y
+}
+
+func (forbiddenLACs ForbiddenLACs) Equal(y ForbiddenLACs) bool {
+	if len(forbiddenLACs) != len(y) {
+		return false
+	}
+	for i := range forbiddenLACs {
+		if !(forbiddenLACs[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (forbiddenLAs ForbiddenLAs) Equal(y ForbiddenLAs) bool {
+	if len(forbiddenLAs) != len(y) {
+		return false
+	}
+	for i := range forbiddenLAs {
+		if !(forbiddenLAs[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (forbiddenLAsItem ForbiddenLAsItem) Equal(y ForbiddenLAsItem) bool {
+	return forbiddenLAsItem.extensions == y.extensions &&
+		forbiddenLAsItem.PLMNIdentity == y.PLMNIdentity &&
+		forbiddenLAsItem.ForbiddenLACs.Equal(y.ForbiddenLACs) &&
+		forbiddenLAsItem.iEExtensions == y.iEExtensions
+}
+
+func (forbiddenTACs ForbiddenTACs) Equal(y ForbiddenTACs) bool {
+	if len(forbiddenTACs) != len(y) {
+		return false
+	}
+	for i := range forbiddenTACs {
+		if !(forbiddenTACs[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (forbiddenTAs ForbiddenTAs) Equal(y ForbiddenTAs) bool {
+	if len(forbiddenTAs) != len(y) {
+		return false
+	}
+	for i := range forbiddenTAs {
+		if !(forbiddenTAs[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (forbiddenTAsItem ForbiddenTAsItem) Equal(y ForbiddenTAsItem) bool {
+	return forbiddenTAsItem.extensions == y.extensions &&
+		forbiddenTAsItem.PLMNIdentity == y.PLMNIdentity &&
+		forbiddenTAsItem.ForbiddenTACs.Equal(y.ForbiddenTACs) &&
+		forbiddenTAsItem.iEExtensions == y.iEExtensions
+}
+
+func (gBRQosInformation GBRQosInformation) Equal(y GBRQosInformation) bool {
+	return gBRQosInformation.MaximumBitrateDL == y.MaximumBitrateDL &&
+		gBRQosInformation.MaximumBitrateUL == y.MaximumBitrateUL &&
+		gBRQosInformation.GuaranteedBitrateDL == y.GuaranteedBitrateDL &&
+		gBRQosInformation.GuaranteedBitrateUL == y.GuaranteedBitrateUL &&
+		(gBRQosInformation.ExtendedMaximumBitrateDL == nil) == (y.ExtendedMaximumBitrateDL == nil) && (gBRQosInformation.ExtendedMaximumBitrateDL == nil || (*gBRQosInformation.ExtendedMaximumBitrateDL) == *y.ExtendedMaximumBitrateDL) &&
+		(gBRQosInformation.ExtendedMaximumBitrateUL == nil) == (y.ExtendedMaximumBitrateUL == nil) && (gBRQosInformation.ExtendedMaximumBitrateUL == nil || (*gBRQosInformation.ExtendedMaximumBitrateUL) == *y.ExtendedMaximumBitrateUL) &&
+		(gBRQosInformation.ExtendedGuaranteedBitrateDL == nil) == (y.ExtendedGuaranteedBitrateDL == nil) && (gBRQosInformation.ExtendedGuaranteedBitrateDL == nil || (*gBRQosInformation.ExtendedGuaranteedBitrateDL) == *y.ExtendedGuaranteedBitrateDL) &&
+		(gBRQosInformation.ExtendedGuaranteedBitrateUL == nil) == (y.ExtendedGuaranteedBitrateUL == nil) && (gBRQosInformation.ExtendedGuaranteedBitrateUL == nil || (*gBRQosInformation.ExtendedGuaranteedBitrateUL) == *y.ExtendedGuaranteedBitrateUL) &&
+		gBRQosInformation.iEExtensions == y.iEExtensions &&
+		gBRQosInformation.extensions == y.extensions
+}
+
+func (gNB GNB) Equal(y GNB) bool {
+	return gNB.extensions == y.extensions &&
+		gNB.GlobalGNBID.Equal(y.GlobalGNBID) &&
+		gNB.iEExtensions == y.iEExtensions
+}
+
+func (gNBID GNBID) Equal(y GNBID) bool {
+	return gNBID == y
+}
+
+func (gNBIdentity GNBIdentity) Equal(y GNBIdentity) bool {
+	return (gNBIdentity.GNBID == nil) == (y.GNBID == nil) && (gNBIdentity.GNBID == nil || (*gNBIdentity.GNBID).Equal(*y.GNBID)) &&
+		(gNBIdentity.Ext == nil) == (y.Ext == nil) && (gNBIdentity.Ext == nil || (*gNBIdentity.Ext) == *y.Ext)
+}
+
+func (gUMMEI GUMMEI) Equal(y GUMMEI) bool {
+	return gUMMEI == y
+}
+
+func (globalENBID GlobalENBID) Equal(y GlobalENBID) bool {
+	return globalENBID.extensions == y.extensions &&
+		globalENBID.PLMNIdentity == y.PLMNIdentity &&
+		globalENBID.ENBID.Equal(y.ENBID) &&
+		globalENBID.iEExtensions == y.iEExtensions
+}
+
+func (globalGNBID GlobalGNBID) Equal(y GlobalGNBID) bool {
+	return globalGNBID.extensions == y.extensions &&
+		globalGNBID.PLMNIdentity == y.PLMNIdentity &&
+		globalGNBID.GNBID.Equal(y.GNBID) &&
+		globalGNBID.iEExtensions == y.iEExtensions
+}
+
+func (globalRANNodeID GlobalRANNodeID) Equal(y GlobalRANNodeID) bool {
+	return (globalRANNodeID.GNB == nil) == (y.GNB == nil) && (globalRANNodeID.GNB == nil || (*globalRANNodeID.GNB).Equal(*y.GNB)) &&
+		(globalRANNodeID.NgENB == nil) == (y.NgENB == nil) && (globalRANNodeID.NgENB == nil || (*globalRANNodeID.NgENB).Equal(*y.NgENB)) &&
+		(globalRANNodeID.Ext == nil) == (y.Ext == nil) && (globalRANNodeID.Ext == nil || (*globalRANNodeID.Ext) == *y.Ext)
+}
+
+func (handoverCancel HandoverCancel) Equal(y HandoverCancel) bool {
+	return handoverCancel.MMEUES1APID == y.MMEUES1APID &&
+		handoverCancel.ENBUES1APID == y.ENBUES1APID &&
+		(handoverCancel.Cause == nil) == (y.Cause == nil) && (handoverCancel.Cause == nil || (*handoverCancel.Cause).Equal(*y.Cause)) &&
+		handoverCancel.messageMeta.Equal(y.messageMeta)
+}
+
+func (handoverCancelAcknowledge HandoverCancelAcknowledge) Equal(y HandoverCancelAcknowledge) bool {
+	return (handoverCancelAcknowledge.MMEUES1APID == nil) == (y.MMEUES1APID == nil) && (handoverCancelAcknowledge.MMEUES1APID == nil || (*handoverCancelAcknowledge.MMEUES1APID) == *y.MMEUES1APID) &&
+		(handoverCancelAcknowledge.ENBUES1APID == nil) == (y.ENBUES1APID == nil) && (handoverCancelAcknowledge.ENBUES1APID == nil || (*handoverCancelAcknowledge.ENBUES1APID) == *y.ENBUES1APID) &&
+		(handoverCancelAcknowledge.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (handoverCancelAcknowledge.CriticalityDiagnostics == nil || (*handoverCancelAcknowledge.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		handoverCancelAcknowledge.messageMeta.Equal(y.messageMeta)
+}
+
+func (handoverCommand HandoverCommand) Equal(y HandoverCommand) bool {
+	return handoverCommand.MMEUES1APID == y.MMEUES1APID &&
+		handoverCommand.ENBUES1APID == y.ENBUES1APID &&
+		handoverCommand.HandoverType == y.HandoverType &&
+		handoverCommand.NASSecurityParametersfromEUTRAN.Equal(y.NASSecurityParametersfromEUTRAN) &&
+		handoverCommand.ERABSubjecttoDataForwarding.Equal(y.ERABSubjecttoDataForwarding) &&
+		slices.EqualFunc(handoverCommand.ERABToRelease, y.ERABToRelease, ERABItem.Equal) &&
+		handoverCommand.TargetToSource.Equal(y.TargetToSource) &&
+		(handoverCommand.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (handoverCommand.CriticalityDiagnostics == nil || (*handoverCommand.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		handoverCommand.messageMeta.Equal(y.messageMeta)
+}
+
+func (handoverFailure HandoverFailure) Equal(y HandoverFailure) bool {
+	return (handoverFailure.MMEUES1APID == nil) == (y.MMEUES1APID == nil) && (handoverFailure.MMEUES1APID == nil || (*handoverFailure.MMEUES1APID) == *y.MMEUES1APID) &&
+		(handoverFailure.Cause == nil) == (y.Cause == nil) && (handoverFailure.Cause == nil || (*handoverFailure.Cause).Equal(*y.Cause)) &&
+		(handoverFailure.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (handoverFailure.CriticalityDiagnostics == nil || (*handoverFailure.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		handoverFailure.messageMeta.Equal(y.messageMeta)
+}
+
+func (handoverNotify HandoverNotify) Equal(y HandoverNotify) bool {
+	return handoverNotify.MMEUES1APID == y.MMEUES1APID &&
+		handoverNotify.ENBUES1APID == y.ENBUES1APID &&
+		(handoverNotify.EUTRANCGI == nil) == (y.EUTRANCGI == nil) && (handoverNotify.EUTRANCGI == nil || (*handoverNotify.EUTRANCGI).Equal(*y.EUTRANCGI)) &&
+		(handoverNotify.TAI == nil) == (y.TAI == nil) && (handoverNotify.TAI == nil || (*handoverNotify.TAI).Equal(*y.TAI)) &&
+		(handoverNotify.TunnelInformationForBBF == nil) == (y.TunnelInformationForBBF == nil) && (handoverNotify.TunnelInformationForBBF == nil || (*handoverNotify.TunnelInformationForBBF).Equal(*y.TunnelInformationForBBF)) &&
+		handoverNotify.messageMeta.Equal(y.messageMeta)
+}
+
+func (handoverPreparationFailure HandoverPreparationFailure) Equal(y HandoverPreparationFailure) bool {
+	return (handoverPreparationFailure.MMEUES1APID == nil) == (y.MMEUES1APID == nil) && (handoverPreparationFailure.MMEUES1APID == nil || (*handoverPreparationFailure.MMEUES1APID) == *y.MMEUES1APID) &&
+		(handoverPreparationFailure.ENBUES1APID == nil) == (y.ENBUES1APID == nil) && (handoverPreparationFailure.ENBUES1APID == nil || (*handoverPreparationFailure.ENBUES1APID) == *y.ENBUES1APID) &&
+		(handoverPreparationFailure.Cause == nil) == (y.Cause == nil) && (handoverPreparationFailure.Cause == nil || (*handoverPreparationFailure.Cause).Equal(*y.Cause)) &&
+		(handoverPreparationFailure.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (handoverPreparationFailure.CriticalityDiagnostics == nil || (*handoverPreparationFailure.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		handoverPreparationFailure.messageMeta.Equal(y.messageMeta)
+}
+
+func (handoverRequest HandoverRequest) Equal(y HandoverRequest) bool {
+	return handoverRequest.MMEUES1APID == y.MMEUES1APID &&
+		handoverRequest.HandoverType == y.HandoverType &&
+		(handoverRequest.Cause == nil) == (y.Cause == nil) && (handoverRequest.Cause == nil || (*handoverRequest.Cause).Equal(*y.Cause)) &&
+		handoverRequest.UEAMBR.Equal(y.UEAMBR) &&
+		handoverRequest.ERABToBeSetup.Equal(y.ERABToBeSetup) &&
+		handoverRequest.SourceToTarget.Equal(y.SourceToTarget) &&
+		handoverRequest.UESecurityCapabilities.Equal(y.UESecurityCapabilities) &&
+		(handoverRequest.HandoverRestrictionList == nil) == (y.HandoverRestrictionList == nil) && (handoverRequest.HandoverRestrictionList == nil || (*handoverRequest.HandoverRestrictionList).Equal(*y.HandoverRestrictionList)) &&
+		(handoverRequest.TraceActivation == nil) == (y.TraceActivation == nil) && (handoverRequest.TraceActivation == nil || (*handoverRequest.TraceActivation).Equal(*y.TraceActivation)) &&
+		handoverRequest.SecurityContext.Equal(y.SecurityContext) &&
+		handoverRequest.NASSecurityParameterstoEUTRAN.Equal(y.NASSecurityParameterstoEUTRAN) &&
+		(handoverRequest.GUMMEI == nil) == (y.GUMMEI == nil) && (handoverRequest.GUMMEI == nil || (*handoverRequest.GUMMEI).Equal(*y.GUMMEI)) &&
+		(handoverRequest.MMEUES1APID2 == nil) == (y.MMEUES1APID2 == nil) && (handoverRequest.MMEUES1APID2 == nil || (*handoverRequest.MMEUES1APID2) == *y.MMEUES1APID2) &&
+		(handoverRequest.TimeRefDistribution == nil) == (y.TimeRefDistribution == nil) && (handoverRequest.TimeRefDistribution == nil || (*handoverRequest.TimeRefDistribution) == *y.TimeRefDistribution) &&
+		handoverRequest.messageMeta.Equal(y.messageMeta)
+}
+
+func (handoverRequestAcknowledge HandoverRequestAcknowledge) Equal(y HandoverRequestAcknowledge) bool {
+	return (handoverRequestAcknowledge.MMEUES1APID == nil) == (y.MMEUES1APID == nil) && (handoverRequestAcknowledge.MMEUES1APID == nil || (*handoverRequestAcknowledge.MMEUES1APID) == *y.MMEUES1APID) &&
+		(handoverRequestAcknowledge.ENBUES1APID == nil) == (y.ENBUES1APID == nil) && (handoverRequestAcknowledge.ENBUES1APID == nil || (*handoverRequestAcknowledge.ENBUES1APID) == *y.ENBUES1APID) &&
+		handoverRequestAcknowledge.ERABAdmitted.Equal(y.ERABAdmitted) &&
+		slices.EqualFunc(handoverRequestAcknowledge.ERABFailedToSetup, y.ERABFailedToSetup, ERABItem.Equal) &&
+		handoverRequestAcknowledge.TargetToSource.Equal(y.TargetToSource) &&
+		(handoverRequestAcknowledge.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (handoverRequestAcknowledge.CriticalityDiagnostics == nil || (*handoverRequestAcknowledge.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		handoverRequestAcknowledge.messageMeta.Equal(y.messageMeta)
+}
+
+func (handoverRequired HandoverRequired) Equal(y HandoverRequired) bool {
+	return handoverRequired.MMEUES1APID == y.MMEUES1APID &&
+		handoverRequired.ENBUES1APID == y.ENBUES1APID &&
+		handoverRequired.HandoverType == y.HandoverType &&
+		(handoverRequired.Cause == nil) == (y.Cause == nil) && (handoverRequired.Cause == nil || (*handoverRequired.Cause).Equal(*y.Cause)) &&
+		handoverRequired.TargetID.Equal(y.TargetID) &&
+		(handoverRequired.DirectForwardingPathAvailability == nil) == (y.DirectForwardingPathAvailability == nil) && (handoverRequired.DirectForwardingPathAvailability == nil || (*handoverRequired.DirectForwardingPathAvailability) == *y.DirectForwardingPathAvailability) &&
+		handoverRequired.SourceToTarget.Equal(y.SourceToTarget) &&
+		handoverRequired.messageMeta.Equal(y.messageMeta)
+}
+
+func (handoverRestrictionList HandoverRestrictionList) Equal(y HandoverRestrictionList) bool {
+	return handoverRestrictionList.extensions == y.extensions &&
+		handoverRestrictionList.ServingPLMN == y.ServingPLMN &&
+		(handoverRestrictionList.EquivalentPLMNs == nil) == (y.EquivalentPLMNs == nil) && handoverRestrictionList.EquivalentPLMNs.Equal(y.EquivalentPLMNs) &&
+		(handoverRestrictionList.ForbiddenTAs == nil) == (y.ForbiddenTAs == nil) && handoverRestrictionList.ForbiddenTAs.Equal(y.ForbiddenTAs) &&
+		(handoverRestrictionList.ForbiddenLAs == nil) == (y.ForbiddenLAs == nil) && handoverRestrictionList.ForbiddenLAs.Equal(y.ForbiddenLAs) &&
+		(handoverRestrictionList.ForbiddenInterRATs == nil) == (y.ForbiddenInterRATs == nil) && (handoverRestrictionList.ForbiddenInterRATs == nil || (*handoverRestrictionList.ForbiddenInterRATs) == *y.ForbiddenInterRATs) &&
+		(handoverRestrictionList.NRrestrictioninEPSasSecondaryRAT == nil) == (y.NRrestrictioninEPSasSecondaryRAT == nil) && (handoverRestrictionList.NRrestrictioninEPSasSecondaryRAT == nil || (*handoverRestrictionList.NRrestrictioninEPSasSecondaryRAT) == *y.NRrestrictioninEPSasSecondaryRAT) &&
+		(handoverRestrictionList.UnlicensedSpectrumRestriction == nil) == (y.UnlicensedSpectrumRestriction == nil) && (handoverRestrictionList.UnlicensedSpectrumRestriction == nil || (*handoverRestrictionList.UnlicensedSpectrumRestriction) == *y.UnlicensedSpectrumRestriction) &&
+		handoverRestrictionList.CNTypeRestrictions.Equal(y.CNTypeRestrictions) &&
+		(handoverRestrictionList.NRrestrictionin5GS == nil) == (y.NRrestrictionin5GS == nil) && (handoverRestrictionList.NRrestrictionin5GS == nil || (*handoverRestrictionList.NRrestrictionin5GS) == *y.NRrestrictionin5GS) &&
+		(handoverRestrictionList.LastNGRANPLMNIdentity == nil) == (y.LastNGRANPLMNIdentity == nil) && (handoverRestrictionList.LastNGRANPLMNIdentity == nil || (*handoverRestrictionList.LastNGRANPLMNIdentity) == *y.LastNGRANPLMNIdentity) &&
+		handoverRestrictionList.RATRestrictions.Equal(y.RATRestrictions) &&
+		handoverRestrictionList.iEExtensions == y.iEExtensions
+}
+
+func (iMSI IMSI) Equal(y IMSI) bool {
+	if len(iMSI) != len(y) {
+		return false
+	}
+	for i := range iMSI {
+		if !(iMSI[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (initialContextSetupFailure InitialContextSetupFailure) Equal(y InitialContextSetupFailure) bool {
+	return (initialContextSetupFailure.MMEUES1APID == nil) == (y.MMEUES1APID == nil) && (initialContextSetupFailure.MMEUES1APID == nil || (*initialContextSetupFailure.MMEUES1APID) == *y.MMEUES1APID) &&
+		(initialContextSetupFailure.ENBUES1APID == nil) == (y.ENBUES1APID == nil) && (initialContextSetupFailure.ENBUES1APID == nil || (*initialContextSetupFailure.ENBUES1APID) == *y.ENBUES1APID) &&
+		(initialContextSetupFailure.Cause == nil) == (y.Cause == nil) && (initialContextSetupFailure.Cause == nil || (*initialContextSetupFailure.Cause).Equal(*y.Cause)) &&
+		(initialContextSetupFailure.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (initialContextSetupFailure.CriticalityDiagnostics == nil || (*initialContextSetupFailure.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		initialContextSetupFailure.messageMeta.Equal(y.messageMeta)
+}
+
+func (initialContextSetupRequest InitialContextSetupRequest) Equal(y InitialContextSetupRequest) bool {
+	return initialContextSetupRequest.MMEUES1APID == y.MMEUES1APID &&
+		initialContextSetupRequest.ENBUES1APID == y.ENBUES1APID &&
+		initialContextSetupRequest.UEAggregateMaximumBitRate.Equal(y.UEAggregateMaximumBitRate) &&
+		initialContextSetupRequest.ERABToBeSetup.Equal(y.ERABToBeSetup) &&
+		initialContextSetupRequest.UESecurityCapabilities.Equal(y.UESecurityCapabilities) &&
+		initialContextSetupRequest.SecurityKey == y.SecurityKey &&
+		initialContextSetupRequest.UERadioCapability.Equal(y.UERadioCapability) &&
+		(initialContextSetupRequest.GUMMEI == nil) == (y.GUMMEI == nil) && (initialContextSetupRequest.GUMMEI == nil || (*initialContextSetupRequest.GUMMEI).Equal(*y.GUMMEI)) &&
+		(initialContextSetupRequest.MMEUES1APID2 == nil) == (y.MMEUES1APID2 == nil) && (initialContextSetupRequest.MMEUES1APID2 == nil || (*initialContextSetupRequest.MMEUES1APID2) == *y.MMEUES1APID2) &&
+		(initialContextSetupRequest.CoarseUELocation == nil) == (y.CoarseUELocation == nil) && (initialContextSetupRequest.CoarseUELocation == nil || (*initialContextSetupRequest.CoarseUELocation).Equal(*y.CoarseUELocation)) &&
+		(initialContextSetupRequest.TimeRefDistribution == nil) == (y.TimeRefDistribution == nil) && (initialContextSetupRequest.TimeRefDistribution == nil || (*initialContextSetupRequest.TimeRefDistribution) == *y.TimeRefDistribution) &&
+		initialContextSetupRequest.messageMeta.Equal(y.messageMeta)
+}
+
+func (initialContextSetupResponse InitialContextSetupResponse) Equal(y InitialContextSetupResponse) bool {
+	return (initialContextSetupResponse.MMEUES1APID == nil) == (y.MMEUES1APID == nil) && (initialContextSetupResponse.MMEUES1APID == nil || (*initialContextSetupResponse.MMEUES1APID) == *y.MMEUES1APID) &&
+		(initialContextSetupResponse.ENBUES1APID == nil) == (y.ENBUES1APID == nil) && (initialContextSetupResponse.ENBUES1APID == nil || (*initialContextSetupResponse.ENBUES1APID) == *y.ENBUES1APID) &&
+		initialContextSetupResponse.ERABSetup.Equal(y.ERABSetup) &&
+		slices.EqualFunc(initialContextSetupResponse.ERABFailedToSetup, y.ERABFailedToSetup, ERABItem.Equal) &&
+		(initialContextSetupResponse.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (initialContextSetupResponse.CriticalityDiagnostics == nil || (*initialContextSetupResponse.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		initialContextSetupResponse.messageMeta.Equal(y.messageMeta)
+}
+
+func (initialUEMessage InitialUEMessage) Equal(y InitialUEMessage) bool {
+	return initialUEMessage.ENBUES1APID == y.ENBUES1APID &&
+		initialUEMessage.NASPDU.Equal(y.NASPDU) &&
+		initialUEMessage.TAI.Equal(y.TAI) &&
+		(initialUEMessage.EUTRANCGI == nil) == (y.EUTRANCGI == nil) && (initialUEMessage.EUTRANCGI == nil || (*initialUEMessage.EUTRANCGI).Equal(*y.EUTRANCGI)) &&
+		(initialUEMessage.RRCEstablishmentCause == nil) == (y.RRCEstablishmentCause == nil) && (initialUEMessage.RRCEstablishmentCause == nil || (*initialUEMessage.RRCEstablishmentCause) == *y.RRCEstablishmentCause) &&
+		(initialUEMessage.STMSI == nil) == (y.STMSI == nil) && (initialUEMessage.STMSI == nil || (*initialUEMessage.STMSI).Equal(*y.STMSI)) &&
+		(initialUEMessage.GUMMEI == nil) == (y.GUMMEI == nil) && (initialUEMessage.GUMMEI == nil || (*initialUEMessage.GUMMEI).Equal(*y.GUMMEI)) &&
+		(initialUEMessage.GWTransportLayerAddress == nil) == (y.GWTransportLayerAddress == nil) && (initialUEMessage.GWTransportLayerAddress == nil || (*initialUEMessage.GWTransportLayerAddress) == *y.GWTransportLayerAddress) &&
+		(initialUEMessage.TunnelInformationForBBF == nil) == (y.TunnelInformationForBBF == nil) && (initialUEMessage.TunnelInformationForBBF == nil || (*initialUEMessage.TunnelInformationForBBF).Equal(*y.TunnelInformationForBBF)) &&
+		(initialUEMessage.SIPTOLGWTransportLayerAddress == nil) == (y.SIPTOLGWTransportLayerAddress == nil) && (initialUEMessage.SIPTOLGWTransportLayerAddress == nil || (*initialUEMessage.SIPTOLGWTransportLayerAddress) == *y.SIPTOLGWTransportLayerAddress) &&
+		(initialUEMessage.CoarseUELocationRequested == nil) == (y.CoarseUELocationRequested == nil) && (initialUEMessage.CoarseUELocationRequested == nil || (*initialUEMessage.CoarseUELocationRequested) == *y.CoarseUELocationRequested) &&
+		initialUEMessage.messageMeta.Equal(y.messageMeta)
+}
+
+func (interSystemMeasurementItem InterSystemMeasurementItem) Equal(y InterSystemMeasurementItem) bool {
+	return interSystemMeasurementItem.FreqBandIndicatorNR == y.FreqBandIndicatorNR &&
+		interSystemMeasurementItem.SSBFrequencies == y.SSBFrequencies &&
+		interSystemMeasurementItem.SubcarrierSpacingSSB == y.SubcarrierSpacingSSB &&
+		(interSystemMeasurementItem.MaxRSIndexCellQual == nil) == (y.MaxRSIndexCellQual == nil) && (interSystemMeasurementItem.MaxRSIndexCellQual == nil || (*interSystemMeasurementItem.MaxRSIndexCellQual) == *y.MaxRSIndexCellQual) &&
+		(interSystemMeasurementItem.SMTC == nil) == (y.SMTC == nil) && slices.Equal(interSystemMeasurementItem.SMTC, y.SMTC) &&
+		(interSystemMeasurementItem.ThreshRSIndexR15 == nil) == (y.ThreshRSIndexR15 == nil) && slices.Equal(interSystemMeasurementItem.ThreshRSIndexR15, y.ThreshRSIndexR15) &&
+		(interSystemMeasurementItem.SSBToMeasure == nil) == (y.SSBToMeasure == nil) && slices.Equal(interSystemMeasurementItem.SSBToMeasure, y.SSBToMeasure) &&
+		(interSystemMeasurementItem.SSRSSIMeasurement == nil) == (y.SSRSSIMeasurement == nil) && slices.Equal(interSystemMeasurementItem.SSRSSIMeasurement, y.SSRSSIMeasurement) &&
+		(interSystemMeasurementItem.QuantityConfigNRR15 == nil) == (y.QuantityConfigNRR15 == nil) && slices.Equal(interSystemMeasurementItem.QuantityConfigNRR15, y.QuantityConfigNRR15) &&
+		(interSystemMeasurementItem.ExcludedCellsToAddModList == nil) == (y.ExcludedCellsToAddModList == nil) && slices.Equal(interSystemMeasurementItem.ExcludedCellsToAddModList, y.ExcludedCellsToAddModList) &&
+		interSystemMeasurementItem.iEExtensions == y.iEExtensions
+}
+
+func (interSystemMeasurementList InterSystemMeasurementList) Equal(y InterSystemMeasurementList) bool {
+	if len(interSystemMeasurementList) != len(y) {
+		return false
+	}
+	for i := range interSystemMeasurementList {
+		if !(interSystemMeasurementList[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (interSystemMeasurementParameters InterSystemMeasurementParameters) Equal(y InterSystemMeasurementParameters) bool {
+	return interSystemMeasurementParameters.MeasurementDuration == y.MeasurementDuration &&
+		(interSystemMeasurementParameters.InterSystemMeasurementList == nil) == (y.InterSystemMeasurementList == nil) && interSystemMeasurementParameters.InterSystemMeasurementList.Equal(y.InterSystemMeasurementList) &&
+		interSystemMeasurementParameters.iEExtensions == y.iEExtensions &&
+		interSystemMeasurementParameters.extensions == y.extensions
+}
+
+func (intersystemMeasurementConfiguration IntersystemMeasurementConfiguration) Equal(y IntersystemMeasurementConfiguration) bool {
+	return (intersystemMeasurementConfiguration.RSRP == nil) == (y.RSRP == nil) && (intersystemMeasurementConfiguration.RSRP == nil || (*intersystemMeasurementConfiguration.RSRP) == *y.RSRP) &&
+		(intersystemMeasurementConfiguration.RSRQ == nil) == (y.RSRQ == nil) && (intersystemMeasurementConfiguration.RSRQ == nil || (*intersystemMeasurementConfiguration.RSRQ) == *y.RSRQ) &&
+		(intersystemMeasurementConfiguration.SINR == nil) == (y.SINR == nil) && (intersystemMeasurementConfiguration.SINR == nil || (*intersystemMeasurementConfiguration.SINR) == *y.SINR) &&
+		intersystemMeasurementConfiguration.InterSystemMeasurementParameters.Equal(y.InterSystemMeasurementParameters) &&
+		intersystemMeasurementConfiguration.iEExtensions == y.iEExtensions &&
+		intersystemMeasurementConfiguration.extensions == y.extensions
+}
+
+func (killRequest KillRequest) Equal(y KillRequest) bool {
+	return killRequest.MessageIdentifier == y.MessageIdentifier &&
+		killRequest.SerialNumber == y.SerialNumber &&
+		(killRequest.WarningAreaList == nil) == (y.WarningAreaList == nil) && (killRequest.WarningAreaList == nil || (*killRequest.WarningAreaList).Equal(*y.WarningAreaList)) &&
+		(killRequest.KillAllWarningMessages == nil) == (y.KillAllWarningMessages == nil) && (killRequest.KillAllWarningMessages == nil || (*killRequest.KillAllWarningMessages) == *y.KillAllWarningMessages) &&
+		killRequest.messageMeta.Equal(y.messageMeta)
+}
+
+func (killResponse KillResponse) Equal(y KillResponse) bool {
+	return killResponse.MessageIdentifier == y.MessageIdentifier &&
+		killResponse.SerialNumber == y.SerialNumber &&
+		(killResponse.BroadcastCancelledAreaList == nil) == (y.BroadcastCancelledAreaList == nil) && (killResponse.BroadcastCancelledAreaList == nil || (*killResponse.BroadcastCancelledAreaList).Equal(*y.BroadcastCancelledAreaList)) &&
+		(killResponse.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (killResponse.CriticalityDiagnostics == nil || (*killResponse.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		killResponse.messageMeta.Equal(y.messageMeta)
+}
+
+func (lAI LAI) Equal(y LAI) bool {
+	return lAI == y
+}
+
+func (lPPaPDU LPPaPDU) Equal(y LPPaPDU) bool {
+	if len(lPPaPDU) != len(y) {
+		return false
+	}
+	for i := range lPPaPDU {
+		if !(lPPaPDU[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (lTENTNTAIInformation LTENTNTAIInformation) Equal(y LTENTNTAIInformation) bool {
+	return lTENTNTAIInformation.ServingPLMN == y.ServingPLMN &&
+		slices.Equal(lTENTNTAIInformation.TACListInLTENTN, y.TACListInLTENTN) &&
+		(lTENTNTAIInformation.UELocationDerivedTAC == nil) == (y.UELocationDerivedTAC == nil) && (lTENTNTAIInformation.UELocationDerivedTAC == nil || (*lTENTNTAIInformation.UELocationDerivedTAC) == *y.UELocationDerivedTAC) &&
+		lTENTNTAIInformation.iEExtensions == y.iEExtensions &&
+		lTENTNTAIInformation.extensions == y.extensions
+}
+
+func (lastVisitedCellItem LastVisitedCellItem) Equal(y LastVisitedCellItem) bool {
+	return (lastVisitedCellItem.EUTRANCell == nil) == (y.EUTRANCell == nil) && (lastVisitedCellItem.EUTRANCell == nil || (*lastVisitedCellItem.EUTRANCell).Equal(*y.EUTRANCell)) &&
+		(lastVisitedCellItem.UTRANCell == nil) == (y.UTRANCell == nil) && (lastVisitedCellItem.UTRANCell == nil || (*lastVisitedCellItem.UTRANCell).Equal(*y.UTRANCell)) &&
+		(lastVisitedCellItem.GERANCell == nil) == (y.GERANCell == nil) && (lastVisitedCellItem.GERANCell == nil || (*lastVisitedCellItem.GERANCell).Equal(*y.GERANCell)) &&
+		(lastVisitedCellItem.NGRANCell == nil) == (y.NGRANCell == nil) && (lastVisitedCellItem.NGRANCell == nil || (*lastVisitedCellItem.NGRANCell).Equal(*y.NGRANCell)) &&
+		(lastVisitedCellItem.Ext == nil) == (y.Ext == nil) && (lastVisitedCellItem.Ext == nil || (*lastVisitedCellItem.Ext) == *y.Ext)
+}
+
+func (lastVisitedEUTRANCellInformation LastVisitedEUTRANCellInformation) Equal(y LastVisitedEUTRANCellInformation) bool {
+	return lastVisitedEUTRANCellInformation.GlobalCellID.Equal(y.GlobalCellID) &&
+		lastVisitedEUTRANCellInformation.CellType.Equal(y.CellType) &&
+		lastVisitedEUTRANCellInformation.TimeUEStayedInCell == y.TimeUEStayedInCell &&
+		(lastVisitedEUTRANCellInformation.TimeUEStayedInCellEnhancedGranularity == nil) == (y.TimeUEStayedInCellEnhancedGranularity == nil) && (lastVisitedEUTRANCellInformation.TimeUEStayedInCellEnhancedGranularity == nil || (*lastVisitedEUTRANCellInformation.TimeUEStayedInCellEnhancedGranularity) == *y.TimeUEStayedInCellEnhancedGranularity) &&
+		(lastVisitedEUTRANCellInformation.HOCause == nil) == (y.HOCause == nil) && (lastVisitedEUTRANCellInformation.HOCause == nil || (*lastVisitedEUTRANCellInformation.HOCause).Equal(*y.HOCause)) &&
+		lastVisitedEUTRANCellInformation.LastVisitedPSCellList.Equal(y.LastVisitedPSCellList) &&
+		lastVisitedEUTRANCellInformation.iEExtensions == y.iEExtensions &&
+		lastVisitedEUTRANCellInformation.extensions == y.extensions
+}
+
+func (lastVisitedGERANCellInformation LastVisitedGERANCellInformation) Equal(y LastVisitedGERANCellInformation) bool {
+	return (lastVisitedGERANCellInformation.Undefined == nil) == (y.Undefined == nil) && (lastVisitedGERANCellInformation.Undefined == nil || (*lastVisitedGERANCellInformation.Undefined) == *y.Undefined) &&
+		(lastVisitedGERANCellInformation.Ext == nil) == (y.Ext == nil) && (lastVisitedGERANCellInformation.Ext == nil || (*lastVisitedGERANCellInformation.Ext) == *y.Ext)
+}
+
+func (lastVisitedNGRANCellInformation LastVisitedNGRANCellInformation) Equal(y LastVisitedNGRANCellInformation) bool {
+	if len(lastVisitedNGRANCellInformation) != len(y) {
+		return false
+	}
+	for i := range lastVisitedNGRANCellInformation {
+		if !(lastVisitedNGRANCellInformation[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (lastVisitedPSCellInformation LastVisitedPSCellInformation) Equal(y LastVisitedPSCellInformation) bool {
+	return (lastVisitedPSCellInformation.PSCellID == nil) == (y.PSCellID == nil) && (lastVisitedPSCellInformation.PSCellID == nil || (*lastVisitedPSCellInformation.PSCellID).Equal(*y.PSCellID)) &&
+		lastVisitedPSCellInformation.TimeStay == y.TimeStay &&
+		lastVisitedPSCellInformation.iEExtensions == y.iEExtensions &&
+		lastVisitedPSCellInformation.extensions == y.extensions
+}
+
+func (lastVisitedPSCellList LastVisitedPSCellList) Equal(y LastVisitedPSCellList) bool {
+	if len(lastVisitedPSCellList) != len(y) {
+		return false
+	}
+	for i := range lastVisitedPSCellList {
+		if !(lastVisitedPSCellList[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (lastVisitedUTRANCellInformation LastVisitedUTRANCellInformation) Equal(y LastVisitedUTRANCellInformation) bool {
+	if len(lastVisitedUTRANCellInformation) != len(y) {
+		return false
+	}
+	for i := range lastVisitedUTRANCellInformation {
+		if !(lastVisitedUTRANCellInformation[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (listeningSubframePattern ListeningSubframePattern) Equal(y ListeningSubframePattern) bool {
+	return listeningSubframePattern == y
+}
+
+func (locationReport LocationReport) Equal(y LocationReport) bool {
+	return locationReport.MMEUES1APID == y.MMEUES1APID &&
+		locationReport.ENBUES1APID == y.ENBUES1APID &&
+		(locationReport.EUTRANCGI == nil) == (y.EUTRANCGI == nil) && (locationReport.EUTRANCGI == nil || (*locationReport.EUTRANCGI).Equal(*y.EUTRANCGI)) &&
+		(locationReport.TAI == nil) == (y.TAI == nil) && (locationReport.TAI == nil || (*locationReport.TAI).Equal(*y.TAI)) &&
+		(locationReport.RequestType == nil) == (y.RequestType == nil) && (locationReport.RequestType == nil || (*locationReport.RequestType).Equal(*y.RequestType)) &&
+		locationReport.messageMeta.Equal(y.messageMeta)
+}
+
+func (mDTConfigurationNR MDTConfigurationNR) Equal(y MDTConfigurationNR) bool {
+	if len(mDTConfigurationNR) != len(y) {
+		return false
+	}
+	for i := range mDTConfigurationNR {
+		if !(mDTConfigurationNR[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (mMEConfigurationTransfer MMEConfigurationTransfer) Equal(y MMEConfigurationTransfer) bool {
+	return (mMEConfigurationTransfer.SONConfigurationTransfer == nil) == (y.SONConfigurationTransfer == nil) && (mMEConfigurationTransfer.SONConfigurationTransfer == nil || (*mMEConfigurationTransfer.SONConfigurationTransfer).Equal(*y.SONConfigurationTransfer)) &&
+		mMEConfigurationTransfer.messageMeta.Equal(y.messageMeta)
+}
+
+func (mMEConfigurationUpdate MMEConfigurationUpdate) Equal(y MMEConfigurationUpdate) bool {
+	return (mMEConfigurationUpdate.MMEName == nil) == (y.MMEName == nil) && (mMEConfigurationUpdate.MMEName == nil || (*mMEConfigurationUpdate.MMEName) == *y.MMEName) &&
+		mMEConfigurationUpdate.ServedGUMMEIs.Equal(y.ServedGUMMEIs) &&
+		(mMEConfigurationUpdate.RelativeMMECapacity == nil) == (y.RelativeMMECapacity == nil) && (mMEConfigurationUpdate.RelativeMMECapacity == nil || (*mMEConfigurationUpdate.RelativeMMECapacity) == *y.RelativeMMECapacity) &&
+		mMEConfigurationUpdate.messageMeta.Equal(y.messageMeta)
+}
+
+func (mMEConfigurationUpdateAcknowledge MMEConfigurationUpdateAcknowledge) Equal(y MMEConfigurationUpdateAcknowledge) bool {
+	return (mMEConfigurationUpdateAcknowledge.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (mMEConfigurationUpdateAcknowledge.CriticalityDiagnostics == nil || (*mMEConfigurationUpdateAcknowledge.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		mMEConfigurationUpdateAcknowledge.messageMeta.Equal(y.messageMeta)
+}
+
+func (mMEConfigurationUpdateFailure MMEConfigurationUpdateFailure) Equal(y MMEConfigurationUpdateFailure) bool {
+	return (mMEConfigurationUpdateFailure.Cause == nil) == (y.Cause == nil) && (mMEConfigurationUpdateFailure.Cause == nil || (*mMEConfigurationUpdateFailure.Cause).Equal(*y.Cause)) &&
+		(mMEConfigurationUpdateFailure.TimeToWait == nil) == (y.TimeToWait == nil) && (mMEConfigurationUpdateFailure.TimeToWait == nil || (*mMEConfigurationUpdateFailure.TimeToWait) == *y.TimeToWait) &&
+		(mMEConfigurationUpdateFailure.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (mMEConfigurationUpdateFailure.CriticalityDiagnostics == nil || (*mMEConfigurationUpdateFailure.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		mMEConfigurationUpdateFailure.messageMeta.Equal(y.messageMeta)
+}
+
+func (mMEStatusTransfer MMEStatusTransfer) Equal(y MMEStatusTransfer) bool {
+	return mMEStatusTransfer.MMEUES1APID == y.MMEUES1APID &&
+		mMEStatusTransfer.ENBUES1APID == y.ENBUES1APID &&
+		mMEStatusTransfer.Container.Equal(y.Container) &&
+		mMEStatusTransfer.messageMeta.Equal(y.messageMeta)
+}
+
+func (mutingPatternInformation MutingPatternInformation) Equal(y MutingPatternInformation) bool {
+	return mutingPatternInformation.MutingPatternPeriod == y.MutingPatternPeriod &&
+		(mutingPatternInformation.MutingPatternOffset == nil) == (y.MutingPatternOffset == nil) && (mutingPatternInformation.MutingPatternOffset == nil || (*mutingPatternInformation.MutingPatternOffset) == *y.MutingPatternOffset) &&
+		mutingPatternInformation.iEExtensions == y.iEExtensions &&
+		mutingPatternInformation.extensions == y.extensions
+}
+
+func (nASNonDeliveryIndication NASNonDeliveryIndication) Equal(y NASNonDeliveryIndication) bool {
+	return nASNonDeliveryIndication.MMEUES1APID == y.MMEUES1APID &&
+		nASNonDeliveryIndication.ENBUES1APID == y.ENBUES1APID &&
+		nASNonDeliveryIndication.NASPDU.Equal(y.NASPDU) &&
+		(nASNonDeliveryIndication.Cause == nil) == (y.Cause == nil) && (nASNonDeliveryIndication.Cause == nil || (*nASNonDeliveryIndication.Cause).Equal(*y.Cause)) &&
+		nASNonDeliveryIndication.messageMeta.Equal(y.messageMeta)
+}
+
+func (nASPDU NASPDU) Equal(y NASPDU) bool {
+	if len(nASPDU) != len(y) {
+		return false
+	}
+	for i := range nASPDU {
+		if !(nASPDU[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (nASSecurityParametersfromEUTRAN NASSecurityParametersfromEUTRAN) Equal(y NASSecurityParametersfromEUTRAN) bool {
+	if len(nASSecurityParametersfromEUTRAN) != len(y) {
+		return false
+	}
+	for i := range nASSecurityParametersfromEUTRAN {
+		if !(nASSecurityParametersfromEUTRAN[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (nASSecurityParameterstoEUTRAN NASSecurityParameterstoEUTRAN) Equal(y NASSecurityParameterstoEUTRAN) bool {
+	if len(nASSecurityParameterstoEUTRAN) != len(y) {
+		return false
+	}
+	for i := range nASSecurityParameterstoEUTRAN {
+		if !(nASSecurityParameterstoEUTRAN[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (nRCGI NRCGI) Equal(y NRCGI) bool {
+	return nRCGI == y
+}
+
+func (ngENB NgENB) Equal(y NgENB) bool {
+	return ngENB.extensions == y.extensions &&
+		ngENB.GlobalNgENBID.Equal(y.GlobalNgENBID) &&
+		ngENB.iEExtensions == y.iEExtensions
+}
+
+func (overloadResponse OverloadResponse) Equal(y OverloadResponse) bool {
+	return (overloadResponse.OverloadAction == nil) == (y.OverloadAction == nil) && (overloadResponse.OverloadAction == nil || (*overloadResponse.OverloadAction) == *y.OverloadAction) &&
+		(overloadResponse.Ext == nil) == (y.Ext == nil) && (overloadResponse.Ext == nil || (*overloadResponse.Ext) == *y.Ext)
+}
+
+func (overloadStart OverloadStart) Equal(y OverloadStart) bool {
+	return overloadStart.OverloadResponse.Equal(y.OverloadResponse) &&
+		slices.Equal(overloadStart.GUMMEIList, y.GUMMEIList) &&
+		(overloadStart.TrafficLoadReductionIndication == nil) == (y.TrafficLoadReductionIndication == nil) && (overloadStart.TrafficLoadReductionIndication == nil || (*overloadStart.TrafficLoadReductionIndication) == *y.TrafficLoadReductionIndication) &&
+		overloadStart.messageMeta.Equal(y.messageMeta)
+}
+
+func (overloadStop OverloadStop) Equal(y OverloadStop) bool {
+	return slices.Equal(overloadStop.GUMMEIList, y.GUMMEIList) &&
+		overloadStop.messageMeta.Equal(y.messageMeta)
+}
+
+func (pSCellInformation PSCellInformation) Equal(y PSCellInformation) bool {
+	return pSCellInformation == y
+}
+
+func (pWSFailureIndication PWSFailureIndication) Equal(y PWSFailureIndication) bool {
+	return slices.Equal(pWSFailureIndication.PWSFailedECGIList, y.PWSFailedECGIList) &&
+		pWSFailureIndication.GlobalENBID.Equal(y.GlobalENBID) &&
+		pWSFailureIndication.messageMeta.Equal(y.messageMeta)
+}
+
+func (pWSRestartIndication PWSRestartIndication) Equal(y PWSRestartIndication) bool {
+	return slices.Equal(pWSRestartIndication.ECGIListForRestart, y.ECGIListForRestart) &&
+		pWSRestartIndication.GlobalENBID.Equal(y.GlobalENBID) &&
+		slices.Equal(pWSRestartIndication.TAIListForRestart, y.TAIListForRestart) &&
+		slices.Equal(pWSRestartIndication.EmergencyAreaIDListForRestart, y.EmergencyAreaIDListForRestart) &&
+		pWSRestartIndication.messageMeta.Equal(y.messageMeta)
+}
+
+func (paging Paging) Equal(y Paging) bool {
+	return (paging.UEIdentityIndexValue == nil) == (y.UEIdentityIndexValue == nil) && (paging.UEIdentityIndexValue == nil || (*paging.UEIdentityIndexValue) == *y.UEIdentityIndexValue) &&
+		(paging.UEPagingID == nil) == (y.UEPagingID == nil) && (paging.UEPagingID == nil || (*paging.UEPagingID).Equal(*y.UEPagingID)) &&
+		(paging.PagingDRX == nil) == (y.PagingDRX == nil) && (paging.PagingDRX == nil || (*paging.PagingDRX) == *y.PagingDRX) &&
+		(paging.CNDomain == nil) == (y.CNDomain == nil) && (paging.CNDomain == nil || (*paging.CNDomain) == *y.CNDomain) &&
+		paging.TAIList.Equal(y.TAIList) &&
+		(paging.PagingPriority == nil) == (y.PagingPriority == nil) && (paging.PagingPriority == nil || (*paging.PagingPriority) == *y.PagingPriority) &&
+		slices.Equal(paging.UERadioCapabilityForPaging, y.UERadioCapabilityForPaging) &&
+		paging.messageMeta.Equal(y.messageMeta)
+}
+
+func (pathSwitchRequest PathSwitchRequest) Equal(y PathSwitchRequest) bool {
+	return pathSwitchRequest.ENBUES1APID == y.ENBUES1APID &&
+		pathSwitchRequest.ERABToBeSwitchedDL.Equal(y.ERABToBeSwitchedDL) &&
+		pathSwitchRequest.SourceMMEUES1APID == y.SourceMMEUES1APID &&
+		(pathSwitchRequest.EUTRANCGI == nil) == (y.EUTRANCGI == nil) && (pathSwitchRequest.EUTRANCGI == nil || (*pathSwitchRequest.EUTRANCGI).Equal(*y.EUTRANCGI)) &&
+		(pathSwitchRequest.TAI == nil) == (y.TAI == nil) && (pathSwitchRequest.TAI == nil || (*pathSwitchRequest.TAI).Equal(*y.TAI)) &&
+		(pathSwitchRequest.UESecurityCapabilities == nil) == (y.UESecurityCapabilities == nil) && (pathSwitchRequest.UESecurityCapabilities == nil || (*pathSwitchRequest.UESecurityCapabilities).Equal(*y.UESecurityCapabilities)) &&
+		(pathSwitchRequest.SourceMMEGUMMEI == nil) == (y.SourceMMEGUMMEI == nil) && (pathSwitchRequest.SourceMMEGUMMEI == nil || (*pathSwitchRequest.SourceMMEGUMMEI).Equal(*y.SourceMMEGUMMEI)) &&
+		(pathSwitchRequest.TunnelInformationForBBF == nil) == (y.TunnelInformationForBBF == nil) && (pathSwitchRequest.TunnelInformationForBBF == nil || (*pathSwitchRequest.TunnelInformationForBBF).Equal(*y.TunnelInformationForBBF)) &&
+		pathSwitchRequest.messageMeta.Equal(y.messageMeta)
+}
+
+func (pathSwitchRequestAcknowledge PathSwitchRequestAcknowledge) Equal(y PathSwitchRequestAcknowledge) bool {
+	return (pathSwitchRequestAcknowledge.MMEUES1APID == nil) == (y.MMEUES1APID == nil) && (pathSwitchRequestAcknowledge.MMEUES1APID == nil || (*pathSwitchRequestAcknowledge.MMEUES1APID) == *y.MMEUES1APID) &&
+		(pathSwitchRequestAcknowledge.ENBUES1APID == nil) == (y.ENBUES1APID == nil) && (pathSwitchRequestAcknowledge.ENBUES1APID == nil || (*pathSwitchRequestAcknowledge.ENBUES1APID) == *y.ENBUES1APID) &&
+		(pathSwitchRequestAcknowledge.UEAggregateMaximumBitRate == nil) == (y.UEAggregateMaximumBitRate == nil) && (pathSwitchRequestAcknowledge.UEAggregateMaximumBitRate == nil || (*pathSwitchRequestAcknowledge.UEAggregateMaximumBitRate).Equal(*y.UEAggregateMaximumBitRate)) &&
+		pathSwitchRequestAcknowledge.ERABToBeSwitchedUL.Equal(y.ERABToBeSwitchedUL) &&
+		pathSwitchRequestAcknowledge.SecurityContext.Equal(y.SecurityContext) &&
+		(pathSwitchRequestAcknowledge.MMEUES1APID2 == nil) == (y.MMEUES1APID2 == nil) && (pathSwitchRequestAcknowledge.MMEUES1APID2 == nil || (*pathSwitchRequestAcknowledge.MMEUES1APID2) == *y.MMEUES1APID2) &&
+		(pathSwitchRequestAcknowledge.UESecurityCapabilities == nil) == (y.UESecurityCapabilities == nil) && (pathSwitchRequestAcknowledge.UESecurityCapabilities == nil || (*pathSwitchRequestAcknowledge.UESecurityCapabilities).Equal(*y.UESecurityCapabilities)) &&
+		slices.EqualFunc(pathSwitchRequestAcknowledge.ERABToBeReleased, y.ERABToBeReleased, ERABItem.Equal) &&
+		(pathSwitchRequestAcknowledge.TimeRefDistribution == nil) == (y.TimeRefDistribution == nil) && (pathSwitchRequestAcknowledge.TimeRefDistribution == nil || (*pathSwitchRequestAcknowledge.TimeRefDistribution) == *y.TimeRefDistribution) &&
+		pathSwitchRequestAcknowledge.messageMeta.Equal(y.messageMeta)
+}
+
+func (pathSwitchRequestFailure PathSwitchRequestFailure) Equal(y PathSwitchRequestFailure) bool {
+	return (pathSwitchRequestFailure.MMEUES1APID == nil) == (y.MMEUES1APID == nil) && (pathSwitchRequestFailure.MMEUES1APID == nil || (*pathSwitchRequestFailure.MMEUES1APID) == *y.MMEUES1APID) &&
+		(pathSwitchRequestFailure.ENBUES1APID == nil) == (y.ENBUES1APID == nil) && (pathSwitchRequestFailure.ENBUES1APID == nil || (*pathSwitchRequestFailure.ENBUES1APID) == *y.ENBUES1APID) &&
+		(pathSwitchRequestFailure.Cause == nil) == (y.Cause == nil) && (pathSwitchRequestFailure.Cause == nil || (*pathSwitchRequestFailure.Cause).Equal(*y.Cause)) &&
+		(pathSwitchRequestFailure.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (pathSwitchRequestFailure.CriticalityDiagnostics == nil || (*pathSwitchRequestFailure.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		pathSwitchRequestFailure.messageMeta.Equal(y.messageMeta)
+}
+
+func (rATRestrictionInformation RATRestrictionInformation) Equal(y RATRestrictionInformation) bool {
+	return rATRestrictionInformation == y
+}
+
+func (rATRestrictions RATRestrictions) Equal(y RATRestrictions) bool {
+	if len(rATRestrictions) != len(y) {
+		return false
+	}
+	for i := range rATRestrictions {
+		if !(rATRestrictions[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (rATRestrictionsItem RATRestrictionsItem) Equal(y RATRestrictionsItem) bool {
+	return rATRestrictionsItem == y
+}
+
+func (rLFReportContainer RLFReportContainer) Equal(y RLFReportContainer) bool {
+	if len(rLFReportContainer) != len(y) {
+		return false
+	}
+	for i := range rLFReportContainer {
+		if !(rLFReportContainer[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (rLFReportInformation RLFReportInformation) Equal(y RLFReportInformation) bool {
+	return rLFReportInformation.UERLFReportContainer.Equal(y.UERLFReportContainer) &&
+		(rLFReportInformation.UERLFReportContainerForExtendedBands == nil) == (y.UERLFReportContainerForExtendedBands == nil) && (rLFReportInformation.UERLFReportContainerForExtendedBands == nil || (*rLFReportInformation.UERLFReportContainerForExtendedBands).Equal(*y.UERLFReportContainerForExtendedBands)) &&
+		(rLFReportInformation.NBIoTRLFReportContainer == nil) == (y.NBIoTRLFReportContainer == nil) && (rLFReportInformation.NBIoTRLFReportContainer == nil || (*rLFReportInformation.NBIoTRLFReportContainer).Equal(*y.NBIoTRLFReportContainer)) &&
+		rLFReportInformation.iEExtensions == y.iEExtensions &&
+		rLFReportInformation.extensions == y.extensions
+}
+
+func (rRCContainer RRCContainer) Equal(y RRCContainer) bool {
+	if len(rRCContainer) != len(y) {
+		return false
+	}
+	for i := range rRCContainer {
+		if !(rRCContainer[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (requestType RequestType) Equal(y RequestType) bool {
+	return requestType.extensions == y.extensions &&
+		requestType.EventType == y.EventType &&
+		requestType.ReportArea == y.ReportArea &&
+		(requestType.RequestTypeAdditionalInfo == nil) == (y.RequestTypeAdditionalInfo == nil) && (requestType.RequestTypeAdditionalInfo == nil || (*requestType.RequestTypeAdditionalInfo) == *y.RequestTypeAdditionalInfo) &&
+		requestType.iEExtensions == y.iEExtensions
+}
+
+func (requestedTNLInfo RequestedTNLInfo) Equal(y RequestedTNLInfo) bool {
+	return requestedTNLInfo == y
+}
+
+func (rerouteNASRequest RerouteNASRequest) Equal(y RerouteNASRequest) bool {
+	return rerouteNASRequest.ENBUES1APID == y.ENBUES1APID &&
+		(rerouteNASRequest.MMEUES1APID == nil) == (y.MMEUES1APID == nil) && (rerouteNASRequest.MMEUES1APID == nil || (*rerouteNASRequest.MMEUES1APID) == *y.MMEUES1APID) &&
+		rerouteNASRequest.S1Message.Equal(y.S1Message) &&
+		rerouteNASRequest.MMEGroupID == y.MMEGroupID &&
+		(rerouteNASRequest.AdditionalGUTI == nil) == (y.AdditionalGUTI == nil) && (rerouteNASRequest.AdditionalGUTI == nil || (*rerouteNASRequest.AdditionalGUTI).Equal(*y.AdditionalGUTI)) &&
+		(rerouteNASRequest.UEUsageType == nil) == (y.UEUsageType == nil) && (rerouteNASRequest.UEUsageType == nil || (*rerouteNASRequest.UEUsageType) == *y.UEUsageType) &&
+		rerouteNASRequest.messageMeta.Equal(y.messageMeta)
+}
+
+func (reset Reset) Equal(y Reset) bool {
+	return (reset.Cause == nil) == (y.Cause == nil) && (reset.Cause == nil || (*reset.Cause).Equal(*y.Cause)) &&
+		reset.ResetType.Equal(y.ResetType) &&
+		reset.messageMeta.Equal(y.messageMeta)
+}
+
+func (resetAcknowledge ResetAcknowledge) Equal(y ResetAcknowledge) bool {
+	return slices.EqualFunc(resetAcknowledge.ConnectionList, y.ConnectionList, UEAssociatedLogicalS1ConnectionItem.Equal) &&
+		(resetAcknowledge.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (resetAcknowledge.CriticalityDiagnostics == nil || (*resetAcknowledge.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		resetAcknowledge.messageMeta.Equal(y.messageMeta)
+}
+
+func (resetType ResetType) Equal(y ResetType) bool {
+	return (resetType.S1Interface == nil) == (y.S1Interface == nil) && (resetType.S1Interface == nil || (*resetType.S1Interface) == *y.S1Interface) &&
+		(resetType.PartOfS1Interface == nil) == (y.PartOfS1Interface == nil) && (resetType.PartOfS1Interface == nil || (*resetType.PartOfS1Interface).Equal(*y.PartOfS1Interface)) &&
+		(resetType.Ext == nil) == (y.Ext == nil) && (resetType.Ext == nil || (*resetType.Ext) == *y.Ext)
+}
+
+func (s1Message S1Message) Equal(y S1Message) bool {
+	if len(s1Message) != len(y) {
+		return false
+	}
+	for i := range s1Message {
+		if !(s1Message[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (s1RemovalFailure S1RemovalFailure) Equal(y S1RemovalFailure) bool {
+	return (s1RemovalFailure.Cause == nil) == (y.Cause == nil) && (s1RemovalFailure.Cause == nil || (*s1RemovalFailure.Cause).Equal(*y.Cause)) &&
+		(s1RemovalFailure.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (s1RemovalFailure.CriticalityDiagnostics == nil || (*s1RemovalFailure.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		s1RemovalFailure.messageMeta.Equal(y.messageMeta)
+}
+
+func (s1RemovalRequest S1RemovalRequest) Equal(y S1RemovalRequest) bool {
+	return s1RemovalRequest.GlobalENBID.Equal(y.GlobalENBID) &&
+		s1RemovalRequest.messageMeta.Equal(y.messageMeta)
+}
+
+func (s1RemovalResponse S1RemovalResponse) Equal(y S1RemovalResponse) bool {
+	return (s1RemovalResponse.MMEName == nil) == (y.MMEName == nil) && (s1RemovalResponse.MMEName == nil || (*s1RemovalResponse.MMEName) == *y.MMEName) &&
+		(s1RemovalResponse.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (s1RemovalResponse.CriticalityDiagnostics == nil || (*s1RemovalResponse.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		s1RemovalResponse.messageMeta.Equal(y.messageMeta)
+}
+
+func (s1SetupFailure S1SetupFailure) Equal(y S1SetupFailure) bool {
+	return (s1SetupFailure.Cause == nil) == (y.Cause == nil) && (s1SetupFailure.Cause == nil || (*s1SetupFailure.Cause).Equal(*y.Cause)) &&
+		(s1SetupFailure.TimeToWait == nil) == (y.TimeToWait == nil) && (s1SetupFailure.TimeToWait == nil || (*s1SetupFailure.TimeToWait) == *y.TimeToWait) &&
+		(s1SetupFailure.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (s1SetupFailure.CriticalityDiagnostics == nil || (*s1SetupFailure.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		s1SetupFailure.messageMeta.Equal(y.messageMeta)
+}
+
+func (s1SetupRequest S1SetupRequest) Equal(y S1SetupRequest) bool {
+	return s1SetupRequest.GlobalENBID.Equal(y.GlobalENBID) &&
+		(s1SetupRequest.ENBName == nil) == (y.ENBName == nil) && (s1SetupRequest.ENBName == nil || (*s1SetupRequest.ENBName) == *y.ENBName) &&
+		s1SetupRequest.SupportedTAs.Equal(y.SupportedTAs) &&
+		(s1SetupRequest.DefaultPagingDRX == nil) == (y.DefaultPagingDRX == nil) && (s1SetupRequest.DefaultPagingDRX == nil || (*s1SetupRequest.DefaultPagingDRX) == *y.DefaultPagingDRX) &&
+		(s1SetupRequest.UERetentionInformation == nil) == (y.UERetentionInformation == nil) && (s1SetupRequest.UERetentionInformation == nil || (*s1SetupRequest.UERetentionInformation) == *y.UERetentionInformation) &&
+		s1SetupRequest.messageMeta.Equal(y.messageMeta)
+}
+
+func (s1SetupResponse S1SetupResponse) Equal(y S1SetupResponse) bool {
+	return (s1SetupResponse.MMEName == nil) == (y.MMEName == nil) && (s1SetupResponse.MMEName == nil || (*s1SetupResponse.MMEName) == *y.MMEName) &&
+		s1SetupResponse.ServedGUMMEIs.Equal(y.ServedGUMMEIs) &&
+		(s1SetupResponse.RelativeMMECapacity == nil) == (y.RelativeMMECapacity == nil) && (s1SetupResponse.RelativeMMECapacity == nil || (*s1SetupResponse.RelativeMMECapacity) == *y.RelativeMMECapacity) &&
+		(s1SetupResponse.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (s1SetupResponse.CriticalityDiagnostics == nil || (*s1SetupResponse.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		(s1SetupResponse.UERetentionInformation == nil) == (y.UERetentionInformation == nil) && (s1SetupResponse.UERetentionInformation == nil || (*s1SetupResponse.UERetentionInformation) == *y.UERetentionInformation) &&
+		s1SetupResponse.messageMeta.Equal(y.messageMeta)
+}
+
+func (sONConfigurationTransfer SONConfigurationTransfer) Equal(y SONConfigurationTransfer) bool {
+	return sONConfigurationTransfer.TargeteNBID.Equal(y.TargeteNBID) &&
+		sONConfigurationTransfer.SourceeNBID.Equal(y.SourceeNBID) &&
+		sONConfigurationTransfer.SONInformation.Equal(y.SONInformation) &&
+		(sONConfigurationTransfer.X2TNLConfigurationInfo == nil) == (y.X2TNLConfigurationInfo == nil) && (sONConfigurationTransfer.X2TNLConfigurationInfo == nil || (*sONConfigurationTransfer.X2TNLConfigurationInfo).Equal(*y.X2TNLConfigurationInfo)) &&
+		(sONConfigurationTransfer.SynchronisationInformation == nil) == (y.SynchronisationInformation == nil) && (sONConfigurationTransfer.SynchronisationInformation == nil || (*sONConfigurationTransfer.SynchronisationInformation).Equal(*y.SynchronisationInformation)) &&
+		(sONConfigurationTransfer.RequestedTNLInfo == nil) == (y.RequestedTNLInfo == nil) && (sONConfigurationTransfer.RequestedTNLInfo == nil || (*sONConfigurationTransfer.RequestedTNLInfo).Equal(*y.RequestedTNLInfo)) &&
+		sONConfigurationTransfer.iEExtensions == y.iEExtensions &&
+		sONConfigurationTransfer.extensions == y.extensions
+}
+
+func (sONInformation SONInformation) Equal(y SONInformation) bool {
+	return (sONInformation.SONInformationRequest == nil) == (y.SONInformationRequest == nil) && (sONInformation.SONInformationRequest == nil || (*sONInformation.SONInformationRequest) == *y.SONInformationRequest) &&
+		(sONInformation.SONInformationReply == nil) == (y.SONInformationReply == nil) && (sONInformation.SONInformationReply == nil || (*sONInformation.SONInformationReply).Equal(*y.SONInformationReply)) &&
+		(sONInformation.SONInformationExtension == nil) == (y.SONInformationExtension == nil) && (sONInformation.SONInformationExtension == nil || (*sONInformation.SONInformationExtension).Equal(*y.SONInformationExtension)) &&
+		(sONInformation.Ext == nil) == (y.Ext == nil) && (sONInformation.Ext == nil || (*sONInformation.Ext) == *y.Ext)
+}
+
+func (sONInformationExtension SONInformationExtension) Equal(y SONInformationExtension) bool {
+	return (sONInformationExtension.SONInformationReport == nil) == (y.SONInformationReport == nil) && (sONInformationExtension.SONInformationReport == nil || (*sONInformationExtension.SONInformationReport).Equal(*y.SONInformationReport)) &&
+		(sONInformationExtension.ChoiceExtension == nil) == (y.ChoiceExtension == nil) && (sONInformationExtension.ChoiceExtension == nil || (*sONInformationExtension.ChoiceExtension) == *y.ChoiceExtension) &&
+		sONInformationExtension.choiceCriticality == y.choiceCriticality
+}
+
+func (sONInformationReply SONInformationReply) Equal(y SONInformationReply) bool {
+	return (sONInformationReply.X2TNLConfigurationInfo == nil) == (y.X2TNLConfigurationInfo == nil) && (sONInformationReply.X2TNLConfigurationInfo == nil || (*sONInformationReply.X2TNLConfigurationInfo).Equal(*y.X2TNLConfigurationInfo)) &&
+		(sONInformationReply.TimeSynchronisationInfo == nil) == (y.TimeSynchronisationInfo == nil) && (sONInformationReply.TimeSynchronisationInfo == nil || (*sONInformationReply.TimeSynchronisationInfo).Equal(*y.TimeSynchronisationInfo)) &&
+		(sONInformationReply.MutingPatternInformation == nil) == (y.MutingPatternInformation == nil) && (sONInformationReply.MutingPatternInformation == nil || (*sONInformationReply.MutingPatternInformation).Equal(*y.MutingPatternInformation)) &&
+		sONInformationReply.iEExtensions == y.iEExtensions &&
+		sONInformationReply.extensions == y.extensions
+}
+
+func (sONInformationReport SONInformationReport) Equal(y SONInformationReport) bool {
+	return (sONInformationReport.RLFReportInformation == nil) == (y.RLFReportInformation == nil) && (sONInformationReport.RLFReportInformation == nil || (*sONInformationReport.RLFReportInformation).Equal(*y.RLFReportInformation)) &&
+		(sONInformationReport.Ext == nil) == (y.Ext == nil) && (sONInformationReport.Ext == nil || (*sONInformationReport.Ext) == *y.Ext)
+}
+
+func (sTMSI STMSI) Equal(y STMSI) bool {
+	return sTMSI == y
+}
+
+func (securityAlgorithms SecurityAlgorithms) Equal(y SecurityAlgorithms) bool {
+	return securityAlgorithms == y
+}
+
+func (securityContext SecurityContext) Equal(y SecurityContext) bool {
+	return securityContext == y
+}
+
+func (securityIndication SecurityIndication) Equal(y SecurityIndication) bool {
+	return securityIndication == y
+}
+
+func (servedGUMMEIs ServedGUMMEIs) Equal(y ServedGUMMEIs) bool {
+	if len(servedGUMMEIs) != len(y) {
+		return false
+	}
+	for i := range servedGUMMEIs {
+		if !(servedGUMMEIs[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (servedGUMMEIsItem ServedGUMMEIsItem) Equal(y ServedGUMMEIsItem) bool {
+	return servedGUMMEIsItem.extensions == y.extensions &&
+		slices.Equal(servedGUMMEIsItem.ServedPLMNs, y.ServedPLMNs) &&
+		slices.Equal(servedGUMMEIsItem.ServedGroupIDs, y.ServedGroupIDs) &&
+		slices.Equal(servedGUMMEIsItem.ServedMMECs, y.ServedMMECs) &&
+		(servedGUMMEIsItem.GUMMEIType == nil) == (y.GUMMEIType == nil) && (servedGUMMEIsItem.GUMMEIType == nil || (*servedGUMMEIsItem.GUMMEIType) == *y.GUMMEIType) &&
+		servedGUMMEIsItem.iEExtensions == y.iEExtensions
+}
+
+func (sourceNgRanNodeID SourceNgRanNodeID) Equal(y SourceNgRanNodeID) bool {
+	return sourceNgRanNodeID.GlobalRANNodeID.Equal(y.GlobalRANNodeID) &&
+		sourceNgRanNodeID.SelectedTAI.Equal(y.SelectedTAI) &&
+		sourceNgRanNodeID.iEExtensions == y.iEExtensions &&
+		sourceNgRanNodeID.extensions == y.extensions
+}
+
+func (sourceNodeID SourceNodeID) Equal(y SourceNodeID) bool {
+	return (sourceNodeID.SourceNgRanNodeID == nil) == (y.SourceNgRanNodeID == nil) && (sourceNodeID.SourceNgRanNodeID == nil || (*sourceNodeID.SourceNgRanNodeID).Equal(*y.SourceNgRanNodeID)) &&
+		(sourceNodeID.ChoiceExtension == nil) == (y.ChoiceExtension == nil) && (sourceNodeID.ChoiceExtension == nil || (*sourceNodeID.ChoiceExtension) == *y.ChoiceExtension)
+}
+
+func (sourceeNBID SourceeNBID) Equal(y SourceeNBID) bool {
+	return sourceeNBID.GlobalENBID.Equal(y.GlobalENBID) &&
+		sourceeNBID.SelectedTAI.Equal(y.SelectedTAI) &&
+		sourceeNBID.iEExtensions == y.iEExtensions
+}
+
+func (sourceeNBToTargeteNBTransparentContainer SourceeNBToTargeteNBTransparentContainer) Equal(y SourceeNBToTargeteNBTransparentContainer) bool {
+	return sourceeNBToTargeteNBTransparentContainer.RRCContainer.Equal(y.RRCContainer) &&
+		(sourceeNBToTargeteNBTransparentContainer.ERABInformationList == nil) == (y.ERABInformationList == nil) && sourceeNBToTargeteNBTransparentContainer.ERABInformationList.Equal(y.ERABInformationList) &&
+		sourceeNBToTargeteNBTransparentContainer.TargetCellID.Equal(y.TargetCellID) &&
+		(sourceeNBToTargeteNBTransparentContainer.SubscriberProfileIDforRFP == nil) == (y.SubscriberProfileIDforRFP == nil) && (sourceeNBToTargeteNBTransparentContainer.SubscriberProfileIDforRFP == nil || (*sourceeNBToTargeteNBTransparentContainer.SubscriberProfileIDforRFP) == *y.SubscriberProfileIDforRFP) &&
+		sourceeNBToTargeteNBTransparentContainer.UEHistoryInformation.Equal(y.UEHistoryInformation) &&
+		(sourceeNBToTargeteNBTransparentContainer.MobilityInformation == nil) == (y.MobilityInformation == nil) && (sourceeNBToTargeteNBTransparentContainer.MobilityInformation == nil || (*sourceeNBToTargeteNBTransparentContainer.MobilityInformation) == *y.MobilityInformation) &&
+		(sourceeNBToTargeteNBTransparentContainer.UEHistoryInformationFromTheUE == nil) == (y.UEHistoryInformationFromTheUE == nil) && (sourceeNBToTargeteNBTransparentContainer.UEHistoryInformationFromTheUE == nil || (*sourceeNBToTargeteNBTransparentContainer.UEHistoryInformationFromTheUE).Equal(*y.UEHistoryInformationFromTheUE)) &&
+		(sourceeNBToTargeteNBTransparentContainer.IMSvoiceEPSfallbackfrom5G == nil) == (y.IMSvoiceEPSfallbackfrom5G == nil) && (sourceeNBToTargeteNBTransparentContainer.IMSvoiceEPSfallbackfrom5G == nil || (*sourceeNBToTargeteNBTransparentContainer.IMSvoiceEPSfallbackfrom5G) == *y.IMSvoiceEPSfallbackfrom5G) &&
+		(sourceeNBToTargeteNBTransparentContainer.AdditionalRRMPriorityIndex == nil) == (y.AdditionalRRMPriorityIndex == nil) && (sourceeNBToTargeteNBTransparentContainer.AdditionalRRMPriorityIndex == nil || (*sourceeNBToTargeteNBTransparentContainer.AdditionalRRMPriorityIndex) == *y.AdditionalRRMPriorityIndex) &&
+		(sourceeNBToTargeteNBTransparentContainer.ContextatSource == nil) == (y.ContextatSource == nil) && (sourceeNBToTargeteNBTransparentContainer.ContextatSource == nil || (*sourceeNBToTargeteNBTransparentContainer.ContextatSource).Equal(*y.ContextatSource)) &&
+		(sourceeNBToTargeteNBTransparentContainer.IntersystemMeasurementConfiguration == nil) == (y.IntersystemMeasurementConfiguration == nil) && (sourceeNBToTargeteNBTransparentContainer.IntersystemMeasurementConfiguration == nil || (*sourceeNBToTargeteNBTransparentContainer.IntersystemMeasurementConfiguration).Equal(*y.IntersystemMeasurementConfiguration)) &&
+		(sourceeNBToTargeteNBTransparentContainer.SourceNodeID == nil) == (y.SourceNodeID == nil) && (sourceeNBToTargeteNBTransparentContainer.SourceNodeID == nil || (*sourceeNBToTargeteNBTransparentContainer.SourceNodeID).Equal(*y.SourceNodeID)) &&
+		(sourceeNBToTargeteNBTransparentContainer.EmergencyIndicator == nil) == (y.EmergencyIndicator == nil) && (sourceeNBToTargeteNBTransparentContainer.EmergencyIndicator == nil || (*sourceeNBToTargeteNBTransparentContainer.EmergencyIndicator) == *y.EmergencyIndicator) &&
+		(sourceeNBToTargeteNBTransparentContainer.UEContextReferenceatSourceeNB == nil) == (y.UEContextReferenceatSourceeNB == nil) && (sourceeNBToTargeteNBTransparentContainer.UEContextReferenceatSourceeNB == nil || (*sourceeNBToTargeteNBTransparentContainer.UEContextReferenceatSourceeNB) == *y.UEContextReferenceatSourceeNB) &&
+		(sourceeNBToTargeteNBTransparentContainer.SourceSNID == nil) == (y.SourceSNID == nil) && (sourceeNBToTargeteNBTransparentContainer.SourceSNID == nil || (*sourceeNBToTargeteNBTransparentContainer.SourceSNID).Equal(*y.SourceSNID)) &&
+		(sourceeNBToTargeteNBTransparentContainer.DirectForwardingPathAvailability == nil) == (y.DirectForwardingPathAvailability == nil) && (sourceeNBToTargeteNBTransparentContainer.DirectForwardingPathAvailability == nil || (*sourceeNBToTargeteNBTransparentContainer.DirectForwardingPathAvailability) == *y.DirectForwardingPathAvailability) &&
+		(sourceeNBToTargeteNBTransparentContainer.TimeBasedHandoverInformation == nil) == (y.TimeBasedHandoverInformation == nil) && (sourceeNBToTargeteNBTransparentContainer.TimeBasedHandoverInformation == nil || (*sourceeNBToTargeteNBTransparentContainer.TimeBasedHandoverInformation).Equal(*y.TimeBasedHandoverInformation)) &&
+		sourceeNBToTargeteNBTransparentContainer.iEExtensions == y.iEExtensions &&
+		sourceeNBToTargeteNBTransparentContainer.extensions == y.extensions
+}
+
+func (statusTransferContainer StatusTransferContainer) Equal(y StatusTransferContainer) bool {
+	if len(statusTransferContainer) != len(y) {
+		return false
+	}
+	for i := range statusTransferContainer {
+		if !(statusTransferContainer[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (supportedTAItem SupportedTAItem) Equal(y SupportedTAItem) bool {
+	return supportedTAItem.extensions == y.extensions &&
+		supportedTAItem.TAC == y.TAC &&
+		supportedTAItem.BroadcastPLMNs.Equal(y.BroadcastPLMNs) &&
+		(supportedTAItem.RATType == nil) == (y.RATType == nil) && (supportedTAItem.RATType == nil || (*supportedTAItem.RATType) == *y.RATType) &&
+		supportedTAItem.iEExtensions == y.iEExtensions
+}
+
+func (supportedTAs SupportedTAs) Equal(y SupportedTAs) bool {
+	if len(supportedTAs) != len(y) {
+		return false
+	}
+	for i := range supportedTAs {
+		if !(supportedTAs[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (synchronisationInformation SynchronisationInformation) Equal(y SynchronisationInformation) bool {
+	return (synchronisationInformation.SourceStratumLevel == nil) == (y.SourceStratumLevel == nil) && (synchronisationInformation.SourceStratumLevel == nil || (*synchronisationInformation.SourceStratumLevel) == *y.SourceStratumLevel) &&
+		(synchronisationInformation.ListeningSubframePattern == nil) == (y.ListeningSubframePattern == nil) && (synchronisationInformation.ListeningSubframePattern == nil || (*synchronisationInformation.ListeningSubframePattern).Equal(*y.ListeningSubframePattern)) &&
+		(synchronisationInformation.AggressoreCGIList == nil) == (y.AggressoreCGIList == nil) && slices.Equal(synchronisationInformation.AggressoreCGIList, y.AggressoreCGIList) &&
+		synchronisationInformation.iEExtensions == y.iEExtensions &&
+		synchronisationInformation.extensions == y.extensions
+}
+
+func (tAI TAI) Equal(y TAI) bool {
+	return tAI == y
+}
+
+func (tAIBroadcast TAIBroadcast) Equal(y TAIBroadcast) bool {
+	if len(tAIBroadcast) != len(y) {
+		return false
+	}
+	for i := range tAIBroadcast {
+		if !(tAIBroadcast[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (tAIBroadcastItem TAIBroadcastItem) Equal(y TAIBroadcastItem) bool {
+	return tAIBroadcastItem.extensions == y.extensions &&
+		tAIBroadcastItem.TAI.Equal(y.TAI) &&
+		slices.Equal(tAIBroadcastItem.CompletedCellInTAI, y.CompletedCellInTAI) &&
+		tAIBroadcastItem.iEExtensions == y.iEExtensions
+}
+
+func (tAICancelled TAICancelled) Equal(y TAICancelled) bool {
+	if len(tAICancelled) != len(y) {
+		return false
+	}
+	for i := range tAICancelled {
+		if !(tAICancelled[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (tAICancelledItem TAICancelledItem) Equal(y TAICancelledItem) bool {
+	return tAICancelledItem.extensions == y.extensions &&
+		tAICancelledItem.TAI.Equal(y.TAI) &&
+		slices.Equal(tAICancelledItem.CancelledCellInTAI, y.CancelledCellInTAI) &&
+		tAICancelledItem.iEExtensions == y.iEExtensions
+}
+
+func (tAIItem TAIItem) Equal(y TAIItem) bool {
+	return tAIItem == y
+}
+
+func (tAIList TAIList) Equal(y TAIList) bool {
+	if len(tAIList) != len(y) {
+		return false
+	}
+	for i := range tAIList {
+		if !(tAIList[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (tAIListforWarning TAIListforWarning) Equal(y TAIListforWarning) bool {
+	if len(tAIListforWarning) != len(y) {
+		return false
+	}
+	for i := range tAIListforWarning {
+		if !(tAIListforWarning[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (targetID TargetID) Equal(y TargetID) bool {
+	return (targetID.TargeteNBID == nil) == (y.TargeteNBID == nil) && (targetID.TargeteNBID == nil || (*targetID.TargeteNBID).Equal(*y.TargeteNBID)) &&
+		(targetID.TargetRNCID == nil) == (y.TargetRNCID == nil) && (targetID.TargetRNCID == nil || (*targetID.TargetRNCID).Equal(*y.TargetRNCID)) &&
+		(targetID.CGI == nil) == (y.CGI == nil) && (targetID.CGI == nil || (*targetID.CGI).Equal(*y.CGI)) &&
+		(targetID.TargetNgRanNodeID == nil) == (y.TargetNgRanNodeID == nil) && (targetID.TargetNgRanNodeID == nil || (*targetID.TargetNgRanNodeID).Equal(*y.TargetNgRanNodeID)) &&
+		(targetID.Ext == nil) == (y.Ext == nil) && (targetID.Ext == nil || (*targetID.Ext) == *y.Ext)
+}
+
+func (targetNgRanNodeID TargetNgRanNodeID) Equal(y TargetNgRanNodeID) bool {
+	return targetNgRanNodeID.extensions == y.extensions &&
+		targetNgRanNodeID.GlobalRANNodeID.Equal(y.GlobalRANNodeID) &&
+		targetNgRanNodeID.SelectedTAI.Equal(y.SelectedTAI) &&
+		targetNgRanNodeID.iEExtensions == y.iEExtensions
+}
+
+func (targetRNCID TargetRNCID) Equal(y TargetRNCID) bool {
+	return targetRNCID.LAI.Equal(y.LAI) &&
+		(targetRNCID.RAC == nil) == (y.RAC == nil) && (targetRNCID.RAC == nil || (*targetRNCID.RAC) == *y.RAC) &&
+		targetRNCID.RNCID == y.RNCID &&
+		(targetRNCID.ExtendedRNCID == nil) == (y.ExtendedRNCID == nil) && (targetRNCID.ExtendedRNCID == nil || (*targetRNCID.ExtendedRNCID) == *y.ExtendedRNCID) &&
+		targetRNCID.iEExtensions == y.iEExtensions &&
+		targetRNCID.extensions == y.extensions
+}
+
+func (targeteNBID TargeteNBID) Equal(y TargeteNBID) bool {
+	return targeteNBID.extensions == y.extensions &&
+		targeteNBID.GlobalENBID.Equal(y.GlobalENBID) &&
+		targeteNBID.SelectedTAI.Equal(y.SelectedTAI) &&
+		targeteNBID.iEExtensions == y.iEExtensions
+}
+
+func (timeBasedHandoverInformation TimeBasedHandoverInformation) Equal(y TimeBasedHandoverInformation) bool {
+	return timeBasedHandoverInformation == y
+}
+
+func (timeSynchronisationInfo TimeSynchronisationInfo) Equal(y TimeSynchronisationInfo) bool {
+	return timeSynchronisationInfo.StratumLevel == y.StratumLevel &&
+		timeSynchronisationInfo.SynchronisationStatus == y.SynchronisationStatus &&
+		(timeSynchronisationInfo.MutingAvailabilityIndication == nil) == (y.MutingAvailabilityIndication == nil) && (timeSynchronisationInfo.MutingAvailabilityIndication == nil || (*timeSynchronisationInfo.MutingAvailabilityIndication) == *y.MutingAvailabilityIndication) &&
+		timeSynchronisationInfo.iEExtensions == y.iEExtensions &&
+		timeSynchronisationInfo.extensions == y.extensions
+}
+
+func (traceActivation TraceActivation) Equal(y TraceActivation) bool {
+	return traceActivation.EUTRANTraceID == y.EUTRANTraceID &&
+		traceActivation.InterfacesToTrace == y.InterfacesToTrace &&
+		traceActivation.TraceDepth == y.TraceDepth &&
+		traceActivation.TraceCollectionEntityIPAddress == y.TraceCollectionEntityIPAddress &&
+		(traceActivation.MDTConfigurationNR == nil) == (y.MDTConfigurationNR == nil) && (traceActivation.MDTConfigurationNR == nil || (*traceActivation.MDTConfigurationNR).Equal(*y.MDTConfigurationNR)) &&
+		(traceActivation.TraceCollectionEntityURI == nil) == (y.TraceCollectionEntityURI == nil) && (traceActivation.TraceCollectionEntityURI == nil || (*traceActivation.TraceCollectionEntityURI) == *y.TraceCollectionEntityURI) &&
+		traceActivation.iEExtensions == y.iEExtensions &&
+		traceActivation.extensions == y.extensions
+}
+
+func (traceFailureIndication TraceFailureIndication) Equal(y TraceFailureIndication) bool {
+	return traceFailureIndication.MMEUES1APID == y.MMEUES1APID &&
+		traceFailureIndication.ENBUES1APID == y.ENBUES1APID &&
+		(traceFailureIndication.EUTRANTraceID == nil) == (y.EUTRANTraceID == nil) && (traceFailureIndication.EUTRANTraceID == nil || (*traceFailureIndication.EUTRANTraceID) == *y.EUTRANTraceID) &&
+		(traceFailureIndication.Cause == nil) == (y.Cause == nil) && (traceFailureIndication.Cause == nil || (*traceFailureIndication.Cause).Equal(*y.Cause)) &&
+		traceFailureIndication.messageMeta.Equal(y.messageMeta)
+}
+
+func (traceStart TraceStart) Equal(y TraceStart) bool {
+	return traceStart.MMEUES1APID == y.MMEUES1APID &&
+		traceStart.ENBUES1APID == y.ENBUES1APID &&
+		(traceStart.TraceActivation == nil) == (y.TraceActivation == nil) && (traceStart.TraceActivation == nil || (*traceStart.TraceActivation).Equal(*y.TraceActivation)) &&
+		traceStart.messageMeta.Equal(y.messageMeta)
+}
+
+func (transparentContainer TransparentContainer) Equal(y TransparentContainer) bool {
+	if len(transparentContainer) != len(y) {
+		return false
+	}
+	for i := range transparentContainer {
+		if !(transparentContainer[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (transportInformation TransportInformation) Equal(y TransportInformation) bool {
+	return transportInformation == y
+}
+
+func (tunnelInformation TunnelInformation) Equal(y TunnelInformation) bool {
+	return tunnelInformation.TransportLayerAddress == y.TransportLayerAddress &&
+		(tunnelInformation.UDPPortNumber == nil) == (y.UDPPortNumber == nil) && (tunnelInformation.UDPPortNumber == nil || (*tunnelInformation.UDPPortNumber) == *y.UDPPortNumber) &&
+		tunnelInformation.iEExtensions == y.iEExtensions &&
+		tunnelInformation.extensions == y.extensions
+}
+
+func (uEAggregateMaximumBitRate UEAggregateMaximumBitRate) Equal(y UEAggregateMaximumBitRate) bool {
+	return uEAggregateMaximumBitRate.DL == y.DL &&
+		uEAggregateMaximumBitRate.UL == y.UL &&
+		(uEAggregateMaximumBitRate.ExtendedDL == nil) == (y.ExtendedDL == nil) && (uEAggregateMaximumBitRate.ExtendedDL == nil || (*uEAggregateMaximumBitRate.ExtendedDL) == *y.ExtendedDL) &&
+		(uEAggregateMaximumBitRate.ExtendedUL == nil) == (y.ExtendedUL == nil) && (uEAggregateMaximumBitRate.ExtendedUL == nil || (*uEAggregateMaximumBitRate.ExtendedUL) == *y.ExtendedUL) &&
+		uEAggregateMaximumBitRate.iEExtensions == y.iEExtensions &&
+		uEAggregateMaximumBitRate.extensions == y.extensions
+}
+
+func (uEAssociatedLogicalS1ConnectionItem UEAssociatedLogicalS1ConnectionItem) Equal(y UEAssociatedLogicalS1ConnectionItem) bool {
+	return (uEAssociatedLogicalS1ConnectionItem.MMEUES1APID == nil) == (y.MMEUES1APID == nil) && (uEAssociatedLogicalS1ConnectionItem.MMEUES1APID == nil || (*uEAssociatedLogicalS1ConnectionItem.MMEUES1APID) == *y.MMEUES1APID) &&
+		(uEAssociatedLogicalS1ConnectionItem.ENBUES1APID == nil) == (y.ENBUES1APID == nil) && (uEAssociatedLogicalS1ConnectionItem.ENBUES1APID == nil || (*uEAssociatedLogicalS1ConnectionItem.ENBUES1APID) == *y.ENBUES1APID) &&
+		uEAssociatedLogicalS1ConnectionItem.iEExtensions == y.iEExtensions &&
+		uEAssociatedLogicalS1ConnectionItem.extensions == y.extensions &&
+		uEAssociatedLogicalS1ConnectionItem.containerCrit == y.containerCrit
+}
+
+func (uEAssociatedLogicalS1ConnectionListRes UEAssociatedLogicalS1ConnectionListRes) Equal(y UEAssociatedLogicalS1ConnectionListRes) bool {
+	if len(uEAssociatedLogicalS1ConnectionListRes) != len(y) {
+		return false
+	}
+	for i := range uEAssociatedLogicalS1ConnectionListRes {
+		if !(uEAssociatedLogicalS1ConnectionListRes[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (uECapabilityInfoIndication UECapabilityInfoIndication) Equal(y UECapabilityInfoIndication) bool {
+	return uECapabilityInfoIndication.MMEUES1APID == y.MMEUES1APID &&
+		uECapabilityInfoIndication.ENBUES1APID == y.ENBUES1APID &&
+		uECapabilityInfoIndication.UERadioCapability.Equal(y.UERadioCapability) &&
+		uECapabilityInfoIndication.UERadioCapabilityForPaging.Equal(y.UERadioCapabilityForPaging) &&
+		uECapabilityInfoIndication.messageMeta.Equal(y.messageMeta)
+}
+
+func (uEContextModificationFailure UEContextModificationFailure) Equal(y UEContextModificationFailure) bool {
+	return (uEContextModificationFailure.MMEUES1APID == nil) == (y.MMEUES1APID == nil) && (uEContextModificationFailure.MMEUES1APID == nil || (*uEContextModificationFailure.MMEUES1APID) == *y.MMEUES1APID) &&
+		(uEContextModificationFailure.ENBUES1APID == nil) == (y.ENBUES1APID == nil) && (uEContextModificationFailure.ENBUES1APID == nil || (*uEContextModificationFailure.ENBUES1APID) == *y.ENBUES1APID) &&
+		(uEContextModificationFailure.Cause == nil) == (y.Cause == nil) && (uEContextModificationFailure.Cause == nil || (*uEContextModificationFailure.Cause).Equal(*y.Cause)) &&
+		(uEContextModificationFailure.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (uEContextModificationFailure.CriticalityDiagnostics == nil || (*uEContextModificationFailure.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		uEContextModificationFailure.messageMeta.Equal(y.messageMeta)
+}
+
+func (uEContextModificationRequest UEContextModificationRequest) Equal(y UEContextModificationRequest) bool {
+	return uEContextModificationRequest.MMEUES1APID == y.MMEUES1APID &&
+		uEContextModificationRequest.ENBUES1APID == y.ENBUES1APID &&
+		(uEContextModificationRequest.UEAggregateMaximumBitRate == nil) == (y.UEAggregateMaximumBitRate == nil) && (uEContextModificationRequest.UEAggregateMaximumBitRate == nil || (*uEContextModificationRequest.UEAggregateMaximumBitRate).Equal(*y.UEAggregateMaximumBitRate)) &&
+		(uEContextModificationRequest.TimeRefDistribution == nil) == (y.TimeRefDistribution == nil) && (uEContextModificationRequest.TimeRefDistribution == nil || (*uEContextModificationRequest.TimeRefDistribution) == *y.TimeRefDistribution) &&
+		uEContextModificationRequest.messageMeta.Equal(y.messageMeta)
+}
+
+func (uEContextModificationResponse UEContextModificationResponse) Equal(y UEContextModificationResponse) bool {
+	return (uEContextModificationResponse.MMEUES1APID == nil) == (y.MMEUES1APID == nil) && (uEContextModificationResponse.MMEUES1APID == nil || (*uEContextModificationResponse.MMEUES1APID) == *y.MMEUES1APID) &&
+		(uEContextModificationResponse.ENBUES1APID == nil) == (y.ENBUES1APID == nil) && (uEContextModificationResponse.ENBUES1APID == nil || (*uEContextModificationResponse.ENBUES1APID) == *y.ENBUES1APID) &&
+		(uEContextModificationResponse.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (uEContextModificationResponse.CriticalityDiagnostics == nil || (*uEContextModificationResponse.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		uEContextModificationResponse.messageMeta.Equal(y.messageMeta)
+}
+
+func (uEContextReleaseCommand UEContextReleaseCommand) Equal(y UEContextReleaseCommand) bool {
+	return uEContextReleaseCommand.UES1APIDs.Equal(y.UES1APIDs) &&
+		(uEContextReleaseCommand.Cause == nil) == (y.Cause == nil) && (uEContextReleaseCommand.Cause == nil || (*uEContextReleaseCommand.Cause).Equal(*y.Cause)) &&
+		uEContextReleaseCommand.messageMeta.Equal(y.messageMeta)
+}
+
+func (uEContextReleaseComplete UEContextReleaseComplete) Equal(y UEContextReleaseComplete) bool {
+	return (uEContextReleaseComplete.MMEUES1APID == nil) == (y.MMEUES1APID == nil) && (uEContextReleaseComplete.MMEUES1APID == nil || (*uEContextReleaseComplete.MMEUES1APID) == *y.MMEUES1APID) &&
+		(uEContextReleaseComplete.ENBUES1APID == nil) == (y.ENBUES1APID == nil) && (uEContextReleaseComplete.ENBUES1APID == nil || (*uEContextReleaseComplete.ENBUES1APID) == *y.ENBUES1APID) &&
+		(uEContextReleaseComplete.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (uEContextReleaseComplete.CriticalityDiagnostics == nil || (*uEContextReleaseComplete.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		(uEContextReleaseComplete.UserLocationInformation == nil) == (y.UserLocationInformation == nil) && (uEContextReleaseComplete.UserLocationInformation == nil || (*uEContextReleaseComplete.UserLocationInformation).Equal(*y.UserLocationInformation)) &&
+		uEContextReleaseComplete.messageMeta.Equal(y.messageMeta)
+}
+
+func (uEContextReleaseRequest UEContextReleaseRequest) Equal(y UEContextReleaseRequest) bool {
+	return uEContextReleaseRequest.MMEUES1APID == y.MMEUES1APID &&
+		uEContextReleaseRequest.ENBUES1APID == y.ENBUES1APID &&
+		(uEContextReleaseRequest.Cause == nil) == (y.Cause == nil) && (uEContextReleaseRequest.Cause == nil || (*uEContextReleaseRequest.Cause).Equal(*y.Cause)) &&
+		(uEContextReleaseRequest.GWContextReleaseIndication == nil) == (y.GWContextReleaseIndication == nil) && (uEContextReleaseRequest.GWContextReleaseIndication == nil || (*uEContextReleaseRequest.GWContextReleaseIndication) == *y.GWContextReleaseIndication) &&
+		uEContextReleaseRequest.messageMeta.Equal(y.messageMeta)
+}
+
+func (uEHistoryInformation UEHistoryInformation) Equal(y UEHistoryInformation) bool {
+	if len(uEHistoryInformation) != len(y) {
+		return false
+	}
+	for i := range uEHistoryInformation {
+		if !(uEHistoryInformation[i].Equal(y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
+func (uEHistoryInformationFromTheUE UEHistoryInformationFromTheUE) Equal(y UEHistoryInformationFromTheUE) bool {
+	if len(uEHistoryInformationFromTheUE) != len(y) {
+		return false
+	}
+	for i := range uEHistoryInformationFromTheUE {
+		if !(uEHistoryInformationFromTheUE[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (uEPagingID UEPagingID) Equal(y UEPagingID) bool {
+	return (uEPagingID.STMSI == nil) == (y.STMSI == nil) && (uEPagingID.STMSI == nil || (*uEPagingID.STMSI).Equal(*y.STMSI)) &&
+		(uEPagingID.IMSI == nil) == (y.IMSI == nil) && (uEPagingID.IMSI == nil || (*uEPagingID.IMSI).Equal(*y.IMSI)) &&
+		(uEPagingID.Ext == nil) == (y.Ext == nil) && (uEPagingID.Ext == nil || (*uEPagingID.Ext) == *y.Ext)
+}
+
+func (uERadioCapability UERadioCapability) Equal(y UERadioCapability) bool {
+	if len(uERadioCapability) != len(y) {
+		return false
+	}
+	for i := range uERadioCapability {
+		if !(uERadioCapability[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (uERadioCapabilityForPaging UERadioCapabilityForPaging) Equal(y UERadioCapabilityForPaging) bool {
+	if len(uERadioCapabilityForPaging) != len(y) {
+		return false
+	}
+	for i := range uERadioCapabilityForPaging {
+		if !(uERadioCapabilityForPaging[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (uES1APIDPair UES1APIDPair) Equal(y UES1APIDPair) bool {
+	return uES1APIDPair == y
+}
+
+func (uES1APIDs UES1APIDs) Equal(y UES1APIDs) bool {
+	return (uES1APIDs.UES1APIDPair == nil) == (y.UES1APIDPair == nil) && (uES1APIDs.UES1APIDPair == nil || (*uES1APIDs.UES1APIDPair).Equal(*y.UES1APIDPair)) &&
+		(uES1APIDs.MMEUES1APID == nil) == (y.MMEUES1APID == nil) && (uES1APIDs.MMEUES1APID == nil || (*uES1APIDs.MMEUES1APID) == *y.MMEUES1APID) &&
+		(uES1APIDs.Ext == nil) == (y.Ext == nil) && (uES1APIDs.Ext == nil || (*uES1APIDs.Ext) == *y.Ext)
+}
+
+func (uESecurityCapabilities UESecurityCapabilities) Equal(y UESecurityCapabilities) bool {
+	return uESecurityCapabilities == y
+}
+
+func (uplinkNASTransport UplinkNASTransport) Equal(y UplinkNASTransport) bool {
+	return uplinkNASTransport.MMEUES1APID == y.MMEUES1APID &&
+		uplinkNASTransport.ENBUES1APID == y.ENBUES1APID &&
+		uplinkNASTransport.NASPDU.Equal(y.NASPDU) &&
+		(uplinkNASTransport.EUTRANCGI == nil) == (y.EUTRANCGI == nil) && (uplinkNASTransport.EUTRANCGI == nil || (*uplinkNASTransport.EUTRANCGI).Equal(*y.EUTRANCGI)) &&
+		(uplinkNASTransport.TAI == nil) == (y.TAI == nil) && (uplinkNASTransport.TAI == nil || (*uplinkNASTransport.TAI).Equal(*y.TAI)) &&
+		(uplinkNASTransport.GWTransportLayerAddress == nil) == (y.GWTransportLayerAddress == nil) && (uplinkNASTransport.GWTransportLayerAddress == nil || (*uplinkNASTransport.GWTransportLayerAddress) == *y.GWTransportLayerAddress) &&
+		(uplinkNASTransport.SIPTOLGWTransportLayerAddress == nil) == (y.SIPTOLGWTransportLayerAddress == nil) && (uplinkNASTransport.SIPTOLGWTransportLayerAddress == nil || (*uplinkNASTransport.SIPTOLGWTransportLayerAddress) == *y.SIPTOLGWTransportLayerAddress) &&
+		uplinkNASTransport.messageMeta.Equal(y.messageMeta)
+}
+
+func (uplinkNonUEAssociatedLPPaTransport UplinkNonUEAssociatedLPPaTransport) Equal(y UplinkNonUEAssociatedLPPaTransport) bool {
+	return uplinkNonUEAssociatedLPPaTransport.RoutingID == y.RoutingID &&
+		uplinkNonUEAssociatedLPPaTransport.LPPaPDU.Equal(y.LPPaPDU) &&
+		uplinkNonUEAssociatedLPPaTransport.messageMeta.Equal(y.messageMeta)
+}
+
+func (uplinkUEAssociatedLPPaTransport UplinkUEAssociatedLPPaTransport) Equal(y UplinkUEAssociatedLPPaTransport) bool {
+	return uplinkUEAssociatedLPPaTransport.MMEUES1APID == y.MMEUES1APID &&
+		uplinkUEAssociatedLPPaTransport.ENBUES1APID == y.ENBUES1APID &&
+		uplinkUEAssociatedLPPaTransport.RoutingID == y.RoutingID &&
+		uplinkUEAssociatedLPPaTransport.LPPaPDU.Equal(y.LPPaPDU) &&
+		uplinkUEAssociatedLPPaTransport.messageMeta.Equal(y.messageMeta)
+}
+
+func (userLocationInformation UserLocationInformation) Equal(y UserLocationInformation) bool {
+	return userLocationInformation.extensions == y.extensions &&
+		userLocationInformation.EUTRANCGI.Equal(y.EUTRANCGI) &&
+		userLocationInformation.TAI.Equal(y.TAI) &&
+		(userLocationInformation.PSCellInformation == nil) == (y.PSCellInformation == nil) && (userLocationInformation.PSCellInformation == nil || (*userLocationInformation.PSCellInformation).Equal(*y.PSCellInformation)) &&
+		(userLocationInformation.LTENTNTAIInformation == nil) == (y.LTENTNTAIInformation == nil) && (userLocationInformation.LTENTNTAIInformation == nil || (*userLocationInformation.LTENTNTAIInformation).Equal(*y.LTENTNTAIInformation)) &&
+		userLocationInformation.iEExtensions == y.iEExtensions
+}
+
+func (warningAreaCoordinates WarningAreaCoordinates) Equal(y WarningAreaCoordinates) bool {
+	if len(warningAreaCoordinates) != len(y) {
+		return false
+	}
+	for i := range warningAreaCoordinates {
+		if !(warningAreaCoordinates[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (warningAreaList WarningAreaList) Equal(y WarningAreaList) bool {
+	return (warningAreaList.CellIDList == nil) == (y.CellIDList == nil) && (warningAreaList.CellIDList == nil || (*warningAreaList.CellIDList).Equal(*y.CellIDList)) &&
+		(warningAreaList.TrackingAreaListforWarning == nil) == (y.TrackingAreaListforWarning == nil) && (warningAreaList.TrackingAreaListforWarning == nil || (*warningAreaList.TrackingAreaListforWarning).Equal(*y.TrackingAreaListforWarning)) &&
+		(warningAreaList.EmergencyAreaIDList == nil) == (y.EmergencyAreaIDList == nil) && (warningAreaList.EmergencyAreaIDList == nil || (*warningAreaList.EmergencyAreaIDList).Equal(*y.EmergencyAreaIDList)) &&
+		(warningAreaList.Ext == nil) == (y.Ext == nil) && (warningAreaList.Ext == nil || (*warningAreaList.Ext) == *y.Ext)
+}
+
+func (warningMessageContents WarningMessageContents) Equal(y WarningMessageContents) bool {
+	if len(warningMessageContents) != len(y) {
+		return false
+	}
+	for i := range warningMessageContents {
+		if !(warningMessageContents[i] == y[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func (writeReplaceWarningRequest WriteReplaceWarningRequest) Equal(y WriteReplaceWarningRequest) bool {
+	return writeReplaceWarningRequest.MessageIdentifier == y.MessageIdentifier &&
+		writeReplaceWarningRequest.SerialNumber == y.SerialNumber &&
+		(writeReplaceWarningRequest.WarningAreaList == nil) == (y.WarningAreaList == nil) && (writeReplaceWarningRequest.WarningAreaList == nil || (*writeReplaceWarningRequest.WarningAreaList).Equal(*y.WarningAreaList)) &&
+		writeReplaceWarningRequest.RepetitionPeriod == y.RepetitionPeriod &&
+		(writeReplaceWarningRequest.ExtendedRepetitionPeriod == nil) == (y.ExtendedRepetitionPeriod == nil) && (writeReplaceWarningRequest.ExtendedRepetitionPeriod == nil || (*writeReplaceWarningRequest.ExtendedRepetitionPeriod) == *y.ExtendedRepetitionPeriod) &&
+		writeReplaceWarningRequest.NumberofBroadcastRequest == y.NumberofBroadcastRequest &&
+		(writeReplaceWarningRequest.WarningType == nil) == (y.WarningType == nil) && (writeReplaceWarningRequest.WarningType == nil || (*writeReplaceWarningRequest.WarningType) == *y.WarningType) &&
+		(writeReplaceWarningRequest.WarningSecurityInfo == nil) == (y.WarningSecurityInfo == nil) && (writeReplaceWarningRequest.WarningSecurityInfo == nil || (*writeReplaceWarningRequest.WarningSecurityInfo) == *y.WarningSecurityInfo) &&
+		(writeReplaceWarningRequest.DataCodingScheme == nil) == (y.DataCodingScheme == nil) && (writeReplaceWarningRequest.DataCodingScheme == nil || (*writeReplaceWarningRequest.DataCodingScheme) == *y.DataCodingScheme) &&
+		(writeReplaceWarningRequest.WarningMessageContents == nil) == (y.WarningMessageContents == nil) && (writeReplaceWarningRequest.WarningMessageContents == nil || (*writeReplaceWarningRequest.WarningMessageContents).Equal(*y.WarningMessageContents)) &&
+		(writeReplaceWarningRequest.ConcurrentWarningMessageIndicator == nil) == (y.ConcurrentWarningMessageIndicator == nil) && (writeReplaceWarningRequest.ConcurrentWarningMessageIndicator == nil || (*writeReplaceWarningRequest.ConcurrentWarningMessageIndicator) == *y.ConcurrentWarningMessageIndicator) &&
+		(writeReplaceWarningRequest.WarningAreaCoordinates == nil) == (y.WarningAreaCoordinates == nil) && (writeReplaceWarningRequest.WarningAreaCoordinates == nil || (*writeReplaceWarningRequest.WarningAreaCoordinates).Equal(*y.WarningAreaCoordinates)) &&
+		writeReplaceWarningRequest.messageMeta.Equal(y.messageMeta)
+}
+
+func (writeReplaceWarningResponse WriteReplaceWarningResponse) Equal(y WriteReplaceWarningResponse) bool {
+	return writeReplaceWarningResponse.MessageIdentifier == y.MessageIdentifier &&
+		writeReplaceWarningResponse.SerialNumber == y.SerialNumber &&
+		(writeReplaceWarningResponse.BroadcastCompletedAreaList == nil) == (y.BroadcastCompletedAreaList == nil) && (writeReplaceWarningResponse.BroadcastCompletedAreaList == nil || (*writeReplaceWarningResponse.BroadcastCompletedAreaList).Equal(*y.BroadcastCompletedAreaList)) &&
+		(writeReplaceWarningResponse.CriticalityDiagnostics == nil) == (y.CriticalityDiagnostics == nil) && (writeReplaceWarningResponse.CriticalityDiagnostics == nil || (*writeReplaceWarningResponse.CriticalityDiagnostics).Equal(*y.CriticalityDiagnostics)) &&
+		writeReplaceWarningResponse.messageMeta.Equal(y.messageMeta)
+}
+
+func (x2TNLConfigurationInfo X2TNLConfigurationInfo) Equal(y X2TNLConfigurationInfo) bool {
+	return x2TNLConfigurationInfo.ENBX2TransportLayerAddresses.Equal(y.ENBX2TransportLayerAddresses) &&
+		x2TNLConfigurationInfo.ENBX2ExtendedTransportLayerAddresses.Equal(y.ENBX2ExtendedTransportLayerAddresses) &&
+		x2TNLConfigurationInfo.ENBIndirectX2TransportLayerAddresses.Equal(y.ENBIndirectX2TransportLayerAddresses) &&
+		x2TNLConfigurationInfo.iEExtensions == y.iEExtensions &&
+		x2TNLConfigurationInfo.extensions == y.extensions
+}
+
+func (x erabModifyItemBearerModConf) Equal(y erabModifyItemBearerModConf) bool {
+	return x == y
+}
+
+func (x messageMeta) Equal(y messageMeta) bool {
+	return x.Message.Equal(y.Message)
 }

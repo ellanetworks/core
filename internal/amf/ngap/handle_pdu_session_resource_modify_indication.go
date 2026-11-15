@@ -93,9 +93,9 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, amfInstance *
 // appendFailedToModify records a session the AMF could not hand to the SMF,
 // carrying the reason in a Modify Indication Unsuccessful Transfer
 // (TS 38.413 §9.3.4.22).
-func appendFailedToModify(ctx context.Context, ueConn *amf.UeConn, list ngap.PDUSessionResourceFailedToModifyListModCfm, pduSessionID ngap.PDUSessionID, causeValue int) ngap.PDUSessionResourceFailedToModifyListModCfm {
+func appendFailedToModify(ctx context.Context, ueConn *amf.UeConn, list ngap.PDUSessionResourceFailedToModifyListModCfm, pduSessionID ngap.PDUSessionID, causeValue ngap.CauseRadioNetwork) ngap.PDUSessionResourceFailedToModifyListModCfm {
 	t := &ngap.PDUSessionResourceModifyIndicationUnsuccessfulTransfer{
-		Cause: ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: causeValue},
+		Cause: causeValue.Cause(),
 	}
 
 	transfer, err := t.Marshal()

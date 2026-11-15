@@ -46,7 +46,7 @@ const (
 
 var (
 	imsVoicePayload = []byte{0x80, 0x76, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1}
-	imsRefusal      = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell}
+	imsRefusal      = s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell.Cause()
 )
 
 func registerIMS(name string, run func(context.Context, scenarios.Env) error, subs ...scenarios.SubscriberSpec) {

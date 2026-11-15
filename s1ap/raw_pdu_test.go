@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 type corpusPDU struct {
@@ -167,7 +168,7 @@ func TestRawPDUCorpusIdentity(t *testing.T) {
 		}
 
 		for i := range ies {
-			if got[i].ID != ies[i].id || got[i].Criticality != ies[i].crit || !bytes.Equal(got[i].Value, ies[i].value) {
+			if got[i].ID != ies[i].ID || got[i].Criticality != ies[i].Criticality || !bytes.Equal(got[i].Value, ies[i].Value) {
 				t.Errorf("%s: IE %d differs from decodeIEContainer", c.source, i)
 			}
 		}
@@ -202,13 +203,13 @@ func ueIDSetters() []idSetter {
 			field: "MMEUES1APID",
 			set:   func(p *RawPDU, v uint64) error { return p.SetMMEUES1APID(MMEUES1APID(v)) },
 			value: func(v uint64) reflect.Value { return reflect.ValueOf(MMEUES1APID(v)) },
-			has:   func(p *RawPDU) bool { return p.Index(IDMMEUES1APID) >= 0 },
+			has:   func(p *RawPDU) bool { return firstIndex(p, IDMMEUES1APID) >= 0 },
 		},
 		{
 			field: "ENBUES1APID",
 			set:   func(p *RawPDU, v uint64) error { return p.SetENBUES1APID(ENBUES1APID(v)) },
 			value: func(v uint64) reflect.Value { return reflect.ValueOf(ENBUES1APID(v)) },
-			has:   func(p *RawPDU) bool { return p.Index(IDENBUES1APID) >= 0 },
+			has:   func(p *RawPDU) bool { return firstIndex(p, IDENBUES1APID) >= 0 },
 		},
 	}
 }
@@ -461,7 +462,7 @@ func TestRawPDUSpliceLocality(t *testing.T) {
 					continue
 				}
 
-				target := p.Index(map[string]ProtocolIEID{"MMEUES1APID": IDMMEUES1APID, "ENBUES1APID": IDENBUES1APID}[s.field])
+				target := firstIndex(p, map[string]ProtocolIEID{"MMEUES1APID": IDMMEUES1APID, "ENBUES1APID": IDENBUES1APID}[s.field])
 
 				if err := s.set(p, v); err != nil {
 					t.Fatal(err)
@@ -581,7 +582,7 @@ func TestRawPDUTshark(t *testing.T) {
 
 		e := expect{source: c.source}
 
-		if p.Index(IDMMEUES1APID) >= 0 {
+		if firstIndex(p, IDMMEUES1APID) >= 0 {
 			if err := p.SetMMEUES1APID(4294967295); err != nil {
 				t.Fatal(err)
 			}
@@ -589,7 +590,7 @@ func TestRawPDUTshark(t *testing.T) {
 			e.id1 = strconv.FormatUint(4294967295, 10)
 		}
 
-		if p.Index(IDENBUES1APID) >= 0 {
+		if firstIndex(p, IDENBUES1APID) >= 0 {
 			if err := p.SetENBUES1APID(16777215 - 1); err != nil {
 				t.Fatal(err)
 			}
@@ -653,14 +654,30 @@ func hexSpaced(b []byte) string {
 	return strings.Join(parts, " ")
 }
 
-func TestRawPDURefusesPrivateMessage(t *testing.T) {
-	b, err := Marshal(&InitiatingMessage{ProcedureCode: ProcPrivateMessage, Criticality: CriticalityIgnore, Value: []byte{0x00, 0x00, 0x00}})
+func TestRawPDUPrivateMessageIsOpaque(t *testing.T) {
+	body := []byte{0x00, 0x00, 0x00}
+
+	b, err := Marshal(&InitiatingMessage{ProcedureCode: ProcPrivateMessage, Criticality: CriticalityIgnore, Value: body})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := ParseRawPDU(b); err == nil {
-		t.Fatal("PrivateMessage accepted as a ProtocolIE-Container")
+	p, err := ParseRawPDU(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !p.Opaque() || p.ProcedureCode() != ProcPrivateMessage || p.Len() != 0 || !bytes.Equal(p.Body(), body) {
+		t.Fatalf("opaque = %v, procedure = %s, len = %d, body = %x", p.Opaque(), p.ProcedureCode(), p.Len(), p.Body())
+	}
+
+	if err := p.Insert(0, RawIE{ID: 1, Criticality: CriticalityIgnore, Value: []byte{0x00}}); err == nil {
+		t.Fatal("Insert into an opaque body succeeded")
+	}
+
+	out, err := p.Marshal()
+	if err != nil || !bytes.Equal(out, b) {
+		t.Fatalf("Marshal = %x (%v), want %x", out, err, b)
 	}
 }
 
@@ -702,9 +719,9 @@ func TestRawPDUUnmodeledProcedure(t *testing.T) {
 	body.WriteBit(false)
 
 	if err := encodeIEContainer(body, per.Aligned, []ieField{
-		{id: 60000, crit: CriticalityNotify, raw: []byte{0xde, 0xad}},
-		{id: IDMMEUES1APID, crit: CriticalityReject, raw: id},
-		{id: 60001, crit: CriticalityIgnore, raw: bytes.Repeat([]byte{0xbe}, 200)},
+		{ID: 60000, Criticality: CriticalityNotify, Value: ap.RawValue([]byte{0xde, 0xad})},
+		{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: ap.RawValue(id)},
+		{ID: 60001, Criticality: CriticalityIgnore, Value: ap.RawValue(bytes.Repeat([]byte{0xbe}, 200))},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -786,7 +803,7 @@ func FuzzRawPDU(f *testing.F) {
 			t.Fatalf("same-value replace: %v", err)
 		}
 
-		if p.Index(IDMMEUES1APID) < 0 {
+		if firstIndex(p, IDMMEUES1APID) < 0 {
 			return
 		}
 

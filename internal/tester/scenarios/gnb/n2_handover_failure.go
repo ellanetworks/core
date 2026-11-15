@@ -139,7 +139,7 @@ func runN2HandoverTargetRefuses(_ context.Context, env scenarios.Env, _ any) err
 		return err
 	}
 
-	refusal := ngaplib.Cause{Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkHOFailureInTarget}
+	refusal := ngaplib.CauseRadioNetworkHOFailureInTarget.Cause()
 	if err := pair.Target.SendHandoverFailure(int64(req.AMFUENGAPID), refusal); err != nil {
 		return fmt.Errorf("refuse the handover at the target gNB: %w", err)
 	}
@@ -161,8 +161,8 @@ func runN2HandoverTargetRefuses(_ context.Context, env scenarios.Env, _ any) err
 		return errors.New("the Handover Preparation Failure carries no cause")
 	}
 
-	if fail.Cause.Group != ngaplib.CauseGroupRadioNetwork || fail.Cause.Value != ngaplib.CauseRadioNetworkHOFailureInTarget {
-		return fmt.Errorf("the Handover Preparation Failure cause = %+v, want a radio-network failure in the target", *fail.Cause)
+	if !fail.Cause.Equal(ngaplib.CauseRadioNetworkHOFailureInTarget.Cause()) {
+		return fmt.Errorf("the Handover Preparation Failure cause = %v, want a radio-network failure in the target", *fail.Cause)
 	}
 
 	return survivesOnSource(pair)
@@ -211,7 +211,7 @@ func runN2HandoverCancel(_ context.Context, env scenarios.Env, _ any) error {
 		return err
 	}
 
-	cancelCause := ngaplib.Cause{Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkHandoverCancelled}
+	cancelCause := ngaplib.CauseRadioNetworkHandoverCancelled.Cause()
 	if err := pair.Source.SendHandoverCancel(pair.AMFUENGAPID, pair.RANUENGAPID, cancelCause); err != nil {
 		return fmt.Errorf("cancel the handover at the source gNB: %w", err)
 	}
@@ -239,7 +239,7 @@ func runN2HandoverCancel(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("parse the target's UEContextReleaseCommand: %w", err)
 	}
 
-	if !cmd.UENGAPIDs.Pair || int64(cmd.UENGAPIDs.RANUENGAPID) != targetRanUENGAPID {
+	if pair := cmd.UENGAPIDs.UENGAPIDPair; pair == nil || int64(pair.RANUENGAPID) != targetRanUENGAPID {
 		return fmt.Errorf("the UEContextReleaseCommand named RAN-UE-NGAP-ID %v, want the target's %d", cmd.UENGAPIDs, targetRanUENGAPID)
 	}
 

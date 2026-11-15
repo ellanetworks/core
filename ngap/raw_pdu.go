@@ -4,23 +4,25 @@
 package ngap
 
 import (
-	"errors"
-	"fmt"
+	"iter"
 
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/protocolie"
+	"github.com/ellanetworks/core/per/ap"
 )
 
-var ErrIENotPresent = errors.New("ngap: IE not present")
+var (
+	ErrIENotPresent = ap.ErrIENotPresent
+	ErrDuplicateIE  = ap.ErrDuplicateIE
+)
 
 type RawPDU struct {
-	m *protocolie.Message
+	m *ap.RawPDU[ProtocolIEID]
 }
 
 func ParseRawPDU(b []byte) (*RawPDU, error) {
-	m, err := protocolie.Parse(b, func(pc uint8) bool { return ProcedureCode(pc) == ProcPrivateMessage })
+	m, err := ap.ParseRawPDU[ProtocolIEID](profile, b)
 	if err != nil {
-		return nil, fmt.Errorf("ngap: %w", err)
+		return nil, err
 	}
 
 	return &RawPDU{m: m}, nil
@@ -30,93 +32,30 @@ func (p *RawPDU) Trigger() TriggeringMessage { return TriggeringMessage(p.m.Choi
 
 func (p *RawPDU) ProcedureCode() ProcedureCode { return ProcedureCode(p.m.ProcedureCode()) }
 
-func (p *RawPDU) Criticality() Criticality { return Criticality(p.m.Criticality()) }
+func (p *RawPDU) Criticality() Criticality { return p.m.Criticality() }
+
+func (p *RawPDU) Opaque() bool { return p.m.Opaque() }
+
+func (p *RawPDU) Body() []byte { return p.m.Body() }
 
 func (p *RawPDU) Len() int { return p.m.Len() }
 
-func (p *RawPDU) IE(i int) (RawIE, error) {
-	f, err := p.m.Field(i)
-	if err != nil {
-		return RawIE{}, fmt.Errorf("ngap: %w", err)
-	}
+func (p *RawPDU) IE(i int) (RawIE, error) { return p.m.Field(i) }
 
-	return RawIE{ID: ProtocolIEID(f.ID), Criticality: Criticality(f.Criticality), Value: f.Value}, nil
-}
+func (p *RawPDU) IEs() []RawIE { return p.m.Fields() }
 
-func (p *RawPDU) IEs() []RawIE {
-	fields := p.m.Fields()
+func (p *RawPDU) All(id ProtocolIEID) iter.Seq2[int, RawIE] { return p.m.All(id) }
 
-	out := make([]RawIE, len(fields))
-	for i, f := range fields {
-		out[i] = RawIE{ID: ProtocolIEID(f.ID), Criticality: Criticality(f.Criticality), Value: f.Value}
-	}
+func (p *RawPDU) Index(id ProtocolIEID) (int, error) { return p.m.Index(id) }
 
-	return out
-}
+func (p *RawPDU) SetValue(i int, value []byte) error { return p.m.SetValue(i, value) }
 
-func (p *RawPDU) Index(id ProtocolIEID) int { return p.m.Index(uint16(id)) }
+func (p *RawPDU) Insert(i int, ie RawIE) error { return p.m.Insert(i, ie) }
 
-func (p *RawPDU) SetValue(i int, value []byte) error {
-	if err := p.m.SetValue(i, value); err != nil {
-		return fmt.Errorf("ngap: %w", err)
-	}
+func (p *RawPDU) Remove(i int) error { return p.m.Remove(i) }
 
-	return nil
-}
+func (p *RawPDU) Marshal() ([]byte, error) { return p.m.Marshal() }
 
-func (p *RawPDU) Insert(i int, ie RawIE) error {
-	if err := p.m.Insert(i, protocolie.Field{ID: uint16(ie.ID), Criticality: uint8(ie.Criticality), Value: ie.Value}); err != nil {
-		return fmt.Errorf("ngap: %w", err)
-	}
+func (p *RawPDU) Get(id ProtocolIEID, v per.Unmarshaler) (bool, error) { return p.m.Get(id, v) }
 
-	return nil
-}
-
-func (p *RawPDU) Remove(i int) error {
-	if err := p.m.Remove(i); err != nil {
-		return fmt.Errorf("ngap: %w", err)
-	}
-
-	return nil
-}
-
-func (p *RawPDU) Marshal() ([]byte, error) {
-	b, err := p.m.Bytes()
-	if err != nil {
-		return nil, fmt.Errorf("ngap: %w", err)
-	}
-
-	return b, nil
-}
-
-func (p *RawPDU) Get(id ProtocolIEID, v per.Unmarshaler) (bool, error) {
-	i := p.m.Index(uint16(id))
-	if i < 0 {
-		return false, nil
-	}
-
-	f, err := p.m.Field(i)
-	if err != nil {
-		return false, fmt.Errorf("ngap: %w", err)
-	}
-
-	if err := perIEDecode(f.Value, v); err != nil {
-		return false, fmt.Errorf("ngap: IE %s: %w", id, err)
-	}
-
-	return true, nil
-}
-
-func (p *RawPDU) Set(id ProtocolIEID, v per.Marshaler) error {
-	i := p.m.Index(uint16(id))
-	if i < 0 {
-		return fmt.Errorf("%w: %s", ErrIENotPresent, id)
-	}
-
-	b, err := per.Marshal(v, per.Aligned)
-	if err != nil {
-		return fmt.Errorf("ngap: IE %s: %w", id, err)
-	}
-
-	return p.SetValue(i, b)
-}
+func (p *RawPDU) Set(id ProtocolIEID, v per.Marshaler) error { return p.m.Set(id, v) }

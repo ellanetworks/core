@@ -4,8 +4,6 @@
 package s1ap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
 )
 
@@ -21,51 +19,15 @@ const (
 	OverloadActionRejectDelayTolerantAccess
 	OverloadActionPermitHighPrioritySessionsAndExceptionReportingAndMobileTerminatedServicesOnly
 	OverloadActionNotAcceptMODataOrDelayTolerantAccessFromCPCIoT
-
-	overloadActionRootCount  = 3
-	overloadActionValueCount = 7
 )
 
 type OverloadResponse struct {
-	OverloadAction OverloadAction
+	OverloadAction *OverloadAction           `per:",choice:0"`
+	Ext            *per.ExtensionAlternative `per:",extalt"`
 }
 
-func (o OverloadResponse) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	if o.OverloadAction >= overloadActionValueCount {
-		return fmt.Errorf("s1ap: OverloadAction %d is not defined", o.OverloadAction)
-	}
-
-	w.WriteBit(false)
-
-	return per.EncodeEnumerated(w, enc, overloadActionRootCount, true, int64(o.OverloadAction))
-}
-
-func (o *OverloadResponse) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	isExt, err := r.ReadBit()
-	if err != nil {
-		return fmt.Errorf("s1ap: OverloadResponse choice: %w", err)
-	}
-
-	if isExt {
-		return fmt.Errorf("%w: OverloadResponse extension alternative", errNotComprehended)
-	}
-
-	v, err := per.DecodeEnumerated(r, enc, overloadActionRootCount, true)
-	if err != nil {
-		return fmt.Errorf("s1ap: OverloadAction: %w", err)
-	}
-
-	if v >= overloadActionValueCount {
-		return fmt.Errorf("%w: OverloadAction extension value %d", errNotComprehended, v)
-	}
-
-	*o = OverloadResponse{OverloadAction: OverloadAction(v)}
-
-	return nil
-}
-
-func decodeGUMMEIList(raw []byte, enc per.Encoding) ([]GUMMEI, error) {
-	return unmarshalSeqOf[GUMMEI](per.NewReader(raw), enc, 1, maxnoofMMECs)
+func decodeGUMMEIList(r *per.Reader, enc per.Encoding) ([]GUMMEI, error) {
+	return unmarshalSeqOf[GUMMEI](r, enc, 1, maxnoofMMECs)
 }
 
 func gUMMEIListIE(l []GUMMEI) (per.Marshaler, bool) {
@@ -73,9 +35,7 @@ func gUMMEIListIE(l []GUMMEI) (per.Marshaler, bool) {
 		return nil, false
 	}
 
-	return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-		return marshalSeqOf(w, enc, 1, maxnoofMMECs, l)
-	}), true
+	return seqOf(1, maxnoofMMECs, l), true
 }
 
 type OverloadStart struct {
@@ -88,29 +48,29 @@ type OverloadStart struct {
 
 var overloadStartIEs = []ieSpec[OverloadStart]{
 	{
-		id: IDOverloadResponse, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *OverloadStart, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.OverloadResponse)
+		ID: IDOverloadResponse, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *OverloadStart, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.OverloadResponse)
 		},
-		encode: func(m *OverloadStart) (per.Marshaler, bool) { return &m.OverloadResponse, true },
+		Encode: func(m *OverloadStart) (per.Marshaler, bool) { return &m.OverloadResponse, true },
 	},
 	{
-		id: IDGUMMEIList, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *OverloadStart, raw []byte, enc per.Encoding) error {
+		ID: IDGUMMEIList, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *OverloadStart, r *per.Reader, enc per.Encoding) error {
 			var err error
 
-			m.GUMMEIList, err = decodeGUMMEIList(raw, enc)
+			m.GUMMEIList, err = decodeGUMMEIList(r, enc)
 
 			return err
 		},
-		encode: func(m *OverloadStart) (per.Marshaler, bool) { return gUMMEIListIE(m.GUMMEIList) },
+		Encode: func(m *OverloadStart) (per.Marshaler, bool) { return gUMMEIListIE(m.GUMMEIList) },
 	},
 	{
-		id: IDTrafficLoadReductionIndication, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *OverloadStart, raw []byte, enc per.Encoding) error {
-			return decodeOptionalInteger(raw, trafficLoadReductionIndicationBounds, &m.TrafficLoadReductionIndication)
+		ID: IDTrafficLoadReductionIndication, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *OverloadStart, r *per.Reader, enc per.Encoding) error {
+			return decodeOptionalInteger(r, trafficLoadReductionIndicationBounds, &m.TrafficLoadReductionIndication)
 		},
-		encode: func(m *OverloadStart) (per.Marshaler, bool) {
+		Encode: func(m *OverloadStart) (per.Marshaler, bool) {
 			if m.TrafficLoadReductionIndication == nil {
 				return nil, false
 			}
@@ -144,6 +104,10 @@ func ParseOverloadStart(value []byte) (*OverloadStart, error) {
 	return parseMessageBody[OverloadStart](ProcOverloadStart, TriggeringInitiatingMessage, overloadStartIEs, value)
 }
 
+func DecodeOverloadStart(value []byte) (*OverloadStart, error) {
+	return decodeMessageBody[OverloadStart](ProcOverloadStart, overloadStartIEs, value)
+}
+
 type OverloadStop struct {
 	GUMMEIList []GUMMEI
 
@@ -152,15 +116,15 @@ type OverloadStop struct {
 
 var overloadStopIEs = []ieSpec[OverloadStop]{
 	{
-		id: IDGUMMEIList, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *OverloadStop, raw []byte, enc per.Encoding) error {
+		ID: IDGUMMEIList, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *OverloadStop, r *per.Reader, enc per.Encoding) error {
 			var err error
 
-			m.GUMMEIList, err = decodeGUMMEIList(raw, enc)
+			m.GUMMEIList, err = decodeGUMMEIList(r, enc)
 
 			return err
 		},
-		encode: func(m *OverloadStop) (per.Marshaler, bool) { return gUMMEIListIE(m.GUMMEIList) },
+		Encode: func(m *OverloadStop) (per.Marshaler, bool) { return gUMMEIListIE(m.GUMMEIList) },
 	},
 }
 
@@ -186,4 +150,8 @@ func (m *OverloadStop) Marshal() ([]byte, error) {
 
 func ParseOverloadStop(value []byte) (*OverloadStop, error) {
 	return parseMessageBody[OverloadStop](ProcOverloadStop, TriggeringInitiatingMessage, overloadStopIEs, value)
+}
+
+func DecodeOverloadStop(value []byte) (*OverloadStop, error) {
+	return decodeMessageBody[OverloadStop](ProcOverloadStop, overloadStopIEs, value)
 }

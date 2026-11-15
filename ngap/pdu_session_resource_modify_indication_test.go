@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"testing"
+
+	"github.com/ellanetworks/core/per/ap"
 )
 
 const (
@@ -54,10 +56,7 @@ func TestPDUSessionResourceModifyIndicationRoundTrips(t *testing.T) {
 	t.Run("Indication", func(t *testing.T) {
 		plmn := PLMNIdentity{0x00, 0xf1, 0x10}
 		in := goldPDUSessionResourceModifyIndication()
-		in.UserLocationInformation = &UserLocationInformation{
-			Kind: UserLocationNR, PLMNIdentity: plmn, CellIdentity: 0x123456789,
-			TAI: TAI{PLMNIdentity: plmn, TAC: 1},
-		}
+		in.UserLocationInformation = &UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: plmn, NRCellIdentity: NRCellIdentity(0x123456789)}, TAI: TAI{PLMNIdentity: plmn, TAC: 1}}}
 
 		b, err := in.Marshal()
 		if err != nil {
@@ -83,7 +82,7 @@ func TestPDUSessionResourceModifyIndicationRoundTrips(t *testing.T) {
 			t.Fatalf("modify list = %+v", out.PDUSessionResourceModify)
 		}
 
-		if out.UserLocationInformation == nil || out.UserLocationInformation.CellIdentity != 0x123456789 {
+		if out.UserLocationInformation == nil || out.UserLocationInformation.NR == nil || out.UserLocationInformation.NR.NRCGI.NRCellIdentity != 0x123456789 {
 			t.Fatalf("ULI = %+v", out.UserLocationInformation)
 		}
 	})
@@ -115,8 +114,8 @@ func TestPDUSessionResourceModifyIndicationRoundTrips(t *testing.T) {
 // modifies nothing, so it is not delivered (§10.3.5).
 func TestPDUSessionResourceModifyIndicationMissingList(t *testing.T) {
 	value := container(t,
-		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
-		ieField{id: IDRANUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
+		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))},
+		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(RANUENGAPID(2))))},
 	)
 
 	_, err := ParsePDUSessionResourceModifyIndication(value)
@@ -139,7 +138,7 @@ func TestPDUSessionResourceModifyIndicationMissingList(t *testing.T) {
 // round-trips, so a peer's copy decodes to the same cause.
 func TestPDUSessionResourceModifyIndicationUnsuccessfulTransferRoundTrip(t *testing.T) {
 	in := &PDUSessionResourceModifyIndicationUnsuccessfulTransfer{
-		Cause: Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnknownPDUSessionID},
+		Cause: CauseRadioNetworkUnknownPDUSessionID.Cause(),
 	}
 
 	b, err := in.Marshal()
@@ -152,7 +151,7 @@ func TestPDUSessionResourceModifyIndicationUnsuccessfulTransferRoundTrip(t *test
 		t.Fatal(err)
 	}
 
-	if out.Cause != in.Cause {
+	if !out.Cause.Equal(in.Cause) {
 		t.Fatalf("cause = %+v, want %+v", out.Cause, in.Cause)
 	}
 }
@@ -165,8 +164,8 @@ const (
 )
 
 func modifyTransferTunnel() UPTransportLayerInformation {
-	return UPTransportLayerInformation{GTPTunnel: GTPTunnel{
-		TransportLayerAddress: TransportLayerAddress{192, 168, 1, 1},
+	return UPTransportLayerInformation{GTPTunnel: &GTPTunnel{
+		TransportLayerAddress: tlaOf(192, 168, 1, 1),
 		GTPTEID:               1,
 	}}
 }
@@ -207,7 +206,7 @@ func TestPDUSessionResourceModifyIndicationTransferGolden(t *testing.T) {
 func TestPDUSessionResourceModifyConfirmTransferGolden(t *testing.T) {
 	failed := QosFlowListWithCause{{
 		QosFlowIdentifier: 2,
-		Cause:             Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified},
+		Cause:             CauseRadioNetworkUnspecified.Cause(),
 	}}
 
 	for _, c := range []struct {

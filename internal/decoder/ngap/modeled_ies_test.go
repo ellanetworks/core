@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	lib "github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 func modeledIEsCorpus(t *testing.T) map[string][]byte {
@@ -37,23 +38,23 @@ func modeledIEsCorpus(t *testing.T) map[string][]byte {
 				NGRANTraceID:                   lib.NGRANTraceID{0x02, 0xf8, 0x39, 0x0a, 0x0b, 0x0c, 0x12, 0x34},
 				InterfacesToTrace:              lib.InterfaceToTraceNGC,
 				TraceDepth:                     lib.TraceDepthMinimum,
-				TraceCollectionEntityIPAddress: lib.TransportLayerAddress{10, 0, 0, 1},
+				TraceCollectionEntityIPAddress: ap.TransportLayerAddressFromOctets([]byte{10, 0, 0, 1}),
 			},
 		}),
 		"amf_configuration_update_tnl_and_extended_name": mustMarshal(t, &lib.AMFConfigurationUpdate{
 			AMFTNLAssociationToAddList: lib.AMFTNLAssociationToAddList{{
 				AMFTNLAssociationAddress: lib.CPTransportLayerInformation{EndpointIPAddressAndPort: &lib.EndpointIPAddressAndPort{
-					EndpointIPAddress: lib.TransportLayerAddress{10, 0, 0, 3}, PortNumber: 38412,
+					EndpointIPAddress: ap.TransportLayerAddressFromOctets([]byte{10, 0, 0, 3}), PortNumber: 38412,
 				}},
 				TNLAssociationUsage:    lib.Ptr(lib.TNLAssociationUsageBoth),
 				TNLAddressWeightFactor: 1,
 			}},
 			AMFTNLAssociationToRemoveList: lib.AMFTNLAssociationToRemoveList{{
-				AMFTNLAssociationAddress:                 lib.CPTransportLayerInformation{EndpointIPAddress: lib.TransportLayerAddress{10, 0, 0, 4}},
-				TNLAssociationTransportLayerAddressNGRAN: &lib.CPTransportLayerInformation{EndpointIPAddress: lib.TransportLayerAddress{10, 0, 1, 4}},
+				AMFTNLAssociationAddress:                 lib.CPTransportLayerInformation{EndpointIPAddress: lib.Ptr(ap.TransportLayerAddressFromOctets([]byte{10, 0, 0, 4}))},
+				TNLAssociationTransportLayerAddressNGRAN: &lib.CPTransportLayerInformation{EndpointIPAddress: lib.Ptr(ap.TransportLayerAddressFromOctets([]byte{10, 0, 1, 4}))},
 			}},
 			AMFTNLAssociationToUpdateList: lib.AMFTNLAssociationToUpdateList{{
-				AMFTNLAssociationAddress: lib.CPTransportLayerInformation{EndpointIPAddress: lib.TransportLayerAddress{10, 0, 0, 2}},
+				AMFTNLAssociationAddress: lib.CPTransportLayerInformation{EndpointIPAddress: lib.Ptr(ap.TransportLayerAddressFromOctets([]byte{10, 0, 0, 2}))},
 			}},
 			ExtendedAMFName: &lib.ExtendedAMFName{AMFNameUTF8String: lib.Ptr(lib.AMFNameUTF8String("ella"))},
 		}),
@@ -75,7 +76,7 @@ func modeledIEsCorpus(t *testing.T) map[string][]byte {
 		"initial_ue_message_guami_type_requested_nssai": mustMarshal(t, &lib.InitialUEMessage{
 			RANUENGAPID:             1,
 			NASPDU:                  lib.NASPDU{0x7e, 0x00},
-			UserLocationInformation: lib.UserLocationInformation{Kind: lib.UserLocationNR, PLMNIdentity: testPLMN, TAI: testTAI},
+			UserLocationInformation: lib.UserLocationInformation{NR: &lib.UserLocationInformationNR{NRCGI: lib.NRCGI{PLMNIdentity: testPLMN, NRCellIdentity: lib.NRCellIdentity(0)}, TAI: testTAI}},
 			RRCEstablishmentCause:   lib.Ptr(lib.RRCCauseMOSignalling),
 			GUAMI:                   &guamis[0].GUAMI,
 			GUAMIType:               lib.Ptr(lib.GUAMITypeMapped),
@@ -88,11 +89,11 @@ func modeledIEsCorpus(t *testing.T) map[string][]byte {
 		}),
 		"amf_configuration_update_acknowledge_tnl_lists": mustMarshal(t, &lib.AMFConfigurationUpdateAcknowledge{
 			AMFTNLAssociationSetupList: lib.AMFTNLAssociationSetupList{{
-				AMFTNLAssociationAddress: lib.CPTransportLayerInformation{EndpointIPAddress: lib.TransportLayerAddress{10, 0, 0, 2}},
+				AMFTNLAssociationAddress: lib.CPTransportLayerInformation{EndpointIPAddress: lib.Ptr(ap.TransportLayerAddressFromOctets([]byte{10, 0, 0, 2}))},
 			}},
 			AMFTNLAssociationFailedToSetupList: lib.TNLAssociationList{{
-				TNLAssociationAddress: lib.CPTransportLayerInformation{EndpointIPAddress: lib.TransportLayerAddress{10, 0, 0, 5}},
-				Cause:                 lib.Cause{Group: lib.CauseGroupTransport, Value: lib.CauseTransportResourceUnavailable},
+				TNLAssociationAddress: lib.CPTransportLayerInformation{EndpointIPAddress: lib.Ptr(ap.TransportLayerAddressFromOctets([]byte{10, 0, 0, 5}))},
+				Cause:                 lib.CauseTransportResourceUnavailable.Cause(),
 			}},
 		}),
 		"amf_configuration_update_served_guami_extensions": mustMarshal(t, &lib.AMFConfigurationUpdate{
@@ -123,18 +124,18 @@ func modeledIEsCorpus(t *testing.T) map[string][]byte {
 		}),
 		"handover_request_target_ran_node_id": mustMarshal(t, &lib.HandoverRequest{
 			AMFUENGAPID:                        1,
-			Cause:                              &lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 16},
+			Cause:                              new(lib.CauseRadioNetwork(16).Cause()),
 			PDUSessionResourceSetupListHOReq:   lib.PDUSessionResourceSetupListHOReq{{PDUSessionID: 1, SNSSAI: lib.SNSSAI{SST: 1}, Transfer: lib.TransferContainer{0x00}}},
 			AllowedNSSAI:                       lib.AllowedNSSAI{{SNSSAI: lib.SNSSAI{SST: 1}}},
 			SourceToTargetTransparentContainer: testSourceNGRANContainer(t),
 			GUAMI:                              guamis[0].GUAMI,
 			AMFUENGAPID2:                       lib.Ptr(lib.AMFUENGAPID(9)),
-			TargetRANNodeID:                    &lib.GlobalRANNodeID{Kind: lib.RANNodeIDGNB, PLMNIdentity: testPLMN, Value: 2, Bits: 22},
+			TargetRANNodeID:                    new(lib.NewGlobalGNBID(testPLMN, 2, 22)),
 		}),
 		"path_switch_request_source_amf_guami": mustMarshal(t, &lib.PathSwitchRequest{
 			RANUENGAPID:                          2,
 			SourceAMFUENGAPID:                    1,
-			UserLocationInformation:              &lib.UserLocationInformation{Kind: lib.UserLocationNR, PLMNIdentity: testPLMN, TAI: testTAI},
+			UserLocationInformation:              &lib.UserLocationInformation{NR: &lib.UserLocationInformationNR{NRCGI: lib.NRCGI{PLMNIdentity: testPLMN, NRCellIdentity: lib.NRCellIdentity(0)}, TAI: testTAI}},
 			UESecurityCapabilities:               &lib.UESecurityCapabilities{},
 			PDUSessionResourceToBeSwitchedDLList: lib.PDUSessionResourceToBeSwitchedDLList{{PDUSessionID: 5, Transfer: lib.TransferContainer{0x00}}},
 			SourceAMFGUAMI:                       &guamis[0].GUAMI,
@@ -142,7 +143,7 @@ func modeledIEsCorpus(t *testing.T) map[string][]byte {
 		"ue_context_release_request_gw_context_release_indication": mustMarshal(t, &lib.UEContextReleaseRequest{
 			AMFUENGAPID:                1,
 			RANUENGAPID:                2,
-			Cause:                      &lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: lib.CauseRadioNetworkUserInactivity},
+			Cause:                      new(lib.CauseRadioNetworkUserInactivity.Cause()),
 			GWContextReleaseIndication: lib.Ptr(lib.GWContextReleaseIndicationTrue),
 		}),
 	}
@@ -216,7 +217,7 @@ func TestDecodeNGAPMessage_AMFConfigurationUpdateAcknowledgeTNLLists(t *testing.
 		t.Fatalf("failed list = %+v", msg.Value.IEs[1])
 	}
 
-	if failed[0].Cause != cause(lib.Cause{Group: lib.CauseGroupTransport, Value: lib.CauseTransportResourceUnavailable}) {
+	if failed[0].Cause != cause(lib.CauseTransportResourceUnavailable.Cause()) {
 		t.Fatalf("cause = %+v", failed[0].Cause)
 	}
 }

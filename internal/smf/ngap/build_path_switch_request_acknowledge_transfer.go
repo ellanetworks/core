@@ -10,17 +10,18 @@ import (
 	"net/netip"
 
 	libngap "github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 func BuildPathSwitchRequestAcknowledgeTransfer(teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr) ([]byte, error) {
-	tla, err := encodeTransportLayerAddress(n3IPv4, n3IPv6)
+	tla, err := ap.TransportLayerAddressFromAddrs(n3IPv4, n3IPv6)
 	if err != nil {
 		return nil, fmt.Errorf("encode transport layer address failed: %s", err)
 	}
 
 	transfer := libngap.PathSwitchRequestAcknowledgeTransfer{
 		ULNGUUPTNLInformation: &libngap.UPTransportLayerInformation{
-			GTPTunnel: libngap.GTPTunnel{TransportLayerAddress: tla, GTPTEID: libngap.GTPTEID(teid)},
+			GTPTunnel: &libngap.GTPTunnel{TransportLayerAddress: tla, GTPTEID: libngap.GTPTEID(teid)},
 		},
 		SecurityIndication: &libngap.SecurityIndication{
 			IntegrityProtectionIndication:       libngap.IntegrityProtectionNotNeeded,

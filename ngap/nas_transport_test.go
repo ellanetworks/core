@@ -5,11 +5,10 @@ package ngap
 
 import (
 	"bytes"
-	"errors"
-	"reflect"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 // Golden UPLINK NAS TRANSPORT PDUs
@@ -30,13 +29,10 @@ func goldULITAI() TAI {
 
 func TestUplinkNASTransportRoundTrip(t *testing.T) {
 	in := &UplinkNASTransport{
-		AMFUENGAPID: 42,
-		RANUENGAPID: 1,
-		NASPDU:      NASPDU{0x7e, 0x00, 0x41, 0x01},
-		UserLocationInformation: &UserLocationInformation{
-			Kind: UserLocationNR, PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10},
-			CellIdentity: 0x123456789, TAI: goldULITAI(),
-		},
+		AMFUENGAPID:             42,
+		RANUENGAPID:             1,
+		NASPDU:                  NASPDU{0x7e, 0x00, 0x41, 0x01},
+		UserLocationInformation: &UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, NRCellIdentity: NRCellIdentity(0x123456789)}, TAI: goldULITAI()}},
 	}
 
 	b, err := in.Marshal()
@@ -60,7 +56,7 @@ func TestUplinkNASTransportRoundTrip(t *testing.T) {
 	}
 
 	if out.AMFUENGAPID != in.AMFUENGAPID || out.RANUENGAPID != in.RANUENGAPID ||
-		!sameLocation(deref(out.UserLocationInformation), deref(in.UserLocationInformation)) ||
+		!deref(out.UserLocationInformation).Equal(deref(in.UserLocationInformation)) ||
 		!bytes.Equal(out.NASPDU, in.NASPDU) {
 		t.Fatalf("mismatch:\n  in  %+v\n  out %+v", in, out)
 	}
@@ -76,10 +72,7 @@ func TestUplinkNASTransportGolden(t *testing.T) {
 			"nr",
 			&UplinkNASTransport{
 				AMFUENGAPID: 1, RANUENGAPID: 1, NASPDU: NASPDU{0x7e, 0x00},
-				UserLocationInformation: &UserLocationInformation{
-					Kind: UserLocationNR, PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10},
-					CellIdentity: 0x123456789, TAI: goldULITAI(),
-				},
+				UserLocationInformation: &UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, NRCellIdentity: NRCellIdentity(0x123456789)}, TAI: goldULITAI()}},
 			},
 			goldenUplinkNASTransportNR,
 		},
@@ -89,11 +82,7 @@ func TestUplinkNASTransportGolden(t *testing.T) {
 			"nr with timestamp",
 			&UplinkNASTransport{
 				AMFUENGAPID: 0xffffffffff, RANUENGAPID: 0xffffffff, NASPDU: NASPDU{0x7e, 0x01, 0x02},
-				UserLocationInformation: &UserLocationInformation{
-					Kind: UserLocationNR, PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10},
-					CellIdentity: 0xfffffffff, TAI: goldULITAI(),
-					TimeStamp: &TimeStamp{0x01, 0x02, 0x03, 0x04},
-				},
+				UserLocationInformation: &UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, NRCellIdentity: NRCellIdentity(0xfffffffff)}, TAI: goldULITAI(), TimeStamp: &TimeStamp{0x01, 0x02, 0x03, 0x04}}},
 			},
 			goldenUplinkNASTransportNRTime,
 		},
@@ -103,10 +92,7 @@ func TestUplinkNASTransportGolden(t *testing.T) {
 			"eutra",
 			&UplinkNASTransport{
 				AMFUENGAPID: 42, RANUENGAPID: 7, NASPDU: NASPDU{0x7e},
-				UserLocationInformation: &UserLocationInformation{
-					Kind: UserLocationEUTRA, PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10},
-					CellIdentity: 0xabcde12, TAI: goldULITAI(),
-				},
+				UserLocationInformation: &UserLocationInformation{EUTRA: &UserLocationInformationEUTRA{EUTRACGI: EUTRACGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, EUTRACellIdentity: EUTRACellIdentity(0xabcde12)}, TAI: goldULITAI()}},
 			},
 			goldenUplinkNASTransportEUTRA,
 		},
@@ -139,13 +125,8 @@ func TestUplinkNASTransportGolden(t *testing.T) {
 			}
 
 			gotULI, wantULI := out.UserLocationInformation, tt.msg.UserLocationInformation
-			if gotULI.Kind != wantULI.Kind || gotULI.CellIdentity != wantULI.CellIdentity ||
-				gotULI.PLMNIdentity != wantULI.PLMNIdentity || gotULI.TAI != wantULI.TAI {
+			if !gotULI.Equal(*wantULI) {
 				t.Fatalf("location mismatch:\n  got  %+v\n  want %+v", gotULI, wantULI)
-			}
-
-			if deref(gotULI.TimeStamp) != deref(wantULI.TimeStamp) {
-				t.Errorf("TimeStamp = %v, want %v", gotULI.TimeStamp, wantULI.TimeStamp)
 			}
 		})
 	}
@@ -160,16 +141,16 @@ func TestUplinkNASTransportMissingIEs(t *testing.T) {
 	}
 
 	if _, err := ParseUplinkNASTransport(container(t,
-		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, val: AMFUENGAPID(42)},
-		ieField{id: IDRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(7)},
+		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: AMFUENGAPID(42)},
+		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: RANUENGAPID(7)},
 	)); err == nil {
 		t.Error("decoded a message with no NAS-PDU, want it rejected")
 	}
 
 	msg, err := ParseUplinkNASTransport(container(t,
-		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, val: AMFUENGAPID(42)},
-		ieField{id: IDRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(7)},
-		ieField{id: IDNASPDU, crit: CriticalityReject, val: NASPDU{0x7e}},
+		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: AMFUENGAPID(42)},
+		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: RANUENGAPID(7)},
+		ieField{ID: IDNASPDU, Criticality: CriticalityReject, Value: NASPDU{0x7e}},
 	))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -182,7 +163,7 @@ func TestUplinkNASTransportMissingIEs(t *testing.T) {
 	var missing int
 
 	for _, ie := range msg.Diagnostics().IEs {
-		if ie.TypeOfError == TypeOfErrorMissing && ie.ID == IDUserLocationInformation {
+		if typeOfError(ie) == TypeOfErrorMissing && ie.ID == IDUserLocationInformation {
 			missing++
 		}
 	}
@@ -192,62 +173,92 @@ func TestUplinkNASTransportMissingIEs(t *testing.T) {
 	}
 }
 
-// TS 38.413 §9.3.1.16 closes UserLocationInformation with a choice-Extensions
-// alternative. Selecting it must be an explicit error, not a zero location that
-// reads as one the peer reported.
-func TestUserLocationInformationUnsupportedAlternatives(t *testing.T) {
-	// A complete ProtocolIE-SingleContainer, so the decoder reaches the
-	// not-comprehended path instead of failing on end-of-input.
+func TestUserLocationInformationN3IWFWithoutPortNumberIsTyped(t *testing.T) {
+	tai := goldULITAI()
+	in := UserLocationInformation{N3IWFWithoutPortNumber: &UserLocationInformationN3IWFWithoutPortNumber{
+		IPAddress: tlaOf(10, 0, 0, 1), TAI: &tai,
+	}}
+
 	w := per.NewWriter()
-	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, userLocationInformationAlternatives-1, userLocationInformationChoiceExtensions); err != nil {
+	if err := in.MarshalPER(w, per.Aligned); err != nil {
 		t.Fatal(err)
 	}
 
-	// id-UserLocationInformationN3IWF-without-PortNumber, a UserLocationInformation-ExtIEs
-	// alternative this package does not model.
-	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, 65535, 439); err != nil {
+	inner, err := per.Marshal(in.N3IWFWithoutPortNumber)
+	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := per.EncodeEnumerated(w, per.Aligned, criticalityRootCount, false, int64(CriticalityIgnore)); err != nil {
+	want := per.NewWriter()
+	if err := per.EncodeConstrainedWholeNumber(want, per.Aligned, 0, 3, 3); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := per.EncodeOpenTypeBytes(w, per.Aligned, []byte{0x00}); err != nil {
+	if err := encodeContainerField(want, ieField{ID: IDUserLocationInformationN3IWFwithoutPortNumber, Criticality: CriticalityIgnore, Value: ap.RawValue(inner)}); err != nil {
 		t.Fatal(err)
 	}
 
-	w.AlignToByte()
-
-	var uli UserLocationInformation
-
-	err := uli.UnmarshalPER(per.NewReader(w.Bytes()), per.Aligned)
-	if !errors.Is(err, errNotComprehended) {
-		t.Fatalf("err = %v, want errNotComprehended", err)
+	if !bytes.Equal(perBytes(w), perBytes(want)) {
+		t.Fatalf("encoding = % x, want % x", perBytes(w), perBytes(want))
 	}
 
-	if !sameLocation(uli, UserLocationInformation{}) {
-		t.Errorf("choice-Extensions left a partial value %+v", uli)
+	got, err := unmarshalPERValue[UserLocationInformation](perBytes(w))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !got.Equal(in) {
+		t.Errorf("round trip = %+v, want %+v", got, in)
 	}
 }
 
-// Each kind's cell identity has its own width; a value too wide for the kind is
-// an error rather than a silent truncation to another cell.
-func TestUserLocationInformationCellIdentityWidth(t *testing.T) {
-	tests := []struct {
-		kind UserLocationInformationKind
-		cell uint64
-	}{
-		{UserLocationEUTRA, 1 << EUTRACellIdentityBits},
-		{UserLocationNR, 1 << NRCellIdentityBits},
-	}
+func TestUserLocationInformationUnknownChoiceExtensionIsPreserved(t *testing.T) {
+	for _, crit := range []Criticality{CriticalityReject, CriticalityIgnore} {
+		w := per.NewWriter()
+		if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, 3, 3); err != nil {
+			t.Fatal(err)
+		}
 
-	for _, tt := range tests {
-		uli := UserLocationInformation{Kind: tt.kind, CellIdentity: tt.cell, TAI: goldULITAI()}
+		if err := encodeContainerField(w, ieField{ID: 9999, Criticality: crit, Value: ap.RawValue([]byte{0x00})}); err != nil {
+			t.Fatal(err)
+		}
+
+		wire := perBytes(w)
+
+		uli, err := unmarshalPERValue[UserLocationInformation](wire)
+		if err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+
+		if uli.ChoiceExtension == nil || uli.ChoiceExtension.ID != 9999 || uli.NR != nil || uli.EUTRA != nil {
+			t.Fatalf("decoded %+v, want only the raw choice-Extensions", uli)
+		}
+
+		d := ap.Diagnose[ProtocolIEID](&uli)
+		if len(d.IEs) != 1 || d.IEs[0].Criticality != crit {
+			t.Errorf("diagnostics = %+v, want one entry on criticality %v", d.IEs, crit)
+		}
+
+		w2 := per.NewWriter()
+		if err := uli.MarshalPER(w2, per.Aligned); err != nil {
+			t.Fatal(err)
+		}
+
+		if !bytes.Equal(perBytes(w2), wire) {
+			t.Errorf("re-encode = % x, want % x", perBytes(w2), wire)
+		}
+	}
+}
+
+func TestUserLocationInformationCellIdentityWidth(t *testing.T) {
+	for _, uli := range []UserLocationInformation{
+		{EUTRA: &UserLocationInformationEUTRA{EUTRACGI: EUTRACGI{EUTRACellIdentity: 1 << EUTRACellIdentityBits}, TAI: goldULITAI()}},
+		{NR: &UserLocationInformationNR{NRCGI: NRCGI{NRCellIdentity: 1 << NRCellIdentityBits}, TAI: goldULITAI()}},
+	} {
 		if _, err := (&UplinkNASTransport{
 			AMFUENGAPID: 1, RANUENGAPID: 1, NASPDU: NASPDU{0x7e}, UserLocationInformation: &uli,
 		}).Marshal(); err == nil {
-			t.Errorf("kind %d encoded cell identity %#x, want a width error", tt.kind, tt.cell)
+			t.Errorf("%+v encoded an over-wide cell identity, want a width error", uli)
 		}
 	}
 }
@@ -351,27 +362,15 @@ func TestDownlinkNASTransportMissingIEs(t *testing.T) {
 	}
 
 	if _, err := ParseDownlinkNASTransport(container(t,
-		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, val: AMFUENGAPID(42)},
-		ieField{id: IDRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(7)},
+		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: AMFUENGAPID(42)},
+		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: RANUENGAPID(7)},
 	)); err == nil {
 		t.Error("decoded a message with no NAS-PDU, want it rejected")
 	}
 }
 
-// sameLocation compares two locations; UserLocationInformation holds a slice
-// for the N3IWF alternative, so it is not comparable with ==.
-func sameLocation(a, b UserLocationInformation) bool {
-	return a.Kind == b.Kind && a.PLMNIdentity == b.PLMNIdentity &&
-		a.CellIdentity == b.CellIdentity && a.TAI == b.TAI &&
-		deref(a.TimeStamp) == deref(b.TimeStamp) &&
-		bytes.Equal(a.IPAddress, b.IPAddress) && a.PortNumber == b.PortNumber
-}
-
 func goldInitialULI() UserLocationInformation {
-	return UserLocationInformation{
-		Kind: UserLocationNR, PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10},
-		CellIdentity: 0x123456789, TAI: goldULITAI(),
-	}
+	return UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, NRCellIdentity: NRCellIdentity(0x123456789)}, TAI: goldULITAI()}}
 }
 
 func TestInitialUEMessageGolden(t *testing.T) {
@@ -427,7 +426,7 @@ func TestInitialUEMessageGolden(t *testing.T) {
 			}
 
 			if out.RANUENGAPID != tt.msg.RANUENGAPID || !bytes.Equal(out.NASPDU, tt.msg.NASPDU) ||
-				!sameLocation(out.UserLocationInformation, tt.msg.UserLocationInformation) ||
+				!out.UserLocationInformation.Equal(tt.msg.UserLocationInformation) ||
 				deref(out.RRCEstablishmentCause) != deref(tt.msg.RRCEstablishmentCause) ||
 				deref(out.FiveGSTMSI) != deref(tt.msg.FiveGSTMSI) ||
 				deref(out.AMFSetID) != deref(tt.msg.AMFSetID) ||
@@ -443,8 +442,8 @@ func TestInitialUEMessageGolden(t *testing.T) {
 // the other. §10.3.5 stops this message when it is absent.
 func TestInitialUEMessageLocationIsRequired(t *testing.T) {
 	if _, err := ParseInitialUEMessage(container(t,
-		ieField{id: IDRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(1)},
-		ieField{id: IDNASPDU, crit: CriticalityReject, val: NASPDU{0x7e}},
+		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: RANUENGAPID(1)},
+		ieField{ID: IDNASPDU, Criticality: CriticalityReject, Value: NASPDU{0x7e}},
 	)); err == nil {
 		t.Error("decoded a message with no User Location Information, want it rejected")
 	}
@@ -452,9 +451,9 @@ func TestInitialUEMessageLocationIsRequired(t *testing.T) {
 	// RRC Establishment Cause is mandatory-ignore, so its absence is reported
 	// and the message still delivered.
 	msg, err := ParseInitialUEMessage(container(t,
-		ieField{id: IDRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(1)},
-		ieField{id: IDNASPDU, crit: CriticalityReject, val: NASPDU{0x7e}},
-		ieField{id: IDUserLocationInformation, crit: CriticalityReject, val: goldInitialULI()},
+		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: RANUENGAPID(1)},
+		ieField{ID: IDNASPDU, Criticality: CriticalityReject, Value: NASPDU{0x7e}},
+		ieField{ID: IDUserLocationInformation, Criticality: CriticalityReject, Value: Ptr(goldInitialULI())},
 	))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -467,7 +466,7 @@ func TestInitialUEMessageLocationIsRequired(t *testing.T) {
 	var missing int
 
 	for _, ie := range msg.Diagnostics().IEs {
-		if ie.TypeOfError == TypeOfErrorMissing && ie.ID == IDRRCEstablishmentCause {
+		if typeOfError(ie) == TypeOfErrorMissing && ie.ID == IDRRCEstablishmentCause {
 			missing++
 		}
 	}
@@ -498,12 +497,16 @@ func TestRRCEstablishmentCauseNGAPOnlyValues(t *testing.T) {
 		}
 	}
 
-	// notAvailable and mo-ExceptionData are extension additions.
-	raw := extensionEnum(t, rrcEstablishmentCauseRootCount, 0)
+	for k, want := range map[int64]RRCEstablishmentCause{0: RRCCauseNotAvailable, 1: RRCCauseMOExceptionData} {
+		var got RRCEstablishmentCause
+		if err := got.UnmarshalPER(per.NewReader(extensionEnum(t, int64(len(enumRRCEstablishmentCause.Root)), k)), per.Aligned); err != nil || got != want || got.Diagnose(nil) {
+			t.Errorf("extension addition %d = %d, %v; want %s", k, got, err, want.Name())
+		}
+	}
 
 	var got RRCEstablishmentCause
-	if err := got.UnmarshalPER(per.NewReader(raw), per.Aligned); !errors.Is(err, errNotComprehended) {
-		t.Errorf("extension addition: err = %v, want errNotComprehended", err)
+	if err := got.UnmarshalPER(per.NewReader(extensionEnum(t, int64(len(enumRRCEstablishmentCause.Root)), 2)), per.Aligned); err != nil || !got.Diagnose(nil) {
+		t.Errorf("unknown extension addition = %d, %v; want it kept and reported", got, err)
 	}
 }
 
@@ -526,13 +529,13 @@ func TestInitialUEMessageN3IWFLocation(t *testing.T) {
 		t.Fatalf("an N3IWF location was rejected: %v", err)
 	}
 
-	uli := msg.UserLocationInformation
-	if uli.Kind != UserLocationN3IWF {
-		t.Fatalf("Kind = %d, want UserLocationN3IWF", uli.Kind)
+	uli := msg.UserLocationInformation.N3IWF
+	if uli == nil {
+		t.Fatalf("location = %+v, want the N3IWF alternative", msg.UserLocationInformation)
 	}
 
-	if !bytes.Equal(uli.IPAddress, []byte{0xc0, 0xa8, 0x01, 0x01}) {
-		t.Errorf("IPAddress = %x, want c0a80101", uli.IPAddress)
+	if uli.IPAddress != tlaOf(0xc0, 0xa8, 0x01, 0x01) {
+		t.Errorf("IPAddress = %v, want 192.168.1.1", uli.IPAddress)
 	}
 
 	if uli.PortNumber != 0x1f90 {
@@ -615,7 +618,7 @@ func initialUEMessageWireCases(t *testing.T) []wireCase {
 			check: func(t *testing.T, a any) {
 				t.Helper()
 
-				if !reflect.DeepEqual(a, goldInitialUEMessageFemto()) {
+				if !equalByMethod(a, goldInitialUEMessageFemto()) {
 					t.Fatalf("decoded %+v", a)
 				}
 			},
@@ -623,13 +626,14 @@ func initialUEMessageWireCases(t *testing.T) []wireCase {
 		{
 			name: "InitialUEMessageGUAMIAfterSelectedPLMNIdentity",
 			pdu: insertRawIEs(t, marshalT(t, goldInitialUEMessageFemto()), 4,
-				ieField{id: IDSelectedPLMNIdentity, crit: CriticalityIgnore, raw: []byte{0x00, 0xf1, 0x10}}),
+				ieField{ID: IDSelectedPLMNIdentity, Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x00, 0xf1, 0x10})}),
 			parse: func(v []byte) (any, error) { return ParseInitialUEMessage(v) },
 			check: func(t *testing.T, a any) {
 				t.Helper()
 
 				m := a.(*InitialUEMessage)
-				if m.GUAMI == nil || deref(m.GUAMIType) != GUAMITypeMapped || len(m.RequestedNSSAI) != 2 || len(m.UnknownIEs()) != 1 {
+				if m.GUAMI == nil || deref(m.GUAMIType) != GUAMITypeMapped || len(m.RequestedNSSAI) != 2 ||
+					deref(m.SelectedPLMNIdentity) != (PLMNIdentity{0x00, 0xf1, 0x10}) || len(m.UnknownIEs()) != 0 {
 					t.Fatalf("decoded %+v", m)
 				}
 			},

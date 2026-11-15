@@ -125,7 +125,5 @@ func GNBNodeID(mcc, mnc, gnbID string) (ngap.GlobalRANNodeID, error) {
 		v = v<<8 | uint64(o)
 	}
 
-	return ngap.GlobalRANNodeID{
-		Kind: ngap.RANNodeIDGNB, PLMNIdentity: plmn, Value: uint32(v), Bits: gnbIDBits,
-	}, nil
+	return ngap.NewGlobalGNBID(plmn, uint32(v), gnbIDBits), nil
 }

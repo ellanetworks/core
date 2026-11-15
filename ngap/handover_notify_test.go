@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 const (
@@ -21,10 +22,7 @@ const (
 func handoverNotifyULI() *UserLocationInformation {
 	plmn := PLMNIdentity{0x02, 0xf8, 0x39}
 
-	return &UserLocationInformation{
-		Kind: UserLocationNR, PLMNIdentity: plmn, CellIdentity: 0x000000010,
-		TAI: TAI{PLMNIdentity: plmn, TAC: 1},
-	}
+	return &UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: plmn, NRCellIdentity: NRCellIdentity(0x000000010)}, TAI: TAI{PLMNIdentity: plmn, TAC: 1}}}
 }
 
 func TestHandoverNotifyGolden(t *testing.T) {
@@ -72,8 +70,8 @@ func TestHandoverNotifyGolden(t *testing.T) {
 				t.Errorf("UE NGAP IDs = %d/%d, want 1/2", out.AMFUENGAPID, out.RANUENGAPID)
 			}
 
-			if out.UserLocationInformation == nil || out.UserLocationInformation.Kind != UserLocationNR ||
-				out.UserLocationInformation.CellIdentity != 0x000000010 {
+			if out.UserLocationInformation == nil || out.UserLocationInformation.NR == nil ||
+				out.UserLocationInformation.NR.NRCGI.NRCellIdentity != 0x000000010 {
 				t.Errorf("UserLocationInformation = %+v, want the NR cell", out.UserLocationInformation)
 			}
 
@@ -89,8 +87,8 @@ func TestHandoverNotifyGolden(t *testing.T) {
 // still has to see that it was missing.
 func TestHandoverNotifyMissingUserLocation(t *testing.T) {
 	value := container(t,
-		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
-		ieField{id: IDRANUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
+		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))},
+		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(RANUENGAPID(2))))},
 	)
 
 	out, err := ParseHandoverNotify(value)
@@ -102,8 +100,8 @@ func TestHandoverNotifyMissingUserLocation(t *testing.T) {
 		t.Errorf("UserLocationInformation = %+v, want nil", out.UserLocationInformation)
 	}
 
-	ies := out.meta().diagnostics.IEs
-	if len(ies) != 1 || ies[0].ID != IDUserLocationInformation || ies[0].TypeOfError != TypeOfErrorMissing {
+	ies := out.meta().Message.Diagnostics().IEs
+	if len(ies) != 1 || ies[0].ID != IDUserLocationInformation || typeOfError(ies[0]) != TypeOfErrorMissing {
 		t.Errorf("diagnostics = %+v, want one missing entry for UserLocationInformation", ies)
 	}
 }
@@ -111,7 +109,7 @@ func TestHandoverNotifyMissingUserLocation(t *testing.T) {
 // A missing mandatory reject IE rejects the procedure (§10.3.5).
 func TestHandoverNotifyMissingAMFUENGAPID(t *testing.T) {
 	value := container(t,
-		ieField{id: IDRANUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
+		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(RANUENGAPID(2))))},
 	)
 
 	if _, err := ParseHandoverNotify(value); err == nil {
@@ -125,27 +123,26 @@ func TestHandoverNotifyMissingAMFUENGAPID(t *testing.T) {
 }
 
 // NotifySourceNGRANNode has a single root value, so index 1 is the first
-// extension and must be refused rather than read as notifySource.
+// extension and must be kept as such rather than read as notifySource.
 func TestNotifySourceNGRANNodeExtensionIsNotComprehended(t *testing.T) {
-	raw := extensionEnum(t, notifySourceNGRANNodeRootCount, 0)
+	raw := extensionEnum(t, int64(len(enumNotifySourceNGRANNode.Root)), 0)
 
 	var v NotifySourceNGRANNode
 
-	err := v.UnmarshalPER(per.NewReader(raw), per.Aligned)
-	if err == nil {
-		t.Fatal("extension value decoded as notifySource")
+	if err := v.UnmarshalPER(per.NewReader(raw), per.Aligned); err != nil {
+		t.Fatalf("decode is lenient, got %v", err)
 	}
 
-	if !errors.Is(err, errNotComprehended) {
-		t.Errorf("err = %v, want errNotComprehended so criticality decides", err)
+	if v != NotifySourceNGRANNode(len(enumNotifySourceNGRANNode.Root)) || !v.Diagnose(nil) {
+		t.Fatalf("extension value decoded as %d, want it kept and reported", v)
 	}
 }
 
 // Root counts 1 and 2 both encode index 0 as a zero octet, so no golden
 // separates them. The value is pinned against the ASN.1 instead.
 func TestNotifySourceNGRANNodeRootCountMatchesSpec(t *testing.T) {
-	if notifySourceNGRANNodeRootCount != 1 {
+	if int64(len(enumNotifySourceNGRANNode.Root)) != 1 {
 		t.Errorf("root count is %d, TS 38.413 defines one member before the extension marker",
-			notifySourceNGRANNodeRootCount)
+			int64(len(enumNotifySourceNGRANNode.Root)))
 	}
 }

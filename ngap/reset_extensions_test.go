@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 type handItem struct {
@@ -86,14 +87,14 @@ func handNGReset(t *testing.T, items []handItem) []byte {
 	mustNil(t, per.EncodeConstrainedWholeNumber(rt, per.Aligned, 0, resetTypeAlternatives-1, resetTypePartOfNGInterface))
 	encodeHandList(t, rt, items)
 
-	cause, err := per.Marshal(&Cause{Group: CauseGroupMisc, Value: 0})
+	cause, err := per.Marshal(Ptr(CauseMisc(0).Cause()))
 	mustNil(t, err)
 
 	body := per.NewWriter()
 	body.WriteBit(false)
 	mustNil(t, encodeIEContainer(body, per.Aligned, []ieField{
-		{id: IDCause, crit: CriticalityIgnore, raw: cause},
-		{id: IDResetType, crit: CriticalityReject, raw: rt.Bytes()},
+		{ID: IDCause, Criticality: CriticalityIgnore, Value: ap.RawValue(cause)},
+		{ID: IDResetType, Criticality: CriticalityReject, Value: ap.RawValue(rt.Bytes())},
 	}))
 
 	b, err := Marshal(&InitiatingMessage{ProcedureCode: ProcNGReset, Criticality: CriticalityReject, Value: body.Bytes()})
@@ -111,7 +112,7 @@ func handNGResetAck(t *testing.T, items []handItem) []byte {
 	body := per.NewWriter()
 	body.WriteBit(false)
 	mustNil(t, encodeIEContainer(body, per.Aligned, []ieField{
-		{id: IDUEAssociatedLogicalNGConnectionList, crit: CriticalityIgnore, raw: list.Bytes()},
+		{ID: IDUEAssociatedLogicalNGConnectionList, Criticality: CriticalityIgnore, Value: ap.RawValue(list.Bytes())},
 	}))
 
 	b, err := Marshal(&SuccessfulOutcome{ProcedureCode: ProcNGReset, Criticality: CriticalityReject, Value: body.Bytes()})
@@ -148,10 +149,11 @@ func TestNGResetPreservesItemExtensions(t *testing.T) {
 		t.Fatalf("unmodified NG Reset re-encoded differently\n got % x\nwant % x", out, in)
 	}
 
-	for i := range m.ResetType.Part {
-		if m.ResetType.Part[i].AMFUENGAPID != nil {
-			v := *m.ResetType.Part[i].AMFUENGAPID - 5 + 0xFFFFFFFFFF - 2
-			m.ResetType.Part[i].AMFUENGAPID = &v
+	part := *m.ResetType.PartOfNGInterface
+	for i := range part {
+		if part[i].AMFUENGAPID != nil {
+			v := *part[i].AMFUENGAPID - 5 + 0xFFFFFFFFFF - 2
+			part[i].AMFUENGAPID = &v
 		}
 	}
 

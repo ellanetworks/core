@@ -48,7 +48,7 @@ func parseTAC(s string) (uint16, error) {
 // only cell.
 func (e *ENB) eutranCellID() uint32 {
 	cell := uint32(1)
-	if e.enbIDKind == s1ap.ENBIDHome {
+	if e.enbIDKind == ENBIDHome {
 		cell = 0
 	}
 
@@ -62,7 +62,16 @@ func (e *ENB) eutranCellID() uint32 {
 }
 
 func (e *ENB) enbNodeID() s1ap.ENBID {
-	return s1ap.ENBID{Kind: e.enbIDKind, Value: e.enbID}
+	switch e.enbIDKind {
+	case ENBIDHome:
+		return s1ap.ENBID{HomeENBID: s1ap.Ptr(s1ap.HomeENBID(e.enbID))}
+	case ENBIDShortMacro:
+		return s1ap.ENBID{ShortMacroENBID: s1ap.Ptr(s1ap.ShortMacroENBID(e.enbID))}
+	case ENBIDLongMacro:
+		return s1ap.ENBID{LongMacroENBID: s1ap.Ptr(s1ap.LongMacroENBID(e.enbID))}
+	default:
+		return s1ap.ENBID{MacroENBID: s1ap.Ptr(s1ap.MacroENBID(e.enbID))}
+	}
 }
 
 func (e *ENB) tai() s1ap.TAI {
@@ -70,7 +79,7 @@ func (e *ENB) tai() s1ap.TAI {
 }
 
 func (e *ENB) eutranCGI() s1ap.EUTRANCGI {
-	return s1ap.EUTRANCGI{PLMNIdentity: e.plmn, CellID: e.eutranCellID()}
+	return s1ap.EUTRANCGI{PLMNIdentity: e.plmn, CellID: s1ap.CellIdentity(e.eutranCellID())}
 }
 
 func (e *ENB) buildS1SetupRequest() ([]byte, error) {
@@ -233,10 +242,7 @@ func (e *ENB) SendUplinkNASTransport(mmeUEID, enbUEID int64, nas []byte) error {
 // eNB's S1-U endpoint. It returns the eNB downlink TEID it reported, so the caller
 // can build the target GTP tunnel.
 func (e *ENB) SendPathSwitchRequest(enbUEID, sourceMMEUEID int64, erabID s1ap.ERABID, caps s1ap.UESecurityCapabilities) (dlTEID uint32, err error) {
-	addr := e.n3Addr.To4()
-	if addr == nil {
-		addr = e.n3Addr.To16()
-	}
+	addr := e.n3TransportLayerAddress()
 
 	dlTEID = e.allocTEID()
 
@@ -244,7 +250,7 @@ func (e *ENB) SendPathSwitchRequest(enbUEID, sourceMMEUEID int64, erabID s1ap.ER
 		ENBUES1APID: s1ap.ENBUES1APID(enbUEID),
 		ERABToBeSwitchedDL: []s1ap.ERABToBeSwitchedDLItem{{
 			ERABID:                erabID,
-			TransportLayerAddress: s1ap.TransportLayerAddress(addr),
+			TransportLayerAddress: addr,
 			GTPTEID:               s1ap.GTPTEID(dlTEID),
 		}},
 		SourceMMEUES1APID:      s1ap.MMEUES1APID(sourceMMEUEID),
@@ -267,9 +273,9 @@ func (e *ENB) SendPathSwitchRequest(enbUEID, sourceMMEUEID int64, erabID s1ap.ER
 
 // CauseUserInactivity is the S1AP radioNetwork cause an eNB uses to request a UE
 // context release on inactivity (TS 36.413 §9.2.1.3, value 20).
-var CauseUserInactivity = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 20}
+var CauseUserInactivity = s1ap.CauseRadioNetworkUserInactivity.Cause()
 
-var CauseNotSupportedQCIValue = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 1, Extended: true}
+var CauseNotSupportedQCIValue = s1ap.CauseRadioNetworkNotSupportedQCIValue.Cause()
 
 // SendUEContextReleaseRequest asks the MME to release the UE's S1 context, as an
 // eNB does on inactivity or radio-link failure (TS 36.413 §8.3.2).
@@ -288,9 +294,9 @@ func (e *ENB) SendUEContextReleaseRequest(mmeUEID, enbUEID int64, cause s1ap.Cau
 	return e.SendMessage(b, true)
 }
 
-var CauseRadioConnectionWithUELost = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioConnectionWithUELost}
+var CauseRadioConnectionWithUELost = s1ap.CauseRadioNetworkRadioConnectionWithUELost.Cause()
 
-var CauseReleaseDueToPreemption = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 3, Extended: true}
+var CauseReleaseDueToPreemption = s1ap.CauseRadioNetworkReleaseDueToPreemption.Cause()
 
 func (e *ENB) SendERABReleaseIndication(mmeUEID, enbUEID int64, erab s1ap.ERABID, cause s1ap.Cause) error {
 	ind := &s1ap.ERABReleaseIndication{
@@ -360,12 +366,22 @@ func (e *ENB) SendUEContextReleaseComplete(mmeUEID, enbUEID int64) error {
 	return e.SendMessage(b, true)
 }
 
+func resetType(resetAll bool, items []s1ap.UEAssociatedLogicalS1ConnectionItem) s1ap.ResetType {
+	if resetAll {
+		return s1ap.ResetType{S1Interface: s1ap.Ptr(s1ap.ResetAllResetAll)}
+	}
+
+	list := s1ap.UEAssociatedLogicalS1ConnectionListRes(items)
+
+	return s1ap.ResetType{PartOfS1Interface: &list}
+}
+
 // SendReset sends an S1AP RESET (TS 36.413 §8.7.1). resetAll selects a
 // whole-interface reset; otherwise items names the UE-associated logical
 // S1-connections to reset. Reset is a non-UE-associated procedure, sent on
 // SCTP stream 0.
 func (e *ENB) SendReset(cause s1ap.Cause, resetAll bool, items []s1ap.UEAssociatedLogicalS1ConnectionItem) error {
-	req := &s1ap.Reset{Cause: s1ap.Ptr(cause), ResetType: s1ap.ResetType{All: resetAll, Part: items}}
+	req := &s1ap.Reset{Cause: s1ap.Ptr(cause), ResetType: resetType(resetAll, items)}
 
 	b, err := req.Marshal()
 	if err != nil {

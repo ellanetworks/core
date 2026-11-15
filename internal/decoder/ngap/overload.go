@@ -17,7 +17,11 @@ type OverloadStartNSSAIItem struct {
 }
 
 func overloadResponse(o ngap.OverloadResponse) utils.EnumField {
-	return utils.NamedEnum(uint8(o.OverloadAction), o.OverloadAction.Name())
+	if o.OverloadAction == nil {
+		return utils.EnumField{}
+	}
+
+	return utils.NamedEnum(uint8(*o.OverloadAction), o.OverloadAction.Name())
 }
 
 func overloadStartNSSAIList(list ngap.OverloadStartNSSAIList) []OverloadStartNSSAIItem {

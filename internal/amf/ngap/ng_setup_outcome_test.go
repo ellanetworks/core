@@ -81,10 +81,8 @@ func outcomeRequest(t *testing.T, mcc, mnc string, tac uint32) *ngap.NGSetupRequ
 	}
 
 	return &ngap.NGSetupRequest{
-		GlobalRANNodeID: ngap.GlobalRANNodeID{
-			Kind: ngap.RANNodeIDGNB, PLMNIdentity: plmn, Value: 0x000102, Bits: 24,
-		},
-		RANNodeName: ngap.Ptr("ella-gnb"),
+		GlobalRANNodeID: ngap.NewGlobalGNBID(plmn, 0x000102, 24),
+		RANNodeName:     ngap.Ptr("ella-gnb"),
 		SupportedTAList: ngap.SupportedTAList{{
 			TAC: ngap.TAC(tac),
 			BroadcastPLMNList: ngap.BroadcastPLMNList{{
@@ -182,7 +180,7 @@ func TestNGSetupOutcomeRejects(t *testing.T) {
 				t.Fatalf("parse failure: %v", err)
 			}
 
-			if fail.Cause == nil || *fail.Cause != tt.wantCause {
+			if fail.Cause == nil || !fail.Cause.Equal(tt.wantCause) {
 				t.Errorf("cause = %v, want %v", fail.Cause, tt.wantCause)
 			}
 		})

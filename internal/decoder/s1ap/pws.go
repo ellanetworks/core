@@ -83,17 +83,17 @@ func tais(list []s1ap.TAI) []TAI {
 }
 
 func warningAreaList(l s1ap.WarningAreaList) WarningAreaList {
-	return WarningAreaList{ECGIs: ecgis(l.CellIDList), TAIs: tais(l.TAIList), EmergencyAreaIDs: emergencyAreaIDs(l.EmergencyAreaIDList)}
+	return WarningAreaList{ECGIs: ecgis(derefSlice(l.CellIDList)), TAIs: tais(derefSlice(l.TrackingAreaListforWarning)), EmergencyAreaIDs: emergencyAreaIDs(derefSlice(l.EmergencyAreaIDList))}
 }
 
 func broadcastCompletedAreaList(l s1ap.BroadcastCompletedAreaList) BroadcastCompletedAreaList {
 	var out BroadcastCompletedAreaList
 
-	for _, c := range l.CellIDBroadcast {
+	for _, c := range derefSlice(l.CellIDBroadcast) {
 		out.CellIDs = append(out.CellIDs, eutranCGI(c.ECGI))
 	}
 
-	for _, t := range l.TAIBroadcast {
+	for _, t := range derefSlice(l.TAIBroadcast) {
 		b := TAIBroadcast{TAI: tai(t.TAI)}
 		for _, c := range t.CompletedCellInTAI {
 			b.CompletedCells = append(b.CompletedCells, eutranCGI(c.ECGI))
@@ -102,7 +102,7 @@ func broadcastCompletedAreaList(l s1ap.BroadcastCompletedAreaList) BroadcastComp
 		out.TAIs = append(out.TAIs, b)
 	}
 
-	for _, e := range l.EmergencyAreaIDBroadcast {
+	for _, e := range derefSlice(l.EmergencyAreaIDBroadcast) {
 		b := EmergencyAreaIDBroadcast{EmergencyAreaID: emergencyAreaID(e.EmergencyAreaID)}
 		for _, c := range e.CompletedCellInEAI {
 			b.CompletedCells = append(b.CompletedCells, eutranCGI(c.ECGI))
@@ -117,11 +117,11 @@ func broadcastCompletedAreaList(l s1ap.BroadcastCompletedAreaList) BroadcastComp
 func broadcastCancelledAreaList(l s1ap.BroadcastCancelledAreaList) BroadcastCancelledAreaList {
 	var out BroadcastCancelledAreaList
 
-	for _, c := range l.CellIDCancelled {
+	for _, c := range derefSlice(l.CellIDCancelled) {
 		out.CellIDs = append(out.CellIDs, CancelledCell{ECGI: eutranCGI(c.ECGI), NumberOfBroadcasts: c.NumberOfBroadcasts})
 	}
 
-	for _, t := range l.TAICancelled {
+	for _, t := range derefSlice(l.TAICancelled) {
 		b := TAICancelled{TAI: tai(t.TAI)}
 		for _, c := range t.CancelledCellInTAI {
 			b.CancelledCells = append(b.CancelledCells, CancelledCell{ECGI: eutranCGI(c.ECGI), NumberOfBroadcasts: c.NumberOfBroadcasts})
@@ -130,7 +130,7 @@ func broadcastCancelledAreaList(l s1ap.BroadcastCancelledAreaList) BroadcastCanc
 		out.TAIs = append(out.TAIs, b)
 	}
 
-	for _, e := range l.EmergencyAreaIDCancelled {
+	for _, e := range derefSlice(l.EmergencyAreaIDCancelled) {
 		b := EmergencyAreaIDCancelled{EmergencyAreaID: emergencyAreaID(e.EmergencyAreaID)}
 		for _, c := range e.CancelledCellInEAI {
 			b.CancelledCells = append(b.CancelledCells, CancelledCell{ECGI: eutranCGI(c.ECGI), NumberOfBroadcasts: c.NumberOfBroadcasts})

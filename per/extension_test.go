@@ -53,8 +53,8 @@ func TestExtensionAdditionsRoundTrip(t *testing.T) {
 				t.Fatalf("%s lead %d: %v", enc, lead, err)
 			}
 
-			if !e.Present() || len(e.fields) != 2 {
-				t.Fatalf("%s lead %d: present %v, %d fields", enc, lead, e.present, len(e.fields))
+			if !e.Present() || e.count() != 2 {
+				t.Fatalf("%s lead %d: present %q, %d fields", enc, lead, e.present, e.count())
 			}
 
 			tail, err := r.ReadBits(2)
@@ -132,5 +132,47 @@ func TestExtensionAdditionsRejectsZeroLengthBitmap(t *testing.T) {
 		if err := e.UnmarshalPER(NewReader([]byte{0x80, 0x00}), enc); err == nil {
 			t.Fatalf("%s: zero-length extension bitmap accepted", enc)
 		}
+	}
+}
+
+func (e *ExtensionAdditions) count() int {
+	n := 0
+
+	for rest := e.fields; rest != ""; n++ {
+		_, _, rest = nextRawBits(rest)
+	}
+
+	return n
+}
+
+func TestExtensionAdditionsComparable(t *testing.T) {
+	in := encodeAdditions(t, Aligned, 3, []bool{true, false, true}, [][]byte{{0x01}, {0x02, 0x03}})
+
+	decode := func() ExtensionAdditions {
+		r := NewReader(in)
+		if _, err := r.ReadBits(3); err != nil {
+			t.Fatal(err)
+		}
+
+		var e ExtensionAdditions
+		if err := e.UnmarshalPER(r, Aligned); err != nil {
+			t.Fatal(err)
+		}
+
+		return e
+	}
+
+	a, b := decode(), decode()
+	if a != b {
+		t.Fatal("identical additions compare unequal")
+	}
+
+	if a == (ExtensionAdditions{}) {
+		t.Fatal("decoded additions equal the zero value")
+	}
+
+	set := map[ExtensionAdditions]bool{a: true}
+	if !set[b] {
+		t.Fatal("additions unusable as a map key")
 	}
 }

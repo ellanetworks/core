@@ -93,13 +93,8 @@ func BuildNGSetupRequest(opts *NGSetupRequestOpts) ([]byte, error) {
 	}
 
 	req := &ngap.NGSetupRequest{
-		GlobalRANNodeID: ngap.GlobalRANNodeID{
-			Kind:         ngap.RANNodeIDGNB,
-			PLMNIdentity: plmn,
-			Value:        uint32(gnbID),
-			Bits:         gnbIDBits,
-		},
-		RANNodeName: ngap.Ptr(opts.Name),
+		GlobalRANNodeID: ngap.NewGlobalGNBID(plmn, uint32(gnbID), gnbIDBits),
+		RANNodeName:     ngap.Ptr(opts.Name),
 		SupportedTAList: ngap.SupportedTAList{{
 			TAC:               ngap.TAC(uint32(tac[0])<<16 | uint32(tac[1])<<8 | uint32(tac[2])),
 			BroadcastPLMNList: bplmns,

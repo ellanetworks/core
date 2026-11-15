@@ -39,7 +39,7 @@ func releaseAbortedRegistration(ctx context.Context, ueConn *amf.UeConn) {
 	ueConn.SetReleaseAction(amf.UeContextReleaseAbortRegistration)
 
 	// SendUEContextReleaseCommand releases locally on a send failure and logs it.
-	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASUnspecified})
+	ueConn.SendUEContextReleaseCommand(ctx, ngap.CauseNASUnspecified.Cause())
 }
 
 func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext) {

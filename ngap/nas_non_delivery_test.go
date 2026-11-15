@@ -20,7 +20,7 @@ func TestNASNonDeliveryIndicationRoundTrip(t *testing.T) {
 		AMFUENGAPID: 42,
 		RANUENGAPID: 1,
 		NASPDU:      NASPDU{0x7E, 0x00, 0x42},
-		Cause:       Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkInconsistentRemoteUEID}),
+		Cause:       Ptr(CauseRadioNetworkInconsistentRemoteUEID.Cause()),
 	}
 
 	b, err := in.Marshal()
@@ -44,7 +44,7 @@ func TestNASNonDeliveryIndicationRoundTrip(t *testing.T) {
 	}
 
 	if out.AMFUENGAPID != in.AMFUENGAPID || out.RANUENGAPID != in.RANUENGAPID ||
-		deref(out.Cause) != deref(in.Cause) || !bytes.Equal(out.NASPDU, in.NASPDU) {
+		!deref(out.Cause).Equal(deref(in.Cause)) || !bytes.Equal(out.NASPDU, in.NASPDU) {
 		t.Fatalf("mismatch:\n  in  %+v\n  out %+v", in, out)
 	}
 }
@@ -59,7 +59,7 @@ func TestNASNonDeliveryIndicationGolden(t *testing.T) {
 			"minimal",
 			&NASNonDeliveryIndication{
 				AMFUENGAPID: 1, RANUENGAPID: 1, NASPDU: NASPDU{0x7e, 0x00},
-				Cause: Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified}),
+				Cause: Ptr(CauseRadioNetworkUnspecified.Cause()),
 			},
 			goldenNASNonDelivery,
 		},
@@ -70,7 +70,7 @@ func TestNASNonDeliveryIndicationGolden(t *testing.T) {
 			&NASNonDeliveryIndication{
 				AMFUENGAPID: 0xffffffffff, RANUENGAPID: 0xffffffff,
 				NASPDU: NASPDU{0x7e, 0x01, 0x02, 0x03, 0x04},
-				Cause:  Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkInconsistentRemoteUEID}),
+				Cause:  Ptr(CauseRadioNetworkInconsistentRemoteUEID.Cause()),
 			},
 			goldenNASNonDeliveryWideIDs,
 		},
@@ -78,7 +78,7 @@ func TestNASNonDeliveryIndicationGolden(t *testing.T) {
 			"nas cause group",
 			&NASNonDeliveryIndication{
 				AMFUENGAPID: 42, RANUENGAPID: 7, NASPDU: NASPDU{0x7e},
-				Cause: Ptr(Cause{Group: CauseGroupNAS, Value: CauseNASDeregister}),
+				Cause: Ptr(CauseNASDeregister.Cause()),
 			},
 			goldenNASNonDeliveryNASCause,
 		},
@@ -106,7 +106,7 @@ func TestNASNonDeliveryIndicationGolden(t *testing.T) {
 			}
 
 			if out.AMFUENGAPID != tt.msg.AMFUENGAPID || out.RANUENGAPID != tt.msg.RANUENGAPID ||
-				deref(out.Cause) != deref(tt.msg.Cause) || !bytes.Equal(out.NASPDU, tt.msg.NASPDU) {
+				!deref(out.Cause).Equal(deref(tt.msg.Cause)) || !bytes.Equal(out.NASPDU, tt.msg.NASPDU) {
 				t.Fatalf("decode mismatch:\n  got  %+v\n  want %+v", out, tt.msg)
 			}
 		})
@@ -121,15 +121,15 @@ func TestNASNonDeliveryIndicationMissingIEs(t *testing.T) {
 	}
 
 	if _, err := ParseNASNonDeliveryIndication(container(t,
-		ieField{id: IDNASPDU, crit: CriticalityIgnore, val: NASPDU{0x7e}},
-		ieField{id: IDCause, crit: CriticalityIgnore, val: Cause{Group: CauseGroupNAS, Value: CauseNASDeregister}},
+		ieField{ID: IDNASPDU, Criticality: CriticalityIgnore, Value: NASPDU{0x7e}},
+		ieField{ID: IDCause, Criticality: CriticalityIgnore, Value: Ptr(CauseNASDeregister.Cause())},
 	)); err == nil {
 		t.Error("decoded a message with neither UE id, want it rejected")
 	}
 
 	msg, err := ParseNASNonDeliveryIndication(container(t,
-		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, val: AMFUENGAPID(42)},
-		ieField{id: IDRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(7)},
+		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: AMFUENGAPID(42)},
+		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: RANUENGAPID(7)},
 	))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -142,7 +142,7 @@ func TestNASNonDeliveryIndicationMissingIEs(t *testing.T) {
 	var missing int
 
 	for _, ie := range msg.Diagnostics().IEs {
-		if ie.TypeOfError == TypeOfErrorMissing && (ie.ID == IDNASPDU || ie.ID == IDCause) {
+		if typeOfError(ie) == TypeOfErrorMissing && (ie.ID == IDNASPDU || ie.ID == IDCause) {
 			missing++
 		}
 	}

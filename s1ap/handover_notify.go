@@ -9,35 +9,36 @@ import (
 
 // TS 36.413 §9.1.5.7.
 type HandoverNotify struct {
-	MMEUES1APID MMEUES1APID
-	ENBUES1APID ENBUES1APID
-	EUTRANCGI   *EUTRANCGI
-	TAI         *TAI
+	MMEUES1APID             MMEUES1APID
+	ENBUES1APID             ENBUES1APID
+	EUTRANCGI               *EUTRANCGI
+	TAI                     *TAI
+	TunnelInformationForBBF *TunnelInformation
 
 	messageMeta
 }
 
 var handoverNotifyIEs = []ieSpec[HandoverNotify]{
 	{
-		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *HandoverNotify, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.MMEUES1APID)
+		ID: IDMMEUES1APID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *HandoverNotify, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.MMEUES1APID)
 		},
-		encode: func(m *HandoverNotify) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+		Encode: func(m *HandoverNotify) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *HandoverNotify, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ENBUES1APID)
+		ID: IDENBUES1APID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *HandoverNotify, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.ENBUES1APID)
 		},
-		encode: func(m *HandoverNotify) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+		Encode: func(m *HandoverNotify) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: IDEUTRANCGI, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *HandoverNotify, raw []byte, enc per.Encoding) error {
+		ID: IDEUTRANCGI, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *HandoverNotify, r *per.Reader, enc per.Encoding) error {
 			var v EUTRANCGI
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -45,7 +46,7 @@ var handoverNotifyIEs = []ieSpec[HandoverNotify]{
 
 			return nil
 		},
-		encode: func(m *HandoverNotify) (per.Marshaler, bool) {
+		Encode: func(m *HandoverNotify) (per.Marshaler, bool) {
 			if m.EUTRANCGI == nil {
 				return nil, false
 			}
@@ -54,11 +55,11 @@ var handoverNotifyIEs = []ieSpec[HandoverNotify]{
 		},
 	},
 	{
-		id: IDTAI, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *HandoverNotify, raw []byte, enc per.Encoding) error {
+		ID: IDTAI, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *HandoverNotify, r *per.Reader, enc per.Encoding) error {
 			var v TAI
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -66,13 +67,20 @@ var handoverNotifyIEs = []ieSpec[HandoverNotify]{
 
 			return nil
 		},
-		encode: func(m *HandoverNotify) (per.Marshaler, bool) {
+		Encode: func(m *HandoverNotify) (per.Marshaler, bool) {
 			if m.TAI == nil {
 				return nil, false
 			}
 
 			return m.TAI, true
 		},
+	},
+	{
+		ID: IDTunnelInformationForBBF, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *HandoverNotify, r *per.Reader, enc per.Encoding) error {
+			return decodeOptionalIE(r, &m.TunnelInformationForBBF)
+		},
+		Encode: func(m *HandoverNotify) (per.Marshaler, bool) { return optionalIE(m.TunnelInformationForBBF) },
 	},
 }
 
@@ -98,4 +106,8 @@ func (m *HandoverNotify) Marshal() ([]byte, error) {
 
 func ParseHandoverNotify(value []byte) (*HandoverNotify, error) {
 	return parseMessageBody[HandoverNotify](ProcHandoverNotification, TriggeringInitiatingMessage, handoverNotifyIEs, value)
+}
+
+func DecodeHandoverNotify(value []byte) (*HandoverNotify, error) {
+	return decodeMessageBody[HandoverNotify](ProcHandoverNotification, handoverNotifyIEs, value)
 }

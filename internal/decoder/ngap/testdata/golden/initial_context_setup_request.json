@@ -134,6 +134,26 @@
       {
         "id": {
           "type": "enum",
+          "value": 36,
+          "label": "MobilityRestrictionList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "serving_plmn": {
+            "mcc": "001",
+            "mnc": "01"
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
           "value": 38,
           "label": "NAS-PDU",
           "unknown": false
@@ -228,23 +248,6 @@
             },
             "encrypted": false
           }
-        }
-      },
-      {
-        "id": {
-          "type": "enum",
-          "value": 36,
-          "label": "MobilityRestrictionList",
-          "unknown": false
-        },
-        "criticality": {
-          "type": "enum",
-          "value": 1,
-          "label": "ignore",
-          "unknown": false
-        },
-        "value": {
-          "hex": "0000f110"
         }
       }
     ]

@@ -24,7 +24,7 @@ func multiPLMNENB(t *testing.T) *ENB {
 	}
 
 	return &ENB{
-		enbID: 0x19b, enbIDKind: s1ap.ENBIDMacro, name: "ella", plmn: testHomePLMN, bplmns: bplmns, tac: 1,
+		enbID: 0x19b, enbIDKind: ENBIDMacro, name: "ella", plmn: testHomePLMN, bplmns: bplmns, tac: 1,
 		selected: make(map[int64]s1ap.PLMNIdentity), nextENBUEID: 1,
 	}
 }

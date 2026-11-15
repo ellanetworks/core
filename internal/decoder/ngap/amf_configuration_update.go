@@ -50,7 +50,11 @@ func cpTransportLayerAddress(c ngap.CPTransportLayerInformation) string {
 		return net.JoinHostPort(transportLayerAddressToString(p.EndpointIPAddress), strconv.Itoa(int(p.PortNumber)))
 	}
 
-	return transportLayerAddressToString(c.EndpointIPAddress)
+	if c.EndpointIPAddress == nil {
+		return ""
+	}
+
+	return transportLayerAddressToString(*c.EndpointIPAddress)
 }
 
 func tnlAssociationUsage(u *ngap.TNLAssociationUsage) *utils.EnumField {

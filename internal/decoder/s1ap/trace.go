@@ -18,7 +18,7 @@ type TraceActivation struct {
 }
 
 var interfacesToTraceNames = []struct {
-	bit  uint8
+	bit  s1ap.InterfacesToTrace
 	name string
 }{
 	{s1ap.InterfaceToTraceS1MME, "S1-MME"},

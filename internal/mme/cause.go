@@ -9,9 +9,9 @@ import (
 
 // S1AP NAS-group causes the MME uses when releasing a UE context (TS 36.413).
 var (
-	CauseNASNormalRelease = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASNormalRelease}
-	CauseNASDetach        = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASDetach}
-	CauseNASUnspecified   = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASUnspecified}
+	CauseNASNormalRelease = s1ap.CauseNASNormalRelease.Cause()
+	CauseNASDetach        = s1ap.CauseNASDetach.Cause()
+	CauseNASUnspecified   = s1ap.CauseNASUnspecified.Cause()
 )
 
 // S1apCauseName renders an S1AP cause as "<group>: <name> (<value>)".

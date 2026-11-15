@@ -6,13 +6,12 @@ package ngap
 import (
 	"bytes"
 	"encoding/hex"
-	"errors"
 	"os/exec"
-	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 const goldenSourceNGRANContainer = "7001800040050501004000050140200145030002f8391234567890ff10320002f8390abcdef1800fff9ff604020b0002f83900001011000064"
@@ -45,7 +44,7 @@ func goldSourceNGRANContainer() *SourceNGRANNodeToTargetNGRANNodeTransparentCont
 				CellType:                              CellType{CellSize: CellSizeLarge},
 				TimeUEStayedInCell:                    4095,
 				TimeUEStayedInCellEnhancedGranularity: Ptr(TimeUEStayedInCellEnhancedGranularity(40950)),
-				HOCauseValue:                          &Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkHandoverDesirableForRadio},
+				HOCauseValue:                          Ptr(CauseRadioNetworkHandoverDesirableForRadio.Cause()),
 			}}},
 			{LastVisitedCellInformation: LastVisitedCellInformation{EUTRANCell: Ptr(LastVisitedEUTRANCellInformation(mustHexBytes(goldenS1APLastVisitedEUTRANCellInformation)))}},
 		},
@@ -78,7 +77,7 @@ func TestSourceNGRANNodeToTargetNGRANNodeTransparentContainerGolden(t *testing.T
 		t.Fatal(err)
 	}
 
-	if !reflect.DeepEqual(out, in) {
+	if !out.Equal(*in) {
 		t.Fatalf("decoded\n got %+v\nwant %+v", out, in)
 	}
 
@@ -113,7 +112,7 @@ func TestSourceNGRANNodeToTargetNGRANNodeTransparentContainerMinimal(t *testing.
 		t.Fatal(err)
 	}
 
-	if !reflect.DeepEqual(out, in) {
+	if !out.Equal(*in) {
 		t.Fatalf("decoded\n got %+v\nwant %+v", out, in)
 	}
 }
@@ -137,12 +136,6 @@ func TestSourceNGRANNodeToTargetNGRANNodeTransparentContainerRejectsInvalid(t *t
 			RRCContainer:         RRCContainer{0x80},
 			TargetCellID:         NGRANCGI{NRCGI: &NRCGI{}},
 			UEHistoryInformation: UEHistoryInformation{{}},
-		},
-		"index to RFSP out of root": {
-			RRCContainer:         RRCContainer{0x80},
-			TargetCellID:         NGRANCGI{NRCGI: &NRCGI{}},
-			IndexToRFSP:          Ptr(IndexToRFSP(0)),
-			UEHistoryInformation: UEHistoryInformation{{LastVisitedCellInformation: LastVisitedCellInformation{UTRANCell: Ptr(LastVisitedUTRANCellInformation{0x01})}}},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -181,7 +174,7 @@ func handAdditions(t *testing.T, w *per.Writer) {
 func handChoiceExtension(t *testing.T, w *per.Writer) {
 	t.Helper()
 
-	mustNil(t, encodeContainerField(w, per.Aligned, ieField{id: 998, crit: CriticalityIgnore, raw: []byte{0x01, 0x02, 0x03}}))
+	mustNil(t, encodeContainerField(w, ieField{ID: 998, Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x01, 0x02, 0x03})}))
 }
 
 func handSourceNGRANContainer(t *testing.T, extCrit Criticality) []byte {
@@ -241,12 +234,16 @@ func TestSourceNGRANNodeToTargetNGRANNodeTransparentContainerLossless(t *testing
 		t.Run(crit.String(), func(t *testing.T) {
 			b := handSourceNGRANContainer(t, crit)
 
-			c, err := ParseSourceNGRANNodeToTargetNGRANNodeTransparentContainer(b)
+			c, err := DecodeSourceNGRANNodeToTargetNGRANNodeTransparentContainer(b)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			if c.TargetCellID.NRCGI != nil || c.TargetCellID.EUTRACGI != nil || c.TargetCellID.choiceExtension == nil || c.TargetCellID.choiceExtension.id != 998 {
+			if d := c.Diagnostics(); len(d.IEs) == 0 {
+				t.Fatal("unknown extensions and alternatives in the container are not reported")
+			}
+
+			if c.TargetCellID.NRCGI != nil || c.TargetCellID.EUTRACGI != nil || c.TargetCellID.ChoiceExtension == nil || c.TargetCellID.ChoiceExtension.ID != 998 {
 				t.Fatalf("targetCell-ID = %+v", c.TargetCellID)
 			}
 
@@ -289,10 +286,27 @@ func TestSourceNGRANNodeToTargetNGRANNodeTransparentContainerExtensionValue(t *t
 	mustNil(t, RRCContainer{0x80}.MarshalPER(w, per.Aligned))
 	mustNil(t, (&NGRANCGI{NRCGI: &NRCGI{}}).MarshalPER(w, per.Aligned))
 	mustNil(t, per.EncodeInteger(w, per.Aligned, per.Bounds{LB: 1, HasLB: true, UB: 256, HasUB: true, Extensible: true}, 300))
+	mustNil(t, (UEHistoryInformation{{LastVisitedCellInformation: LastVisitedCellInformation{UTRANCell: Ptr(LastVisitedUTRANCellInformation{0x01})}}}).MarshalPER(w, per.Aligned))
 	w.AlignToByte()
 
-	if _, err := ParseSourceNGRANNodeToTargetNGRANNodeTransparentContainer(w.Bytes()); !errors.Is(err, errNotComprehended) {
-		t.Fatalf("err = %v, want not comprehended", err)
+	c, err := DecodeSourceNGRANNodeToTargetNGRANNodeTransparentContainer(w.Bytes())
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	if deref(c.IndexToRFSP) != 300 {
+		t.Errorf("IndexToRFSP = %v, want the extension value 300 kept", c.IndexToRFSP)
+	}
+
+	re, err := c.Marshal()
+	mustNil(t, err)
+
+	if !bytes.Equal(re, w.Bytes()) {
+		t.Errorf("re-encode = % x, want % x", re, w.Bytes())
+	}
+
+	if _, err := ParseSourceNGRANNodeToTargetNGRANNodeTransparentContainer(w.Bytes()); err == nil {
+		t.Fatal("Parse accepted an IndexToRFSP outside its root, want it reported not comprehended")
 	}
 }
 
@@ -303,14 +317,14 @@ func goldContainerHandoverRequest() *HandoverRequest {
 	}
 
 	transfer, err := (&PDUSessionResourceSetupRequestTransfer{
-		ULNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: GTPTunnel{
-			TransportLayerAddress: TransportLayerAddress{192, 168, 1, 1}, GTPTEID: 1,
+		ULNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: &GTPTunnel{
+			TransportLayerAddress: tlaOf(192, 168, 1, 1), GTPTEID: 1,
 		}},
 		PDUSessionType: PDUSessionTypeIPv4,
 		QosFlowSetupRequest: QosFlowSetupRequestList{{
 			QosFlowIdentifier: 1,
 			QosFlowLevelQosParameters: QosFlowLevelQosParameters{
-				QosCharacteristics:             QosCharacteristics{Kind: QosCharacteristicsNonDynamic5QI, NonDynamic5QI: NonDynamic5QIDescriptor{FiveQI: 9}},
+				QosCharacteristics:             QosCharacteristics{NonDynamic5QI: &NonDynamic5QIDescriptor{FiveQI: 9}},
 				AllocationAndRetentionPriority: AllocationAndRetentionPriority{PriorityLevelARP: 1},
 			},
 		}},
@@ -322,9 +336,9 @@ func goldContainerHandoverRequest() *HandoverRequest {
 	return &HandoverRequest{
 		AMFUENGAPID:               1,
 		HandoverType:              HandoverTypeIntra5GS,
-		Cause:                     &Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkHandoverDesirableForRadio},
+		Cause:                     Ptr(CauseRadioNetworkHandoverDesirableForRadio.Cause()),
 		UEAggregateMaximumBitRate: UEAggregateMaximumBitRate{DL: 1000000000, UL: 1000000000},
-		UESecurityCapabilities:    UESecurityCapabilities{NREncryptionAlgorithms: 0x8000, NRIntegrityProtectionAlgorithms: 0x8000},
+		UESecurityCapabilities:    UESecurityCapabilities{NREncryptionAlgorithms: SecurityAlgorithmsFrom(0x8000), NRIntegrityProtectionAlgorithms: SecurityAlgorithmsFrom(0x8000)},
 		SecurityContext:           SecurityContext{NextHopChainingCount: 1},
 		PDUSessionResourceSetupListHOReq: PDUSessionResourceSetupListHOReq{{
 			PDUSessionID: 5, SNSSAI: SNSSAI{SST: 1}, Transfer: transfer,
@@ -333,19 +347,16 @@ func goldContainerHandoverRequest() *HandoverRequest {
 		SourceToTargetTransparentContainer: c,
 		GUAMI:                              GUAMI{PLMNIdentity: containerPLMN(), AMFRegionID: 1, AMFSetID: 1},
 		AMFUENGAPID2:                       Ptr(AMFUENGAPID(3)),
-		TargetRANNodeID:                    &GlobalRANNodeID{Kind: RANNodeIDGNB, PLMNIdentity: containerPLMN(), Value: 0x12345, Bits: 22},
+		TargetRANNodeID:                    Ptr(NewGlobalGNBID(containerPLMN(), 0x12345, 22)),
 	}
 }
 
 func goldPathSwitchRequestSourceAMFGUAMI() *PathSwitchRequest {
 	return &PathSwitchRequest{
-		RANUENGAPID:       2,
-		SourceAMFUENGAPID: 1,
-		UserLocationInformation: &UserLocationInformation{
-			Kind: UserLocationNR, PLMNIdentity: containerPLMN(), CellIdentity: 0x123456789,
-			TAI: TAI{PLMNIdentity: containerPLMN(), TAC: 1},
-		},
-		UESecurityCapabilities: &UESecurityCapabilities{NREncryptionAlgorithms: 0x8000, NRIntegrityProtectionAlgorithms: 0x8000},
+		RANUENGAPID:             2,
+		SourceAMFUENGAPID:       1,
+		UserLocationInformation: &UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: containerPLMN(), NRCellIdentity: NRCellIdentity(0x123456789)}, TAI: TAI{PLMNIdentity: containerPLMN(), TAC: 1}}},
+		UESecurityCapabilities:  &UESecurityCapabilities{NREncryptionAlgorithms: SecurityAlgorithmsFrom(0x8000), NRIntegrityProtectionAlgorithms: SecurityAlgorithmsFrom(0x8000)},
 		PDUSessionResourceToBeSwitchedDLList: PDUSessionResourceToBeSwitchedDLList{
 			{PDUSessionID: 5, Transfer: TransferContainer(mustHexBytes("001fc0a80101000000010002"))},
 		},
@@ -378,13 +389,13 @@ func TestTransparentContainerMessagesGolden(t *testing.T) {
 
 func TestTransparentContainerMessagesWireCriticality(t *testing.T) {
 	ho := wireIEs(t, goldContainerHandoverRequest().encodeBody)
-	if last := ho[len(ho)-1]; last.id != IDTargetRANNodeID || last.crit != CriticalityIgnore {
-		t.Fatalf("HandoverRequest last IE = %d/%s, want Target-RAN-Node-ID ignore", last.id, last.crit)
+	if last := ho[len(ho)-1]; last.ID != IDTargetRANNodeID || last.Criticality != CriticalityIgnore {
+		t.Fatalf("HandoverRequest last IE = %d/%s, want Target-RAN-Node-ID ignore", last.ID, last.Criticality)
 	}
 
 	ps := wireIEs(t, goldPathSwitchRequestSourceAMFGUAMI().encodeBody)
-	if last := ps[len(ps)-1]; last.id != IDSourceAMFGUAMI || last.crit != CriticalityIgnore {
-		t.Fatalf("PathSwitchRequest last IE = %d/%s, want SourceAMF-GUAMI ignore", last.id, last.crit)
+	if last := ps[len(ps)-1]; last.ID != IDSourceAMFGUAMI || last.Criticality != CriticalityIgnore {
+		t.Fatalf("PathSwitchRequest last IE = %d/%s, want SourceAMF-GUAMI ignore", last.ID, last.Criticality)
 	}
 }
 
@@ -439,7 +450,7 @@ func FuzzTransparentContainerRoundTrip(f *testing.F) {
 			t.Fatalf("decode re-encoded value: %v", err)
 		}
 
-		if !reflect.DeepEqual(again, c) {
+		if !again.Equal(*c) {
 			t.Fatalf("re-decoded\n got %+v\nwant %+v", again, c)
 		}
 

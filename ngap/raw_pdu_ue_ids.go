@@ -51,4 +51,4 @@ func (p *RawPDU) UENGAPIDs() (UENGAPIDs, bool, error) {
 	return v, ok, err
 }
 
-func (p *RawPDU) SetUENGAPIDs(v UENGAPIDs) error { return p.Set(IDUENGAPIDs, v) }
+func (p *RawPDU) SetUENGAPIDs(v UENGAPIDs) error { return p.Set(IDUENGAPIDs, &v) }

@@ -37,8 +37,7 @@ func qosFlowLevelQosParameters(qosData *models.QosData) (libngap.QosFlowLevelQos
 
 	return libngap.QosFlowLevelQosParameters{
 		QosCharacteristics: libngap.QosCharacteristics{
-			Kind:          libngap.QosCharacteristicsNonDynamic5QI,
-			NonDynamic5QI: libngap.NonDynamic5QIDescriptor{FiveQI: libngap.FiveQI(qosData.Var5qi)},
+			NonDynamic5QI: &libngap.NonDynamic5QIDescriptor{FiveQI: libngap.FiveQI(qosData.Var5qi)},
 		},
 		AllocationAndRetentionPriority: libngap.AllocationAndRetentionPriority{
 			PriorityLevelARP:        libngap.PriorityLevelARP(priority),

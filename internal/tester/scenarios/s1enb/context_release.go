@@ -63,21 +63,22 @@ func runS1ENBContextRelease(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("UE Context Release Command carried no cause, want radioNetwork user-inactivity %+v", s1enb.CauseUserInactivity)
 	}
 
-	if *cmd.Cause != s1enb.CauseUserInactivity {
+	if !cmd.Cause.Equal(s1enb.CauseUserInactivity) {
 		return fmt.Errorf("UE Context Release Command cause = %+v, want radioNetwork user-inactivity %+v", *cmd.Cause, s1enb.CauseUserInactivity)
 	}
 
-	if !cmd.UES1APIDs.Pair {
+	pair := cmd.UES1APIDs.UES1APIDPair
+	if pair == nil {
 		return fmt.Errorf("UE Context Release Command carried a single UE-S1AP-ID, want the MME+eNB pair")
 	}
 
-	if got := int64(cmd.UES1APIDs.MMEUES1APID); got != res.MMEUES1APID {
+	if got := int64(pair.MMEUES1APID); got != res.MMEUES1APID {
 		return fmt.Errorf("UE Context Release Command MME-UE-S1AP-ID = %d, want %d", got, res.MMEUES1APID)
 	}
 
-	if got := int64(cmd.UES1APIDs.ENBUES1APID); got != res.ENBUES1APID {
+	if got := int64(pair.ENBUES1APID); got != res.ENBUES1APID {
 		return fmt.Errorf("UE Context Release Command eNB-UE-S1AP-ID = %d, want %d", got, res.ENBUES1APID)
 	}
 
-	return e.SendUEContextReleaseComplete(int64(cmd.UES1APIDs.MMEUES1APID), int64(cmd.UES1APIDs.ENBUES1APID))
+	return e.SendUEContextReleaseComplete(int64(pair.MMEUES1APID), int64(pair.ENBUES1APID))
 }

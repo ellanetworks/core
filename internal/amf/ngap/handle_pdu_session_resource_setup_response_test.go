@@ -135,12 +135,9 @@ func TestHandlePDUSessionResourceSetupResponse_RecordsUserLocation(t *testing.T)
 
 	plmn := ngap.PLMNIdentity{0x00, 0xf1, 0x10}
 	HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, &ngap.PDUSessionResourceSetupResponse{
-		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(10)),
-		RANUENGAPID: ngap.Ptr(ngap.RANUENGAPID(1)),
-		UserLocationInformation: &ngap.UserLocationInformation{
-			Kind: ngap.UserLocationNR, PLMNIdentity: plmn, CellIdentity: 0x123456789,
-			TAI: ngap.TAI{PLMNIdentity: plmn, TAC: 7},
-		},
+		AMFUENGAPID:             ngap.Ptr(ngap.AMFUENGAPID(10)),
+		RANUENGAPID:             ngap.Ptr(ngap.RANUENGAPID(1)),
+		UserLocationInformation: &ngap.UserLocationInformation{NR: &ngap.UserLocationInformationNR{NRCGI: ngap.NRCGI{PLMNIdentity: plmn, NRCellIdentity: ngap.NRCellIdentity(0x123456789)}, TAI: ngap.TAI{PLMNIdentity: plmn, TAC: 7}}},
 	})
 
 	loc := ueConn.Location.NrLocation

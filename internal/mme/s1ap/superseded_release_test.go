@@ -85,7 +85,10 @@ func isReleaseCommandFor(t *testing.T, pdu []byte, mmeID s1ap.MMEUES1APID, enbID
 		t.Fatalf("parse UE Context Release Command: %v", err)
 	}
 
-	return cmd.UES1APIDs.MMEUES1APID == mmeID && cmd.UES1APIDs.ENBUES1APID == enbID
+	gotMME, _ := cmd.UES1APIDs.MMEID()
+	gotENB, _ := cmd.UES1APIDs.ENBID()
+
+	return gotMME == mmeID && gotENB == enbID
 }
 
 func isErrorIndication(t *testing.T, pdu []byte) bool {
@@ -131,7 +134,7 @@ func TestSupersededConnectionReleaseRequestNoErrorIndication(t *testing.T) {
 	relReq, err := (&s1ap.UEContextReleaseRequest{
 		MMEUES1APID: oldMMEID,
 		ENBUES1APID: oldENBID,
-		Cause:       s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioConnectionWithUELost}),
+		Cause:       s1ap.Ptr(s1ap.CauseRadioNetworkRadioConnectionWithUELost.Cause()),
 	}).Marshal()
 	if err != nil {
 		t.Fatal(err)
@@ -163,7 +166,7 @@ func TestDetachedReleaseRequestGuardsAndDedups(t *testing.T) {
 		t.Fatal("failed to allocate a bare connection")
 	}
 
-	cause := s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASNormalRelease}
+	cause := s1ap.CauseNASNormalRelease.Cause()
 
 	if !m.AnswerDetachedRelease(context.Background(), cc, bare.MMEUES1APID, enbID, cause) {
 		t.Fatal("AnswerDetachedRelease did not match the detached connection")

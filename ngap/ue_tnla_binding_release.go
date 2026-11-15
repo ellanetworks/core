@@ -16,18 +16,18 @@ type UETNLABindingReleaseRequest struct {
 
 var uETNLABindingReleaseRequestIEs = []ieSpec[UETNLABindingReleaseRequest]{
 	{
-		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *UETNLABindingReleaseRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.AMFUENGAPID)
+		ID: IDAMFUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *UETNLABindingReleaseRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.AMFUENGAPID)
 		},
-		encode: func(m *UETNLABindingReleaseRequest) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
+		Encode: func(m *UETNLABindingReleaseRequest) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *UETNLABindingReleaseRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.RANUENGAPID)
+		ID: IDRANUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *UETNLABindingReleaseRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.RANUENGAPID)
 		},
-		encode: func(m *UETNLABindingReleaseRequest) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
+		Encode: func(m *UETNLABindingReleaseRequest) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 }
 
@@ -53,4 +53,8 @@ func (m *UETNLABindingReleaseRequest) Marshal() ([]byte, error) {
 
 func ParseUETNLABindingReleaseRequest(value []byte) (*UETNLABindingReleaseRequest, error) {
 	return parseMessageBody[UETNLABindingReleaseRequest](ProcUETNLABindingRelease, TriggeringInitiatingMessage, uETNLABindingReleaseRequestIEs, value)
+}
+
+func DecodeUETNLABindingReleaseRequest(value []byte) (*UETNLABindingReleaseRequest, error) {
+	return decodeMessageBody[UETNLABindingReleaseRequest](ProcUETNLABindingRelease, uETNLABindingReleaseRequestIEs, value)
 }

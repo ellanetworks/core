@@ -17,7 +17,7 @@ import (
 	"github.com/ellanetworks/core/ngap"
 )
 
-var causeReleaseDueToCNDetectedMobility = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkReleaseDueToCNDetectedMobility}
+var causeReleaseDueToCNDetectedMobility = ngap.CauseRadioNetworkReleaseDueToCNDetectedMobility.Cause()
 
 type Registrar interface {
 	Register(ctx context.Context, imsi string) (int64, error)

@@ -49,7 +49,7 @@ func sourceToTargetTransparentContainer(b []byte, sourceeNB bool) SourceToTarget
 		return out
 	}
 
-	c, err := s1ap.ParseSourceeNBToTargeteNBTransparentContainer(b)
+	c, err := s1ap.DecodeSourceeNBToTargeteNBTransparentContainer(b)
 	if err != nil {
 		out.Error = err.Error()
 
@@ -72,7 +72,7 @@ func sourceeNBToTargeteNB(c *s1ap.SourceeNBToTargeteNBTransparentContainer) *Sou
 		e := ERABInformation{ERABID: uint8(it.ERABID)}
 
 		if it.DLForwarding != nil {
-			f := utils.NamedEnum(uint8(*it.DLForwarding), it.DLForwarding.Name())
+			f := namedEnum(uint8(*it.DLForwarding), it.DLForwarding.Name())
 			e.DLForwarding = &f
 		}
 
@@ -98,7 +98,7 @@ func lastVisitedCell(it s1ap.LastVisitedCellItem) LastVisitedCell {
 	case it.EUTRANCell != nil:
 		out.EUTRANCell = &LastVisitedEUTRANCell{
 			GlobalCellID:       eutranCGI(it.EUTRANCell.GlobalCellID),
-			CellSize:           utils.NamedEnum(uint8(it.EUTRANCell.CellType.CellSize), it.EUTRANCell.CellType.CellSize.Name()),
+			CellSize:           namedEnum(uint8(it.EUTRANCell.CellType.CellSize), it.EUTRANCell.CellType.CellSize.Name()),
 			TimeUEStayedInCell: uint16(it.EUTRANCell.TimeUEStayedInCell),
 		}
 	case it.UTRANCell != nil:

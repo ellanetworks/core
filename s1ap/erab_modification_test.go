@@ -4,7 +4,6 @@
 package s1ap
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
@@ -18,9 +17,9 @@ func erabModIndicationWire(t *testing.T, items []ERABToBeModifiedItemBearerModIn
 	w.WriteBit(false)
 
 	err := encodeIEContainer(w, per.Aligned, []ieField{
-		{id: IDMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
-		{id: IDENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(2)},
-		{id: IDERABToBeModifiedListBearerModInd, crit: CriticalityReject, val: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
+		{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: MMEUES1APID(1)},
+		{ID: IDENBUES1APID, Criticality: CriticalityReject, Value: ENBUES1APID(2)},
+		{ID: IDERABToBeModifiedListBearerModInd, Criticality: CriticalityReject, Value: per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
 			return encodeSingleContainerList(w, enc, maxnoofERABs, IDERABToBeModifiedItemBearerModInd, CriticalityReject, items)
 		})},
 	})
@@ -33,8 +32,8 @@ func erabModIndicationWire(t *testing.T, items []ERABToBeModifiedItemBearerModIn
 
 func TestERABModificationIndication_Decode(t *testing.T) {
 	items := []ERABToBeModifiedItemBearerModInd{
-		{ERABID: 5, TransportLayerAddress: TransportLayerAddress{10, 0, 0, 1}, DLGTPTEID: 0x11223344},
-		{ERABID: 6, TransportLayerAddress: TransportLayerAddress{10, 0, 0, 2}, DLGTPTEID: 0x55667788},
+		{ERABID: 5, TransportLayerAddress: tlaOf(10, 0, 0, 1), DLGTPTEID: 0x11223344},
+		{ERABID: 6, TransportLayerAddress: tlaOf(10, 0, 0, 2), DLGTPTEID: 0x55667788},
 	}
 
 	msg, err := ParseERABModificationIndication(erabModIndicationWire(t, items))
@@ -53,7 +52,7 @@ func TestERABModificationIndication_Decode(t *testing.T) {
 	for i, want := range items {
 		got := msg.ToBeModified[i]
 		if got.ERABID != want.ERABID || got.DLGTPTEID != want.DLGTPTEID ||
-			!bytes.Equal(got.TransportLayerAddress, want.TransportLayerAddress) {
+			got.TransportLayerAddress != want.TransportLayerAddress {
 			t.Fatalf("item %d = %+v, want %+v", i, got, want)
 		}
 	}
@@ -66,8 +65,8 @@ func TestERABModificationIndication_MissingMandatoryIE(t *testing.T) {
 
 	// Only the UE IDs, no E-RABToBeModified list (mandatory).
 	if err := encodeIEContainer(w, per.Aligned, []ieField{
-		{id: IDMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
-		{id: IDENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(2)},
+		{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: MMEUES1APID(1)},
+		{ID: IDENBUES1APID, Criticality: CriticalityReject, Value: ENBUES1APID(2)},
 	}); err != nil {
 		t.Fatalf("encode: %v", err)
 	}
@@ -107,7 +106,7 @@ func TestERABModificationConfirm_Marshal(t *testing.T) {
 	var seenList bool
 
 	for _, f := range fields {
-		if f.id == IDERABModifyListBearerModConf {
+		if f.ID == IDERABModifyListBearerModConf {
 			seenList = true
 		}
 	}
@@ -118,7 +117,7 @@ func TestERABModificationConfirm_Marshal(t *testing.T) {
 }
 
 func TestERABModificationConfirmToBeReleasedRoundTrip(t *testing.T) {
-	cause := Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified}
+	cause := CauseRadioNetworkUnspecified.Cause()
 
 	wire, err := (&ERABModificationConfirm{
 		MMEUES1APID:   Ptr(MMEUES1APID(1)),
@@ -140,7 +139,7 @@ func TestERABModificationConfirmToBeReleasedRoundTrip(t *testing.T) {
 		t.Fatalf("ParseERABModificationConfirm: %v", err)
 	}
 
-	if len(got.ModifiedERABs) != 1 || len(got.ToBeReleased) != 1 || got.ToBeReleased[0].ERABID != 6 || got.ToBeReleased[0].Cause != cause {
+	if len(got.ModifiedERABs) != 1 || len(got.ToBeReleased) != 1 || got.ToBeReleased[0].ERABID != 6 || !got.ToBeReleased[0].Cause.Equal(cause) {
 		t.Fatalf("confirm %+v, want E-RAB 5 modified and 6 to be released (TS 36.413 §8.2.4.2)", got)
 	}
 }

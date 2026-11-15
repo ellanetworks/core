@@ -64,8 +64,8 @@ func TestS1ResetWholeInterface(t *testing.T) {
 	m.RegisterUEForTest(other, "001010000000012")
 	testPDN(other).Apn = "internet"
 
-	cause := s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 0}
-	handleReset(context.Background(), m, mme.NewRadioForTest(cc), resetValue(t, &s1ap.Reset{Cause: s1ap.Ptr(cause), ResetType: s1ap.ResetType{All: true}}))
+	cause := s1ap.CauseMiscControlProcessingOverload.Cause()
+	handleReset(context.Background(), m, mme.NewRadioForTest(cc), resetValue(t, &s1ap.Reset{Cause: s1ap.Ptr(cause), ResetType: s1ap.ResetType{S1Interface: s1ap.Ptr(s1ap.ResetAllResetAll)}}))
 
 	for _, ue := range []*mme.UeContext{ue1, ue2} {
 		got, ok := m.LookupUeByIMSI(ue.IMSI())
@@ -107,11 +107,11 @@ func TestS1ResetPartOfInterface(t *testing.T) {
 
 	mmeID := ue1.Conn().MMEUES1APID
 	enbID := ue1.Conn().ENBUES1APID()
-	cause := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}
+	cause := s1ap.CauseRadioNetworkUnspecified.Cause()
 
 	handleReset(context.Background(), m, mme.NewRadioForTest(cc), resetValue(t, &s1ap.Reset{
 		Cause: s1ap.Ptr(cause),
-		ResetType: s1ap.ResetType{Part: []s1ap.UEAssociatedLogicalS1ConnectionItem{
+		ResetType: s1ap.ResetType{PartOfS1Interface: &s1ap.UEAssociatedLogicalS1ConnectionListRes{
 			{MMEUES1APID: &mmeID, ENBUES1APID: &enbID},
 		}},
 	}))
@@ -145,8 +145,8 @@ func TestS1ResetDropsMidAttachUE(t *testing.T) {
 	ue.TransitionTo(t.Context(), mme.EMMDeregistered)
 	testPDN(ue).Apn = "internet"
 
-	cause := s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 0}
-	handleReset(context.Background(), m, mme.NewRadioForTest(cc), resetValue(t, &s1ap.Reset{Cause: s1ap.Ptr(cause), ResetType: s1ap.ResetType{All: true}}))
+	cause := s1ap.CauseMiscControlProcessingOverload.Cause()
+	handleReset(context.Background(), m, mme.NewRadioForTest(cc), resetValue(t, &s1ap.Reset{Cause: s1ap.Ptr(cause), ResetType: s1ap.ResetType{S1Interface: s1ap.Ptr(s1ap.ResetAllResetAll)}}))
 
 	if _, ok := m.LookupUeByIMSI(ue.IMSI()); ok {
 		t.Fatal("incomplete-registration UE retained after S1 reset; expected drop")

@@ -53,7 +53,7 @@ func integrityProtectionIndication(s *s1ap.SecurityIndication) *utils.EnumField 
 		return nil
 	}
 
-	v := utils.NamedEnum(uint8(s.IntegrityProtectionIndication), s.IntegrityProtectionIndication.Name())
+	v := namedEnum(uint8(s.IntegrityProtectionIndication), s.IntegrityProtectionIndication.Name())
 
 	return &v
 }
@@ -66,12 +66,12 @@ func setupExtensions(c, sipto *s1ap.CorrelationID, bearer *s1ap.BearerType, ethe
 	}
 
 	if bearer != nil {
-		v := utils.NamedEnum(uint8(*bearer), bearer.Name())
+		v := namedEnum(uint8(*bearer), bearer.Name())
 		out.BearerType = &v
 	}
 
 	if ethernet != nil {
-		v := utils.NamedEnum(uint8(*ethernet), ethernet.Name())
+		v := namedEnum(uint8(*ethernet), ethernet.Name())
 		out.EthernetType = &v
 	}
 

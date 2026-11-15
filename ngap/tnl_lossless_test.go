@@ -15,13 +15,14 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 const unknownExtensionID ProtocolIEID = 65000
 
 func upTNL(host byte, teid uint32) UPTransportLayerInformation {
-	return UPTransportLayerInformation{GTPTunnel: GTPTunnel{
-		TransportLayerAddress: TransportLayerAddress{10, 0, 0, host},
+	return UPTransportLayerInformation{GTPTunnel: &GTPTunnel{
+		TransportLayerAddress: tlaOf(10, 0, 0, host),
 		GTPTEID:               GTPTEID(teid),
 	}}
 }
@@ -61,7 +62,7 @@ func tnlSetupRequestTransfer() *PDUSessionResourceSetupRequestTransfer {
 		QosFlowSetupRequest: QosFlowSetupRequestList{{
 			QosFlowIdentifier: 1,
 			QosFlowLevelQosParameters: QosFlowLevelQosParameters{
-				QosCharacteristics: QosCharacteristics{Kind: QosCharacteristicsNonDynamic5QI, NonDynamic5QI: NonDynamic5QIDescriptor{FiveQI: 9}},
+				QosCharacteristics: QosCharacteristics{NonDynamic5QI: &NonDynamic5QIDescriptor{FiveQI: 9}},
 				AllocationAndRetentionPriority: AllocationAndRetentionPriority{
 					PriorityLevelARP:        8,
 					PreemptionCapability:    PreemptionShallNotTrigger,
@@ -337,7 +338,7 @@ func tnlTransferCases() []tnlTransferCase {
 				return &PathSwitchRequest{
 					RANUENGAPID:                          2,
 					SourceAMFUENGAPID:                    1,
-					UserLocationInformation:              &UserLocationInformation{Kind: UserLocationNR, PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAI: TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}},
+					UserLocationInformation:              &UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, NRCellIdentity: NRCellIdentity(0)}, TAI: TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}}},
 					UESecurityCapabilities:               &UESecurityCapabilities{},
 					PDUSessionResourceToBeSwitchedDLList: PDUSessionResourceToBeSwitchedDLList{{PDUSessionID: 5, Transfer: b}},
 				}
@@ -433,7 +434,7 @@ func TestTNLExtensionGoldenRoundTrip(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if !reflect.DeepEqual(out, c.transfer) {
+			if !equalByMethod(out, c.transfer) {
 				t.Fatalf("decoded\n got %+v\nwant %+v", out, c.transfer)
 			}
 
@@ -507,7 +508,7 @@ func TestTNLExtensionCriticality(t *testing.T) {
 		out := make([]Criticality, v.Len())
 
 		for i := range out {
-			out[i] = Criticality(v.Index(i).FieldByName("crit").Uint())
+			out[i] = Criticality(v.Index(i).FieldByName("Criticality").Uint())
 		}
 
 		return out
@@ -518,7 +519,7 @@ func TestTNLExtensionCriticality(t *testing.T) {
 		out := make([]ProtocolIEID, v.Len())
 
 		for i := range out {
-			out[i] = ProtocolIEID(v.Index(i).FieldByName("id").Uint())
+			out[i] = ProtocolIEID(v.Index(i).FieldByName("ID").Uint())
 		}
 
 		return out
@@ -555,57 +556,65 @@ func TestTNLExtensionCriticality(t *testing.T) {
 			{IDRedundantULNGUUPTNLInformation, ig},
 			{IDUserPlaneFailureIndication, ig},
 		}},
-		{"PDUSessionResourceSetupResponseTransfer-ExtIEs", pDUSessionResourceSetupResponseTransferExtIEs, []row{
+		{"PDUSessionResourceSetupResponseTransfer-ExtIEs", extIEsPDUSessionResourceSetupResponseTransfer, []row{
 			{IDRedundantDLQosFlowPerTNLInformation, ig}, {IDAdditionalRedundantDLQosFlowPerTNLInformation, ig},
 		}},
-		{"PDUSessionResourceModifyResponseTransfer-ExtIEs", pDUSessionResourceModifyResponseTransferExtIEs, []row{
+		{"PDUSessionResourceModifyResponseTransfer-ExtIEs", extIEsPDUSessionResourceModifyResponseTransfer, []row{
 			{IDAdditionalNGUUPTNLInformation, ig},
 			{IDRedundantDLNGUUPTNLInformation, ig},
 			{IDRedundantULNGUUPTNLInformation, ig},
 			{IDAdditionalRedundantDLQosFlowPerTNLInformation, ig},
 			{IDAdditionalRedundantNGUUPTNLInformation, ig},
 		}},
-		{"PDUSessionResourceModifyIndicationTransfer-ExtIEs", pDUSessionResourceModifyIndicationTransferExtIEs, []row{
+		{"PDUSessionResourceModifyIndicationTransfer-ExtIEs", extIEsPDUSessionResourceModifyIndicationTransfer, []row{
 			{IDRedundantDLQosFlowPerTNLInformation, ig}, {IDAdditionalRedundantDLQosFlowPerTNLInformation, ig},
 		}},
-		{"PDUSessionResourceModifyConfirmTransfer-ExtIEs", pDUSessionResourceModifyConfirmTransferExtIEs, []row{
+		{"PDUSessionResourceModifyConfirmTransfer-ExtIEs", extIEsPDUSessionResourceModifyConfirmTransfer, []row{
 			{IDRedundantULNGUUPTNLInformation, ig}, {IDAdditionalRedundantNGUUPTNLInformation, ig},
 		}},
-		{"PathSwitchRequestTransfer-ExtIEs", pathSwitchRequestTransferExtIEs, []row{
+		{"PathSwitchRequestTransfer-ExtIEs", extIEsPathSwitchRequestTransfer, []row{
 			{IDAdditionalDLQosFlowPerTNLInformation, ig},
 			{IDRedundantDLNGUUPTNLInformation, ig},
 			{IDRedundantDLNGUTNLInformationReused, ig},
 			{IDAdditionalRedundantDLQosFlowPerTNLInformation, ig},
 		}},
-		{"PathSwitchRequestAcknowledgeTransfer-ExtIEs", pathSwitchRequestAcknowledgeTransferExtIEs, []row{
+		{"PathSwitchRequestAcknowledgeTransfer-ExtIEs", extIEsPathSwitchRequestAcknowledgeTransfer, []row{
 			{IDAdditionalNGUUPTNLInformation, ig}, {IDRedundantULNGUUPTNLInformation, ig}, {IDAdditionalRedundantNGUUPTNLInformation, ig},
 		}},
-		{"HandoverRequestAcknowledgeTransfer-ExtIEs", handoverRequestAcknowledgeTransferExtIEs, []row{
+		{"HandoverRequestAcknowledgeTransfer-ExtIEs", extIEsHandoverRequestAcknowledgeTransfer, []row{
 			{IDAdditionalDLUPTNLInformationForHOList, ig},
 			{IDULForwardingUPTNLInformation, rj},
 			{IDAdditionalULForwardingUPTNLInformation, rj},
 			{IDDataForwardingResponseERABList, ig},
 			{IDRedundantDLNGUUPTNLInformation, ig},
 		}},
-		{"HandoverCommandTransfer-ExtIEs", handoverCommandTransferExtIEs, []row{
+		{"HandoverCommandTransfer-ExtIEs", extIEsHandoverCommandTransfer, []row{
 			{IDAdditionalDLForwardingUPTNLInformation, ig},
 			{IDULForwardingUPTNLInformation, rj},
 			{IDAdditionalULForwardingUPTNLInformation, rj},
 			{IDDataForwardingResponseERABList, ig},
 		}},
-		{"UL-NGU-UP-TNLModifyItem-ExtIEs", uLNGUUPTNLModifyItemExtIEs, []row{
+		{"UL-NGU-UP-TNLModifyItem-ExtIEs", extIEsULNGUUPTNLModifyItem, []row{
 			{IDRedundantULNGUUPTNLInformation, ig}, {IDRedundantDLNGUUPTNLInformation, ig},
 		}},
-		{"AdditionalDLUPTNLInformationForHOItem-ExtIEs", additionalDLUPTNLInformationForHOItemExtIEs, []row{
+		{"AdditionalDLUPTNLInformationForHOItem-ExtIEs", extIEsAdditionalDLUPTNLInformationForHOItem, []row{
 			{IDAdditionalRedundantDLNGUUPTNLInformation, ig},
 		}},
-		{"QosFlowAddOrModifyRequestItem-ExtIEs", qosFlowAddOrModifyRequestItemExtIEs, []row{{IDULNGUUPTNLInformation, ig}}},
-		{"QosFlowAddOrModifyResponseItem-ExtIEs", qosFlowAddOrModifyResponseItemExtIEs, []row{{IDDLNGUUPTNLInformation, ig}}},
-		{"PDUSessionResourceModifyItemModReq-ExtIEs", pDUSessionResourceModifyItemModReqExtIEs, []row{{IDSNSSAI, rj}}},
+		{"QosFlowAddOrModifyRequestItem-ExtIEs", extIEsQosFlowAddOrModifyRequestItem, []row{{IDULNGUUPTNLInformation, ig}}},
+		{"QosFlowAddOrModifyResponseItem-ExtIEs", extIEsQosFlowAddOrModifyResponseItem, []row{{IDDLNGUUPTNLInformation, ig}}},
+		{"PDUSessionResourceModifyItemModReq-ExtIEs", extIEsPDUSessionResourceModifyItemModReq, []row{{IDSNSSAI, rj}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := critOf(ids(tc.table), crits(tc.table)); !reflect.DeepEqual(got, tc.want) {
-				t.Fatalf("rows %v, want %v", got, tc.want)
+			got := critOf(ids(tc.table), crits(tc.table))
+			next := 0
+
+			for _, w := range tc.want {
+				i := slices.Index(got[next:], w)
+				if i < 0 {
+					t.Fatalf("rows %v, want %v in this order", got, tc.want)
+				}
+
+				next += i + 1
 			}
 		})
 	}
@@ -613,9 +622,12 @@ func TestTNLExtensionCriticality(t *testing.T) {
 
 func TestTNLExtensionWireCriticalityKept(t *testing.T) {
 	in := &HandoverCommandTransfer{ULForwardingUPTNLInformation: upTNLPtr(1, 0xa05)}
-	in.iEExtensions.wire = []wireSlot{{id: IDULForwardingUPTNLInformation, crit: CriticalityIgnore, unknown: -1}}
+	restore := swapTable(&extIEsHandoverCommandTransfer, tableRow(extIEsHandoverCommandTransfer, IDULForwardingUPTNLInformation, CriticalityIgnore))
 
 	b, err := in.Marshal()
+
+	restore()
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -623,10 +635,6 @@ func TestTNLExtensionWireCriticalityKept(t *testing.T) {
 	out, err := ParseHandoverCommandTransfer(b)
 	if err != nil {
 		t.Fatal(err)
-	}
-
-	if !reflect.DeepEqual(out.iEExtensions.wire, in.iEExtensions.wire) {
-		t.Fatalf("wire %+v, want %+v", out.iEExtensions.wire, in.iEExtensions.wire)
 	}
 
 	again, err := out.Marshal()
@@ -643,18 +651,13 @@ func tbNil(t testing.TB, err error) {
 	}
 }
 
-func unknownRawExtensions(t testing.TB) *rawIEExtensions {
+func unknownRawExtensions(t testing.TB) extensionMeta {
 	t.Helper()
 
-	w := per.NewWriter()
-	tbNil(t, per.EncodeConstrainedWholeNumber(w, per.Aligned, 1, maxProtocolExtensions, 1))
-	tbNil(t, encodeContainerField(w, per.Aligned, ieField{id: unknownExtensionID, crit: CriticalityIgnore, raw: []byte{0xde, 0xad}}))
-	w.AlignToByte()
+	var e extensionMeta
+	e.Append(rawIE{ID: unknownExtensionID, Criticality: CriticalityIgnore, Value: []byte{0xde, 0xad}})
 
-	var e rawIEExtensions
-	tbNil(t, e.UnmarshalPER(per.NewReader(w.Bytes()), per.Aligned))
-
-	return &e
+	return e
 }
 
 func unknownAdditions(t testing.TB) per.ExtensionAdditions {
@@ -675,11 +678,11 @@ func unknownAdditions(t testing.TB) per.ExtensionAdditions {
 	return e
 }
 
-func unknownMeta(t testing.TB) messageMeta {
+func unknownMeta(t testing.TB) extensionMeta {
 	t.Helper()
 
-	var m messageMeta
-	m.preserve(rawIE{id: unknownExtensionID, crit: CriticalityIgnore, value: []byte{0xde, 0xad}})
+	var m extensionMeta
+	m.Append(rawIE{ID: unknownExtensionID, Criticality: CriticalityIgnore, Value: []byte{0xde, 0xad}})
 
 	return m
 }
@@ -717,7 +720,7 @@ func losslessCases() []losslessCase {
 
 	qosParams := func(t testing.TB) QosFlowLevelQosParameters {
 		return QosFlowLevelQosParameters{
-			QosCharacteristics: QosCharacteristics{Kind: QosCharacteristicsDynamic5QI, Dynamic5QI: Dynamic5QIDescriptor{
+			QosCharacteristics: QosCharacteristics{Dynamic5QI: &Dynamic5QIDescriptor{
 				PriorityLevelQos:  10,
 				PacketDelayBudget: 100,
 				PacketErrorRate:   PacketErrorRate{Scalar: 1, Exponent: 6, iEExtensions: unknownRawExtensions(t), extensions: unknownAdditions(t)},
@@ -751,14 +754,14 @@ func losslessCases() []losslessCase {
 		}
 	}
 
-	transferItem := func(t testing.TB) (*rawIEExtensions, per.ExtensionAdditions) {
+	transferItem := func(t testing.TB) (extensionMeta, per.ExtensionAdditions) {
 		return unknownRawExtensions(t), unknownAdditions(t)
 	}
 
 	return []losslessCase{
 		{name: "GTPTunnel", value: func(t testing.TB) per.Marshaler {
 			u := gtp(t, 1, 0x10)
-			return &u.GTPTunnel
+			return u.GTPTunnel
 		}, decode: decodeAs[GTPTunnel]},
 		{name: "SNSSAI", value: func(t testing.TB) per.Marshaler { s := snssai(t); return &s }, decode: decodeAs[SNSSAI]},
 		{name: "UPTransportLayerInformationItem", value: func(t testing.TB) per.Marshaler {
@@ -843,7 +846,7 @@ func losslessCases() []losslessCase {
 			}
 		}, decode: decodeAs[UserPlaneSecurityInformation]},
 		{name: "QosFlowWithCauseItem", value: func(t testing.TB) per.Marshaler {
-			return &QosFlowWithCauseItem{QosFlowIdentifier: 1, Cause: Cause{Group: CauseGroupMisc}, iEExtensions: unknownRawExtensions(t), extensions: unknownAdditions(t)}
+			return &QosFlowWithCauseItem{QosFlowIdentifier: 1, Cause: CauseMisc(0).Cause(), iEExtensions: unknownRawExtensions(t), extensions: unknownAdditions(t)}
 		}, decode: decodeAs[QosFlowWithCauseItem]},
 		{name: "QosFlowAcceptedItem", value: func(t testing.TB) per.Marshaler {
 			return &QosFlowAcceptedItem{QosFlowIdentifier: 1, iEExtensions: unknownRawExtensions(t), extensions: unknownAdditions(t)}
@@ -915,7 +918,7 @@ func losslessCases() []losslessCase {
 			v := tnlSetupResponseTransfer()
 			v.DLQosFlowPerTNLInformation = qosTNL(t)
 			v.SecurityResult = &SecurityResult{iEExtensions: unknownRawExtensions(t)}
-			v.QosFlowFailedToSetup = QosFlowListWithCause{{QosFlowIdentifier: 2, Cause: Cause{Group: CauseGroupMisc}, extensions: unknownAdditions(t)}}
+			v.QosFlowFailedToSetup = QosFlowListWithCause{{QosFlowIdentifier: 2, Cause: CauseMisc(0).Cause(), extensions: unknownAdditions(t)}}
 			v.iEExtensions, v.extensions = unknownMeta(t), unknownAdditions(t)
 
 			return v
@@ -1002,7 +1005,7 @@ func TestTNLStructuresKeepUnknownExtensions(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if !reflect.DeepEqual(twice, out) {
+			if !equalByMethod(twice, out) {
 				t.Fatalf("re-decoded\n got %+v\nwant %+v", twice, out)
 			}
 
@@ -1019,13 +1022,15 @@ func TestTNLStructuresKeepUnknownExtensions(t *testing.T) {
 
 func TestTNLItemKeepsUnknownExtensionCriticalityAndOrder(t *testing.T) {
 	in := &HandoverCommandTransfer{ULForwardingUPTNLInformation: upTNLPtr(1, 0xa05)}
-	in.iEExtensions.preserve(rawIE{id: unknownExtensionID, crit: CriticalityNotify, value: []byte{0x01}})
-	in.iEExtensions.wire = []wireSlot{
-		{id: unknownExtensionID, crit: CriticalityNotify, unknown: 0},
-		{id: IDULForwardingUPTNLInformation, crit: CriticalityReject, unknown: -1},
-	}
+	restore := swapTable(&extIEsHandoverCommandTransfer,
+		rawRow[HandoverCommandTransfer](unknownExtensionID, CriticalityNotify, []byte{0x01}),
+		tableRow(extIEsHandoverCommandTransfer, IDULForwardingUPTNLInformation, CriticalityReject),
+	)
 
 	b, err := in.Marshal()
+
+	restore()
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1039,15 +1044,6 @@ func TestTNLItemKeepsUnknownExtensionCriticalityAndOrder(t *testing.T) {
 		t.Fatalf("unknown extensions %+v", got)
 	}
 
-	ids := make([]ProtocolIEID, 0, len(out.iEExtensions.wire))
-	for _, s := range out.iEExtensions.wire {
-		ids = append(ids, s.id)
-	}
-
-	if !slices.Equal(ids, []ProtocolIEID{unknownExtensionID, IDULForwardingUPTNLInformation}) {
-		t.Fatalf("wire order %v", ids)
-	}
-
 	again, err := out.Marshal()
 	if err != nil || !bytes.Equal(again, b) {
 		t.Fatalf("re-encoded %x (%v), want %x", again, err, b)
@@ -1056,7 +1052,7 @@ func TestTNLItemKeepsUnknownExtensionCriticalityAndOrder(t *testing.T) {
 
 func TestTNLTransferRejectsUnknownRejectExtension(t *testing.T) {
 	in := &HandoverCommandTransfer{}
-	in.iEExtensions.preserve(rawIE{id: unknownExtensionID, crit: CriticalityReject, value: []byte{0x01}})
+	in.iEExtensions.Append(rawIE{ID: unknownExtensionID, Criticality: CriticalityReject, Value: []byte{0x01}})
 
 	b, err := in.Marshal()
 	if err != nil {
@@ -1214,12 +1210,12 @@ const (
 
 func TestTNLRequestTransfersKeepUnknownIEsAndAdditions(t *testing.T) {
 	setup := tnlSetupRequestTransfer()
-	setup.preserve(rawIE{id: unknownExtensionID, crit: CriticalityIgnore, value: []byte{0xde, 0xad}})
-	setup.extensions = unknownAdditions(t)
+	setup.Append(rawIE{ID: unknownExtensionID, Criticality: CriticalityIgnore, Value: []byte{0xde, 0xad}})
+	setup.ExtensionAdditions = unknownAdditions(t)
 
 	modify := tnlModifyRequestTransfer()
-	modify.preserve(rawIE{id: unknownExtensionID, crit: CriticalityNotify, value: []byte{0xde, 0xad}})
-	modify.extensions = unknownAdditions(t)
+	modify.Append(rawIE{ID: unknownExtensionID, Criticality: CriticalityNotify, Value: []byte{0xde, 0xad}})
+	modify.ExtensionAdditions = unknownAdditions(t)
 
 	for _, c := range []struct {
 		name     string
@@ -1269,18 +1265,18 @@ func TestTNLRequestTransfersKeepUnknownIEsAndAdditions(t *testing.T) {
 func TestTNLManyUnknownExtensionsKeptExactly(t *testing.T) {
 	in := tnlHandoverCommandTransfer()
 
-	fields := make([]ieField, 0, 3*maxPreservedIEs)
-	for i := range 3 * maxPreservedIEs {
-		fields = append(fields, ieField{id: unknownExtensionID - ProtocolIEID(i), crit: CriticalityIgnore, raw: []byte{byte(i)}})
+	fields := make([]ieField, 0, 3*paddingIEs)
+	for i := range 3 * paddingIEs {
+		fields = append(fields, ieField{ID: unknownExtensionID - ProtocolIEID(i), Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{byte(i)})})
 	}
 
 	w := per.NewWriter()
 	tbNil(t, encodeExtensionContainer(w, per.Aligned, fields))
 	w.AlignToByte()
-	tbNil(t, decodeExtensionContainer(per.NewReader(w.Bytes()), per.Aligned, handoverCommandTransferExtIEs, in, &in.iEExtensions))
+	tbNil(t, decodeExtensionContainer(per.NewReader(w.Bytes()), per.Aligned, extIEsHandoverCommandTransfer, in, &in.iEExtensions))
 
-	if got := len(in.iEExtensions.UnknownIEs()); got != 3*maxPreservedIEs {
-		t.Fatalf("kept %d unknown extensions, want %d", got, 3*maxPreservedIEs)
+	if got := len(in.iEExtensions.UnknownIEs()); got != 3*paddingIEs {
+		t.Fatalf("kept %d unknown extensions, want %d", got, 3*paddingIEs)
 	}
 
 	b, err := in.Marshal()
@@ -1314,13 +1310,13 @@ func TestTNLRequestTransferKeepsManyUnknownIEs(t *testing.T) {
 	fields, err := decodeIEContainer(r, per.Aligned)
 	tbNil(t, err)
 
-	all := make([]ieField, 0, len(fields)+3*maxPreservedIEs)
+	all := make([]ieField, 0, len(fields)+3*paddingIEs)
 	for _, f := range fields {
-		all = append(all, f.field())
+		all = append(all, f.Encodable())
 	}
 
-	for i := range 3 * maxPreservedIEs {
-		all = append(all, ieField{id: unknownExtensionID - ProtocolIEID(i), crit: CriticalityIgnore, raw: []byte{byte(i)}})
+	for i := range 3 * paddingIEs {
+		all = append(all, ieField{ID: unknownExtensionID - ProtocolIEID(i), Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{byte(i)})})
 	}
 
 	w := per.NewWriter()
@@ -1333,8 +1329,8 @@ func TestTNLRequestTransferKeepsManyUnknownIEs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := len(out.UnknownIEs()); got != 3*maxPreservedIEs {
-		t.Fatalf("kept %d unknown IEs, want %d", got, 3*maxPreservedIEs)
+	if got := len(out.UnknownIEs()); got != 3*paddingIEs {
+		t.Fatalf("kept %d unknown IEs, want %d", got, 3*paddingIEs)
 	}
 
 	again, err := out.Marshal()
@@ -1343,18 +1339,30 @@ func TestTNLRequestTransferKeepsManyUnknownIEs(t *testing.T) {
 	}
 }
 
-func TestMessageTruncatedOnDecodeRefusesToEncode(t *testing.T) {
+func TestMessageWithManyUnknownIEsReencodesLosslessly(t *testing.T) {
 	fields := ngSetupFields()
-	for i := range maxPreservedIEs + 1 {
-		fields = append(fields, ieField{id: ProtocolIEID(40000 + i), crit: CriticalityIgnore, raw: []byte{0x00}})
+	for i := range paddingIEs + 1 {
+		fields = append(fields, ieField{ID: ProtocolIEID(40000 + i), Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x00})})
 	}
 
-	msg, err := ParseNGSetupRequest(container(t, fields...))
+	value := container(t, fields...)
+
+	msg, err := ParseNGSetupRequest(value)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := msg.Marshal(); err == nil {
-		t.Fatal("a message whose unknown IEs were dropped on decode re-encoded")
+	b, err := msg.Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pdu, err := Unmarshal(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(pdu.value(), value) {
+		t.Fatalf("re-encoded %x, want %x", pdu.value(), value)
 	}
 }

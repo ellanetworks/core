@@ -21,23 +21,23 @@ type UECapabilityInfoIndication struct {
 
 var uECapabilityInfoIndicationIEs = []ieSpec[UECapabilityInfoIndication]{
 	{
-		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *UECapabilityInfoIndication, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.MMEUES1APID)
+		ID: IDMMEUES1APID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *UECapabilityInfoIndication, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.MMEUES1APID)
 		},
-		encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+		Encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *UECapabilityInfoIndication, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ENBUES1APID)
+		ID: IDENBUES1APID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *UECapabilityInfoIndication, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.ENBUES1APID)
 		},
-		encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+		Encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: IDUERadioCapability, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *UECapabilityInfoIndication, raw []byte, enc per.Encoding) error {
-			if err := perIEDecode(raw, &m.UERadioCapability); err != nil {
+		ID: IDUERadioCapability, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *UECapabilityInfoIndication, r *per.Reader, enc per.Encoding) error {
+			if err := decodeIE(r, &m.UERadioCapability); err != nil {
 				return err
 			}
 
@@ -47,7 +47,7 @@ var uECapabilityInfoIndicationIEs = []ieSpec[UECapabilityInfoIndication]{
 
 			return nil
 		},
-		encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) {
+		Encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) {
 			if m.UERadioCapability == nil {
 				return nil, false
 			}
@@ -56,11 +56,11 @@ var uECapabilityInfoIndicationIEs = []ieSpec[UECapabilityInfoIndication]{
 		},
 	},
 	{
-		id: IDUERadioCapabilityForPaging, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *UECapabilityInfoIndication, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.UERadioCapabilityForPaging)
+		ID: IDUERadioCapabilityForPaging, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *UECapabilityInfoIndication, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.UERadioCapabilityForPaging)
 		},
-		encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) {
+		Encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) {
 			if m.UERadioCapabilityForPaging == nil {
 				return nil, false
 			}
@@ -92,4 +92,8 @@ func (m *UECapabilityInfoIndication) Marshal() ([]byte, error) {
 
 func ParseUECapabilityInfoIndication(value []byte) (*UECapabilityInfoIndication, error) {
 	return parseMessageBody[UECapabilityInfoIndication](ProcUECapabilityInfoIndication, TriggeringInitiatingMessage, uECapabilityInfoIndicationIEs, value)
+}
+
+func DecodeUECapabilityInfoIndication(value []byte) (*UECapabilityInfoIndication, error) {
+	return decodeMessageBody[UECapabilityInfoIndication](ProcUECapabilityInfoIndication, uECapabilityInfoIndicationIEs, value)
 }

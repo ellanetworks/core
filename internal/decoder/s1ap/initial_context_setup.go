@@ -107,8 +107,8 @@ func buildInitialContextSetupRequest(value []byte) (S1APMessageValue, string) {
 		ie(s1ap.IDUEAggregateMaximumBitrate, s1ap.CriticalityReject, AMBR{DL: uint64(m.UEAggregateMaximumBitRate.DL), UL: uint64(m.UEAggregateMaximumBitRate.UL)}),
 		ie(s1ap.IDERABToBeSetupListCtxtSUReq, s1ap.CriticalityReject, erabs),
 		ie(s1ap.IDUESecurityCapabilities, s1ap.CriticalityReject, UESecurityCapabilities{
-			EncryptionAlgorithms:          securityAlgorithms(m.UESecurityCapabilities.EncryptionAlgorithms, "EEA"),
-			IntegrityProtectionAlgorithms: securityAlgorithms(m.UESecurityCapabilities.IntegrityProtectionAlgorithms, "EIA"),
+			EncryptionAlgorithms:          securityAlgorithms(m.UESecurityCapabilities.EncryptionAlgorithms.Value, "EEA"),
+			IntegrityProtectionAlgorithms: securityAlgorithms(m.UESecurityCapabilities.IntegrityProtectionAlgorithms.Value, "EIA"),
 		}),
 		ie(s1ap.IDSecurityKey, s1ap.CriticalityReject, hex.EncodeToString(m.SecurityKey[:])),
 	}

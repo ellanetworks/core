@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"net/netip"
-	"reflect"
 	"slices"
 	"testing"
 
@@ -116,7 +115,7 @@ func TestNonGBRRuleCreatesAQoSFlow_TS24501_9_11_4_12(t *testing.T) {
 		PreemptionVulnerability: libngap.PreemptionPreemptable,
 	}
 
-	if q := item.QosFlowLevelQosParameters; q == nil || q.GBRQosInformation != nil || q.QosCharacteristics.NonDynamic5QI.FiveQI != 69 || !reflect.DeepEqual(q.AllocationAndRetentionPriority, wantARP) {
+	if q := item.QosFlowLevelQosParameters; q == nil || q.GBRQosInformation != nil || q.QosCharacteristics.NonDynamic5QI.FiveQI != 69 || q.AllocationAndRetentionPriority != wantARP {
 		t.Fatalf("N2 QoS flow %+v, want 5QI 69 at ARP %+v without GBR QoS Flow Information (TS 38.413 §9.3.1.12)", item, wantARP)
 	}
 

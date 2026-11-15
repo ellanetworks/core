@@ -8,6 +8,7 @@ import (
 	"net/netip"
 
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 type HandoverRequestAcknowledgeOpts struct {
@@ -92,13 +93,13 @@ func BuildHandoverRequestAcknowledge(opts *HandoverRequestAcknowledgeOpts) ([]by
 }
 
 func buildHandoverRequestAcknowledgeTransfer(teid uint32, ip netip.Addr, forwardingTEID uint32, qfis []uint8) (ngap.TransferContainer, error) {
-	addr, err := transportLayerAddress(ip)
+	addr, err := ap.TransportLayerAddressFrom(ip)
 	if err != nil {
 		return nil, err
 	}
 
 	transfer := &ngap.HandoverRequestAcknowledgeTransfer{
-		DLNGUUPTNLInformation: ngap.UPTransportLayerInformation{GTPTunnel: ngap.GTPTunnel{
+		DLNGUUPTNLInformation: ngap.UPTransportLayerInformation{GTPTunnel: &ngap.GTPTunnel{
 			TransportLayerAddress: addr,
 			GTPTEID:               ngap.GTPTEID(teid),
 		}},
@@ -107,7 +108,7 @@ func buildHandoverRequestAcknowledgeTransfer(teid uint32, ip netip.Addr, forward
 	}
 
 	if forwardingTEID != 0 {
-		transfer.DLForwardingUPTNLInformation = &ngap.UPTransportLayerInformation{GTPTunnel: ngap.GTPTunnel{
+		transfer.DLForwardingUPTNLInformation = &ngap.UPTransportLayerInformation{GTPTunnel: &ngap.GTPTunnel{
 			TransportLayerAddress: addr,
 			GTPTEID:               ngap.GTPTEID(forwardingTEID),
 		}}

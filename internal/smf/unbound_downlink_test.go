@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/smf"
 	libngap "github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 func assertNoModify(t *testing.T, upf *fakeUPF) {
@@ -85,8 +86,8 @@ func TestNGRANBindWithAnUnusableTransportAddressIsRefused(t *testing.T) {
 
 	transfer := libngap.PDUSessionResourceSetupResponseTransfer{
 		DLQosFlowPerTNLInformation: libngap.QosFlowPerTNLInformation{
-			UPTransportLayerInformation: libngap.UPTransportLayerInformation{GTPTunnel: libngap.GTPTunnel{
-				TransportLayerAddress: libngap.TransportLayerAddress{10, 0, 0},
+			UPTransportLayerInformation: libngap.UPTransportLayerInformation{GTPTunnel: &libngap.GTPTunnel{
+				TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 0, 0}),
 				GTPTEID:               libngap.GTPTEID(0x9001),
 			}},
 			AssociatedQosFlowList: libngap.AssociatedQosFlowList{{QosFlowIdentifier: 1}},

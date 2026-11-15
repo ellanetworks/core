@@ -9,7 +9,7 @@ const maxnoofRequestedSNSSAIs = 8
 
 type RequestedNSSAIItem struct {
 	SNSSAI       SNSSAI
-	iEExtensions *rawIEExtensions       `per:",optional"`
+	iEExtensions extensionMeta          `per:",exttable"`
 	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
@@ -53,16 +53,16 @@ type SD [3]byte
 type SNSSAI struct {
 	SST          SST
 	SD           *SD                    `per:",optional"`
-	iEExtensions *rawIEExtensions       `per:",optional"`
+	iEExtensions extensionMeta          `per:",exttable"`
 	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // SliceSupportItem ::= SEQUENCE { s-NSSAI, iE-Extensions OPTIONAL }
 // (extensible).
 type SliceSupportItem struct {
-	_      [0]struct{} `per:"extseq"`
-	SNSSAI SNSSAI
-	_      ieExtensions `per:",skip"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+	SNSSAI       SNSSAI
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // SliceSupportList ::= SEQUENCE (SIZE(1..maxnoofSliceItems)) OF
@@ -72,9 +72,9 @@ type SliceSupportList []SliceSupportItem
 // AllowedNSSAIItem ::= SEQUENCE { s-NSSAI, iE-Extensions OPTIONAL }
 // (extensible).
 type AllowedNSSAIItem struct {
-	_      [0]struct{} `per:"extseq"`
-	SNSSAI SNSSAI
-	_      ieExtensions `per:",skip"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+	SNSSAI       SNSSAI
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // AllowedNSSAI ::= SEQUENCE (SIZE(1..maxnoofAllowedS-NSSAIs)) OF

@@ -584,14 +584,9 @@ func TestRefreshLocation_Success(t *testing.T) {
 	// NR Cell Identity is 36 bits; the low 28 carry the cell, matching what the
 	// reference encoding of 0x00000004 produced.
 	msg := &ngaplib.LocationReport{
-		AMFUENGAPID: 1,
-		RANUENGAPID: 1,
-		UserLocationInformation: &ngaplib.UserLocationInformation{
-			Kind:         ngaplib.UserLocationNR,
-			PLMNIdentity: ngaplib.PLMNIdentity(plmnBytes),
-			CellIdentity: 4,
-			TAI:          ngaplib.TAI{PLMNIdentity: ngaplib.PLMNIdentity(plmnBytes), TAC: 0x1a},
-		},
+		AMFUENGAPID:             1,
+		RANUENGAPID:             1,
+		UserLocationInformation: &ngaplib.UserLocationInformation{NR: &ngaplib.UserLocationInformationNR{NRCGI: ngaplib.NRCGI{PLMNIdentity: ngaplib.PLMNIdentity(plmnBytes), NRCellIdentity: ngaplib.NRCellIdentity(4)}, TAI: ngaplib.TAI{PLMNIdentity: ngaplib.PLMNIdentity(plmnBytes), TAC: 0x1a}}},
 		LocationReportingRequestType: &ngaplib.LocationReportingRequestType{
 			EventType:  ngaplib.EventTypeDirect,
 			ReportArea: ngaplib.ReportAreaCell,

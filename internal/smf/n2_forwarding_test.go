@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	libngap "github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 const (
@@ -40,15 +41,15 @@ func n2HandoverAcknowledge(t *testing.T, teid uint32, ip net.IP, forwardingTEID 
 	t.Helper()
 
 	transfer := libngap.HandoverRequestAcknowledgeTransfer{
-		DLNGUUPTNLInformation: libngap.UPTransportLayerInformation{GTPTunnel: libngap.GTPTunnel{
-			TransportLayerAddress: libngap.TransportLayerAddress(ip.To4()), GTPTEID: libngap.GTPTEID(teid),
+		DLNGUUPTNLInformation: libngap.UPTransportLayerInformation{GTPTunnel: &libngap.GTPTunnel{
+			TransportLayerAddress: ap.TransportLayerAddressFromOctets(ip.To4()), GTPTEID: libngap.GTPTEID(teid),
 		}},
 		QosFlowSetupResponse: libngap.QosFlowListWithDataForwarding{{
 			QosFlowIdentifier:      libngap.QosFlowIdentifier(models.DefaultQFI),
 			DataForwardingAccepted: libngap.Ptr(libngap.DataForwardingAcceptedTrue),
 		}},
-		DLForwardingUPTNLInformation: &libngap.UPTransportLayerInformation{GTPTunnel: libngap.GTPTunnel{
-			TransportLayerAddress: libngap.TransportLayerAddress(ip.To4()), GTPTEID: libngap.GTPTEID(forwardingTEID),
+		DLForwardingUPTNLInformation: &libngap.UPTransportLayerInformation{GTPTunnel: &libngap.GTPTunnel{
+			TransportLayerAddress: ap.TransportLayerAddressFromOctets(ip.To4()), GTPTEID: libngap.GTPTEID(forwardingTEID),
 		}},
 	}
 
@@ -274,7 +275,7 @@ func TestN2HandoverFailureReleasesForwardingTunnel(t *testing.T) {
 	s, upf, ref, ctx := n2HandoverToForwarding(t)
 
 	unsuccessful := libngap.HandoverResourceAllocationUnsuccessfulTransfer{
-		Cause: libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: libngap.CauseRadioNetworkRadioResourcesNotAvailable},
+		Cause: libngap.CauseRadioNetworkRadioResourcesNotAvailable.Cause(),
 	}
 
 	b, err := unsuccessful.Marshal()
@@ -335,7 +336,7 @@ func TestN2HandoverForwardingEndpointIsDualStack(t *testing.T) {
 		t.Fatal("the Handover Command carried no forwarding endpoint")
 	}
 
-	if got := len(command.DLForwardingUPTNLInformation.GTPTunnel.TransportLayerAddress); got != 20 {
-		t.Fatalf("forwarding transport layer address is %d octets, want the 20-octet dual-stack form", got)
+	if got := command.DLForwardingUPTNLInformation.GTPTunnel.TransportLayerAddress.Bits(); got != 160 {
+		t.Fatalf("forwarding transport layer address is %d bits, want the 160-bit dual-stack form", got)
 	}
 }

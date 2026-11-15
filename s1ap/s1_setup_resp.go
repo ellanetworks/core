@@ -25,20 +25,20 @@ var relativeMMECapacityBounds = per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: t
 
 var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 	{
-		id: IDMMEname, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *S1SetupResponse, raw []byte, enc per.Encoding) error {
+		ID: IDMMEname, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *S1SetupResponse, r *per.Reader, enc per.Encoding) error {
 			var (
 				err error
 				n   Name
 			)
-			if err = perIEDecode(raw, &n); err == nil {
+			if err = decodeIE(r, &n); err == nil {
 				name := string(n)
 				m.MMEName = &name
 			}
 
 			return err
 		},
-		encode: func(m *S1SetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *S1SetupResponse) (per.Marshaler, bool) {
 			if m.MMEName == nil {
 				return nil, false
 			}
@@ -47,11 +47,11 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 		},
 	},
 	{
-		id: IDServedGUMMEIs, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *S1SetupResponse, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ServedGUMMEIs)
+		ID: IDServedGUMMEIs, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *S1SetupResponse, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.ServedGUMMEIs)
 		},
-		encode: func(m *S1SetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *S1SetupResponse) (per.Marshaler, bool) {
 			if len(m.ServedGUMMEIs) == 0 {
 				return nil, false
 			}
@@ -60,9 +60,9 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 		},
 	},
 	{
-		id: IDRelativeMMECapacity, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *S1SetupResponse, raw []byte, enc per.Encoding) error {
-			v, err := per.DecodeInteger(per.NewReader(raw), enc, relativeMMECapacityBounds)
+		ID: IDRelativeMMECapacity, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *S1SetupResponse, r *per.Reader, enc per.Encoding) error {
+			v, err := per.DecodeInteger(r, enc, relativeMMECapacityBounds)
 			if err != nil {
 				return err
 			}
@@ -72,7 +72,7 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 
 			return nil
 		},
-		encode: func(m *S1SetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *S1SetupResponse) (per.Marshaler, bool) {
 			if m.RelativeMMECapacity == nil {
 				return nil, false
 			}
@@ -83,11 +83,11 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 		},
 	},
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *S1SetupResponse, raw []byte, enc per.Encoding) error {
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *S1SetupResponse, r *per.Reader, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
-			if err := perIEDecode(raw, &cd); err != nil {
+			if err := decodeIE(r, &cd); err != nil {
 				return err
 			}
 
@@ -95,7 +95,7 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 
 			return nil
 		},
-		encode: func(m *S1SetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *S1SetupResponse) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -104,11 +104,11 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 		},
 	},
 	{
-		id: IDUERetentionInformation, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *S1SetupResponse, raw []byte, enc per.Encoding) error {
+		ID: IDUERetentionInformation, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *S1SetupResponse, r *per.Reader, enc per.Encoding) error {
 			var v UERetentionInformation
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -116,7 +116,7 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 
 			return nil
 		},
-		encode: func(m *S1SetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *S1SetupResponse) (per.Marshaler, bool) {
 			if m.UERetentionInformation == nil {
 				return nil, false
 			}
@@ -148,4 +148,8 @@ func (m *S1SetupResponse) Marshal() ([]byte, error) {
 
 func ParseS1SetupResponse(value []byte) (*S1SetupResponse, error) {
 	return parseMessageBody[S1SetupResponse](ProcS1Setup, TriggeringSuccessfulOutcome, s1SetupResponseIEs, value)
+}
+
+func DecodeS1SetupResponse(value []byte) (*S1SetupResponse, error) {
+	return decodeMessageBody[S1SetupResponse](ProcS1Setup, s1SetupResponseIEs, value)
 }

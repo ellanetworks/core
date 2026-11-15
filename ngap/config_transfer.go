@@ -16,10 +16,11 @@ import (
 // The plain TargetRANNodeID has the same shape but a different extension
 // container.
 type TargetRANNodeIDSON struct {
-	_               [0]struct{} `per:"extseq"`
+	extensions      per.ExtensionAdditions `per:",extraw"`
 	GlobalRANNodeID GlobalRANNodeID
 	SelectedTAI     TAI
-	_               ieExtensions `per:",skip"`
+	NRCGI           *NRCGI        `per:",extie:IDNRCGI,crit:ignore"`
+	iEExtensions    extensionMeta `per:",exttable"`
 }
 
 // SONConfigurationTransfer is held as raw open-type bytes: it is relayed
@@ -58,19 +59,21 @@ func (c SONConfigurationTransfer) TargetRANNodeID() (TargetRANNodeIDSON, error) 
 
 // TS 38.413 §9.2.7.1.
 type UplinkRANConfigurationTransfer struct {
-	SONConfigurationTransfer SONConfigurationTransfer
+	SONConfigurationTransfer              SONConfigurationTransfer
+	ENDCSONConfigurationTransferUL        *ENDCSONConfigurationTransfer
+	IntersystemSONConfigurationTransferUL *IntersystemSONConfigurationTransfer
 
 	messageMeta
 }
 
 var uplinkRANConfigurationTransferIEs = []ieSpec[UplinkRANConfigurationTransfer]{
 	{
-		id: IDSONConfigurationTransferUL, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *UplinkRANConfigurationTransfer, raw []byte, enc per.Encoding) error {
-			m.SONConfigurationTransfer = SONConfigurationTransfer(raw)
+		ID: IDSONConfigurationTransferUL, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *UplinkRANConfigurationTransfer, r *per.Reader, enc per.Encoding) error {
+			m.SONConfigurationTransfer = SONConfigurationTransfer(restOctets(r))
 			return nil
 		},
-		encode: func(m *UplinkRANConfigurationTransfer) (per.Marshaler, bool) {
+		Encode: func(m *UplinkRANConfigurationTransfer) (per.Marshaler, bool) {
 			if m.SONConfigurationTransfer == nil {
 				return nil, false
 			}
@@ -78,6 +81,12 @@ var uplinkRANConfigurationTransferIEs = []ieSpec[UplinkRANConfigurationTransfer]
 			return m.SONConfigurationTransfer, true
 		},
 	},
+	optionalExtension(IDENDCSONConfigurationTransferUL, CriticalityIgnore, func(m *UplinkRANConfigurationTransfer) **ENDCSONConfigurationTransfer {
+		return &m.ENDCSONConfigurationTransferUL
+	}),
+	optionalExtension(IDIntersystemSONConfigurationTransferUL, CriticalityIgnore, func(m *UplinkRANConfigurationTransfer) **IntersystemSONConfigurationTransfer {
+		return &m.IntersystemSONConfigurationTransferUL
+	}),
 }
 
 func (m *UplinkRANConfigurationTransfer) encodeBody(w *per.Writer, enc per.Encoding) error {
@@ -104,9 +113,15 @@ func ParseUplinkRANConfigurationTransfer(value []byte) (*UplinkRANConfigurationT
 	return parseMessageBody[UplinkRANConfigurationTransfer](ProcUplinkRANConfigurationTransfer, TriggeringInitiatingMessage, uplinkRANConfigurationTransferIEs, value)
 }
 
+func DecodeUplinkRANConfigurationTransfer(value []byte) (*UplinkRANConfigurationTransfer, error) {
+	return decodeMessageBody[UplinkRANConfigurationTransfer](ProcUplinkRANConfigurationTransfer, uplinkRANConfigurationTransferIEs, value)
+}
+
 // TS 38.413 §9.2.7.2.
 type DownlinkRANConfigurationTransfer struct {
-	SONConfigurationTransfer SONConfigurationTransfer
+	SONConfigurationTransfer              SONConfigurationTransfer
+	ENDCSONConfigurationTransferDL        *ENDCSONConfigurationTransfer
+	IntersystemSONConfigurationTransferDL *IntersystemSONConfigurationTransfer
 
 	messageMeta
 }
@@ -114,12 +129,12 @@ type DownlinkRANConfigurationTransfer struct {
 // The IE is optional, so an empty container is a valid message.
 var downlinkRANConfigurationTransferIEs = []ieSpec[DownlinkRANConfigurationTransfer]{
 	{
-		id: IDSONConfigurationTransferDL, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *DownlinkRANConfigurationTransfer, raw []byte, enc per.Encoding) error {
-			m.SONConfigurationTransfer = SONConfigurationTransfer(raw)
+		ID: IDSONConfigurationTransferDL, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *DownlinkRANConfigurationTransfer, r *per.Reader, enc per.Encoding) error {
+			m.SONConfigurationTransfer = SONConfigurationTransfer(restOctets(r))
 			return nil
 		},
-		encode: func(m *DownlinkRANConfigurationTransfer) (per.Marshaler, bool) {
+		Encode: func(m *DownlinkRANConfigurationTransfer) (per.Marshaler, bool) {
 			if m.SONConfigurationTransfer == nil {
 				return nil, false
 			}
@@ -127,6 +142,12 @@ var downlinkRANConfigurationTransferIEs = []ieSpec[DownlinkRANConfigurationTrans
 			return m.SONConfigurationTransfer, true
 		},
 	},
+	optionalExtension(IDENDCSONConfigurationTransferDL, CriticalityIgnore, func(m *DownlinkRANConfigurationTransfer) **ENDCSONConfigurationTransfer {
+		return &m.ENDCSONConfigurationTransferDL
+	}),
+	optionalExtension(IDIntersystemSONConfigurationTransferDL, CriticalityIgnore, func(m *DownlinkRANConfigurationTransfer) **IntersystemSONConfigurationTransfer {
+		return &m.IntersystemSONConfigurationTransferDL
+	}),
 }
 
 func (m *DownlinkRANConfigurationTransfer) encodeBody(w *per.Writer, enc per.Encoding) error {
@@ -151,4 +172,8 @@ func (m *DownlinkRANConfigurationTransfer) Marshal() ([]byte, error) {
 
 func ParseDownlinkRANConfigurationTransfer(value []byte) (*DownlinkRANConfigurationTransfer, error) {
 	return parseMessageBody[DownlinkRANConfigurationTransfer](ProcDownlinkRANConfigurationTransfer, TriggeringInitiatingMessage, downlinkRANConfigurationTransferIEs, value)
+}
+
+func DecodeDownlinkRANConfigurationTransfer(value []byte) (*DownlinkRANConfigurationTransfer, error) {
+	return decodeMessageBody[DownlinkRANConfigurationTransfer](ProcDownlinkRANConfigurationTransfer, downlinkRANConfigurationTransferIEs, value)
 }

@@ -21,27 +21,27 @@ type S1SetupRequest struct {
 
 var s1SetupRequestIEs = []ieSpec[S1SetupRequest]{
 	{
-		id: IDGlobalENBID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *S1SetupRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.GlobalENBID)
+		ID: IDGlobalENBID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *S1SetupRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.GlobalENBID)
 		},
-		encode: func(m *S1SetupRequest) (per.Marshaler, bool) { return &m.GlobalENBID, true },
+		Encode: func(m *S1SetupRequest) (per.Marshaler, bool) { return &m.GlobalENBID, true },
 	},
 	{
-		id: IDENBname, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *S1SetupRequest, raw []byte, enc per.Encoding) error {
+		ID: IDENBname, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *S1SetupRequest, r *per.Reader, enc per.Encoding) error {
 			var (
 				err error
 				n   Name
 			)
-			if err = perIEDecode(raw, &n); err == nil {
+			if err = decodeIE(r, &n); err == nil {
 				name := string(n)
 				m.ENBName = &name
 			}
 
 			return err
 		},
-		encode: func(m *S1SetupRequest) (per.Marshaler, bool) {
+		Encode: func(m *S1SetupRequest) (per.Marshaler, bool) {
 			if m.ENBName == nil {
 				return nil, false
 			}
@@ -50,18 +50,18 @@ var s1SetupRequestIEs = []ieSpec[S1SetupRequest]{
 		},
 	},
 	{
-		id: IDSupportedTAs, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *S1SetupRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.SupportedTAs)
+		ID: IDSupportedTAs, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *S1SetupRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.SupportedTAs)
 		},
-		encode: func(m *S1SetupRequest) (per.Marshaler, bool) { return m.SupportedTAs, true },
+		Encode: func(m *S1SetupRequest) (per.Marshaler, bool) { return m.SupportedTAs, true },
 	},
 	{
-		id: IDDefaultPagingDRX, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *S1SetupRequest, raw []byte, enc per.Encoding) error {
+		ID: IDDefaultPagingDRX, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *S1SetupRequest, r *per.Reader, enc per.Encoding) error {
 			var v PagingDRX
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -69,7 +69,7 @@ var s1SetupRequestIEs = []ieSpec[S1SetupRequest]{
 
 			return nil
 		},
-		encode: func(m *S1SetupRequest) (per.Marshaler, bool) {
+		Encode: func(m *S1SetupRequest) (per.Marshaler, bool) {
 			if m.DefaultPagingDRX == nil {
 				return nil, false
 			}
@@ -78,11 +78,11 @@ var s1SetupRequestIEs = []ieSpec[S1SetupRequest]{
 		},
 	},
 	{
-		id: IDUERetentionInformation, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *S1SetupRequest, raw []byte, enc per.Encoding) error {
+		ID: IDUERetentionInformation, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *S1SetupRequest, r *per.Reader, enc per.Encoding) error {
 			var v UERetentionInformation
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -90,7 +90,7 @@ var s1SetupRequestIEs = []ieSpec[S1SetupRequest]{
 
 			return nil
 		},
-		encode: func(m *S1SetupRequest) (per.Marshaler, bool) {
+		Encode: func(m *S1SetupRequest) (per.Marshaler, bool) {
 			if m.UERetentionInformation == nil {
 				return nil, false
 			}
@@ -122,4 +122,8 @@ func (m *S1SetupRequest) Marshal() ([]byte, error) {
 
 func ParseS1SetupRequest(value []byte) (*S1SetupRequest, error) {
 	return parseMessageBody[S1SetupRequest](ProcS1Setup, TriggeringInitiatingMessage, s1SetupRequestIEs, value)
+}
+
+func DecodeS1SetupRequest(value []byte) (*S1SetupRequest, error) {
+	return decodeMessageBody[S1SetupRequest](ProcS1Setup, s1SetupRequestIEs, value)
 }

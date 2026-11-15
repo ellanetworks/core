@@ -58,8 +58,8 @@ func buildPathSwitchRequest(value []byte) (S1APMessageValue, string) {
 
 	if m.UESecurityCapabilities != nil {
 		ies = append(ies, ie(s1ap.IDUESecurityCapabilities, s1ap.CriticalityIgnore, UESecurityCapabilities{
-			EncryptionAlgorithms:          securityAlgorithms(m.UESecurityCapabilities.EncryptionAlgorithms, "EEA"),
-			IntegrityProtectionAlgorithms: securityAlgorithms(m.UESecurityCapabilities.IntegrityProtectionAlgorithms, "EIA"),
+			EncryptionAlgorithms:          securityAlgorithms(m.UESecurityCapabilities.EncryptionAlgorithms.Value, "EEA"),
+			IntegrityProtectionAlgorithms: securityAlgorithms(m.UESecurityCapabilities.IntegrityProtectionAlgorithms.Value, "EIA"),
 		}))
 	}
 
@@ -117,8 +117,8 @@ func buildPathSwitchRequestAcknowledge(value []byte) (S1APMessageValue, string) 
 
 	if m.UESecurityCapabilities != nil {
 		ies = append(ies, ie(s1ap.IDUESecurityCapabilities, s1ap.CriticalityIgnore, UESecurityCapabilities{
-			EncryptionAlgorithms:          securityAlgorithms(m.UESecurityCapabilities.EncryptionAlgorithms, "EEA"),
-			IntegrityProtectionAlgorithms: securityAlgorithms(m.UESecurityCapabilities.IntegrityProtectionAlgorithms, "EIA"),
+			EncryptionAlgorithms:          securityAlgorithms(m.UESecurityCapabilities.EncryptionAlgorithms.Value, "EEA"),
+			IntegrityProtectionAlgorithms: securityAlgorithms(m.UESecurityCapabilities.IntegrityProtectionAlgorithms.Value, "EIA"),
 		}))
 	}
 

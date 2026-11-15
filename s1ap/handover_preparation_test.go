@@ -10,13 +10,14 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 func TestHandoverPreparationFailureRoundTrip(t *testing.T) {
 	in := &HandoverPreparationFailure{
 		MMEUES1APID: Ptr(MMEUES1APID(7)),
 		ENBUES1APID: Ptr(ENBUES1APID(2)),
-		Cause:       Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 0}),
+		Cause:       Ptr(CauseRadioNetworkUnspecified.Cause()),
 	}
 
 	b, err := in.Marshal()
@@ -40,7 +41,7 @@ func TestHandoverPreparationFailureRoundTrip(t *testing.T) {
 	}
 
 	if deref(out.MMEUES1APID) != deref(in.MMEUES1APID) || deref(out.ENBUES1APID) != deref(in.ENBUES1APID) ||
-		deref(out.Cause) != deref(in.Cause) {
+		!deref(out.Cause).Equal(deref(in.Cause)) {
 		t.Fatalf("failure = %+v, want %+v", out, in)
 	}
 }
@@ -54,10 +55,10 @@ func TestHandoverCommandGolden(t *testing.T) {
 		HandoverType: HandoverTypeIntraLTE,
 		ERABSubjecttoDataForwarding: []ERABDataForwardingItem{{
 			ERABID:               5,
-			DLTransportLayerAddr: TransportLayerAddress{192, 0, 2, 1},
+			DLTransportLayerAddr: Ptr(tlaOf(192, 0, 2, 1)),
 			DLGTPTEID:            Ptr(GTPTEID(0x11223344)),
 		}},
-		ERABToRelease:  []ERABItem{{ERABID: 6, Cause: Cause{Group: CauseGroupRadioNetwork, Value: 0}}},
+		ERABToRelease:  []ERABItem{{ERABID: 6, Cause: CauseRadioNetworkUnspecified.Cause()}},
 		TargetToSource: TransparentContainer{0xcc, 0xdd},
 	}
 
@@ -178,8 +179,18 @@ func TestHandoverCommandRejectsNASSecurityParametersWithoutCondition(t *testing.
 		t.Fatalf("err = %v, want an AbstractSyntaxError", err)
 	}
 
-	if abstract.Cause.Value != CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage {
+	if !abstract.Cause.Equal(CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage.Cause()) {
 		t.Errorf("cause %v, want falsely-constructed-message", abstract.Cause)
+	}
+
+	decoded, err := DecodeHandoverCommand(pdu.(*SuccessfulOutcome).Value)
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+
+	again, err := decoded.Marshal()
+	if err != nil || !bytes.Equal(again, b) {
+		t.Fatalf("Marshal(Decode(b)) = %x (%v), want %x", again, err, b)
 	}
 }
 
@@ -189,7 +200,7 @@ func encodedHandoverTypeIE(t *testing.T, v HandoverType) []byte {
 	t.Helper()
 
 	w := per.NewWriter()
-	if err := encodeContainerField(w, per.Aligned, ieField{id: IDHandoverType, crit: CriticalityReject, val: v}); err != nil {
+	if err := encodeContainerField(w, per.Aligned, ieField{ID: IDHandoverType, Criticality: CriticalityReject, Value: v}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -199,8 +210,8 @@ func encodedHandoverTypeIE(t *testing.T, v HandoverType) []byte {
 }
 
 func sampleTargetID() TargetID {
-	return TargetID{TargeteNBID: TargeteNBID{
-		GlobalENBID: GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{Kind: ENBIDMacro, Value: 0x00101}},
+	return TargetID{TargeteNBID: &TargeteNBID{
+		GlobalENBID: GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{MacroENBID: Ptr(MacroENBID(0x00101))}},
 		SelectedTAI: TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 7},
 	}}
 }
@@ -210,7 +221,7 @@ func TestHandoverRequiredRoundTrip(t *testing.T) {
 		MMEUES1APID:    0x020000bf,
 		ENBUES1APID:    2,
 		HandoverType:   HandoverTypeIntraLTE,
-		Cause:          Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 16}), // handover-desirable-for-radio-reasons
+		Cause:          Ptr(CauseRadioNetworkHandoverDesirableForRadio.Cause()), // handover-desirable-for-radio-reasons
 		TargetID:       sampleTargetID(),
 		SourceToTarget: TransparentContainer{0x01, 0x02, 0x03, 0x04},
 	}
@@ -239,11 +250,11 @@ func TestHandoverRequiredRoundTrip(t *testing.T) {
 		t.Fatalf("ids/type: mme=%#x enb=%d type=%d", out.MMEUES1APID, out.ENBUES1APID, out.HandoverType)
 	}
 
-	if deref(out.Cause) != deref(in.Cause) {
+	if !deref(out.Cause).Equal(deref(in.Cause)) {
 		t.Fatalf("cause = %+v, want %+v", out.Cause, in.Cause)
 	}
 
-	if out.TargetID != in.TargetID {
+	if !out.TargetID.Equal(in.TargetID) {
 		t.Fatalf("targetID = %+v, want %+v", out.TargetID, in.TargetID)
 	}
 
@@ -259,7 +270,7 @@ func TestHandoverTypeRootValuesRoundTrip(t *testing.T) {
 			MMEUES1APID:    1,
 			ENBUES1APID:    2,
 			HandoverType:   ht,
-			Cause:          Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 16}),
+			Cause:          Ptr(CauseRadioNetworkHandoverDesirableForRadio.Cause()),
 			TargetID:       sampleTargetID(),
 			SourceToTarget: TransparentContainer{0x01},
 		}
@@ -285,19 +296,34 @@ func TestHandoverTypeRootValuesRoundTrip(t *testing.T) {
 	}
 }
 
-func TestTargetIDNonENBAlternativeRejected(t *testing.T) {
-	w := per.NewWriter()
+func TestTargetIDOtherAlternativesRoundTrip(t *testing.T) {
+	plmn := PLMNIdentity{0x00, 0xf1, 0x10}
 
-	// Encode TargetID with root choice index 1 (targetRNC-ID), unmodeled.
-	if err := func() error {
-		w.WriteBit(false)
-		return per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, targetIDRootCount-1, 1)
-	}(); err != nil {
-		t.Fatal(err)
+	cases := []TargetID{
+		{TargetRNCID: &TargetRNCID{LAI: LAI{PLMNIdentity: plmn, LAC: 0x1234}, RAC: Ptr(RAC(5)), RNCID: 4095, ExtendedRNCID: Ptr(uint16(65535))}},
+		{CGI: &CGI{PLMNIdentity: plmn, LAC: 0x1234, CI: 0xbeef}},
+		{Ext: &per.ExtensionAlternative{Index: 1, Value: "\x00"}},
 	}
 
-	if _, err := unmarshalPERValue[TargetID](perBytes(w)); err == nil {
-		t.Fatal("expected decodeTargetID to reject a non-targeteNB-ID alternative")
+	for _, in := range cases {
+		b := ieRaw(t, &in)
+
+		got, err := unmarshalPERValue[TargetID](b)
+		if err != nil {
+			t.Fatalf("%+v: %v", in, err)
+		}
+
+		if !got.Equal(in) {
+			t.Fatalf("decoded %+v, want %+v", got, in)
+		}
+
+		if out := ieRaw(t, &got); !bytes.Equal(out, b) {
+			t.Fatalf("re-encoded % x, want % x", out, b)
+		}
+
+		if want := in.Ext != nil; got.Diagnose(&ap.Diagnosis[ProtocolIEID]{}) != want {
+			t.Fatalf("%+v: Diagnose != %v", in, want)
+		}
 	}
 }
 
@@ -306,7 +332,7 @@ func TestHandoverCommandRoundTrip(t *testing.T) {
 		MMEUES1APID:    7,
 		ENBUES1APID:    2,
 		HandoverType:   HandoverTypeIntraLTE,
-		ERABToRelease:  []ERABItem{{ERABID: 6, Cause: Cause{Group: CauseGroupRadioNetwork, Value: 0}}},
+		ERABToRelease:  []ERABItem{{ERABID: 6, Cause: CauseRadioNetworkUnspecified.Cause()}},
 		TargetToSource: TransparentContainer{0x11, 0x22},
 	}
 
@@ -353,11 +379,11 @@ func TestHandoverRequestNASSecurityParametersCondition(t *testing.T) {
 		return &HandoverRequest{
 			MMEUES1APID:            1,
 			HandoverType:           ht,
-			Cause:                  &Cause{Group: CauseGroupRadioNetwork, Value: 0},
+			Cause:                  Ptr(CauseRadioNetworkUnspecified.Cause()),
 			UEAMBR:                 UEAggregateMaximumBitRate{DL: 1000, UL: 1000},
 			ERABToBeSetup:          []ERABToBeSetupItemHOReq{{ERABID: 5}},
 			SourceToTarget:         TransparentContainer{0x01},
-			UESecurityCapabilities: UESecurityCapabilities{EncryptionAlgorithms: 0x8000},
+			UESecurityCapabilities: UESecurityCapabilities{EncryptionAlgorithms: SecurityAlgorithms{Value: 0x8000}},
 		}
 	}
 
@@ -439,27 +465,20 @@ func TestHandoverTypeInterSystemValues(t *testing.T) {
 		t.Fatalf("intralte = %x, want 00", raw)
 	}
 
-	// An addition a later release makes is refused rather than narrowed onto a
-	// value this one knows (§10.3.1 case 6).
-	for _, k := range []int64{2, 3, 255} {
+	for _, k := range []int64{2, 3, 200} {
 		var v HandoverType
 
-		err := v.UnmarshalPER(per.NewReader(extensionEnum(t, handoverTypeRootCount, k)), per.Aligned)
-		if err == nil {
-			t.Errorf("extension %d decoded as %d, want it refused", k, v)
-
-			continue
+		in := extensionEnum(t, int64(len(enumHandoverType.Root)), k)
+		if err := v.UnmarshalPER(per.NewReader(in), per.Aligned); err != nil {
+			t.Fatalf("extension %d: %v", k, err)
 		}
 
-		if !errors.Is(err, errNotComprehended) {
-			t.Errorf("extension %d: err = %v, want errNotComprehended", k, err)
+		if !v.Diagnose(&ap.Diagnosis[ProtocolIEID]{}) {
+			t.Errorf("extension %d decoded as known value %s", k, v.Name())
 		}
-	}
 
-	for _, v := range []HandoverType{handoverTypeCount, handoverTypeCount + 1} {
-		w := per.NewWriter()
-		if err := v.MarshalPER(w, per.Aligned); err == nil {
-			t.Errorf("unassigned value %d encoded as %x, want an error", v, w.Bytes())
+		if out := ieRaw(t, &v); !bytes.Equal(out, in) {
+			t.Errorf("extension %d re-encoded % x, want % x", k, out, in)
 		}
 	}
 }
@@ -468,7 +487,7 @@ func sampleTargetNgRanNodeID() TargetID {
 	return TargetID{TargetNgRanNodeID: &TargetNgRanNodeID{
 		GlobalRANNodeID: GlobalRANNodeID{GNB: &GNB{GlobalGNBID: GlobalGNBID{
 			PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10},
-			GNBID:        GNBID{Value: 0x00101, Bits: 22},
+			GNBID:        GNBIdentity{GNBID: &GNBID{Value: 0x00101, Bits: 22}},
 		}}},
 		SelectedTAI: FiveGSTAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 0x000007},
 	}}
@@ -483,7 +502,7 @@ func TestHandoverRequiredTargetsNGRAN(t *testing.T) {
 		MMEUES1APID:    0x020000bf,
 		ENBUES1APID:    2,
 		HandoverType:   HandoverTypeEPSToFiveGS,
-		Cause:          Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 16}),
+		Cause:          Ptr(CauseRadioNetworkHandoverDesirableForRadio.Cause()),
 		TargetID:       sampleTargetNgRanNodeID(),
 		SourceToTarget: TransparentContainer{0x01, 0x02, 0x03, 0x04},
 	}
@@ -521,7 +540,7 @@ func TestHandoverRequiredTargetsNGRAN(t *testing.T) {
 		t.Fatalf("global RAN node = %+v, want a gNB", node.GlobalRANNodeID)
 	}
 
-	if got := node.GlobalRANNodeID.GNB.GlobalGNBID.GNBID; got != (GNBID{Value: 0x00101, Bits: 22}) {
+	if got := node.GlobalRANNodeID.GNB.GlobalGNBID.GNBID; got.GNBID == nil || *got.GNBID != (GNBID{Value: 0x00101, Bits: 22}) {
 		t.Errorf("gNB-ID = %+v, want {0x00101 22}", got)
 	}
 
@@ -543,7 +562,7 @@ func mustMarshalHandoverRequired(t *testing.T, target TargetID) []byte {
 		MMEUES1APID:    1,
 		ENBUES1APID:    2,
 		HandoverType:   HandoverTypeIntraLTE,
-		Cause:          Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 16}),
+		Cause:          Ptr(CauseRadioNetworkHandoverDesirableForRadio.Cause()),
 		TargetID:       target,
 		SourceToTarget: TransparentContainer{0x01},
 	}
@@ -566,7 +585,7 @@ func mustMarshalHandoverRequired(t *testing.T, target TargetID) []byte {
 func TestGlobalRANNodeIDAlternatives(t *testing.T) {
 	ngENB := GlobalRANNodeID{NgENB: &NgENB{GlobalNgENBID: GlobalENBID{
 		PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10},
-		ENBID:        ENBID{Kind: ENBIDLongMacro, Value: 0x1F0FF},
+		ENBID:        ENBID{LongMacroENBID: Ptr(LongMacroENBID(0x1F0FF))},
 	}}}
 
 	w := per.NewWriter()
@@ -585,7 +604,7 @@ func TestGlobalRANNodeIDAlternatives(t *testing.T) {
 		t.Fatalf("round trip = %+v, want an ng-eNB", back)
 	}
 
-	if back.NgENB.GlobalNgENBID.ENBID != ngENB.NgENB.GlobalNgENBID.ENBID {
+	if !back.NgENB.GlobalNgENBID.ENBID.Equal(ngENB.NgENB.GlobalNgENBID.ENBID) {
 		t.Fatalf("ng-eNB id = %+v, want %+v", back.NgENB.GlobalNgENBID.ENBID, ngENB.NgENB.GlobalNgENBID.ENBID)
 	}
 
@@ -596,13 +615,13 @@ func TestGlobalRANNodeIDAlternatives(t *testing.T) {
 		{"no alternative", GlobalRANNodeID{}},
 		{"both alternatives", GlobalRANNodeID{GNB: &GNB{}, NgENB: &NgENB{}}},
 		{"gNB-ID narrower than 22 bits", GlobalRANNodeID{GNB: &GNB{GlobalGNBID: GlobalGNBID{
-			GNBID: GNBID{Value: 1, Bits: 21},
+			GNBID: GNBIdentity{GNBID: &GNBID{Value: 1, Bits: 21}},
 		}}}},
 		{"gNB-ID wider than 32 bits", GlobalRANNodeID{GNB: &GNB{GlobalGNBID: GlobalGNBID{
-			GNBID: GNBID{Value: 1, Bits: 33},
+			GNBID: GNBIdentity{GNBID: &GNBID{Value: 1, Bits: 33}},
 		}}}},
 		{"gNB id wider than its own bits", GlobalRANNodeID{GNB: &GNB{GlobalGNBID: GlobalGNBID{
-			GNBID: GNBID{Value: 1 << 23, Bits: 22},
+			GNBID: GNBIdentity{GNBID: &GNBID{Value: 1 << 23, Bits: 22}},
 		}}}},
 	}
 
@@ -628,7 +647,7 @@ func TestHandoverRequiredDirectForwardingPathAvailability(t *testing.T) {
 		MMEUES1APID:                      1,
 		ENBUES1APID:                      2,
 		HandoverType:                     HandoverTypeEPSToFiveGS,
-		Cause:                            Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 16}),
+		Cause:                            Ptr(CauseRadioNetworkHandoverDesirableForRadio.Cause()),
 		TargetID:                         sampleTargetNgRanNodeID(),
 		DirectForwardingPathAvailability: Ptr(DirectForwardingPathAvailable),
 		SourceToTarget:                   TransparentContainer{0x01},

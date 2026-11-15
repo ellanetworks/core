@@ -4,12 +4,12 @@
 package ngap
 
 import (
+	"bytes"
 	"encoding/hex"
-	"errors"
-	"reflect"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 func pwsPLMN() PLMNIdentity { return PLMNIdentity{0x00, 0xf1, 0x10} }
@@ -28,16 +28,16 @@ func pwsCBSData() WarningMessageContents {
 }
 
 func pwsGNB() GlobalRANNodeID {
-	return GlobalRANNodeID{Kind: RANNodeIDGNB, PLMNIdentity: pwsPLMN(), Value: 1, Bits: 22}
+	return NewGlobalGNBID(pwsPLMN(), 1, 22)
 }
 
 func goldOverloadStart() *OverloadStart {
 	return &OverloadStart{
-		AMFOverloadResponse:               &OverloadResponse{OverloadAction: OverloadActionRejectRRCCRSignalling},
+		AMFOverloadResponse:               &OverloadResponse{OverloadAction: Ptr(OverloadActionRejectRRCCRSignalling)},
 		AMFTrafficLoadReductionIndication: Ptr(TrafficLoadReductionIndication(50)),
 		OverloadStartNSSAIList: OverloadStartNSSAIList{{
 			SliceOverloadList:                   []SliceOverloadItem{{SNSSAI: SNSSAI{SST: 1, SD: &SD{0x00, 0x00, 0x01}}}},
-			SliceOverloadResponse:               &OverloadResponse{OverloadAction: OverloadActionPermitEmergencySessionsAndMTServicesOnly},
+			SliceOverloadResponse:               &OverloadResponse{OverloadAction: Ptr(OverloadActionPermitEmergencySessionsAndMTServicesOnly)},
 			SliceTrafficLoadReductionIndication: Ptr(TrafficLoadReductionIndication(20)),
 		}},
 	}
@@ -65,7 +65,7 @@ func goldWriteReplaceWarningRequest() *WriteReplaceWarningRequest {
 	return &WriteReplaceWarningRequest{
 		MessageIdentifier:           0x1112,
 		SerialNumber:                0x3456,
-		WarningAreaList:             &WarningAreaList{NRCGIs: []NRCGI{pwsNRCGI()}},
+		WarningAreaList:             &WarningAreaList{NRCGIListForWarning: &NRCGIListForWarning{pwsNRCGI()}},
 		RepetitionPeriod:            10,
 		NumberOfBroadcastsRequested: 1,
 		WarningType:                 &WarningType{0x05, 0x80},
@@ -80,7 +80,7 @@ func goldWriteReplaceWarningResponse() *WriteReplaceWarningResponse {
 	return &WriteReplaceWarningResponse{
 		MessageIdentifier: 0x1112,
 		SerialNumber:      0x3456,
-		BroadcastCompletedAreaList: &BroadcastCompletedAreaList{TAIBroadcastNR: []TAIBroadcastNRItem{{
+		BroadcastCompletedAreaList: &BroadcastCompletedAreaList{TAIBroadcastNR: &TAIBroadcastNR{{
 			TAI:                 pwsTAI(),
 			CompletedCellsInTAI: []CompletedCellsInTAINRItem{{NRCGI: pwsNRCGI()}},
 		}}},
@@ -91,7 +91,7 @@ func goldPWSCancelRequest() *PWSCancelRequest {
 	return &PWSCancelRequest{
 		MessageIdentifier:        0x1112,
 		SerialNumber:             0x3456,
-		WarningAreaList:          &WarningAreaList{TAIs: []TAI{pwsTAI()}},
+		WarningAreaList:          &WarningAreaList{TAIListForWarning: &TAIListForWarning{pwsTAI()}},
 		CancelAllWarningMessages: Ptr(CancelAllWarningMessagesTrue),
 	}
 }
@@ -100,7 +100,7 @@ func goldPWSCancelResponse() *PWSCancelResponse {
 	return &PWSCancelResponse{
 		MessageIdentifier: 0x1112,
 		SerialNumber:      0x3456,
-		BroadcastCancelledAreaList: &BroadcastCancelledAreaList{CellIDCancelledNR: []CellIDCancelledNRItem{{
+		BroadcastCancelledAreaList: &BroadcastCancelledAreaList{CellIDCancelledNR: &CellIDCancelledNR{{
 			NRCGI:              pwsNRCGI(),
 			NumberOfBroadcasts: 3,
 		}}},
@@ -109,7 +109,7 @@ func goldPWSCancelResponse() *PWSCancelResponse {
 
 func goldPWSRestartIndication() *PWSRestartIndication {
 	return &PWSRestartIndication{
-		CellIDListForRestart:          CellIDListForRestart{NRCGIs: []NRCGI{pwsNRCGI()}},
+		CellIDListForRestart:          CellIDListForRestart{NRCGIListforRestart: &NRCGIList{pwsNRCGI()}},
 		GlobalRANNodeID:               pwsGNB(),
 		TAIListForRestart:             TAIListForRestart{pwsTAI()},
 		EmergencyAreaIDListForRestart: EmergencyAreaIDListForRestart{{0x01, 0x02, 0x03}},
@@ -118,7 +118,7 @@ func goldPWSRestartIndication() *PWSRestartIndication {
 
 func goldPWSFailureIndication() *PWSFailureIndication {
 	return &PWSFailureIndication{
-		PWSFailedCellIDList: PWSFailedCellIDList{EUTRACGIs: []EUTRACGI{pwsEUTRACGI()}},
+		PWSFailedCellIDList: PWSFailedCellIDList{EUTRACGIPWSFailedList: &EUTRACGIList{pwsEUTRACGI()}},
 		GlobalRANNodeID:     pwsGNB(),
 	}
 }
@@ -183,7 +183,7 @@ func TestPWSOverloadRoundTripGolden(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if !reflect.DeepEqual(got, c.want) {
+			if !equalByMethod(got, c.want) {
 				t.Errorf("round trip = %+v, want %+v", got, c.want)
 			}
 		})
@@ -297,8 +297,8 @@ func TestPWSOverloadWireCriticality(t *testing.T) {
 			}
 
 			for i, w := range tt.want {
-				if got[i].id != w.id || got[i].crit != w.crit {
-					t.Errorf("IE %d: got %v/%v, want %v/%v", i, got[i].id, got[i].crit, w.id, w.crit)
+				if got[i].ID != w.id || got[i].Criticality != w.crit {
+					t.Errorf("IE %d: got %v/%v, want %v/%v", i, got[i].ID, got[i].Criticality, w.id, w.crit)
 				}
 			}
 		})
@@ -322,7 +322,7 @@ func pwsRoundTrip[T any, PT interface {
 		t.Fatal(err)
 	}
 
-	if !reflect.DeepEqual(out, in) {
+	if !equalByMethod(out, in) {
 		t.Errorf("round trip = %+v, want %+v", out, in)
 	}
 }
@@ -331,48 +331,48 @@ func TestPWSAreaListAlternativesRoundTrip(t *testing.T) {
 	eai := EmergencyAreaID{0x0a, 0x0b, 0x0c}
 
 	for _, l := range []WarningAreaList{
-		{EUTRACGIs: []EUTRACGI{pwsEUTRACGI()}},
-		{NRCGIs: []NRCGI{pwsNRCGI()}},
-		{TAIs: []TAI{pwsTAI()}},
-		{EmergencyAreaIDs: []EmergencyAreaID{eai}},
+		{EUTRACGIListForWarning: &EUTRACGIListForWarning{pwsEUTRACGI()}},
+		{NRCGIListForWarning: &NRCGIListForWarning{pwsNRCGI()}},
+		{TAIListForWarning: &TAIListForWarning{pwsTAI()}},
+		{EmergencyAreaIDList: &EmergencyAreaIDList{eai}},
 	} {
 		pwsRoundTrip(t, &l)
 	}
 
 	for _, l := range []BroadcastCompletedAreaList{
-		{CellIDBroadcastEUTRA: []CellIDBroadcastEUTRAItem{{EUTRACGI: pwsEUTRACGI()}}},
-		{TAIBroadcastEUTRA: []TAIBroadcastEUTRAItem{{TAI: pwsTAI(), CompletedCellsInTAI: []CompletedCellsInTAIEUTRAItem{{EUTRACGI: pwsEUTRACGI()}}}}},
-		{EmergencyAreaIDBroadcastEUTRA: []EmergencyAreaIDBroadcastEUTRAItem{{EmergencyAreaID: eai, CompletedCellsInEAI: []CompletedCellsInEAIEUTRAItem{{EUTRACGI: pwsEUTRACGI()}}}}},
-		{CellIDBroadcastNR: []CellIDBroadcastNRItem{{NRCGI: pwsNRCGI()}}},
-		{TAIBroadcastNR: []TAIBroadcastNRItem{{TAI: pwsTAI(), CompletedCellsInTAI: []CompletedCellsInTAINRItem{{NRCGI: pwsNRCGI()}}}}},
-		{EmergencyAreaIDBroadcastNR: []EmergencyAreaIDBroadcastNRItem{{EmergencyAreaID: eai, CompletedCellsInEAI: []CompletedCellsInEAINRItem{{NRCGI: pwsNRCGI()}}}}},
+		{CellIDBroadcastEUTRA: &CellIDBroadcastEUTRA{{EUTRACGI: pwsEUTRACGI()}}},
+		{TAIBroadcastEUTRA: &TAIBroadcastEUTRA{{TAI: pwsTAI(), CompletedCellsInTAI: []CompletedCellsInTAIEUTRAItem{{EUTRACGI: pwsEUTRACGI()}}}}},
+		{EmergencyAreaIDBroadcastEUTRA: &EmergencyAreaIDBroadcastEUTRA{{EmergencyAreaID: eai, CompletedCellsInEAI: []CompletedCellsInEAIEUTRAItem{{EUTRACGI: pwsEUTRACGI()}}}}},
+		{CellIDBroadcastNR: &CellIDBroadcastNR{{NRCGI: pwsNRCGI()}}},
+		{TAIBroadcastNR: &TAIBroadcastNR{{TAI: pwsTAI(), CompletedCellsInTAI: []CompletedCellsInTAINRItem{{NRCGI: pwsNRCGI()}}}}},
+		{EmergencyAreaIDBroadcastNR: &EmergencyAreaIDBroadcastNR{{EmergencyAreaID: eai, CompletedCellsInEAI: []CompletedCellsInEAINRItem{{NRCGI: pwsNRCGI()}}}}},
 	} {
 		pwsRoundTrip(t, &l)
 	}
 
 	for _, l := range []BroadcastCancelledAreaList{
-		{CellIDCancelledEUTRA: []CellIDCancelledEUTRAItem{{EUTRACGI: pwsEUTRACGI(), NumberOfBroadcasts: 1}}},
-		{TAICancelledEUTRA: []TAICancelledEUTRAItem{{TAI: pwsTAI(), CancelledCellsInTAI: []CancelledCellsInTAIEUTRAItem{{EUTRACGI: pwsEUTRACGI(), NumberOfBroadcasts: 2}}}}},
-		{EmergencyAreaIDCancelledEUTRA: []EmergencyAreaIDCancelledEUTRAItem{{EmergencyAreaID: eai, CancelledCellsInEAI: []CancelledCellsInEAIEUTRAItem{{EUTRACGI: pwsEUTRACGI(), NumberOfBroadcasts: 3}}}}},
-		{CellIDCancelledNR: []CellIDCancelledNRItem{{NRCGI: pwsNRCGI(), NumberOfBroadcasts: 65535}}},
-		{TAICancelledNR: []TAICancelledNRItem{{TAI: pwsTAI(), CancelledCellsInTAI: []CancelledCellsInTAINRItem{{NRCGI: pwsNRCGI()}}}}},
-		{EmergencyAreaIDCancelledNR: []EmergencyAreaIDCancelledNRItem{{EmergencyAreaID: eai, CancelledCellsInEAI: []CancelledCellsInEAINRItem{{NRCGI: pwsNRCGI()}}}}},
+		{CellIDCancelledEUTRA: &CellIDCancelledEUTRA{{EUTRACGI: pwsEUTRACGI(), NumberOfBroadcasts: 1}}},
+		{TAICancelledEUTRA: &TAICancelledEUTRA{{TAI: pwsTAI(), CancelledCellsInTAI: []CancelledCellsInTAIEUTRAItem{{EUTRACGI: pwsEUTRACGI(), NumberOfBroadcasts: 2}}}}},
+		{EmergencyAreaIDCancelledEUTRA: &EmergencyAreaIDCancelledEUTRA{{EmergencyAreaID: eai, CancelledCellsInEAI: []CancelledCellsInEAIEUTRAItem{{EUTRACGI: pwsEUTRACGI(), NumberOfBroadcasts: 3}}}}},
+		{CellIDCancelledNR: &CellIDCancelledNR{{NRCGI: pwsNRCGI(), NumberOfBroadcasts: 65535}}},
+		{TAICancelledNR: &TAICancelledNR{{TAI: pwsTAI(), CancelledCellsInTAI: []CancelledCellsInTAINRItem{{NRCGI: pwsNRCGI()}}}}},
+		{EmergencyAreaIDCancelledNR: &EmergencyAreaIDCancelledNR{{EmergencyAreaID: eai, CancelledCellsInEAI: []CancelledCellsInEAINRItem{{NRCGI: pwsNRCGI()}}}}},
 	} {
 		pwsRoundTrip(t, &l)
 	}
 
-	pwsRoundTrip(t, &CellIDListForRestart{EUTRACGIs: []EUTRACGI{pwsEUTRACGI()}})
-	pwsRoundTrip(t, &PWSFailedCellIDList{NRCGIs: []NRCGI{pwsNRCGI()}})
+	pwsRoundTrip(t, &CellIDListForRestart{EUTRACGIListforRestart: &EUTRACGIList{pwsEUTRACGI()}})
+	pwsRoundTrip(t, &PWSFailedCellIDList{NRCGIPWSFailedList: &NRCGIList{pwsNRCGI()}})
 }
 
 func TestPWSChoiceNeedsExactlyOneAlternative(t *testing.T) {
 	for _, m := range []per.Marshaler{
-		WarningAreaList{},
-		WarningAreaList{TAIs: []TAI{pwsTAI()}, NRCGIs: []NRCGI{pwsNRCGI()}},
-		BroadcastCompletedAreaList{},
-		BroadcastCancelledAreaList{},
-		CellIDListForRestart{},
-		PWSFailedCellIDList{EUTRACGIs: []EUTRACGI{pwsEUTRACGI()}, NRCGIs: []NRCGI{pwsNRCGI()}},
+		&WarningAreaList{},
+		&WarningAreaList{TAIListForWarning: &TAIListForWarning{pwsTAI()}, NRCGIListForWarning: &NRCGIListForWarning{pwsNRCGI()}},
+		&BroadcastCompletedAreaList{},
+		&BroadcastCancelledAreaList{},
+		&CellIDListForRestart{},
+		&PWSFailedCellIDList{EUTRACGIPWSFailedList: &EUTRACGIList{pwsEUTRACGI()}, NRCGIPWSFailedList: &NRCGIList{pwsNRCGI()}},
 	} {
 		if err := m.MarshalPER(per.NewWriter(), per.Aligned); err == nil {
 			t.Errorf("%T %+v: Marshal accepted it", m, m)
@@ -380,19 +380,36 @@ func TestPWSChoiceNeedsExactlyOneAlternative(t *testing.T) {
 	}
 }
 
-func TestPWSChoiceExtensionsNotComprehended(t *testing.T) {
+func TestOverloadResponseKeepsChoiceExtension(t *testing.T) {
+	in := OverloadResponse{ChoiceExtension: &SingleContainer{ID: 999, Criticality: CriticalityIgnore, Value: "\x00"}}
+
+	b, err := per.Marshal(&in, per.Aligned)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var out OverloadResponse
+	if err := per.Unmarshal(b, &out); err != nil || out.ChoiceExtension == nil || *out.ChoiceExtension != *in.ChoiceExtension {
+		t.Fatalf("decoded %+v, %v; want the choice-Extensions alternative kept", out, err)
+	}
+}
+
+func TestPWSChoiceExtensionsArePreserved(t *testing.T) {
 	cases := []struct {
 		name string
-		u    per.Unmarshaler
-		idx  int64
-		ub   int64
+		u    interface {
+			per.Unmarshaler
+			per.Marshaler
+			ap.Diagnosable[ProtocolIEID]
+		}
+		idx int64
+		ub  int64
 	}{
 		{"WarningAreaList", &WarningAreaList{}, warningAreaListChoiceExtensions, warningAreaListAlternatives - 1},
 		{"BroadcastCompletedAreaList", &BroadcastCompletedAreaList{}, broadcastAreaChoiceExtensions, broadcastAreaAlternatives - 1},
 		{"BroadcastCancelledAreaList", &BroadcastCancelledAreaList{}, broadcastAreaChoiceExtensions, broadcastAreaAlternatives - 1},
 		{"CellIDListForRestart", &CellIDListForRestart{}, cellListChoiceExtensions, cellListAlternatives - 1},
 		{"PWSFailedCellIDList", &PWSFailedCellIDList{}, cellListChoiceExtensions, cellListAlternatives - 1},
-		{"OverloadResponse", &OverloadResponse{}, overloadResponseChoiceExtensions, overloadResponseAlternatives - 1},
 	}
 
 	for _, c := range cases {
@@ -402,21 +419,28 @@ func TestPWSChoiceExtensionsNotComprehended(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, maxProtocolIEs, 999); err != nil {
+			if err := encodeContainerField(w, ieField{ID: 999, Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x00})}); err != nil {
 				t.Fatal(err)
 			}
 
-			if err := per.EncodeEnumerated(w, per.Aligned, criticalityRootCount, false, int64(CriticalityIgnore)); err != nil {
+			wire := perBytes(w)
+
+			if err := c.u.UnmarshalPER(per.NewReader(wire), per.Aligned); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+
+			d := ap.Diagnose[ProtocolIEID](c.u)
+			if len(d.IEs) != 1 || d.IEs[0].ID != 999 || d.IEs[0].Criticality != CriticalityIgnore {
+				t.Errorf("diagnostics = %+v", d.IEs)
+			}
+
+			out := per.NewWriter()
+			if err := c.u.MarshalPER(out, per.Aligned); err != nil {
 				t.Fatal(err)
 			}
 
-			if err := per.EncodeOpenTypeBytes(w, per.Aligned, []byte{0x00}); err != nil {
-				t.Fatal(err)
-			}
-
-			err := c.u.UnmarshalPER(per.NewReader(w.Bytes()), per.Aligned)
-			if !errors.Is(err, errNotComprehended) {
-				t.Fatalf("err = %v, want errNotComprehended", err)
+			if !bytes.Equal(perBytes(out), wire) {
+				t.Errorf("re-encode = % x, want % x", perBytes(out), wire)
 			}
 		})
 	}

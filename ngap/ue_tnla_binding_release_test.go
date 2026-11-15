@@ -42,7 +42,7 @@ func TestUETNLABindingReleaseRequestEnvelope(t *testing.T) {
 }
 
 func TestUETNLABindingReleaseRequestMissingRejectIE(t *testing.T) {
-	value := container(t, ieField{id: IDAMFUENGAPID, crit: CriticalityReject, val: Ptr(AMFUENGAPID(1))})
+	value := container(t, ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: Ptr(AMFUENGAPID(1))})
 
 	_, err := ParseUETNLABindingReleaseRequest(value)
 

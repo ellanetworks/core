@@ -68,8 +68,8 @@ func runNGSetupFailureUnknownPLMN(_ context.Context, env scenarios.Env, _ any) e
 
 	// TS 38.455 gives Misc one root value, unknown-PLMN-or-SNPN, at index 4
 	// (TS 38.413 §9.3.1.2).
-	want := ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscUnknownPLMNOrSNPN}
-	if *failure.Cause != want {
+	want := ngap.CauseMiscUnknownPLMNOrSNPN.Cause()
+	if !failure.Cause.Equal(want) {
 		return fmt.Errorf("expected cause Misc unknown-PLMN-or-SNPN, got %v", failure.Cause)
 	}
 

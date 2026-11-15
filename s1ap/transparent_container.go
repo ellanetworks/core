@@ -4,33 +4,31 @@
 package s1ap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
 )
 
 const maxnoofCellsinUEHistoryInfo = 16
 
-const (
-	lastVisitedCellItemEUTRAN = iota
-	lastVisitedCellItemUTRAN
-	lastVisitedCellItemGERAN
-
-	lastVisitedCellItemRootCount = 3
-)
-
-const lastVisitedCellItemNGRANAddition = 0
-
-const lastVisitedGERANCellInformationRootCount = 1
-
 type SourceeNBToTargeteNBTransparentContainer struct {
-	RRCContainer              RRCContainer
-	ERABInformationList       ERABInformationList `per:",optional"`
-	TargetCellID              EUTRANCGI
-	SubscriberProfileIDforRFP *SubscriberProfileIDforRFP `per:",optional"`
-	UEHistoryInformation      UEHistoryInformation
-	iEExtensions              *transparentIEExtensions `per:",optional"`
-	extensions                per.ExtensionAdditions   `per:",extraw"`
+	RRCContainer                        RRCContainer
+	ERABInformationList                 ERABInformationList `per:",optional"`
+	TargetCellID                        EUTRANCGI
+	SubscriberProfileIDforRFP           *SubscriberProfileIDforRFP `per:",optional"`
+	UEHistoryInformation                UEHistoryInformation
+	MobilityInformation                 *MobilityInformation                 `per:",extie:IDMobilityInformation,crit:ignore"`
+	UEHistoryInformationFromTheUE       *UEHistoryInformationFromTheUE       `per:",extie:IDUEHistoryInformationFromTheUE,crit:ignore"`
+	IMSvoiceEPSfallbackfrom5G           *IMSvoiceEPSfallbackfrom5G           `per:",extie:IDIMSvoiceEPSfallbackfrom5G,crit:ignore"`
+	AdditionalRRMPriorityIndex          *AdditionalRRMPriorityIndex          `per:",extie:IDAdditionalRRMPriorityIndex,crit:ignore"`
+	ContextatSource                     *ContextatSource                     `per:",extie:IDContextatSource,crit:ignore"`
+	IntersystemMeasurementConfiguration *IntersystemMeasurementConfiguration `per:",extie:IDIntersystemMeasurementConfiguration,crit:ignore"`
+	SourceNodeID                        *SourceNodeID                        `per:",extie:IDSourceNodeID,crit:ignore"`
+	EmergencyIndicator                  *EmergencyIndicator                  `per:",extie:IDEmergencyIndicator,crit:ignore"`
+	UEContextReferenceatSourceeNB       *ENBUES1APID                         `per:",extie:IDUEContextReferenceatSourceeNB,crit:ignore"`
+	SourceSNID                          *GlobalRANNodeID                     `per:",extie:IDSourceSNID,crit:ignore"`
+	DirectForwardingPathAvailability    *DirectForwardingPathAvailability    `per:",extie:IDDirectForwardingPathAvailability,crit:ignore"`
+	TimeBasedHandoverInformation        *TimeBasedHandoverInformation        `per:",extie:IDTimeBasedHandoverInformation,crit:ignore"`
+	iEExtensions                        extensionMeta                        `per:",exttable"`
+	extensions                          per.ExtensionAdditions               `per:",extraw"`
 }
 
 func (c *SourceeNBToTargeteNBTransparentContainer) Marshal() (TransparentContainer, error) {
@@ -45,15 +43,15 @@ func (c *SourceeNBToTargeteNBTransparentContainer) Marshal() (TransparentContain
 	return TransparentContainer(w.Bytes()), nil
 }
 
-func ParseSourceeNBToTargeteNBTransparentContainer(b []byte) (*SourceeNBToTargeteNBTransparentContainer, error) {
-	var c SourceeNBToTargeteNBTransparentContainer
-
-	if err := c.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
-		return nil, fmt.Errorf("s1ap: SourceeNB-ToTargeteNB-TransparentContainer: %w", err)
-	}
-
-	return &c, nil
+func DecodeSourceeNBToTargeteNBTransparentContainer(b []byte) (*SourceeNBToTargeteNBTransparentContainer, error) {
+	return decodeValue[SourceeNBToTargeteNBTransparentContainer]("SourceeNB-ToTargeteNB-TransparentContainer", b)
 }
+
+func ParseSourceeNBToTargeteNBTransparentContainer(b []byte) (*SourceeNBToTargeteNBTransparentContainer, error) {
+	return parseValue[SourceeNBToTargeteNBTransparentContainer]("SourceeNB-ToTargeteNB-TransparentContainer", b)
+}
+
+func (c *SourceeNBToTargeteNBTransparentContainer) Diagnostics() Diagnostics { return diagnosticsOf(c) }
 
 type RRCContainer []byte
 
@@ -76,30 +74,17 @@ type DLForwarding uint8
 
 const (
 	DLForwardingProposed DLForwarding = iota
-
-	dlForwardingRootCount = 1
 )
 
-func (d DLForwarding) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, dlForwardingRootCount, int64(d), "DL-Forwarding")
-}
-
-func (d *DLForwarding) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, dlForwardingRootCount, "DL-Forwarding")
-	if err != nil {
-		return err
-	}
-
-	*d = DLForwarding(idx)
-
-	return nil
-}
-
 type ERABInformationListItem struct {
-	ERABID       ERABID
-	DLForwarding *DLForwarding            `per:",optional"`
-	iEExtensions *transparentIEExtensions `per:",optional"`
-	extensions   per.ExtensionAdditions   `per:",extraw"`
+	ERABID                          ERABID
+	DLForwarding                    *DLForwarding          `per:",optional"`
+	DAPSRequestInfo                 *DAPSRequestInfo       `per:",extie:IDDAPSRequestInfo,crit:ignore"`
+	SourceTransportLayerAddress     *TransportLayerAddress `per:",extie:IDSourceTransportLayerAddress,crit:ignore"`
+	SecurityIndication              *SecurityIndication    `per:",extie:IDSecurityIndication,crit:ignore"`
+	SourceNodeTransportLayerAddress *TransportLayerAddress `per:",extie:IDSourceNodeTransportLayerAddress,crit:ignore"`
+	iEExtensions                    extensionMeta          `per:",exttable"`
+	extensions                      per.ExtensionAdditions `per:",extraw"`
 }
 
 type ERABInformationList []ERABInformationListItem
@@ -154,125 +139,28 @@ func (u *UEHistoryInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) err
 }
 
 type LastVisitedCellItem struct {
-	EUTRANCell *LastVisitedEUTRANCellInformation
-	UTRANCell  *LastVisitedUTRANCellInformation
-	GERANCell  *LastVisitedGERANCellInformation
-	NGRANCell  *LastVisitedNGRANCellInformation
-	extension  *choiceExtensionAlternative
-}
-
-func (l *LastVisitedCellItem) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	idx, err := choiceAlternative("LastVisitedCell-Item", l.EUTRANCell != nil, l.UTRANCell != nil, l.GERANCell != nil, l.NGRANCell != nil, l.extension != nil)
-	if err != nil {
-		return err
-	}
-
-	switch idx {
-	case lastVisitedCellItemEUTRAN:
-		if err := encodeExtensibleChoice(w, enc, lastVisitedCellItemRootCount, idx); err != nil {
-			return err
-		}
-
-		return l.EUTRANCell.MarshalPER(w, enc)
-	case lastVisitedCellItemUTRAN:
-		if err := encodeExtensibleChoice(w, enc, lastVisitedCellItemRootCount, idx); err != nil {
-			return err
-		}
-
-		return l.UTRANCell.MarshalPER(w, enc)
-	case lastVisitedCellItemGERAN:
-		if err := encodeExtensibleChoice(w, enc, lastVisitedCellItemRootCount, idx); err != nil {
-			return err
-		}
-
-		return l.GERANCell.MarshalPER(w, enc)
-	case lastVisitedCellItemRootCount:
-		return encodeChoiceAddition(w, enc, lastVisitedCellItemNGRANAddition, l.NGRANCell)
-	default:
-		return l.extension.MarshalPER(w, enc)
-	}
-}
-
-func (l *LastVisitedCellItem) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	isExt, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-
-	*l = LastVisitedCellItem{}
-
-	if isExt {
-		alt, err := decodeChoiceAddition(r, enc)
-		if err != nil {
-			return err
-		}
-
-		if alt.index != lastVisitedCellItemNGRANAddition {
-			l.extension = alt
-
-			return nil
-		}
-
-		var v LastVisitedNGRANCellInformation
-
-		inner := per.NewReader(alt.value)
-		if err := v.UnmarshalPER(inner, enc); err != nil {
-			return err
-		}
-
-		if inner.Bits() >= 8 {
-			return fmt.Errorf("s1ap: LastVisitedCell-Item nG-RAN-Cell open type carries %d trailing bits", inner.Bits())
-		}
-
-		l.NGRANCell = &v
-
-		return nil
-	}
-
-	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, lastVisitedCellItemRootCount-1)
-	if err != nil {
-		return err
-	}
-
-	switch idx {
-	case lastVisitedCellItemEUTRAN:
-		var v LastVisitedEUTRANCellInformation
-		if err := v.UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-
-		l.EUTRANCell = &v
-	case lastVisitedCellItemUTRAN:
-		var v LastVisitedUTRANCellInformation
-		if err := v.UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-
-		l.UTRANCell = &v
-	default:
-		var v LastVisitedGERANCellInformation
-		if err := v.UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-
-		l.GERANCell = &v
-	}
-
-	return nil
+	EUTRANCell *LastVisitedEUTRANCellInformation `per:",choice:0"`
+	UTRANCell  *LastVisitedUTRANCellInformation  `per:",choice:1"`
+	GERANCell  *LastVisitedGERANCellInformation  `per:",choice:2"`
+	NGRANCell  *LastVisitedNGRANCellInformation  `per:",choice:0,ext"`
+	Ext        *per.ExtensionAlternative         `per:",extalt"`
 }
 
 type LastVisitedEUTRANCellInformation struct {
-	GlobalCellID       EUTRANCGI
-	CellType           CellType
-	TimeUEStayedInCell TimeUEStayedInCell
-	iEExtensions       *transparentIEExtensions `per:",optional"`
-	extensions         per.ExtensionAdditions   `per:",extraw"`
+	GlobalCellID                          EUTRANCGI
+	CellType                              CellType
+	TimeUEStayedInCell                    TimeUEStayedInCell
+	TimeUEStayedInCellEnhancedGranularity *TimeUEStayedInCellEnhancedGranularity `per:",extie:IDTimeUEStayedInCellEnhancedGranularity,crit:ignore"`
+	HOCause                               *Cause                                 `per:",extie:IDHOCause,crit:ignore"`
+	LastVisitedPSCellList                 LastVisitedPSCellList                  `per:",extie:IDLastVisitedPSCellList,crit:ignore"`
+	iEExtensions                          extensionMeta                          `per:",exttable"`
+	extensions                            per.ExtensionAdditions                 `per:",extraw"`
 }
 
 type CellType struct {
 	CellSize     CellSize
-	iEExtensions *transparentIEExtensions `per:",optional"`
-	extensions   per.ExtensionAdditions   `per:",extraw"`
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 type CellSize uint8
@@ -282,24 +170,7 @@ const (
 	CellSizeSmall
 	CellSizeMedium
 	CellSizeLarge
-
-	cellSizeRootCount = 4
 )
-
-func (c CellSize) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, cellSizeRootCount, int64(c), "Cell-Size")
-}
-
-func (c *CellSize) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, cellSizeRootCount, "Cell-Size")
-	if err != nil {
-		return err
-	}
-
-	*c = CellSize(idx)
-
-	return nil
-}
 
 type TimeUEStayedInCell uint16
 
@@ -353,121 +224,6 @@ func (c *LastVisitedNGRANCellInformation) UnmarshalPER(r *per.Reader, enc per.En
 }
 
 type LastVisitedGERANCellInformation struct {
-	extension *choiceExtensionAlternative
-}
-
-func (g *LastVisitedGERANCellInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	if g.extension != nil {
-		return g.extension.MarshalPER(w, enc)
-	}
-
-	return encodeExtensibleChoice(w, enc, lastVisitedGERANCellInformationRootCount, 0)
-}
-
-func (g *LastVisitedGERANCellInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	isExt, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-
-	*g = LastVisitedGERANCellInformation{}
-
-	if !isExt {
-		_, err := per.DecodeConstrainedWholeNumber(r, enc, 0, lastVisitedGERANCellInformationRootCount-1)
-
-		return err
-	}
-
-	g.extension, err = decodeChoiceAddition(r, enc)
-
-	return err
-}
-
-type choiceExtensionAlternative struct {
-	index int64
-	value []byte
-}
-
-func (a *choiceExtensionAlternative) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(true)
-
-	if err := per.EncodeNormallySmall(w, enc, a.index); err != nil {
-		return err
-	}
-
-	return per.EncodeOpenTypeBytes(w, enc, a.value)
-}
-
-func encodeChoiceAddition(w *per.Writer, enc per.Encoding, index int64, m per.Marshaler) error {
-	w.WriteBit(true)
-
-	if err := per.EncodeNormallySmall(w, enc, index); err != nil {
-		return err
-	}
-
-	return per.EncodeOpenType(w, enc, m)
-}
-
-func decodeChoiceAddition(r *per.Reader, enc per.Encoding) (*choiceExtensionAlternative, error) {
-	index, err := per.DecodeNormallySmall(r, enc)
-	if err != nil {
-		return nil, err
-	}
-
-	value, err := per.DecodeOpenTypeBytes(r, enc)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(value) == 0 {
-		return nil, fmt.Errorf("s1ap: empty open type for CHOICE extension alternative %d", index)
-	}
-
-	return &choiceExtensionAlternative{index: index, value: value}, nil
-}
-
-type transparentIEExtensions struct {
-	data  []byte
-	nbits int
-}
-
-func (e *transparentIEExtensions) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	if enc == per.Aligned {
-		w.AlignToByte()
-	}
-
-	w.WriteBitString(e.data, e.nbits)
-
-	return nil
-}
-
-func (e *transparentIEExtensions) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	if enc == per.Aligned {
-		r.AlignToByte()
-	}
-
-	start := r.Offset()
-
-	n, err := per.DecodeConstrainedWholeNumber(r, enc, 1, maxProtocolExtensions)
-	if err != nil {
-		return err
-	}
-
-	for range n {
-		if _, err := per.DecodeConstrainedWholeNumber(r, enc, 0, maxProtocolIEs); err != nil {
-			return err
-		}
-
-		if _, err := per.DecodeEnumerated(r, enc, criticalityRootCount, false); err != nil {
-			return err
-		}
-
-		if err := per.SkipOpenType(r, enc); err != nil {
-			return err
-		}
-	}
-
-	e.data, e.nbits, err = r.Since(start)
-
-	return err
+	Undefined *per.Null                 `per:",choice:0"`
+	Ext       *per.ExtensionAlternative `per:",extalt"`
 }

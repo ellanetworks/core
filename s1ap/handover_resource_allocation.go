@@ -29,6 +29,7 @@ type HandoverRequest struct {
 	NASSecurityParameterstoEUTRAN NASSecurityParameterstoEUTRAN
 	GUMMEI                        *GUMMEI
 	MMEUES1APID2                  *MMEUES1APID
+	TimeRefDistribution           *TimeRefDistribution
 
 	messageMeta
 }
@@ -41,25 +42,25 @@ func handoverEntersEUTRAN(m *HandoverRequest) bool {
 
 var handoverRequestIEs = []ieSpec[HandoverRequest]{
 	{
-		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.MMEUES1APID)
+		ID: IDMMEUES1APID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *HandoverRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.MMEUES1APID)
 		},
-		encode: func(m *HandoverRequest) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+		Encode: func(m *HandoverRequest) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: IDHandoverType, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.HandoverType)
+		ID: IDHandoverType, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *HandoverRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.HandoverType)
 		},
-		encode: func(m *HandoverRequest) (per.Marshaler, bool) { return &m.HandoverType, true },
+		Encode: func(m *HandoverRequest) (per.Marshaler, bool) { return &m.HandoverType, true },
 	},
 	{
-		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
+		ID: IDCause, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *HandoverRequest, r *per.Reader, enc per.Encoding) error {
 			var v Cause
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -67,7 +68,7 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 
 			return nil
 		},
-		encode: func(m *HandoverRequest) (per.Marshaler, bool) {
+		Encode: func(m *HandoverRequest) (per.Marshaler, bool) {
 			if m.Cause == nil {
 				return nil, false
 			}
@@ -76,33 +77,31 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 		},
 	},
 	{
-		id: IDUEAggregateMaximumBitrate, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.UEAMBR)
+		ID: IDUEAggregateMaximumBitrate, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *HandoverRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.UEAMBR)
 		},
-		encode: func(m *HandoverRequest) (per.Marshaler, bool) { return &m.UEAMBR, true },
+		Encode: func(m *HandoverRequest) (per.Marshaler, bool) { return &m.UEAMBR, true },
 	},
 	{
-		id: IDERABToBeSetupListHOReq, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
+		ID: IDERABToBeSetupListHOReq, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *HandoverRequest, r *per.Reader, enc per.Encoding) error {
 			var err error
 
-			m.ERABToBeSetup, err = decodeItemList[ERABToBeSetupItemHOReq](per.NewReader(raw), enc, maxnoofERABs, IDERABToBeSetupItemHOReq, CriticalityReject)
+			m.ERABToBeSetup, err = decodeItemList[ERABToBeSetupItemHOReq](r, enc, maxnoofERABs, IDERABToBeSetupItemHOReq, CriticalityReject)
 
 			return err
 		},
-		encode: func(m *HandoverRequest) (per.Marshaler, bool) {
-			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeSingleContainerList(w, enc, maxnoofERABs, IDERABToBeSetupItemHOReq, CriticalityReject, m.ERABToBeSetup)
-			}), true
+		Encode: func(m *HandoverRequest) (per.Marshaler, bool) {
+			return containerList(maxnoofERABs, IDERABToBeSetupItemHOReq, CriticalityReject, m.ERABToBeSetup), true
 		},
 	},
 	{
-		id: IDSourceToTargetTransparentContainer, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.SourceToTarget)
+		ID: IDSourceToTargetTransparentContainer, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *HandoverRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.SourceToTarget)
 		},
-		encode: func(m *HandoverRequest) (per.Marshaler, bool) {
+		Encode: func(m *HandoverRequest) (per.Marshaler, bool) {
 			if m.SourceToTarget == nil {
 				return nil, false
 			}
@@ -111,18 +110,18 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 		},
 	},
 	{
-		id: IDUESecurityCapabilities, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.UESecurityCapabilities)
+		ID: IDUESecurityCapabilities, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *HandoverRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.UESecurityCapabilities)
 		},
-		encode: func(m *HandoverRequest) (per.Marshaler, bool) { return &m.UESecurityCapabilities, true },
+		Encode: func(m *HandoverRequest) (per.Marshaler, bool) { return &m.UESecurityCapabilities, true },
 	},
 	{
-		id: IDHandoverRestrictionList, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
+		ID: IDHandoverRestrictionList, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *HandoverRequest, r *per.Reader, enc per.Encoding) error {
 			var v HandoverRestrictionList
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -130,7 +129,7 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 
 			return nil
 		},
-		encode: func(m *HandoverRequest) (per.Marshaler, bool) {
+		Encode: func(m *HandoverRequest) (per.Marshaler, bool) {
 			if m.HandoverRestrictionList == nil {
 				return nil, false
 			}
@@ -139,11 +138,11 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 		},
 	},
 	{
-		id: IDTraceActivation, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
+		ID: IDTraceActivation, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *HandoverRequest, r *per.Reader, enc per.Encoding) error {
 			var v TraceActivation
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -151,7 +150,7 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 
 			return nil
 		},
-		encode: func(m *HandoverRequest) (per.Marshaler, bool) {
+		Encode: func(m *HandoverRequest) (per.Marshaler, bool) {
 			if m.TraceActivation == nil {
 				return nil, false
 			}
@@ -160,19 +159,19 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 		},
 	},
 	{
-		id: IDSecurityContext, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.SecurityContext)
+		ID: IDSecurityContext, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *HandoverRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.SecurityContext)
 		},
-		encode: func(m *HandoverRequest) (per.Marshaler, bool) { return &m.SecurityContext, true },
+		Encode: func(m *HandoverRequest) (per.Marshaler, bool) { return &m.SecurityContext, true },
 	},
 	{
-		id: IDNASSecurityParameterstoEUTRAN, presence: presenceConditional, crit: CriticalityReject,
-		condition: handoverEntersEUTRAN,
-		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.NASSecurityParameterstoEUTRAN)
+		ID: IDNASSecurityParameterstoEUTRAN, Presence: presenceConditional, Criticality: CriticalityReject,
+		Condition: handoverEntersEUTRAN,
+		Decode: func(m *HandoverRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.NASSecurityParameterstoEUTRAN)
 		},
-		encode: func(m *HandoverRequest) (per.Marshaler, bool) {
+		Encode: func(m *HandoverRequest) (per.Marshaler, bool) {
 			if m.NASSecurityParameterstoEUTRAN == nil {
 				return nil, false
 			}
@@ -181,11 +180,11 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 		},
 	},
 	{
-		id: IDGUMMEI, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
+		ID: IDGUMMEI, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *HandoverRequest, r *per.Reader, enc per.Encoding) error {
 			var v GUMMEI
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -193,7 +192,7 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 
 			return nil
 		},
-		encode: func(m *HandoverRequest) (per.Marshaler, bool) {
+		Encode: func(m *HandoverRequest) (per.Marshaler, bool) {
 			if m.GUMMEI == nil {
 				return nil, false
 			}
@@ -202,11 +201,11 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 		},
 	},
 	{
-		id: IDMMEUES1APID2, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *HandoverRequest, raw []byte, enc per.Encoding) error {
+		ID: IDMMEUES1APID2, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *HandoverRequest, r *per.Reader, enc per.Encoding) error {
 			var v MMEUES1APID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -214,13 +213,20 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 
 			return nil
 		},
-		encode: func(m *HandoverRequest) (per.Marshaler, bool) {
+		Encode: func(m *HandoverRequest) (per.Marshaler, bool) {
 			if m.MMEUES1APID2 == nil {
 				return nil, false
 			}
 
 			return m.MMEUES1APID2, true
 		},
+	},
+	{
+		ID: IDTimeRefDistribution, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *HandoverRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeOptionalIE(r, &m.TimeRefDistribution)
+		},
+		Encode: func(m *HandoverRequest) (per.Marshaler, bool) { return optionalIE(m.TimeRefDistribution) },
 	},
 }
 
@@ -248,6 +254,10 @@ func ParseHandoverRequest(value []byte) (*HandoverRequest, error) {
 	return parseMessageBody[HandoverRequest](ProcHandoverResourceAllocation, TriggeringInitiatingMessage, handoverRequestIEs, value)
 }
 
+func DecodeHandoverRequest(value []byte) (*HandoverRequest, error) {
+	return decodeMessageBody[HandoverRequest](ProcHandoverResourceAllocation, handoverRequestIEs, value)
+}
+
 // TS 36.413 §9.1.5.5.
 type HandoverRequestAcknowledge struct {
 	MMEUES1APID            *MMEUES1APID
@@ -262,11 +272,11 @@ type HandoverRequestAcknowledge struct {
 
 var handoverRequestAcknowledgeIEs = []ieSpec[HandoverRequestAcknowledge]{
 	{
-		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *HandoverRequestAcknowledge, raw []byte, enc per.Encoding) error {
+		ID: IDMMEUES1APID, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *HandoverRequestAcknowledge, r *per.Reader, enc per.Encoding) error {
 			var v MMEUES1APID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -274,7 +284,7 @@ var handoverRequestAcknowledgeIEs = []ieSpec[HandoverRequestAcknowledge]{
 
 			return nil
 		},
-		encode: func(m *HandoverRequestAcknowledge) (per.Marshaler, bool) {
+		Encode: func(m *HandoverRequestAcknowledge) (per.Marshaler, bool) {
 			if m.MMEUES1APID == nil {
 				return nil, false
 			}
@@ -283,11 +293,11 @@ var handoverRequestAcknowledgeIEs = []ieSpec[HandoverRequestAcknowledge]{
 		},
 	},
 	{
-		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *HandoverRequestAcknowledge, raw []byte, enc per.Encoding) error {
+		ID: IDENBUES1APID, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *HandoverRequestAcknowledge, r *per.Reader, enc per.Encoding) error {
 			var v ENBUES1APID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -295,7 +305,7 @@ var handoverRequestAcknowledgeIEs = []ieSpec[HandoverRequestAcknowledge]{
 
 			return nil
 		},
-		encode: func(m *HandoverRequestAcknowledge) (per.Marshaler, bool) {
+		Encode: func(m *HandoverRequestAcknowledge) (per.Marshaler, bool) {
 			if m.ENBUES1APID == nil {
 				return nil, false
 			}
@@ -304,49 +314,45 @@ var handoverRequestAcknowledgeIEs = []ieSpec[HandoverRequestAcknowledge]{
 		},
 	},
 	{
-		id: IDERABAdmittedList, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *HandoverRequestAcknowledge, raw []byte, enc per.Encoding) error {
+		ID: IDERABAdmittedList, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *HandoverRequestAcknowledge, r *per.Reader, enc per.Encoding) error {
 			var err error
 
-			m.ERABAdmitted, err = decodeItemList[ERABAdmittedItem](per.NewReader(raw), enc, maxnoofERABs, IDERABAdmittedItem, CriticalityIgnore)
+			m.ERABAdmitted, err = decodeItemList[ERABAdmittedItem](r, enc, maxnoofERABs, IDERABAdmittedItem, CriticalityIgnore)
 
 			return err
 		},
-		encode: func(m *HandoverRequestAcknowledge) (per.Marshaler, bool) {
+		Encode: func(m *HandoverRequestAcknowledge) (per.Marshaler, bool) {
 			if len(m.ERABAdmitted) == 0 {
 				return nil, false
 			}
 
-			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeSingleContainerList(w, enc, maxnoofERABs, IDERABAdmittedItem, CriticalityIgnore, m.ERABAdmitted)
-			}), true
+			return containerList(maxnoofERABs, IDERABAdmittedItem, CriticalityIgnore, m.ERABAdmitted), true
 		},
 	},
 	{
-		id: IDERABFailedToSetupListHOReqAck, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *HandoverRequestAcknowledge, raw []byte, enc per.Encoding) error {
+		ID: IDERABFailedToSetupListHOReqAck, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *HandoverRequestAcknowledge, r *per.Reader, enc per.Encoding) error {
 			var err error
 
-			m.ERABFailedToSetup, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABFailedtoSetupItemHOReqAck, CriticalityIgnore)
+			m.ERABFailedToSetup, err = decodeItemList[ERABItem](r, enc, maxnoofERABs, IDERABFailedtoSetupItemHOReqAck, CriticalityIgnore)
 
 			return err
 		},
-		encode: func(m *HandoverRequestAcknowledge) (per.Marshaler, bool) {
+		Encode: func(m *HandoverRequestAcknowledge) (per.Marshaler, bool) {
 			if len(m.ERABFailedToSetup) == 0 {
 				return nil, false
 			}
 
-			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeSingleContainerList(w, enc, maxnoofERABs, IDERABFailedtoSetupItemHOReqAck, CriticalityIgnore, m.ERABFailedToSetup)
-			}), true
+			return containerList(maxnoofERABs, IDERABFailedtoSetupItemHOReqAck, CriticalityIgnore, m.ERABFailedToSetup), true
 		},
 	},
 	{
-		id: IDTargetToSourceTransparentContainer, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *HandoverRequestAcknowledge, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.TargetToSource)
+		ID: IDTargetToSourceTransparentContainer, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *HandoverRequestAcknowledge, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.TargetToSource)
 		},
-		encode: func(m *HandoverRequestAcknowledge) (per.Marshaler, bool) {
+		Encode: func(m *HandoverRequestAcknowledge) (per.Marshaler, bool) {
 			if m.TargetToSource == nil {
 				return nil, false
 			}
@@ -355,11 +361,11 @@ var handoverRequestAcknowledgeIEs = []ieSpec[HandoverRequestAcknowledge]{
 		},
 	},
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *HandoverRequestAcknowledge, raw []byte, enc per.Encoding) error {
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *HandoverRequestAcknowledge, r *per.Reader, enc per.Encoding) error {
 			var v CriticalityDiagnostics
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -367,7 +373,7 @@ var handoverRequestAcknowledgeIEs = []ieSpec[HandoverRequestAcknowledge]{
 
 			return nil
 		},
-		encode: func(m *HandoverRequestAcknowledge) (per.Marshaler, bool) {
+		Encode: func(m *HandoverRequestAcknowledge) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -401,6 +407,10 @@ func ParseHandoverRequestAcknowledge(value []byte) (*HandoverRequestAcknowledge,
 	return parseMessageBody[HandoverRequestAcknowledge](ProcHandoverResourceAllocation, TriggeringSuccessfulOutcome, handoverRequestAcknowledgeIEs, value)
 }
 
+func DecodeHandoverRequestAcknowledge(value []byte) (*HandoverRequestAcknowledge, error) {
+	return decodeMessageBody[HandoverRequestAcknowledge](ProcHandoverResourceAllocation, handoverRequestAcknowledgeIEs, value)
+}
+
 // TS 36.413 §9.1.5.6.
 type HandoverFailure struct {
 	MMEUES1APID            *MMEUES1APID
@@ -412,11 +422,11 @@ type HandoverFailure struct {
 
 var handoverFailureIEs = []ieSpec[HandoverFailure]{
 	{
-		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *HandoverFailure, raw []byte, enc per.Encoding) error {
+		ID: IDMMEUES1APID, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *HandoverFailure, r *per.Reader, enc per.Encoding) error {
 			var v MMEUES1APID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -424,7 +434,7 @@ var handoverFailureIEs = []ieSpec[HandoverFailure]{
 
 			return nil
 		},
-		encode: func(m *HandoverFailure) (per.Marshaler, bool) {
+		Encode: func(m *HandoverFailure) (per.Marshaler, bool) {
 			if m.MMEUES1APID == nil {
 				return nil, false
 			}
@@ -433,11 +443,11 @@ var handoverFailureIEs = []ieSpec[HandoverFailure]{
 		},
 	},
 	{
-		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *HandoverFailure, raw []byte, enc per.Encoding) error {
+		ID: IDCause, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *HandoverFailure, r *per.Reader, enc per.Encoding) error {
 			var v Cause
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -445,7 +455,7 @@ var handoverFailureIEs = []ieSpec[HandoverFailure]{
 
 			return nil
 		},
-		encode: func(m *HandoverFailure) (per.Marshaler, bool) {
+		Encode: func(m *HandoverFailure) (per.Marshaler, bool) {
 			if m.Cause == nil {
 				return nil, false
 			}
@@ -454,11 +464,11 @@ var handoverFailureIEs = []ieSpec[HandoverFailure]{
 		},
 	},
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *HandoverFailure, raw []byte, enc per.Encoding) error {
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *HandoverFailure, r *per.Reader, enc per.Encoding) error {
 			var v CriticalityDiagnostics
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -466,7 +476,7 @@ var handoverFailureIEs = []ieSpec[HandoverFailure]{
 
 			return nil
 		},
-		encode: func(m *HandoverFailure) (per.Marshaler, bool) {
+		Encode: func(m *HandoverFailure) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -498,4 +508,8 @@ func (m *HandoverFailure) Marshal() ([]byte, error) {
 
 func ParseHandoverFailure(value []byte) (*HandoverFailure, error) {
 	return parseMessageBody[HandoverFailure](ProcHandoverResourceAllocation, TriggeringUnsuccessfulOutcome, handoverFailureIEs, value)
+}
+
+func DecodeHandoverFailure(value []byte) (*HandoverFailure, error) {
+	return decodeMessageBody[HandoverFailure](ProcHandoverResourceAllocation, handoverFailureIEs, value)
 }

@@ -108,7 +108,7 @@ func TestMMEConfigurationUpdateFailureRoundTrips(t *testing.T) {
 	ttw := TimeToWait(1)
 
 	in := &MMEConfigurationUpdateFailure{
-		Cause:      Ptr(Cause{Group: CauseGroupProtocol, Value: CauseProtocolSemanticError}),
+		Cause:      Ptr(CauseProtocolSemanticError.Cause()),
 		TimeToWait: &ttw,
 	}
 
@@ -132,7 +132,7 @@ func TestMMEConfigurationUpdateFailureRoundTrips(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.Cause == nil || out.Cause.Group != CauseGroupProtocol || out.Cause.Value != CauseProtocolSemanticError {
+	if out.Cause == nil || !out.Cause.Equal(CauseProtocolSemanticError.Cause()) {
 		t.Fatalf("cause mismatch: %+v", out.Cause)
 	}
 

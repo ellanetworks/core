@@ -59,12 +59,7 @@ func buildNGSetupRequest(opts *NGSetupRequestOpts) (*ngap.NGSetupRequest, error)
 	}
 
 	req := &ngap.NGSetupRequest{
-		GlobalRANNodeID: ngap.GlobalRANNodeID{
-			Kind:         ngap.RANNodeIDGNB,
-			PLMNIdentity: plmn,
-			Value:        uint32(gnbID),
-			Bits:         24,
-		},
+		GlobalRANNodeID:  ngap.NewGlobalGNBID(plmn, uint32(gnbID), 24),
 		RANNodeName:      ngap.Ptr(opts.Name),
 		DefaultPagingDRX: ngap.Ptr(ngap.PagingDRXv128),
 	}
@@ -139,8 +134,8 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testin
 
 	cause := sender.SentNGSetupFailures[0].Cause
 
-	want := ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscUnspecified}
-	if cause == nil || *cause != want {
+	want := ngap.CauseMiscUnspecified.Cause()
+	if cause == nil || !cause.Equal(want) {
 		t.Errorf("cause = %v, want unspecified", cause)
 	}
 
@@ -193,8 +188,8 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBSupportsDifferentTAC(t *testi
 
 	cause := sender.SentNGSetupFailures[0].Cause
 
-	want := ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscUnspecified}
-	if cause == nil || *cause != want {
+	want := ngap.CauseMiscUnspecified.Cause()
+	if cause == nil || !cause.Equal(want) {
 		t.Errorf("cause = %v, want unspecified", cause)
 	}
 
@@ -503,8 +498,8 @@ func TestHandleNGSetupRequest_NGSetupFailure_PLMNMismatch(t *testing.T) {
 
 	cause := sender.SentNGSetupFailures[0].Cause
 
-	want := ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscUnknownPLMNOrSNPN}
-	if cause == nil || *cause != want {
+	want := ngap.CauseMiscUnknownPLMNOrSNPN.Cause()
+	if cause == nil || !cause.Equal(want) {
 		t.Errorf("cause = %v, want unknown-PLMN-or-SNPN", cause)
 	}
 }
@@ -542,8 +537,8 @@ func TestHandleNGSetupRequest_DBFailure_SendsNGSetupFailure(t *testing.T) {
 
 	cause := sender.SentNGSetupFailures[0].Cause
 
-	want := ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscUnspecified}
-	if cause == nil || *cause != want {
+	want := ngap.CauseMiscUnspecified.Cause()
+	if cause == nil || !cause.Equal(want) {
 		t.Errorf("cause = %v, want unspecified", cause)
 	}
 }

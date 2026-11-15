@@ -78,6 +78,7 @@ var procedureNames = map[ProcedureCode]string{
 	ProcHandoverSuccess:                      "HandoverSuccess",
 	ProcENBEarlyStatusTransfer:               "ENBEarlyStatusTransfer",
 	ProcMMEEarlyStatusTransfer:               "MMEEarlyStatusTransfer",
+	ProcS1Removal:                            "S1Removal",
 }
 
 // ProcedureCodeName returns the TS 36.413 name of p, and whether it is known.

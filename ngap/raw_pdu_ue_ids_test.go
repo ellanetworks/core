@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 func handUEContextReleaseCommand(t *testing.T, ran uint32) []byte {
@@ -33,14 +34,14 @@ func handUEContextReleaseCommand(t *testing.T, ran uint32) []byte {
 	}))
 	mustNil(t, per.EncodeOpenTypeBytes(ids, enc, []byte{0x11, 0x22}))
 
-	cause, err := per.Marshal(&Cause{Group: CauseGroupMisc, Value: 0})
+	cause, err := per.Marshal(Ptr(CauseMisc(0).Cause()))
 	mustNil(t, err)
 
 	body := per.NewWriter()
 	body.WriteBit(false)
 	mustNil(t, encodeIEContainer(body, enc, []ieField{
-		{id: IDUENGAPIDs, crit: CriticalityReject, raw: ids.Bytes()},
-		{id: IDCause, crit: CriticalityIgnore, raw: cause},
+		{ID: IDUENGAPIDs, Criticality: CriticalityReject, Value: ap.RawValue(ids.Bytes())},
+		{ID: IDCause, Criticality: CriticalityIgnore, Value: ap.RawValue(cause)},
 	}))
 
 	b, err := Marshal(&InitiatingMessage{ProcedureCode: ProcUEContextRelease, Criticality: CriticalityReject, Value: body.Bytes()})
@@ -60,7 +61,7 @@ func TestRawPDUUENGAPIDsKeepPairExtensions(t *testing.T) {
 		t.Fatalf("UENGAPIDs() = %v, %v", ok, err)
 	}
 
-	if !ids.Pair || ids.AMFUENGAPID != 7 || ids.RANUENGAPID != 1 {
+	if ids.UENGAPIDPair == nil || ids.UENGAPIDPair.AMFUENGAPID != 7 || ids.UENGAPIDPair.RANUENGAPID != 1 {
 		t.Fatalf("UENGAPIDs() = %+v", ids)
 	}
 
@@ -73,7 +74,7 @@ func TestRawPDUUENGAPIDsKeepPairExtensions(t *testing.T) {
 		t.Fatalf("unchanged set:\n got %x\nwant %x", got, in)
 	}
 
-	ids.RANUENGAPID = 9
+	ids.UENGAPIDPair.RANUENGAPID = 9
 	mustNil(t, p.SetUENGAPIDs(ids))
 
 	got, err = p.Marshal()

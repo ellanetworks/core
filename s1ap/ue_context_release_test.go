@@ -8,14 +8,15 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 func TestUEContextReleaseRoundTrips(t *testing.T) {
-	cause := Cause{Group: CauseGroupRadioNetwork, Value: 0}
+	cause := CauseRadioNetworkUnspecified.Cause()
 
 	t.Run("Command pair", func(t *testing.T) {
 		in := &UEContextReleaseCommand{
-			UES1APIDs: UES1APIDs{MMEUES1APID: 1, ENBUES1APID: 7, Pair: true},
+			UES1APIDs: UES1APIDs{UES1APIDPair: &UES1APIDPair{MMEUES1APID: 1, ENBUES1APID: 7}},
 			Cause:     &cause,
 		}
 
@@ -39,14 +40,13 @@ func TestUEContextReleaseRoundTrips(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if !out.UES1APIDs.Pair || out.UES1APIDs.MMEUES1APID != 1 || out.UES1APIDs.ENBUES1APID != 7 ||
-			deref(out.Cause) != cause {
+		if !out.UES1APIDs.Equal(in.UES1APIDs) || !deref(out.Cause).Equal(cause) {
 			t.Fatalf("mismatch:\n in  %+v\n out %+v", in, out)
 		}
 	})
 
 	t.Run("Command bare MME id", func(t *testing.T) {
-		in := &UEContextReleaseCommand{UES1APIDs: UES1APIDs{MMEUES1APID: 42}, Cause: &cause}
+		in := &UEContextReleaseCommand{UES1APIDs: UES1APIDs{MMEUES1APID: Ptr(MMEUES1APID(42))}, Cause: &cause}
 
 		b, _ := in.Marshal()
 
@@ -57,7 +57,7 @@ func TestUEContextReleaseRoundTrips(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if out.UES1APIDs.Pair || out.UES1APIDs.MMEUES1APID != 42 {
+		if out.UES1APIDs.UES1APIDPair != nil || out.UES1APIDs.MMEUES1APID == nil || *out.UES1APIDs.MMEUES1APID != 42 {
 			t.Fatalf("mismatch: %+v", out.UES1APIDs)
 		}
 	})
@@ -120,7 +120,7 @@ func TestUEContextReleaseRoundTrips(t *testing.T) {
 		}
 
 		out, err := ParseUEContextReleaseRequest(im.Value)
-		if err != nil || out.MMEUES1APID != 1 || out.ENBUES1APID != 7 || deref(out.Cause) != cause {
+		if err != nil || out.MMEUES1APID != 1 || out.ENBUES1APID != 7 || !deref(out.Cause).Equal(cause) {
 			t.Fatalf("got %+v err %v", out, err)
 		}
 	})
@@ -142,7 +142,7 @@ func TestUEContextReleaseCommandExtensionAlternative(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	value := container(t, ieField{id: IDUES1APIDs, crit: CriticalityReject, raw: perBytes(w)})
+	value := container(t, ieField{ID: IDUES1APIDs, Criticality: CriticalityReject, Value: ap.RawValue(perBytes(w))})
 
 	_, err := ParseUEContextReleaseCommand(value)
 	if err == nil {
@@ -154,7 +154,7 @@ func TestUEContextReleaseCommandExtensionAlternative(t *testing.T) {
 		t.Fatalf("error = %T (%v), want *AbstractSyntaxError", err, err)
 	}
 
-	if ase.Cause.Value != CauseProtocolAbstractSyntaxErrorReject {
+	if !ase.Cause.Equal(CauseProtocolAbstractSyntaxErrorReject.Cause()) {
 		t.Errorf("cause = %s, want abstract-syntax-error-reject", ase.Cause)
 	}
 
@@ -165,7 +165,7 @@ func TestUEContextReleaseCommandExtensionAlternative(t *testing.T) {
 }
 
 func uEContextReleaseRequestGoldenCases() []newMessageCase {
-	x2 := Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkX2HandoverTriggered}
+	x2 := CauseRadioNetworkX2HandoverTriggered.Cause()
 
 	return []newMessageCase{
 		{
@@ -184,13 +184,13 @@ func uEContextReleaseRequestGoldenCases() []newMessageCase {
 }
 
 func TestUEContextReleaseRequestGWContextReleaseIndicationExtensionRejects(t *testing.T) {
-	cause := Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkX2HandoverTriggered}
+	cause := CauseRadioNetworkX2HandoverTriggered.Cause()
 
 	_, err := ParseUEContextReleaseRequest(container(t,
-		ieField{id: IDMMEUES1APID, crit: CriticalityReject, val: Ptr(MMEUES1APID(1))},
-		ieField{id: IDENBUES1APID, crit: CriticalityReject, val: Ptr(ENBUES1APID(2))},
-		ieField{id: IDCause, crit: CriticalityIgnore, val: &cause},
-		ieField{id: IDGWContextReleaseIndication, crit: CriticalityReject, raw: extensionEnum(t, gwContextReleaseIndicationRootCount, 0)},
+		ieField{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: Ptr(MMEUES1APID(1))},
+		ieField{ID: IDENBUES1APID, Criticality: CriticalityReject, Value: Ptr(ENBUES1APID(2))},
+		ieField{ID: IDCause, Criticality: CriticalityIgnore, Value: &cause},
+		ieField{ID: IDGWContextReleaseIndication, Criticality: CriticalityReject, Value: ap.RawValue(extensionEnum(t, int64(len(enumGWContextReleaseIndication.Root)), 0))},
 	))
 
 	var ase *AbstractSyntaxError

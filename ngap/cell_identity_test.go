@@ -6,7 +6,7 @@ package ngap
 import "testing"
 
 func nodeID(value uint32, bits int) GlobalRANNodeID {
-	return GlobalRANNodeID{Kind: RANNodeIDGNB, Value: value, Bits: bits}
+	return NewGlobalGNBID(PLMNIdentity{}, value, bits)
 }
 
 // TS 23.003 §19.6: the gNB ID occupies the leftmost bits of the 36-bit NCI and
@@ -44,7 +44,7 @@ func TestNRCellIdentityComposition(t *testing.T) {
 }
 
 func TestEUTRACellIdentityComposition(t *testing.T) {
-	got, err := GlobalRANNodeID{Kind: RANNodeIDMacroNgENB, Value: 0x00010, Bits: 20}.EUTRACellIdentity(1)
+	got, err := testNgENBNodeID(t, PLMNIdentity{}, 0x00010, 20).EUTRACellIdentity(1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestGlobalRANNodeIDHex(t *testing.T) {
 		{nodeID(0x3fffff, 22), "3fffff"},
 		{nodeID(0x2a, 22), "00002a"},
 		{nodeID(0xa8, 24), "0000a8"},
-		{GlobalRANNodeID{Kind: RANNodeIDShortMacroNgENB, Value: 0x34b89, Bits: 18}, "34b89"},
+		{testNgENBNodeID(t, PLMNIdentity{}, 0x34b89, 18), "34b89"},
 	}
 
 	for _, tt := range tests {

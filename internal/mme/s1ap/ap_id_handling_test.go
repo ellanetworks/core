@@ -152,7 +152,7 @@ func TestInitialUEMessageReusingAnAllocatedENBUES1APIDIsRejectedAndReleasesTheHo
 		t.Errorf("Error Indication eNB-UE-S1AP-ID = %v, want %d", ind.ENBUES1APID, enbID)
 	}
 
-	if ind.Cause == nil || *ind.Cause != causeUnknownENBUES1APID {
+	if ind.Cause == nil || !ind.Cause.Equal(causeUnknownENBUES1APID) {
 		t.Errorf("Error Indication cause = %v, want unknown-enb-ue-s1ap-id", ind.Cause)
 	}
 

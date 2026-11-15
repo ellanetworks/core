@@ -7,6 +7,8 @@ import (
 	"errors"
 	"slices"
 	"testing"
+
+	"github.com/ellanetworks/core/per/ap"
 )
 
 const (
@@ -36,10 +38,10 @@ func goldSecurityKey() SecurityKey {
 
 func goldUESecurityCapabilities() UESecurityCapabilities {
 	return UESecurityCapabilities{
-		NREncryptionAlgorithms:             0x8000,
-		NRIntegrityProtectionAlgorithms:    0x4000,
-		EUTRAEncryptionAlgorithms:          0x2000,
-		EUTRAIntegrityProtectionAlgorithms: 0x1000,
+		NREncryptionAlgorithms:             SecurityAlgorithmsFrom(0x8000),
+		NRIntegrityProtectionAlgorithms:    SecurityAlgorithmsFrom(0x4000),
+		EUTRAEncryptionAlgorithms:          SecurityAlgorithmsFrom(0x2000),
+		EUTRAIntegrityProtectionAlgorithms: SecurityAlgorithmsFrom(0x1000),
 	}
 }
 
@@ -107,7 +109,7 @@ func TestInitialContextSetupGoldenEncodings(t *testing.T) {
 				PDUSessionResourceFailed: PDUSessionResourceFailedToSetupListCxtFail{{
 					PDUSessionID: 5, Transfer: TransferContainer{0xee},
 				}},
-				Cause: Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified}),
+				Cause: Ptr(CauseRadioNetworkUnspecified.Cause()),
 			},
 			goldenInitialContextSetupFailure,
 		},
@@ -195,7 +197,7 @@ func TestInitialContextSetupRoundTrips(t *testing.T) {
 	})
 
 	t.Run("Failure", func(t *testing.T) {
-		cause := Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified}
+		cause := CauseRadioNetworkUnspecified.Cause()
 		in := &InitialContextSetupFailure{
 			AMFUENGAPID: Ptr(AMFUENGAPID(7)),
 			RANUENGAPID: Ptr(RANUENGAPID(9)),
@@ -212,7 +214,7 @@ func TestInitialContextSetupRoundTrips(t *testing.T) {
 		}
 
 		out, err := ParseInitialContextSetupFailure(uo.Value)
-		if err != nil || deref(out.Cause) != cause {
+		if err != nil || !deref(out.Cause).Equal(cause) {
 			t.Fatalf("got %+v err %v", out, err)
 		}
 	})
@@ -255,11 +257,11 @@ func TestInitialContextSetupRequestAMBRCondition(t *testing.T) {
 // (§10.3.5); the AMF cannot set up a context without them.
 func TestInitialContextSetupRequestMissingRejectIE(t *testing.T) {
 	full := container(t,
-		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
-		ieField{id: IDRANUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
-		ieField{id: IDGUAMI, crit: CriticalityReject, raw: ieRaw(t, Ptr(goldContextGUAMI()))},
-		ieField{id: IDUESecurityCapabilities, crit: CriticalityReject, raw: ieRaw(t, Ptr(goldUESecurityCapabilities()))},
-		ieField{id: IDSecurityKey, crit: CriticalityReject, raw: ieRaw(t, Ptr(goldSecurityKey()))},
+		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))},
+		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(RANUENGAPID(2))))},
+		ieField{ID: IDGUAMI, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(goldContextGUAMI())))},
+		ieField{ID: IDUESecurityCapabilities, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(goldUESecurityCapabilities())))},
+		ieField{ID: IDSecurityKey, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(goldSecurityKey())))},
 	)
 
 	// Without the Allowed NSSAI the request is incomplete: it is mandatory and
@@ -318,7 +320,7 @@ func initialContextSetupRequestWireCases(t *testing.T) []wireCase {
 
 	return []wireCase{{
 		name:  "InitialContextSetupRequestAMFUENGAPID2AfterUnmodeledIEs",
-		pdu:   insertRawIEs(t, marshalT(t, m), 7, rawMaskedIMEISV(), rawRedirectionVoiceFallback()),
+		pdu:   insertRawIEs(t, marshalT(t, m), 7, rawUnknownIE(40000, 0x86, 0x65, 0x07, 0x04, 0x00, 0xff, 0xff, 0x01), rawUnknownIE(40001, 0x00)),
 		parse: func(v []byte) (any, error) { return ParseInitialContextSetupRequest(v) },
 		check: func(t *testing.T, a any) {
 			t.Helper()
@@ -332,7 +334,7 @@ func initialContextSetupRequestWireCases(t *testing.T) []wireCase {
 }
 
 func TestInitialContextSetupRequestAMFUENGAPID2SetAfterParseFollowsUnmodeledIEs(t *testing.T) {
-	pdu := insertRawIEs(t, marshalT(t, goldInitialContextSetupRequestTraceActivation()), 7, rawMaskedIMEISV(), rawRedirectionVoiceFallback())
+	pdu := insertRawIEs(t, marshalT(t, goldInitialContextSetupRequestTraceActivation()), 7, rawUnknownIE(40000, 0x86, 0x65, 0x07, 0x04, 0x00, 0xff, 0xff, 0x01), rawUnknownIE(40001, 0x00))
 
 	p, err := Unmarshal(pdu)
 	if err != nil {
@@ -347,7 +349,7 @@ func TestInitialContextSetupRequestAMFUENGAPID2SetAfterParseFollowsUnmodeledIEs(
 	m.AMFUENGAPID2 = Ptr(AMFUENGAPID(7))
 
 	ids := wireIDs(t, m.encodeBody)
-	if want := []ProtocolIEID{IDTraceActivation, IDMaskedIMEISV, IDRedirectionVoiceFallback, IDAMFUENGAPID2}; !slices.Equal(ids[len(ids)-4:], want) {
+	if want := []ProtocolIEID{IDTraceActivation, 40000, 40001, IDAMFUENGAPID2}; !slices.Equal(ids[len(ids)-4:], want) {
 		t.Fatalf("IE order %v, want it to end %v", ids, want)
 	}
 }

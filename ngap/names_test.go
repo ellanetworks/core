@@ -88,7 +88,7 @@ func TestAbstractSyntaxErrorMessage(t *testing.T) {
 	err := &AbstractSyntaxError{
 		Procedure: ProcNGSetup,
 		Trigger:   TriggeringInitiatingMessage,
-		Cause:     Cause{Group: CauseGroupProtocol, Value: CauseProtocolAbstractSyntaxErrorReject},
+		Cause:     CauseProtocolAbstractSyntaxErrorReject.Cause(),
 		IEs: []CriticalityDiagnosticsIEItem{
 			{IEID: IDGlobalRANNodeID, IECriticality: CriticalityReject, TypeOfError: TypeOfErrorMissing},
 			{IEID: IDSupportedTAList, IECriticality: CriticalityReject, TypeOfError: TypeOfErrorNotUnderstood},

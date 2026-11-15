@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf/ngap"
 	libngap "github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 func decodeSetupRequestGTPTunnel(t *testing.T, buf []byte) (uint32, libngap.TransportLayerAddress) {
@@ -42,12 +43,12 @@ func TestBuildPDUSessionResourceSetupRequestTransfer(t *testing.T) {
 		t.Errorf("TEID: got %d, want 42", teid)
 	}
 
-	if len(bs)*8 != 32 {
-		t.Fatalf("BitLength: got %d, want 32", len(bs)*8)
+	if bs.Bits() != 32 {
+		t.Fatalf("BitLength: got %d, want 32", bs.Bits())
 	}
 
 	var ip [4]byte
-	copy(ip[:], []byte(bs))
+	copy(ip[:], bs.Bytes())
 
 	if ip != [4]byte{10, 3, 0, 2} {
 		t.Errorf("IP: got %v, want [10 3 0 2]", ip)
@@ -127,16 +128,16 @@ func TestBuildPDUSessionResourceSetupRequestTransfer_IPv6Only(t *testing.T) {
 
 	_, bs := decodeSetupRequestGTPTunnel(t, buf)
 
-	if len(bs)*8 != 128 {
-		t.Fatalf("BitLength: got %d, want 128", len(bs)*8)
+	if bs.Bits() != 128 {
+		t.Fatalf("BitLength: got %d, want 128", bs.Bits())
 	}
 
-	if len([]byte(bs)) != 16 {
-		t.Fatalf("Bytes length: got %d, want 16", len([]byte(bs)))
+	if len(bs.Bytes()) != 16 {
+		t.Fatalf("Bytes length: got %d, want 16", len(bs.Bytes()))
 	}
 
 	v6 := ipv6.As16()
-	for i, b := range []byte(bs) {
+	for i, b := range bs.Bytes() {
 		if b != v6[i] {
 			t.Errorf("IPv6 byte[%d]: got %02x, want %02x", i, b, v6[i])
 		}
@@ -156,21 +157,21 @@ func TestBuildPDUSessionResourceSetupRequestTransfer_DualStack(t *testing.T) {
 
 	_, bs := decodeSetupRequestGTPTunnel(t, buf)
 
-	if len(bs)*8 != 160 {
-		t.Fatalf("BitLength: got %d, want 160", len(bs)*8)
+	if bs.Bits() != 160 {
+		t.Fatalf("BitLength: got %d, want 160", bs.Bits())
 	}
 
-	if len([]byte(bs)) != 20 {
-		t.Fatalf("Bytes length: got %d, want 20", len([]byte(bs)))
+	if len(bs.Bytes()) != 20 {
+		t.Fatalf("Bytes length: got %d, want 20", len(bs.Bytes()))
 	}
 
 	wantV4 := ipv4.As4()
-	if [4]byte([]byte(bs)[0:4]) != wantV4 {
-		t.Errorf("IPv4 part: got %v, want %v", []byte(bs)[0:4], wantV4)
+	if [4]byte(bs.Bytes()[0:4]) != wantV4 {
+		t.Errorf("IPv4 part: got %v, want %v", bs.Bytes()[0:4], wantV4)
 	}
 
 	wantV6 := ipv6.As16()
-	for i, b := range []byte(bs)[4:20] {
+	for i, b := range bs.Bytes()[4:20] {
 		if b != wantV6[i] {
 			t.Errorf("IPv6 byte[%d]: got %02x, want %02x", i, b, wantV6[i])
 		}
@@ -222,12 +223,12 @@ func TestBuildPathSwitchRequestAcknowledgeTransfer(t *testing.T) {
 	}
 
 	bs := tunnel.TransportLayerAddress
-	if len(bs)*8 != 32 {
-		t.Fatalf("BitLength: got %d, want 32", len(bs)*8)
+	if bs.Bits() != 32 {
+		t.Fatalf("BitLength: got %d, want 32", bs.Bits())
 	}
 
 	var ip [4]byte
-	copy(ip[:], []byte(bs))
+	copy(ip[:], bs.Bytes())
 
 	if ip != [4]byte{172, 16, 0, 1} {
 		t.Errorf("IP: got %v, want [172 16 0 1]", ip)
@@ -249,8 +250,8 @@ func TestBuildPathSwitchRequestAcknowledgeTransfer_IPv6Only(t *testing.T) {
 
 	bs := transfer.ULNGUUPTNLInformation.GTPTunnel.TransportLayerAddress
 
-	if len(bs)*8 != 128 {
-		t.Fatalf("BitLength: got %d, want 128", len(bs)*8)
+	if bs.Bits() != 128 {
+		t.Fatalf("BitLength: got %d, want 128", bs.Bits())
 	}
 }
 
@@ -417,12 +418,12 @@ func TestBuildHandoverRequestTransferWithDirectForwarding(t *testing.T) {
 }
 
 func TestForwardingPlanFromRelaysTheTargetsEndpoints(t *testing.T) {
-	fwd := libngap.UPTransportLayerInformation{GTPTunnel: libngap.GTPTunnel{
-		TransportLayerAddress: libngap.TransportLayerAddress{10, 4, 0, 9}, GTPTEID: 0xfeed,
+	fwd := libngap.UPTransportLayerInformation{GTPTunnel: &libngap.GTPTunnel{
+		TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 9}), GTPTEID: 0xfeed,
 	}}
 
 	ack := &libngap.HandoverRequestAcknowledgeTransfer{
-		DLNGUUPTNLInformation:        libngap.UPTransportLayerInformation{GTPTunnel: libngap.GTPTunnel{TransportLayerAddress: libngap.TransportLayerAddress{10, 4, 0, 2}, GTPTEID: 1}},
+		DLNGUUPTNLInformation:        libngap.UPTransportLayerInformation{GTPTunnel: &libngap.GTPTunnel{TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 2}), GTPTEID: 1}},
 		DLForwardingUPTNLInformation: &fwd,
 		QosFlowSetupResponse: libngap.QosFlowListWithDataForwarding{
 			{QosFlowIdentifier: 1, DataForwardingAccepted: libngap.Ptr(libngap.DataForwardingAcceptedTrue)},
@@ -472,7 +473,7 @@ func TestForwardingPlanFromRelaysTheTargetsEndpoints(t *testing.T) {
 
 func TestForwardingPlanFromWithoutAcceptedForwarding(t *testing.T) {
 	ack := &libngap.HandoverRequestAcknowledgeTransfer{
-		DLNGUUPTNLInformation: libngap.UPTransportLayerInformation{GTPTunnel: libngap.GTPTunnel{TransportLayerAddress: libngap.TransportLayerAddress{10, 4, 0, 2}, GTPTEID: 1}},
+		DLNGUUPTNLInformation: libngap.UPTransportLayerInformation{GTPTunnel: &libngap.GTPTunnel{TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 2}), GTPTEID: 1}},
 		QosFlowSetupResponse:  libngap.QosFlowListWithDataForwarding{{QosFlowIdentifier: 1}},
 	}
 
@@ -486,15 +487,15 @@ func TestForwardingPlanFromWithoutAcceptedForwarding(t *testing.T) {
 }
 
 func TestForwardingPlanFromDropsUnusableForwardingEndpoints(t *testing.T) {
-	bad := libngap.UPTransportLayerInformation{GTPTunnel: libngap.GTPTunnel{
-		TransportLayerAddress: libngap.TransportLayerAddress{10, 4, 0, 9, 7}, GTPTEID: 0xfeed,
+	bad := libngap.UPTransportLayerInformation{GTPTunnel: &libngap.GTPTunnel{
+		TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 9, 7}), GTPTEID: 0xfeed,
 	}}
-	good := libngap.UPTransportLayerInformation{GTPTunnel: libngap.GTPTunnel{
-		TransportLayerAddress: libngap.TransportLayerAddress{10, 4, 0, 4}, GTPTEID: 0xbeef,
+	good := libngap.UPTransportLayerInformation{GTPTunnel: &libngap.GTPTunnel{
+		TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 4}), GTPTEID: 0xbeef,
 	}}
 
 	ack := &libngap.HandoverRequestAcknowledgeTransfer{
-		DLNGUUPTNLInformation:        libngap.UPTransportLayerInformation{GTPTunnel: libngap.GTPTunnel{TransportLayerAddress: libngap.TransportLayerAddress{10, 4, 0, 2}, GTPTEID: 1}},
+		DLNGUUPTNLInformation:        libngap.UPTransportLayerInformation{GTPTunnel: &libngap.GTPTunnel{TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 2}), GTPTEID: 1}},
 		DLForwardingUPTNLInformation: &bad,
 		QosFlowSetupResponse: libngap.QosFlowListWithDataForwarding{
 			{QosFlowIdentifier: 1, DataForwardingAccepted: libngap.Ptr(libngap.DataForwardingAcceptedTrue)},

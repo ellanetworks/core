@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 func handUEContextReleaseCommand(t *testing.T, enb uint32) []byte {
@@ -17,7 +18,7 @@ func handUEContextReleaseCommand(t *testing.T, enb uint32) []byte {
 
 	ids := per.NewWriter()
 	ids.WriteBit(false)
-	mustNil(t, per.EncodeConstrainedWholeNumber(ids, enc, 0, ues1apIDsChoiceRootCount-1, ues1apIDsPair))
+	mustNil(t, per.EncodeConstrainedWholeNumber(ids, enc, 0, 1, 0))
 	ids.WriteBit(true)
 	ids.WriteBit(true)
 	mustNil(t, MMEUES1APID(7).MarshalPER(ids, enc))
@@ -34,14 +35,14 @@ func handUEContextReleaseCommand(t *testing.T, enb uint32) []byte {
 	}))
 	mustNil(t, per.EncodeOpenTypeBytes(ids, enc, []byte{0x11, 0x22}))
 
-	cause, err := per.Marshal(&Cause{Group: CauseGroupMisc, Value: 0})
+	cause, err := per.Marshal(Ptr(CauseMiscControlProcessingOverload.Cause()))
 	mustNil(t, err)
 
 	body := per.NewWriter()
 	body.WriteBit(false)
 	mustNil(t, encodeIEContainer(body, enc, []ieField{
-		{id: IDUES1APIDs, crit: CriticalityReject, raw: ids.Bytes()},
-		{id: IDCause, crit: CriticalityIgnore, raw: cause},
+		{ID: IDUES1APIDs, Criticality: CriticalityReject, Value: ap.RawValue(ids.Bytes())},
+		{ID: IDCause, Criticality: CriticalityIgnore, Value: ap.RawValue(cause)},
 	}))
 
 	b, err := Marshal(&InitiatingMessage{ProcedureCode: ProcUEContextRelease, Criticality: CriticalityReject, Value: body.Bytes()})
@@ -61,7 +62,7 @@ func TestRawPDUUES1APIDsKeepPairExtensions(t *testing.T) {
 		t.Fatalf("UES1APIDs() = %v, %v", ok, err)
 	}
 
-	if !ids.Pair || ids.MMEUES1APID != 7 || ids.ENBUES1APID != 1 {
+	if ids.UES1APIDPair == nil || ids.UES1APIDPair.MMEUES1APID != 7 || ids.UES1APIDPair.ENBUES1APID != 1 {
 		t.Fatalf("UES1APIDs() = %+v", ids)
 	}
 
@@ -74,7 +75,7 @@ func TestRawPDUUES1APIDsKeepPairExtensions(t *testing.T) {
 		t.Fatalf("unchanged set:\n got %x\nwant %x", got, in)
 	}
 
-	ids.ENBUES1APID = 9
+	ids.UES1APIDPair.ENBUES1APID = 9
 	mustNil(t, p.SetUES1APIDs(ids))
 
 	got, err = p.Marshal()

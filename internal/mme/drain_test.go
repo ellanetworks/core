@@ -158,8 +158,7 @@ func TestOffloadReleasesRegisteredUEsWithLoadBalancingTAURequired(t *testing.T) 
 		t.Fatal(err)
 	}
 
-	if cmd.Cause == nil || cmd.Cause.Group != s1ap.CauseGroupRadioNetwork ||
-		cmd.Cause.Value != s1ap.CauseRadioNetworkLoadBalancingTAURequired {
+	if cmd.Cause == nil || !cmd.Cause.Equal(s1ap.CauseRadioNetworkLoadBalancingTAURequired.Cause()) {
 		t.Fatalf("cause = %+v, want radioNetwork/load-balancing-tau-required", cmd.Cause)
 	}
 }

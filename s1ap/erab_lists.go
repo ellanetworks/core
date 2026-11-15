@@ -9,7 +9,7 @@ type ERABToBeSwitchedULItem struct {
 	ERABID                ERABID
 	TransportLayerAddress TransportLayerAddress
 	GTPTEID               GTPTEID
-	iEExtensions          *rawIEExtensions       `per:",optional"`
+	iEExtensions          extensionMeta          `per:",exttable"`
 	extensions            per.ExtensionAdditions `per:",extraw"`
 	containerCrit         `per:"-"`
 }

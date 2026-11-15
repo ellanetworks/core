@@ -92,7 +92,7 @@ func TestUEContextModificationRoundTrips(t *testing.T) {
 		in := &UEContextModificationFailure{
 			MMEUES1APID: Ptr(MMEUES1APID(42)),
 			ENBUES1APID: Ptr(ENBUES1APID(7)),
-			Cause:       Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 0}),
+			Cause:       Ptr(CauseRadioNetworkUnspecified.Cause()),
 		}
 
 		b, err := in.Marshal()
@@ -115,7 +115,7 @@ func TestUEContextModificationRoundTrips(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if deref(out.MMEUES1APID) != 42 || deref(out.ENBUES1APID) != 7 || deref(out.Cause) != deref(in.Cause) {
+		if deref(out.MMEUES1APID) != 42 || deref(out.ENBUES1APID) != 7 || !deref(out.Cause).Equal(deref(in.Cause)) {
 			t.Fatalf("mismatch:\n  in  %+v\n  out %+v", in, out)
 		}
 	})

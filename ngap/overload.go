@@ -4,8 +4,6 @@
 package ngap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
 )
 
@@ -16,55 +14,11 @@ const (
 	OverloadActionRejectRRCCRSignalling
 	OverloadActionPermitEmergencySessionsAndMTServicesOnly
 	OverloadActionPermitHighPrioritySessionsAndMTServicesOnly
-
-	overloadActionRootCount = 4
-)
-
-func (a OverloadAction) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, overloadActionRootCount, int64(a), "OverloadAction")
-}
-
-func (a *OverloadAction) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := decodeRootEnumerated(r, enc, overloadActionRootCount, "OverloadAction")
-	if err != nil {
-		return err
-	}
-
-	*a = OverloadAction(v)
-
-	return nil
-}
-
-const (
-	overloadResponseOverloadAction = iota
-	overloadResponseChoiceExtensions
-
-	overloadResponseAlternatives = 2
 )
 
 type OverloadResponse struct {
-	OverloadAction OverloadAction
-}
-
-func (o OverloadResponse) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, overloadResponseAlternatives-1, overloadResponseOverloadAction); err != nil {
-		return err
-	}
-
-	return o.OverloadAction.MarshalPER(w, enc)
-}
-
-func (o *OverloadResponse) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, overloadResponseAlternatives-1)
-	if err != nil {
-		return fmt.Errorf("ngap: OverloadResponse choice: %w", err)
-	}
-
-	if idx == overloadResponseChoiceExtensions {
-		return decodeChoiceExtension(r, enc, "OverloadResponse")
-	}
-
-	return o.OverloadAction.UnmarshalPER(r, enc)
+	OverloadAction  *OverloadAction  `per:",choice:0"`
+	ChoiceExtension *SingleContainer `per:",choice:1,extie"`
 }
 
 const (
@@ -90,17 +44,17 @@ func (t *TrafficLoadReductionIndication) UnmarshalPER(r *per.Reader, enc per.Enc
 }
 
 type SliceOverloadItem struct {
-	_      [0]struct{} `per:"extseq"`
-	SNSSAI SNSSAI
-	_      ieExtensions `per:",skip"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+	SNSSAI       SNSSAI
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 type OverloadStartNSSAIItem struct {
-	_                                   [0]struct{}                     `per:"extseq"`
+	extensions                          per.ExtensionAdditions          `per:",extraw"`
 	SliceOverloadList                   []SliceOverloadItem             `per:"SEQUENCE-OF,size:1..1024"`
 	SliceOverloadResponse               *OverloadResponse               `per:",optional"`
 	SliceTrafficLoadReductionIndication *TrafficLoadReductionIndication `per:",optional"`
-	_                                   ieExtensions                    `per:",skip"`
+	iEExtensions                        extensionMeta                   `per:",exttable"`
 }
 
 type OverloadStartNSSAIList []OverloadStartNSSAIItem
@@ -124,7 +78,7 @@ const maxnoofGUAMIs = 1024
 
 type GUAMIListItem struct {
 	GUAMI        GUAMI
-	iEExtensions *rawIEExtensions       `per:",optional"`
+	iEExtensions extensionMeta          `per:",exttable"`
 	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
@@ -156,11 +110,11 @@ type OverloadStart struct {
 
 var overloadStartIEs = []ieSpec[OverloadStart]{
 	{
-		id: IDAMFOverloadResponse, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *OverloadStart, raw []byte, enc per.Encoding) error {
+		ID: IDAMFOverloadResponse, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *OverloadStart, r *per.Reader, enc per.Encoding) error {
 			var v OverloadResponse
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -168,7 +122,7 @@ var overloadStartIEs = []ieSpec[OverloadStart]{
 
 			return nil
 		},
-		encode: func(m *OverloadStart) (per.Marshaler, bool) {
+		Encode: func(m *OverloadStart) (per.Marshaler, bool) {
 			if m.AMFOverloadResponse == nil {
 				return nil, false
 			}
@@ -177,11 +131,11 @@ var overloadStartIEs = []ieSpec[OverloadStart]{
 		},
 	},
 	{
-		id: IDAMFTrafficLoadReductionIndication, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *OverloadStart, raw []byte, enc per.Encoding) error {
+		ID: IDAMFTrafficLoadReductionIndication, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *OverloadStart, r *per.Reader, enc per.Encoding) error {
 			var v TrafficLoadReductionIndication
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -189,7 +143,7 @@ var overloadStartIEs = []ieSpec[OverloadStart]{
 
 			return nil
 		},
-		encode: func(m *OverloadStart) (per.Marshaler, bool) {
+		Encode: func(m *OverloadStart) (per.Marshaler, bool) {
 			if m.AMFTrafficLoadReductionIndication == nil {
 				return nil, false
 			}
@@ -198,11 +152,11 @@ var overloadStartIEs = []ieSpec[OverloadStart]{
 		},
 	},
 	{
-		id: IDOverloadStartNSSAIList, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *OverloadStart, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.OverloadStartNSSAIList)
+		ID: IDOverloadStartNSSAIList, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *OverloadStart, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.OverloadStartNSSAIList)
 		},
-		encode: func(m *OverloadStart) (per.Marshaler, bool) {
+		Encode: func(m *OverloadStart) (per.Marshaler, bool) {
 			if len(m.OverloadStartNSSAIList) == 0 {
 				return nil, false
 			}
@@ -211,11 +165,11 @@ var overloadStartIEs = []ieSpec[OverloadStart]{
 		},
 	},
 	{
-		id: IDGUAMIList, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *OverloadStart, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.GUAMIList)
+		ID: IDGUAMIList, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *OverloadStart, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.GUAMIList)
 		},
-		encode: func(m *OverloadStart) (per.Marshaler, bool) {
+		Encode: func(m *OverloadStart) (per.Marshaler, bool) {
 			if len(m.GUAMIList) == 0 {
 				return nil, false
 			}
@@ -249,6 +203,10 @@ func ParseOverloadStart(value []byte) (*OverloadStart, error) {
 	return parseMessageBody[OverloadStart](ProcOverloadStart, TriggeringInitiatingMessage, overloadStartIEs, value)
 }
 
+func DecodeOverloadStart(value []byte) (*OverloadStart, error) {
+	return decodeMessageBody[OverloadStart](ProcOverloadStart, overloadStartIEs, value)
+}
+
 type OverloadStop struct {
 	GUAMIList GUAMIList
 
@@ -257,11 +215,11 @@ type OverloadStop struct {
 
 var overloadStopIEs = []ieSpec[OverloadStop]{
 	{
-		id: IDGUAMIList, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *OverloadStop, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.GUAMIList)
+		ID: IDGUAMIList, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *OverloadStop, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.GUAMIList)
 		},
-		encode: func(m *OverloadStop) (per.Marshaler, bool) {
+		Encode: func(m *OverloadStop) (per.Marshaler, bool) {
 			if len(m.GUAMIList) == 0 {
 				return nil, false
 			}
@@ -293,4 +251,8 @@ func (m *OverloadStop) Marshal() ([]byte, error) {
 
 func ParseOverloadStop(value []byte) (*OverloadStop, error) {
 	return parseMessageBody[OverloadStop](ProcOverloadStop, TriggeringInitiatingMessage, overloadStopIEs, value)
+}
+
+func DecodeOverloadStop(value []byte) (*OverloadStop, error) {
+	return decodeMessageBody[OverloadStop](ProcOverloadStop, overloadStopIEs, value)
 }

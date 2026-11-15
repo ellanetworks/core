@@ -94,14 +94,14 @@ func emergencyAreaIDs(list []ngap.EmergencyAreaID) []string {
 }
 
 func warningAreaList(l ngap.WarningAreaList) WarningAreaList {
-	out := WarningAreaList{CellIDList: cellIDList(l.EUTRACGIs, l.NRCGIs)}
+	out := WarningAreaList{CellIDList: cellIDList(deref(l.EUTRACGIListForWarning), deref(l.NRCGIListForWarning))}
 
-	if len(l.TAIs) > 0 {
-		out.TAIs = taiList(l.TAIs)
+	if l.TAIListForWarning != nil {
+		out.TAIs = taiList(*l.TAIListForWarning)
 	}
 
-	if len(l.EmergencyAreaIDs) > 0 {
-		out.EmergencyAreaIDs = emergencyAreaIDs(l.EmergencyAreaIDs)
+	if l.EmergencyAreaIDList != nil {
+		out.EmergencyAreaIDs = emergencyAreaIDs(*l.EmergencyAreaIDList)
 	}
 
 	return out
@@ -134,11 +134,11 @@ func nrCell(c ngap.NRCGI, n *uint16) BroadcastCell {
 func broadcastCompletedAreaList(l ngap.BroadcastCompletedAreaList) BroadcastAreaList {
 	var out BroadcastAreaList
 
-	for _, it := range l.CellIDBroadcastEUTRA {
+	for _, it := range deref(l.CellIDBroadcastEUTRA) {
 		out.CellIDEUTRA = append(out.CellIDEUTRA, eutraCell(it.EUTRACGI, nil))
 	}
 
-	for _, it := range l.TAIBroadcastEUTRA {
+	for _, it := range deref(l.TAIBroadcastEUTRA) {
 		b := BroadcastTAI{TAI: tai(it.TAI)}
 		for _, c := range it.CompletedCellsInTAI {
 			b.Cells = append(b.Cells, eutraCell(c.EUTRACGI, nil))
@@ -147,7 +147,7 @@ func broadcastCompletedAreaList(l ngap.BroadcastCompletedAreaList) BroadcastArea
 		out.TAIEUTRA = append(out.TAIEUTRA, b)
 	}
 
-	for _, it := range l.EmergencyAreaIDBroadcastEUTRA {
+	for _, it := range deref(l.EmergencyAreaIDBroadcastEUTRA) {
 		b := BroadcastEmergencyArea{EmergencyAreaID: hex.EncodeToString(it.EmergencyAreaID[:])}
 		for _, c := range it.CompletedCellsInEAI {
 			b.Cells = append(b.Cells, eutraCell(c.EUTRACGI, nil))
@@ -156,11 +156,11 @@ func broadcastCompletedAreaList(l ngap.BroadcastCompletedAreaList) BroadcastArea
 		out.EmergencyAreaIDEUTRA = append(out.EmergencyAreaIDEUTRA, b)
 	}
 
-	for _, it := range l.CellIDBroadcastNR {
+	for _, it := range deref(l.CellIDBroadcastNR) {
 		out.CellIDNR = append(out.CellIDNR, nrCell(it.NRCGI, nil))
 	}
 
-	for _, it := range l.TAIBroadcastNR {
+	for _, it := range deref(l.TAIBroadcastNR) {
 		b := BroadcastTAI{TAI: tai(it.TAI)}
 		for _, c := range it.CompletedCellsInTAI {
 			b.Cells = append(b.Cells, nrCell(c.NRCGI, nil))
@@ -169,7 +169,7 @@ func broadcastCompletedAreaList(l ngap.BroadcastCompletedAreaList) BroadcastArea
 		out.TAINR = append(out.TAINR, b)
 	}
 
-	for _, it := range l.EmergencyAreaIDBroadcastNR {
+	for _, it := range deref(l.EmergencyAreaIDBroadcastNR) {
 		b := BroadcastEmergencyArea{EmergencyAreaID: hex.EncodeToString(it.EmergencyAreaID[:])}
 		for _, c := range it.CompletedCellsInEAI {
 			b.Cells = append(b.Cells, nrCell(c.NRCGI, nil))
@@ -184,11 +184,11 @@ func broadcastCompletedAreaList(l ngap.BroadcastCompletedAreaList) BroadcastArea
 func broadcastCancelledAreaList(l ngap.BroadcastCancelledAreaList) BroadcastAreaList {
 	var out BroadcastAreaList
 
-	for _, it := range l.CellIDCancelledEUTRA {
+	for _, it := range deref(l.CellIDCancelledEUTRA) {
 		out.CellIDEUTRA = append(out.CellIDEUTRA, eutraCell(it.EUTRACGI, &it.NumberOfBroadcasts))
 	}
 
-	for _, it := range l.TAICancelledEUTRA {
+	for _, it := range deref(l.TAICancelledEUTRA) {
 		b := BroadcastTAI{TAI: tai(it.TAI)}
 		for _, c := range it.CancelledCellsInTAI {
 			b.Cells = append(b.Cells, eutraCell(c.EUTRACGI, &c.NumberOfBroadcasts))
@@ -197,7 +197,7 @@ func broadcastCancelledAreaList(l ngap.BroadcastCancelledAreaList) BroadcastArea
 		out.TAIEUTRA = append(out.TAIEUTRA, b)
 	}
 
-	for _, it := range l.EmergencyAreaIDCancelledEUTRA {
+	for _, it := range deref(l.EmergencyAreaIDCancelledEUTRA) {
 		b := BroadcastEmergencyArea{EmergencyAreaID: hex.EncodeToString(it.EmergencyAreaID[:])}
 		for _, c := range it.CancelledCellsInEAI {
 			b.Cells = append(b.Cells, eutraCell(c.EUTRACGI, &c.NumberOfBroadcasts))
@@ -206,11 +206,11 @@ func broadcastCancelledAreaList(l ngap.BroadcastCancelledAreaList) BroadcastArea
 		out.EmergencyAreaIDEUTRA = append(out.EmergencyAreaIDEUTRA, b)
 	}
 
-	for _, it := range l.CellIDCancelledNR {
+	for _, it := range deref(l.CellIDCancelledNR) {
 		out.CellIDNR = append(out.CellIDNR, nrCell(it.NRCGI, &it.NumberOfBroadcasts))
 	}
 
-	for _, it := range l.TAICancelledNR {
+	for _, it := range deref(l.TAICancelledNR) {
 		b := BroadcastTAI{TAI: tai(it.TAI)}
 		for _, c := range it.CancelledCellsInTAI {
 			b.Cells = append(b.Cells, nrCell(c.NRCGI, &c.NumberOfBroadcasts))
@@ -219,7 +219,7 @@ func broadcastCancelledAreaList(l ngap.BroadcastCancelledAreaList) BroadcastArea
 		out.TAINR = append(out.TAINR, b)
 	}
 
-	for _, it := range l.EmergencyAreaIDCancelledNR {
+	for _, it := range deref(l.EmergencyAreaIDCancelledNR) {
 		b := BroadcastEmergencyArea{EmergencyAreaID: hex.EncodeToString(it.EmergencyAreaID[:])}
 		for _, c := range it.CancelledCellsInEAI {
 			b.Cells = append(b.Cells, nrCell(c.NRCGI, &c.NumberOfBroadcasts))
@@ -348,7 +348,7 @@ func buildPWSRestartIndication(value []byte) NGAPMessageValue {
 	}
 
 	ies := []IE{
-		ie(ngap.IDCellIDListForRestart, ngap.CriticalityReject, cellIDList(m.CellIDListForRestart.EUTRACGIs, m.CellIDListForRestart.NRCGIs)),
+		ie(ngap.IDCellIDListForRestart, ngap.CriticalityReject, cellIDList(deref(m.CellIDListForRestart.EUTRACGIListforRestart), deref(m.CellIDListForRestart.NRCGIListforRestart))),
 		ie(ngap.IDGlobalRANNodeID, ngap.CriticalityReject, buildGlobalRANNodeID(m.GlobalRANNodeID)),
 		ie(ngap.IDTAIListForRestart, ngap.CriticalityReject, taiList(m.TAIListForRestart)),
 	}
@@ -367,9 +367,19 @@ func buildPWSFailureIndication(value []byte) NGAPMessageValue {
 	}
 
 	ies := []IE{
-		ie(ngap.IDPWSFailedCellIDList, ngap.CriticalityReject, cellIDList(m.PWSFailedCellIDList.EUTRACGIs, m.PWSFailedCellIDList.NRCGIs)),
+		ie(ngap.IDPWSFailedCellIDList, ngap.CriticalityReject, cellIDList(deref(m.PWSFailedCellIDList.EUTRACGIPWSFailedList), deref(m.PWSFailedCellIDList.NRCGIPWSFailedList))),
 		ie(ngap.IDGlobalRANNodeID, ngap.CriticalityReject, buildGlobalRANNodeID(m.GlobalRANNodeID)),
 	}
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
+}
+
+func deref[T any](p *T) T {
+	if p == nil {
+		var zero T
+
+		return zero
+	}
+
+	return *p
 }

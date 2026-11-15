@@ -200,7 +200,9 @@ func xnPathSwitch(targetGNB *gnb.GnodeB, opts *xnPathSwitchOpts) (*ngaplib.PathS
 
 func xnUESecurityCapabilities() ngaplib.UESecurityCapabilities {
 	return ngaplib.UESecurityCapabilities{
-		NREncryptionAlgorithms:          0x4000,
-		NRIntegrityProtectionAlgorithms: 0x4000,
+		NREncryptionAlgorithms:             ngaplib.SecurityAlgorithmsFrom(0x4000),
+		NRIntegrityProtectionAlgorithms:    ngaplib.SecurityAlgorithmsFrom(0x4000),
+		EUTRAEncryptionAlgorithms:          ngaplib.SecurityAlgorithmsFrom(0),
+		EUTRAIntegrityProtectionAlgorithms: ngaplib.SecurityAlgorithmsFrom(0),
 	}
 }

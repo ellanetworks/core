@@ -27,8 +27,8 @@ func TestPDUSessionResourceModifyIndication_UnknownRanUeNgapID(t *testing.T) {
 
 	ei := sender.SentErrorIndications[0]
 
-	wantRadioNetworkCause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownLocalUENGAPID}
-	if ei.Cause == nil || *ei.Cause != wantRadioNetworkCause {
+	wantRadioNetworkCause := ngap.CauseRadioNetworkUnknownLocalUENGAPID.Cause()
+	if ei.Cause == nil || !ei.Cause.Equal(wantRadioNetworkCause) {
 		t.Errorf("cause = %v, want unknown-local-UE-NGAP-ID", ei.Cause)
 	}
 }

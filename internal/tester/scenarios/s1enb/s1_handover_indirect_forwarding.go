@@ -98,7 +98,7 @@ func runS1HandoverIndirectForwarding(_ context.Context, env scenarios.Env, _ any
 		return fmt.Errorf("handover request carried %d E-RABs, want 1", len(hoReq.ERABToBeSetup))
 	}
 
-	if ext := hoReq.ERABToBeSetup[0].Extensions; ext != nil && ext.DataForwardingNotPossible != nil {
+	if hoReq.ERABToBeSetup[0].DataForwardingNotPossible != nil {
 		return fmt.Errorf("the target was told data forwarding is not possible, so it allocates no forwarding endpoint")
 	}
 
@@ -171,8 +171,8 @@ func s1ForwardingEndpoint(cmd *s1ap.HandoverCommand, erabID s1ap.ERABID, upfAddr
 		return 0, netip.Addr{}, fmt.Errorf("forwarding item names E-RAB %d, want %d", item.ERABID, erabID)
 	}
 
-	if item.DLGTPTEID == nil {
-		return 0, netip.Addr{}, fmt.Errorf("forwarding item carried no DL GTP-TEID, so the source forwards nothing")
+	if item.DLGTPTEID == nil || item.DLTransportLayerAddr == nil {
+		return 0, netip.Addr{}, fmt.Errorf("forwarding item carried no DL GTP tunnel, so the source forwards nothing")
 	}
 
 	teid := uint32(*item.DLGTPTEID)
@@ -180,7 +180,7 @@ func s1ForwardingEndpoint(cmd *s1ap.HandoverCommand, erabID s1ap.ERABID, upfAddr
 		return 0, netip.Addr{}, fmt.Errorf("the source was given the target's forwarding TEID %#x, not a tunnel on the UPF", teid)
 	}
 
-	v4, v6 := item.DLTransportLayerAddr.IPs()
+	v4, v6 := item.DLTransportLayerAddr.IPv4(), item.DLTransportLayerAddr.IPv6()
 
 	upf, err := netip.ParseAddr(upfAddress)
 	if err != nil {

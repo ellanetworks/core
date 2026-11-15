@@ -6,10 +6,11 @@ package s1ap
 import (
 	"bytes"
 	"encoding/hex"
-	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 const idUnknownExtension ProtocolIEID = 999
@@ -17,27 +18,13 @@ const idUnknownExtension ProtocolIEID = 999
 func tnlExtensionContainer(fields ...ieField) []byte {
 	w := per.NewWriter()
 
-	if err := encodeExtensionContainer(w, per.Aligned, fields); err != nil {
+	if err := encodeExtensionContainer(w, fields); err != nil {
 		panic(err)
 	}
 
 	w.AlignToByte()
 
 	return w.Bytes()
-}
-
-func tnlRawExtensions(fields ...rawIE) *rawIEExtensions {
-	var ext []ieField
-	for _, f := range fields {
-		ext = append(ext, f.field())
-	}
-
-	var e rawIEExtensions
-	if err := e.UnmarshalPER(per.NewReader(tnlExtensionContainer(ext...)), per.Aligned); err != nil {
-		panic(err)
-	}
-
-	return &e
 }
 
 func tnlExtensionAdditions(contents ...[]byte) per.ExtensionAdditions {
@@ -69,13 +56,11 @@ func tnlExtensionAdditions(contents ...[]byte) per.ExtensionAdditions {
 	return e
 }
 
-func tnlUnknownExtension() *rawIEExtensions {
-	return tnlRawExtensions(rawIE{id: idUnknownExtension, crit: CriticalityIgnore, value: []byte{0x5a}})
-}
+func tnlUnknownExtension() extensionMeta { return tnlUnknownMeta() }
 
-func tnlUnknownMeta() messageMeta {
-	var m messageMeta
-	m.preserve(rawIE{id: idUnknownExtension, crit: CriticalityIgnore, value: []byte{0x5a}})
+func tnlUnknownMeta() extensionMeta {
+	var m extensionMeta
+	m.Append(rawIE{ID: idUnknownExtension, Criticality: CriticalityIgnore, Value: []byte{0x5a}})
 
 	return m
 }
@@ -102,13 +87,11 @@ func tnlQoS() ERABLevelQoSParameters {
 }
 
 func ignoreCrit() containerCrit {
-	c := CriticalityIgnore
-	return containerCrit{crit: &c}
+	return containerCrit{crit: ap.WireCriticality(CriticalityIgnore) + 1}
 }
 
 func rejectCrit() containerCrit {
-	c := CriticalityReject
-	return containerCrit{crit: &c}
+	return containerCrit{crit: ap.WireCriticality(CriticalityReject) + 1}
 }
 
 type tnlValue interface {
@@ -155,7 +138,7 @@ func losslessRoundTrip[T any, PT interface {
 		t.Fatal(err)
 	}
 
-	if !reflect.DeepEqual(again, out) {
+	if !equalByMethod(again, out) {
 		t.Errorf("re-decoded\n got %+v\nwant %+v", again, out)
 	}
 }
@@ -185,12 +168,10 @@ func TestTNLItemsKnownExtensionsTyped(t *testing.T) {
 
 	ho := &ERABToBeSetupItemHOReq{
 		ERABID: 7, TransportLayerAddress: goldTLA(), GTPTEID: 3, QoS: goldQoS(),
-		Extensions: &ERABToBeSetupItemHOReqExtIEs{
-			DataForwardingNotPossible: Ptr(DataForwardingNotPossibleTrue),
-			BearerType:                Ptr(BearerTypeNonIP),
-			EthernetType:              Ptr(EthernetTypeTrue),
-			SecurityIndication:        sec,
-		},
+		DataForwardingNotPossible: Ptr(DataForwardingNotPossibleTrue),
+		BearerType:                Ptr(BearerTypeNonIP),
+		EthernetType:              Ptr(EthernetTypeTrue),
+		SecurityIndication:        sec,
 	}
 
 	switched := &ERABToBeSwitchedDLItem{ERABID: 8, TransportLayerAddress: goldTLA(), GTPTEID: 4, SecurityIndication: sec}
@@ -217,7 +198,7 @@ func TestTNLItemsKnownExtensionsTyped(t *testing.T) {
 				t.Fatalf("a known extension was not comprehended: %v", err)
 			}
 
-			if !reflect.DeepEqual(c.out, c.in) {
+			if !equalByMethod(c.out, c.in) {
 				t.Fatalf("decoded\n got %+v\nwant %+v", c.out, c.in)
 			}
 		})
@@ -225,7 +206,7 @@ func TestTNLItemsKnownExtensionsTyped(t *testing.T) {
 }
 
 func TestTNLItemsLossless(t *testing.T) {
-	ext := func() *rawIEExtensions { return tnlUnknownExtension() }
+	ext := func() extensionMeta { return tnlUnknownExtension() }
 	add := func() per.ExtensionAdditions { return tnlExtensionAdditions([]byte{0xaa}, []byte{0xbb, 0xcc}) }
 
 	t.Run("E-RABToBeSetupItemCtxtSUReq", func(t *testing.T) {
@@ -241,11 +222,11 @@ func TestTNLItemsLossless(t *testing.T) {
 		in := &ERABToBeModifiedItemBearerModReq{ERABID: 7, QoS: tnlQoS(), NASPDU: NASPDU{0x27}, extensions: add()}
 
 		container := tnlExtensionContainer(
-			ieField{id: IDTransportInformation, crit: CriticalityReject, val: &TransportInformation{TransportLayerAddress: goldTLA(), ULGTPTEID: 4, extensions: add()}},
-			ieField{id: idUnknownExtension, crit: CriticalityIgnore, raw: []byte{0x5a}},
+			ieField{ID: IDTransportInformation, Criticality: CriticalityReject, Value: &TransportInformation{TransportLayerAddress: goldTLA(), ULGTPTEID: 4, extensions: add()}},
+			ieField{ID: idUnknownExtension, Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x5a})},
 		)
 
-		if err := decodeExtensionContainer(per.NewReader(container), per.Aligned, eRABToBeModifyItemBearerModReqExtIEs, in, &in.iEExtensions); err != nil {
+		if err := decodeExtensionContainer(per.NewReader(container), extIEsERABToBeModifiedItemBearerModReq, in, &in.iEExtensions); err != nil {
 			t.Fatal(err)
 		}
 
@@ -262,34 +243,31 @@ func TestTNLItemsLossless(t *testing.T) {
 		in := &ERABToBeSetupItemHOReq{ERABID: 9, TransportLayerAddress: goldTLA(), GTPTEID: 6, QoS: tnlQoS(), extensions: add()}
 
 		container := tnlExtensionContainer(
-			ieField{id: idUnknownExtension, crit: CriticalityIgnore, raw: []byte{0x5a}},
-			ieField{id: IDDataForwardingNotPossible, crit: CriticalityIgnore, val: DataForwardingNotPossibleTrue},
+			ieField{ID: idUnknownExtension, Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x5a})},
+			ieField{ID: IDDataForwardingNotPossible, Criticality: CriticalityIgnore, Value: DataForwardingNotPossibleTrue},
 		)
 
-		var e ERABToBeSetupItemHOReqExtIEs
-		if err := e.UnmarshalPER(per.NewReader(container), per.Aligned); err != nil {
+		if err := decodeExtensionContainer(per.NewReader(container), extIEsERABToBeSetupItemHOReq, in, &in.iEExtensions); err != nil {
 			t.Fatal(err)
 		}
 
-		if e.DataForwardingNotPossible == nil {
+		if in.DataForwardingNotPossible == nil {
 			t.Fatal("Data-Forwarding-Not-Possible lost")
 		}
-
-		in.Extensions = &e
 
 		losslessRoundTrip(t, in, "")
 	})
 	t.Run("E-RABAdmittedItem", func(t *testing.T) {
 		losslessRoundTrip(t, &ERABAdmittedItem{
 			ERABID: 10, TransportLayerAddress: goldTLA(), GTPTEID: 7,
-			DLTransportLayerAddr: goldTLA(), DLGTPTEID: Ptr(GTPTEID(8)),
-			ULTransportLayerAddr: goldTLA(), ULGTPTEID: Ptr(GTPTEID(9)),
+			DLTransportLayerAddr: Ptr(goldTLA()), DLGTPTEID: Ptr(GTPTEID(8)),
+			ULTransportLayerAddr: Ptr(goldTLA()), ULGTPTEID: Ptr(GTPTEID(9)),
 			iEExtensions: ext(), extensions: add(),
 		}, "")
 	})
 	t.Run("E-RABDataForwardingItem", func(t *testing.T) {
 		losslessRoundTrip(t, &ERABDataForwardingItem{
-			ERABID: 11, DLTransportLayerAddr: goldTLA(), DLGTPTEID: Ptr(GTPTEID(10)),
+			ERABID: 11, DLTransportLayerAddr: Ptr(goldTLA()), DLGTPTEID: Ptr(GTPTEID(10)),
 			iEExtensions: ext(), extensions: add(),
 		}, "")
 	})
@@ -306,17 +284,25 @@ func TestTNLItemsLossless(t *testing.T) {
 
 func TestTNLItemUnknownRejectExtensionNotComprehended(t *testing.T) {
 	w := per.NewWriter()
-	if err := encodeExtensionContainer(w, per.Aligned, []ieField{{id: idUnknownExtension, crit: CriticalityReject, raw: []byte{0x00}}}); err != nil {
+	if err := encodeExtensionContainer(w, []ieField{{ID: idUnknownExtension, Criticality: CriticalityReject, Value: ap.RawValue([]byte{0x00})}}); err != nil {
 		t.Fatal(err)
 	}
 
 	w.AlignToByte()
 
-	var meta messageMeta
+	item := new(ERABToBeModifiedItemBearerModReq)
 
-	err := decodeExtensionContainer(per.NewReader(w.Bytes()), per.Aligned, eRABToBeModifyItemBearerModReqExtIEs, new(ERABToBeModifiedItemBearerModReq), &meta)
-	if err == nil {
-		t.Fatal("unknown reject extension accepted")
+	if err := decodeExtensionContainer(per.NewReader(w.Bytes()), extIEsERABToBeModifiedItemBearerModReq, item, &item.iEExtensions); err != nil {
+		t.Fatalf("decode is lenient, got %v", err)
+	}
+
+	d := ap.Diagnose[ProtocolIEID](item)
+	if len(d.IEs) != 1 || d.IEs[0].ID != idUnknownExtension || d.IEs[0].Criticality != CriticalityReject {
+		t.Fatalf("diagnostics = %+v, want the unknown reject extension", d.IEs)
+	}
+
+	if d.Check() == nil {
+		t.Fatal("Check() accepted an unknown reject extension")
 	}
 }
 
@@ -361,7 +347,7 @@ func TestTNLListsLossless(t *testing.T) {
 		losslessRoundTrip(t, &l, "")
 	})
 	t.Run("E-RABSubjecttoDataForwardingList", func(t *testing.T) {
-		l := ERABSubjecttoDataForwardingList{{ERABID: 1, ULTransportLayerAddr: goldTLA(), ULGTPTEID: Ptr(GTPTEID(1)), containerCrit: rejectCrit()}}
+		l := ERABSubjecttoDataForwardingList{{ERABID: 1, ULTransportLayerAddr: Ptr(goldTLA()), ULGTPTEID: Ptr(GTPTEID(1)), containerCrit: rejectCrit()}}
 		losslessRoundTrip(t, &l, "")
 	})
 	t.Run("E-RABToBeSwitchedDLList", func(t *testing.T) {
@@ -433,7 +419,7 @@ func tnlGoldenCases() []newMessageCase {
 			msg: &PathSwitchRequestAcknowledge{
 				MMEUES1APID:        Ptr(MMEUES1APID(1)),
 				ENBUES1APID:        Ptr(ENBUES1APID(2)),
-				ERABToBeSwitchedUL: ERABToBeSwitchedULList{{ERABID: 5, TransportLayerAddress: TransportLayerAddress{10, 0, 0, 9}, GTPTEID: 0x01020304}},
+				ERABToBeSwitchedUL: ERABToBeSwitchedULList{{ERABID: 5, TransportLayerAddress: tlaOf(10, 0, 0, 9), GTPTEID: 0x01020304}},
 				SecurityContext:    SecurityContext{NextHopChainingCount: 3},
 			},
 			parse:  func(b []byte) (any, error) { return ParsePathSwitchRequestAcknowledge(b) },
@@ -449,7 +435,7 @@ func tnlGoldenCases() []newMessageCase {
 					ERABID:               5,
 					QoS:                  goldQoS(),
 					NASPDU:               NASPDU{0x07, 0x46},
-					TransportInformation: &TransportInformation{TransportLayerAddress: TransportLayerAddress{10, 0, 0, 9}, ULGTPTEID: 0x01020304},
+					TransportInformation: &TransportInformation{TransportLayerAddress: tlaOf(10, 0, 0, 9), ULGTPTEID: 0x01020304},
 				}},
 			},
 			parse:  func(b []byte) (any, error) { return ParseERABModifyRequest(b) },
@@ -506,13 +492,13 @@ func tnlGoldenCases() []newMessageCase {
 			msg: &PathSwitchRequest{
 				ENBUES1APID: 2,
 				ERABToBeSwitchedDL: ERABToBeSwitchedDLList{{
-					ERABID: 5, TransportLayerAddress: TransportLayerAddress{10, 1, 2, 3}, GTPTEID: 0x01020304,
+					ERABID: 5, TransportLayerAddress: tlaOf(10, 1, 2, 3), GTPTEID: 0x01020304,
 					SecurityIndication: &SecurityIndication{IntegrityProtectionIndication: IntegrityProtectionRequired},
 				}},
 				SourceMMEUES1APID:      0x020000bf,
 				EUTRANCGI:              Ptr(EUTRANCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0x123c601}),
 				TAI:                    Ptr(TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}),
-				UESecurityCapabilities: Ptr(UESecurityCapabilities{EncryptionAlgorithms: 0xc000, IntegrityProtectionAlgorithms: 0xc000}),
+				UESecurityCapabilities: Ptr(UESecurityCapabilities{EncryptionAlgorithms: SecurityAlgorithms{Value: 0xc000}, IntegrityProtectionAlgorithms: SecurityAlgorithms{Value: 0xc000}}),
 			},
 			parse:  func(b []byte) (any, error) { return ParsePathSwitchRequest(b) },
 			choice: isInitiating,
@@ -573,9 +559,9 @@ func FuzzERABListRoundTrip(f *testing.F) {
 		ERABToBeModifiedListBearerModReq{{ERABID: 1, QoS: goldQoS(), NASPDU: NASPDU{0x07}, TransportInformation: &TransportInformation{TransportLayerAddress: goldTLA(), ULGTPTEID: 1}}},
 		ERABToBeModifiedListBearerModInd{{ERABID: 1, TransportLayerAddress: goldTLA(), extensions: add}},
 		ERABNotToBeModifiedListBearerModInd{{ERABID: 1, TransportLayerAddress: goldTLA()}},
-		ERABToBeSetupListHOReq{{ERABID: 1, TransportLayerAddress: goldTLA(), QoS: goldQoS(), Extensions: &ERABToBeSetupItemHOReqExtIEs{DataForwardingNotPossible: Ptr(DataForwardingNotPossibleTrue)}}},
-		ERABAdmittedList{{ERABID: 1, TransportLayerAddress: goldTLA(), DLTransportLayerAddr: goldTLA(), DLGTPTEID: Ptr(GTPTEID(2))}},
-		ERABSubjecttoDataForwardingList{{ERABID: 1, ULTransportLayerAddr: goldTLA(), ULGTPTEID: Ptr(GTPTEID(2)), iEExtensions: tnlUnknownExtension()}},
+		ERABToBeSetupListHOReq{{ERABID: 1, TransportLayerAddress: goldTLA(), QoS: goldQoS(), DataForwardingNotPossible: Ptr(DataForwardingNotPossibleTrue)}},
+		ERABAdmittedList{{ERABID: 1, TransportLayerAddress: goldTLA(), DLTransportLayerAddr: Ptr(goldTLA()), DLGTPTEID: Ptr(GTPTEID(2))}},
+		ERABSubjecttoDataForwardingList{{ERABID: 1, ULTransportLayerAddr: Ptr(goldTLA()), ULGTPTEID: Ptr(GTPTEID(2)), iEExtensions: tnlUnknownExtension()}},
 		ERABToBeSwitchedDLList{{ERABID: 1, TransportLayerAddress: goldTLA()}},
 		ERABToBeSwitchedULList{{ERABID: 1, TransportLayerAddress: goldTLA(), containerCrit: rejectCrit()}},
 	}
@@ -613,7 +599,7 @@ func FuzzERABListRoundTrip(f *testing.F) {
 			t.Fatalf("decode re-encoded value: %v", err)
 		}
 
-		if !reflect.DeepEqual(again, v) {
+		if !equalByMethod(again, v) {
 			t.Fatalf("re-decoded\n got %+v\nwant %+v", again, v)
 		}
 
@@ -652,25 +638,25 @@ func TestTNLKnownExtensionCriticality(t *testing.T) {
 		got  []row
 		want []row
 	}{
-		{"E-RABToBeSetupItemCtxtSUReqExtIEs", rows(tableIDs(eRABToBeSetupItemCtxtSUReqExtIEs), tableCrits(eRABToBeSetupItemCtxtSUReqExtIEs)), []row{
+		{"E-RABToBeSetupItemCtxtSUReqExtIEs", rows(tableIDs(extIEsERABToBeSetupItemCtxtSUReq), tableCrits(extIEsERABToBeSetupItemCtxtSUReq)), []row{
 			{IDCorrelationID, ig}, {IDSIPTOCorrelationID, ig}, {IDBearerType, rj}, {IDEthernetType, ig}, {IDSecurityIndication, rj},
 		}},
-		{"E-RABToBeSetupItemBearerSUReqExtIEs", rows(tableIDs(eRABToBeSetupItemBearerSUReqExtIEs), tableCrits(eRABToBeSetupItemBearerSUReqExtIEs)), []row{
+		{"E-RABToBeSetupItemBearerSUReqExtIEs", rows(tableIDs(extIEsERABToBeSetupItemBearerSUReq), tableCrits(extIEsERABToBeSetupItemBearerSUReq)), []row{
 			{IDCorrelationID, ig}, {IDSIPTOCorrelationID, ig}, {IDBearerType, rj}, {IDEthernetType, ig}, {IDSecurityIndication, rj},
 		}},
-		{"E-RABToBeSetupItemHOReq-ExtIEs", rows(tableIDs(eRABToBeSetupItemHOReqExtIEs), tableCrits(eRABToBeSetupItemHOReqExtIEs)), []row{
+		{"E-RABToBeSetupItemHOReq-ExtIEs", rows(tableIDs(extIEsERABToBeSetupItemHOReq), tableCrits(extIEsERABToBeSetupItemHOReq)), []row{
 			{IDDataForwardingNotPossible, ig}, {IDBearerType, rj}, {IDEthernetType, ig}, {IDSecurityIndication, rj},
 		}},
-		{"E-RABToBeSwitchedDLItem-ExtIEs", rows(tableIDs(eRABToBeSwitchedDLItemExtIEs), tableCrits(eRABToBeSwitchedDLItemExtIEs)), []row{{IDSecurityIndication, ig}}},
-		{"E-RABQoSParameters-ExtIEs", rows(tableIDs(eRABLevelQoSParametersExtIEs), tableCrits(eRABLevelQoSParametersExtIEs)), []row{
+		{"E-RABToBeSwitchedDLItem-ExtIEs", rows(tableIDs(extIEsERABToBeSwitchedDLItem), tableCrits(extIEsERABToBeSwitchedDLItem)), []row{{IDSecurityIndication, ig}}},
+		{"E-RABQoSParameters-ExtIEs", rows(tableIDs(extIEsERABLevelQoSParameters), tableCrits(extIEsERABLevelQoSParameters)), []row{
 			{IDDownlinkPacketLossRate, ig}, {IDUplinkPacketLossRate, ig},
 		}},
-		{"GBR-QosInformation-ExtIEs", rows(tableIDs(gBRQosInformationExtIEs), tableCrits(gBRQosInformationExtIEs)), []row{
+		{"GBR-QosInformation-ExtIEs", rows(tableIDs(extIEsGBRQosInformation), tableCrits(extIEsGBRQosInformation)), []row{
 			{IDExtendedERABMaximumBitrateDL, ig}, {IDExtendedERABMaximumBitrateUL, ig}, {IDExtendedERABGuaranteedBitrateDL, ig}, {IDExtendedERABGuaranteedBitrateUL, ig},
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if !reflect.DeepEqual(tc.got, tc.want) {
+			if !slices.Equal(tc.got, tc.want) {
 				t.Fatalf("rows %v, want %v", tc.got, tc.want)
 			}
 		})
@@ -680,50 +666,34 @@ func TestTNLKnownExtensionCriticality(t *testing.T) {
 func tableCrits[M any](table []ieSpec[M]) []Criticality {
 	out := make([]Criticality, len(table))
 	for i := range table {
-		out[i] = table[i].crit
+		out[i] = table[i].Criticality
 	}
 
 	return out
 }
 
 func TestTNLItemKeepsManyUnknownExtensions(t *testing.T) {
-	fields := make([]ieField, 0, 3*maxPreservedIEs)
-	for i := range 3 * maxPreservedIEs {
-		fields = append(fields, ieField{id: idUnknownExtension + ProtocolIEID(i), crit: CriticalityIgnore, raw: []byte{byte(i) | 1}})
+	fields := make([]ieField, 0, 3*paddingIEs)
+	for i := range 3 * paddingIEs {
+		fields = append(fields, ieField{ID: idUnknownExtension + ProtocolIEID(i), Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{byte(i) | 1})})
 	}
 
 	in := &ERABToBeSetupItemCtxtSUReq{ERABID: 5, QoS: goldQoS(), TransportLayerAddress: goldTLA(), GTPTEID: 1, BearerType: Ptr(BearerTypeNonIP)}
 
 	w := per.NewWriter()
-	if err := encodeExtensionContainer(w, per.Aligned, fields); err != nil {
+	if err := encodeExtensionContainer(w, fields); err != nil {
 		t.Fatal(err)
 	}
 
 	w.AlignToByte()
 
-	if err := decodeExtensionContainer(per.NewReader(w.Bytes()), per.Aligned, eRABToBeSetupItemCtxtSUReqExtIEs, in, &in.iEExtensions); err != nil {
+	if err := decodeExtensionContainer(per.NewReader(w.Bytes()), extIEsERABToBeSetupItemCtxtSUReq, in, &in.iEExtensions); err != nil {
 		t.Fatal(err)
 	}
 
-	if got := len(in.iEExtensions.UnknownIEs()); got != 3*maxPreservedIEs {
-		t.Fatalf("kept %d unknown extensions, want %d", got, 3*maxPreservedIEs)
+	if got := len(in.iEExtensions.UnknownIEs()); got != 3*paddingIEs {
+		t.Fatalf("kept %d unknown extensions, want %d", got, 3*paddingIEs)
 	}
 
 	losslessRoundTrip(t, in, "")
-}
-
-func TestMessageTruncatedOnDecodeRefusesToEncode(t *testing.T) {
-	fields := uplinkNASFields()
-	for i := range maxPreservedIEs + 1 {
-		fields = append(fields, ieField{id: ProtocolIEID(40000 + i), crit: CriticalityIgnore, raw: []byte{0x00}})
-	}
-
-	msg, err := ParseUplinkNASTransport(container(t, fields...))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if _, err := msg.Marshal(); err == nil {
-		t.Fatal("a message whose unknown IEs were dropped on decode re-encoded")
-	}
 }

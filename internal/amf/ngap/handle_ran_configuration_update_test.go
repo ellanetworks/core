@@ -139,9 +139,9 @@ func TestHandleRANConfigurationUpdate_NoMatchingTAC(t *testing.T) {
 	}
 
 	failure := sender.SentRanConfigurationUpdateFailures[0]
-	want := ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscUnspecified}
+	want := ngap.CauseMiscUnspecified.Cause()
 
-	if failure.Cause == nil || *failure.Cause != want {
+	if failure.Cause == nil || !failure.Cause.Equal(want) {
 		t.Fatalf("cause = %v, want unspecified", failure.Cause)
 	}
 }
@@ -161,8 +161,8 @@ func TestHandleRANConfigurationUpdate_NoMatchingPLMN(t *testing.T) {
 
 	failure := sender.SentRanConfigurationUpdateFailures[0]
 
-	want := ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscUnknownPLMNOrSNPN}
-	if failure.Cause == nil || *failure.Cause != want {
+	want := ngap.CauseMiscUnknownPLMNOrSNPN.Cause()
+	if failure.Cause == nil || !failure.Cause.Equal(want) {
 		t.Fatalf("cause = %v, want unknown-PLMN-or-SNPN", failure.Cause)
 	}
 }
@@ -172,12 +172,7 @@ func TestHandleRANConfigurationUpdate_RebindsGlobalRANNodeID(t *testing.T) {
 	ran := newTestRadio(newTestAMF())
 	amfInstance := newTestAMF()
 
-	newID := ngap.GlobalRANNodeID{
-		Kind:         ngap.RANNodeIDGNB,
-		PLMNIdentity: ngap.PLMNIdentity{0x00, 0xf1, 0x10},
-		Value:        0x0000AB,
-		Bits:         24,
-	}
+	newID := ngap.NewGlobalGNBID(ngap.PLMNIdentity{0x00, 0xf1, 0x10}, 0x0000AB, 24)
 
 	HandleRANConfigurationUpdate(context.Background(), amfInstance, ran,
 		&ngap.RANConfigurationUpdate{GlobalRANNodeID: &newID})

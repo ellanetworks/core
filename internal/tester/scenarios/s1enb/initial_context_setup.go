@@ -73,14 +73,14 @@ func assertInitialContextSetupSecurity(ue *s1enb.UE, res *s1enb.AttachResult) er
 
 	want := ue.S1APSecurityCapabilities()
 
-	if res.UESecurityCaps.EncryptionAlgorithms != want.EncryptionAlgorithms {
+	if res.UESecurityCaps.EncryptionAlgorithms.Value != want.EncryptionAlgorithms.Value {
 		return fmt.Errorf("initial Context Setup encryption algorithms = %#04x, want the %#04x the UE advertised",
-			res.UESecurityCaps.EncryptionAlgorithms, want.EncryptionAlgorithms)
+			res.UESecurityCaps.EncryptionAlgorithms.Value, want.EncryptionAlgorithms.Value)
 	}
 
-	if res.UESecurityCaps.IntegrityProtectionAlgorithms != want.IntegrityProtectionAlgorithms {
+	if res.UESecurityCaps.IntegrityProtectionAlgorithms.Value != want.IntegrityProtectionAlgorithms.Value {
 		return fmt.Errorf("initial Context Setup integrity algorithms = %#04x, want the %#04x the UE advertised",
-			res.UESecurityCaps.IntegrityProtectionAlgorithms, want.IntegrityProtectionAlgorithms)
+			res.UESecurityCaps.IntegrityProtectionAlgorithms.Value, want.IntegrityProtectionAlgorithms.Value)
 	}
 
 	return nil

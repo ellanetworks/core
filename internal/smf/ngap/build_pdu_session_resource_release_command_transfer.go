@@ -13,7 +13,7 @@ import (
 
 func BuildPDUSessionResourceReleaseCommandTransfer() ([]byte, error) {
 	transfer := libngap.PDUSessionResourceReleaseCommandTransfer{
-		Cause: libngap.Cause{Group: libngap.CauseGroupNAS, Value: libngap.CauseNASNormalRelease},
+		Cause: libngap.CauseNASNormalRelease.Cause(),
 	}
 
 	buf, err := transfer.Marshal()

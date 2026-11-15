@@ -18,24 +18,7 @@ type DirectForwardingPathAvailability uint8
 
 const (
 	DirectForwardingPathAvailable DirectForwardingPathAvailability = iota
-
-	directForwardingPathAvailabilityRootCount = 1
 )
-
-func (d DirectForwardingPathAvailability) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, directForwardingPathAvailabilityRootCount, int64(d), "DirectForwardingPathAvailability")
-}
-
-func (d *DirectForwardingPathAvailability) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, directForwardingPathAvailabilityRootCount, "DirectForwardingPathAvailability")
-	if err != nil {
-		return err
-	}
-
-	*d = DirectForwardingPathAvailability(idx)
-
-	return nil
-}
 
 // DL-NGU-TNLInformationReused ::= ENUMERATED { true, ... }. Signals that the
 // NG-RAN node kept the downlink tunnel it already had.
@@ -43,24 +26,7 @@ type DLNGUTNLInformationReused uint8
 
 const (
 	DLNGUTNLInformationReusedTrue DLNGUTNLInformationReused = iota
-
-	dlNGUTNLInformationReusedRootCount = 1
 )
-
-func (d DLNGUTNLInformationReused) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, dlNGUTNLInformationReusedRootCount, int64(d), "DL-NGU-TNLInformationReused")
-}
-
-func (d *DLNGUTNLInformationReused) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, dlNGUTNLInformationReusedRootCount, "DL-NGU-TNLInformationReused")
-	if err != nil {
-		return err
-	}
-
-	*d = DLNGUTNLInformationReused(idx)
-
-	return nil
-}
 
 // UserPlaneSecurityInformation ::= SEQUENCE { securityResult,
 // securityIndication, iE-Extensions OPTIONAL } (extensible) — TS 38.413
@@ -69,7 +35,7 @@ func (d *DLNGUTNLInformationReused) UnmarshalPER(r *per.Reader, enc per.Encoding
 type UserPlaneSecurityInformation struct {
 	SecurityResult     SecurityResult
 	SecurityIndication SecurityIndication
-	iEExtensions       *rawIEExtensions       `per:",optional"`
+	iEExtensions       extensionMeta          `per:",exttable"`
 	extensions         per.ExtensionAdditions `per:",extraw"`
 }
 
@@ -80,27 +46,13 @@ type HandoverCommandTransfer struct {
 	DLForwardingUPTNLInformation           *UPTransportLayerInformation    `per:",optional"`
 	QosFlowToBeForwarded                   QosFlowToBeForwardedList        `per:",optional"`
 	DataForwardingResponseDRB              DataForwardingResponseDRBList   `per:",optional"`
-	AdditionalDLForwardingUPTNLInformation QosFlowPerTNLInformationList    `per:"-"`
-	ULForwardingUPTNLInformation           *UPTransportLayerInformation    `per:"-"`
-	AdditionalULForwardingUPTNLInformation UPTransportLayerInformationList `per:"-"`
-	DataForwardingResponseERAB             DataForwardingResponseERABList  `per:"-"`
-	iEExtensions                           messageMeta                     `per:",exttable:handoverCommandTransferExtIEs"`
+	AdditionalDLForwardingUPTNLInformation QosFlowPerTNLInformationList    `per:",extie:IDAdditionalDLForwardingUPTNLInformation,crit:ignore"`
+	ULForwardingUPTNLInformation           *UPTransportLayerInformation    `per:",extie:IDULForwardingUPTNLInformation,crit:reject"`
+	AdditionalULForwardingUPTNLInformation UPTransportLayerInformationList `per:",extie:IDAdditionalULForwardingUPTNLInformation,crit:reject"`
+	DataForwardingResponseERAB             DataForwardingResponseERABList  `per:",extie:IDDataForwardingResponseERABList,crit:ignore"`
+	QosFlowFailedToSetupList               QosFlowListWithCause            `per:",extie:IDQosFlowFailedToSetupList,crit:ignore"`
+	iEExtensions                           extensionMeta                   `per:",exttable"`
 	extensions                             per.ExtensionAdditions          `per:",extraw"`
-}
-
-var handoverCommandTransferExtIEs = []ieSpec[HandoverCommandTransfer]{
-	listExtension(IDAdditionalDLForwardingUPTNLInformation, CriticalityIgnore, func(m *HandoverCommandTransfer) *QosFlowPerTNLInformationList {
-		return &m.AdditionalDLForwardingUPTNLInformation
-	}),
-	optionalExtension(IDULForwardingUPTNLInformation, CriticalityReject, func(m *HandoverCommandTransfer) **UPTransportLayerInformation {
-		return &m.ULForwardingUPTNLInformation
-	}),
-	listExtension(IDAdditionalULForwardingUPTNLInformation, CriticalityReject, func(m *HandoverCommandTransfer) *UPTransportLayerInformationList {
-		return &m.AdditionalULForwardingUPTNLInformation
-	}),
-	listExtension(IDDataForwardingResponseERABList, CriticalityIgnore, func(m *HandoverCommandTransfer) *DataForwardingResponseERABList {
-		return &m.DataForwardingResponseERAB
-	}),
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.
@@ -119,21 +71,21 @@ func (t *HandoverCommandTransfer) Marshal() (TransferContainer, error) {
 // ParseHandoverCommandTransfer decodes the transfer the SMF returns naming the
 // tunnels the source node may forward on.
 func ParseHandoverCommandTransfer(b TransferContainer) (*HandoverCommandTransfer, error) {
-	var t HandoverCommandTransfer
-
-	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
-		return nil, err
-	}
-
-	return &t, nil
+	return parseTransfer[HandoverCommandTransfer](b)
 }
+
+func DecodeHandoverCommandTransfer(b TransferContainer) (*HandoverCommandTransfer, error) {
+	return decodeTransfer[HandoverCommandTransfer](b)
+}
+
+func (t *HandoverCommandTransfer) Diagnostics() Diagnostics { return diagnosticsOf(t) }
 
 // HandoverPreparationUnsuccessfulTransfer ::= SEQUENCE { cause, iE-Extensions
 // OPTIONAL } (extensible) — TS 38.413 §9.3.4.18.
 type HandoverPreparationUnsuccessfulTransfer struct {
-	_     [0]struct{} `per:"extseq"`
-	Cause Cause
-	_     ieExtensions `per:",skip"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+	Cause        Cause
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.
@@ -152,14 +104,14 @@ func (t *HandoverPreparationUnsuccessfulTransfer) Marshal() (TransferContainer, 
 // ParseHandoverPreparationUnsuccessfulTransfer decodes the transfer naming why
 // a session could not be handed over.
 func ParseHandoverPreparationUnsuccessfulTransfer(b TransferContainer) (*HandoverPreparationUnsuccessfulTransfer, error) {
-	var t HandoverPreparationUnsuccessfulTransfer
-
-	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
-		return nil, err
-	}
-
-	return &t, nil
+	return parseTransfer[HandoverPreparationUnsuccessfulTransfer](b)
 }
+
+func DecodeHandoverPreparationUnsuccessfulTransfer(b TransferContainer) (*HandoverPreparationUnsuccessfulTransfer, error) {
+	return decodeTransfer[HandoverPreparationUnsuccessfulTransfer](b)
+}
+
+func (t *HandoverPreparationUnsuccessfulTransfer) Diagnostics() Diagnostics { return diagnosticsOf(t) }
 
 // HandoverRequestAcknowledgeTransfer ::= SEQUENCE { dL-NGU-UP-TNLInformation,
 // dLForwardingUP-TNLInformation OPTIONAL, securityResult OPTIONAL,
@@ -167,37 +119,24 @@ func ParseHandoverPreparationUnsuccessfulTransfer(b TransferContainer) (*Handove
 // dataForwardingResponseDRBList OPTIONAL, iE-Extensions OPTIONAL }
 // (extensible) — TS 38.413 §9.3.4.11.
 type HandoverRequestAcknowledgeTransfer struct {
-	DLNGUUPTNLInformation                  UPTransportLayerInformation
-	DLForwardingUPTNLInformation           *UPTransportLayerInformation `per:",optional"`
-	SecurityResult                         *SecurityResult              `per:",optional"`
-	QosFlowSetupResponse                   QosFlowListWithDataForwarding
-	QosFlowFailedToSetup                   QosFlowListWithCause                  `per:",optional"`
-	DataForwardingResponseDRB              DataForwardingResponseDRBList         `per:",optional"`
-	AdditionalDLUPTNLInformationForHO      AdditionalDLUPTNLInformationForHOList `per:"-"`
-	ULForwardingUPTNLInformation           *UPTransportLayerInformation          `per:"-"`
-	AdditionalULForwardingUPTNLInformation UPTransportLayerInformationList       `per:"-"`
-	DataForwardingResponseERAB             DataForwardingResponseERABList        `per:"-"`
-	RedundantDLNGUUPTNLInformation         *UPTransportLayerInformation          `per:"-"`
-	iEExtensions                           messageMeta                           `per:",exttable:handoverRequestAcknowledgeTransferExtIEs"`
-	extensions                             per.ExtensionAdditions                `per:",extraw"`
-}
-
-var handoverRequestAcknowledgeTransferExtIEs = []ieSpec[HandoverRequestAcknowledgeTransfer]{
-	listExtension(IDAdditionalDLUPTNLInformationForHOList, CriticalityIgnore, func(m *HandoverRequestAcknowledgeTransfer) *AdditionalDLUPTNLInformationForHOList {
-		return &m.AdditionalDLUPTNLInformationForHO
-	}),
-	optionalExtension(IDULForwardingUPTNLInformation, CriticalityReject, func(m *HandoverRequestAcknowledgeTransfer) **UPTransportLayerInformation {
-		return &m.ULForwardingUPTNLInformation
-	}),
-	listExtension(IDAdditionalULForwardingUPTNLInformation, CriticalityReject, func(m *HandoverRequestAcknowledgeTransfer) *UPTransportLayerInformationList {
-		return &m.AdditionalULForwardingUPTNLInformation
-	}),
-	listExtension(IDDataForwardingResponseERABList, CriticalityIgnore, func(m *HandoverRequestAcknowledgeTransfer) *DataForwardingResponseERABList {
-		return &m.DataForwardingResponseERAB
-	}),
-	optionalExtension(IDRedundantDLNGUUPTNLInformation, CriticalityIgnore, func(m *HandoverRequestAcknowledgeTransfer) **UPTransportLayerInformation {
-		return &m.RedundantDLNGUUPTNLInformation
-	}),
+	DLNGUUPTNLInformation                            UPTransportLayerInformation
+	DLForwardingUPTNLInformation                     *UPTransportLayerInformation `per:",optional"`
+	SecurityResult                                   *SecurityResult              `per:",optional"`
+	QosFlowSetupResponse                             QosFlowListWithDataForwarding
+	QosFlowFailedToSetup                             QosFlowListWithCause                             `per:",optional"`
+	DataForwardingResponseDRB                        DataForwardingResponseDRBList                    `per:",optional"`
+	AdditionalDLUPTNLInformationForHO                AdditionalDLUPTNLInformationForHOList            `per:",extie:IDAdditionalDLUPTNLInformationForHOList,crit:ignore"`
+	ULForwardingUPTNLInformation                     *UPTransportLayerInformation                     `per:",extie:IDULForwardingUPTNLInformation,crit:reject"`
+	AdditionalULForwardingUPTNLInformation           UPTransportLayerInformationList                  `per:",extie:IDAdditionalULForwardingUPTNLInformation,crit:reject"`
+	DataForwardingResponseERAB                       DataForwardingResponseERABList                   `per:",extie:IDDataForwardingResponseERABList,crit:ignore"`
+	RedundantDLNGUUPTNLInformation                   *UPTransportLayerInformation                     `per:",extie:IDRedundantDLNGUUPTNLInformation,crit:ignore"`
+	UsedRSNInformation                               *RedundantPDUSessionInformation                  `per:",extie:IDUsedRSNInformation,crit:ignore"`
+	GlobalRANNodeID                                  *GlobalRANNodeID                                 `per:",extie:IDGlobalRANNodeID,crit:ignore"`
+	MBSSupportIndicator                              *MBSSupportIndicator                             `per:",extie:IDMBSSupportIndicator,crit:ignore"`
+	PDUSetbasedHandlingIndicator                     *PDUSetbasedHandlingIndicator                    `per:",extie:IDPDUSetbasedHandlingIndicator,crit:ignore"`
+	ECNMarkingorCongestionInformationReportingStatus ECNMarkingorCongestionInformationReportingStatus `per:",extie:IDECNMarkingorCongestionInformationReportingStatus,crit:ignore"`
+	iEExtensions                                     extensionMeta                                    `per:",exttable"`
+	extensions                                       per.ExtensionAdditions                           `per:",extraw"`
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.
@@ -216,23 +155,23 @@ func (t *HandoverRequestAcknowledgeTransfer) Marshal() (TransferContainer, error
 // ParseHandoverRequestAcknowledgeTransfer decodes the transfer the target
 // NG-RAN node returns for a session it admitted.
 func ParseHandoverRequestAcknowledgeTransfer(b TransferContainer) (*HandoverRequestAcknowledgeTransfer, error) {
-	var t HandoverRequestAcknowledgeTransfer
-
-	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
-		return nil, err
-	}
-
-	return &t, nil
+	return parseTransfer[HandoverRequestAcknowledgeTransfer](b)
 }
+
+func DecodeHandoverRequestAcknowledgeTransfer(b TransferContainer) (*HandoverRequestAcknowledgeTransfer, error) {
+	return decodeTransfer[HandoverRequestAcknowledgeTransfer](b)
+}
+
+func (t *HandoverRequestAcknowledgeTransfer) Diagnostics() Diagnostics { return diagnosticsOf(t) }
 
 // HandoverResourceAllocationUnsuccessfulTransfer ::= SEQUENCE { cause,
 // criticalityDiagnostics OPTIONAL, iE-Extensions OPTIONAL } (extensible) —
 // TS 38.413 §9.3.4.19.
 type HandoverResourceAllocationUnsuccessfulTransfer struct {
-	_                      [0]struct{} `per:"extseq"`
+	extensions             per.ExtensionAdditions `per:",extraw"`
 	Cause                  Cause
 	CriticalityDiagnostics *CriticalityDiagnostics `per:",optional"`
-	_                      ieExtensions            `per:",skip"`
+	iEExtensions           extensionMeta           `per:",exttable"`
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.
@@ -251,21 +190,23 @@ func (t *HandoverResourceAllocationUnsuccessfulTransfer) Marshal() (TransferCont
 // ParseHandoverResourceAllocationUnsuccessfulTransfer decodes the transfer the
 // target NG-RAN node returns for a session it could not admit.
 func ParseHandoverResourceAllocationUnsuccessfulTransfer(b TransferContainer) (*HandoverResourceAllocationUnsuccessfulTransfer, error) {
-	var t HandoverResourceAllocationUnsuccessfulTransfer
+	return parseTransfer[HandoverResourceAllocationUnsuccessfulTransfer](b)
+}
 
-	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
-		return nil, err
-	}
+func DecodeHandoverResourceAllocationUnsuccessfulTransfer(b TransferContainer) (*HandoverResourceAllocationUnsuccessfulTransfer, error) {
+	return decodeTransfer[HandoverResourceAllocationUnsuccessfulTransfer](b)
+}
 
-	return &t, nil
+func (t *HandoverResourceAllocationUnsuccessfulTransfer) Diagnostics() Diagnostics {
+	return diagnosticsOf(t)
 }
 
 // HandoverRequiredTransfer ::= SEQUENCE { directForwardingPathAvailability
 // OPTIONAL, iE-Extensions OPTIONAL } (extensible) — TS 38.413 §9.3.4.14.
 type HandoverRequiredTransfer struct {
-	_                                [0]struct{}                       `per:"extseq"`
-	DirectForwardingPathAvailability *DirectForwardingPathAvailability `per:"ENUMERATED,range:0..0,...,optional"`
-	_                                ieExtensions                      `per:",skip"`
+	extensions                       per.ExtensionAdditions            `per:",extraw"`
+	DirectForwardingPathAvailability *DirectForwardingPathAvailability `per:",optional"`
+	iEExtensions                     extensionMeta                     `per:",exttable"`
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.
@@ -284,45 +225,35 @@ func (t *HandoverRequiredTransfer) Marshal() (TransferContainer, error) {
 // ParseHandoverRequiredTransfer decodes the transfer the source NG-RAN node
 // sends per session when it asks for a handover.
 func ParseHandoverRequiredTransfer(b TransferContainer) (*HandoverRequiredTransfer, error) {
-	var t HandoverRequiredTransfer
-
-	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
-		return nil, err
-	}
-
-	return &t, nil
+	return parseTransfer[HandoverRequiredTransfer](b)
 }
+
+func DecodeHandoverRequiredTransfer(b TransferContainer) (*HandoverRequiredTransfer, error) {
+	return decodeTransfer[HandoverRequiredTransfer](b)
+}
+
+func (t *HandoverRequiredTransfer) Diagnostics() Diagnostics { return diagnosticsOf(t) }
 
 // PathSwitchRequestTransfer ::= SEQUENCE { dL-NGU-UP-TNLInformation,
 // dL-NGU-TNLInformationReused OPTIONAL, userPlaneSecurityInformation OPTIONAL,
 // qosFlowAcceptedList, iE-Extensions OPTIONAL } (extensible) — TS 38.413
 // §9.3.4.8.
 type PathSwitchRequestTransfer struct {
-	DLNGUUPTNLInformation                         UPTransportLayerInformation
-	DLNGUTNLInformationReused                     *DLNGUTNLInformationReused    `per:"ENUMERATED,range:0..0,...,optional"`
-	UserPlaneSecurityInformation                  *UserPlaneSecurityInformation `per:",optional"`
-	QosFlowAccepted                               QosFlowAcceptedList
-	AdditionalDLQosFlowPerTNLInformation          QosFlowPerTNLInformationList `per:"-"`
-	RedundantDLNGUUPTNLInformation                *UPTransportLayerInformation `per:"-"`
-	RedundantDLNGUTNLInformationReused            *DLNGUTNLInformationReused   `per:"-"`
-	AdditionalRedundantDLQosFlowPerTNLInformation QosFlowPerTNLInformationList `per:"-"`
-	iEExtensions                                  messageMeta                  `per:",exttable:pathSwitchRequestTransferExtIEs"`
-	extensions                                    per.ExtensionAdditions       `per:",extraw"`
-}
-
-var pathSwitchRequestTransferExtIEs = []ieSpec[PathSwitchRequestTransfer]{
-	listExtension(IDAdditionalDLQosFlowPerTNLInformation, CriticalityIgnore, func(m *PathSwitchRequestTransfer) *QosFlowPerTNLInformationList {
-		return &m.AdditionalDLQosFlowPerTNLInformation
-	}),
-	optionalExtension(IDRedundantDLNGUUPTNLInformation, CriticalityIgnore, func(m *PathSwitchRequestTransfer) **UPTransportLayerInformation {
-		return &m.RedundantDLNGUUPTNLInformation
-	}),
-	optionalExtension(IDRedundantDLNGUTNLInformationReused, CriticalityIgnore, func(m *PathSwitchRequestTransfer) **DLNGUTNLInformationReused {
-		return &m.RedundantDLNGUTNLInformationReused
-	}),
-	listExtension(IDAdditionalRedundantDLQosFlowPerTNLInformation, CriticalityIgnore, func(m *PathSwitchRequestTransfer) *QosFlowPerTNLInformationList {
-		return &m.AdditionalRedundantDLQosFlowPerTNLInformation
-	}),
+	DLNGUUPTNLInformation                            UPTransportLayerInformation
+	DLNGUTNLInformationReused                        *DLNGUTNLInformationReused    `per:",optional"`
+	UserPlaneSecurityInformation                     *UserPlaneSecurityInformation `per:",optional"`
+	QosFlowAccepted                                  QosFlowAcceptedList
+	AdditionalDLQosFlowPerTNLInformation             QosFlowPerTNLInformationList                     `per:",extie:IDAdditionalDLQosFlowPerTNLInformation,crit:ignore"`
+	RedundantDLNGUUPTNLInformation                   *UPTransportLayerInformation                     `per:",extie:IDRedundantDLNGUUPTNLInformation,crit:ignore"`
+	RedundantDLNGUTNLInformationReused               *DLNGUTNLInformationReused                       `per:",extie:IDRedundantDLNGUTNLInformationReused,crit:ignore"`
+	AdditionalRedundantDLQosFlowPerTNLInformation    QosFlowPerTNLInformationList                     `per:",extie:IDAdditionalRedundantDLQosFlowPerTNLInformation,crit:ignore"`
+	UsedRSNInformation                               *RedundantPDUSessionInformation                  `per:",extie:IDUsedRSNInformation,crit:ignore"`
+	GlobalRANNodeID                                  *GlobalRANNodeID                                 `per:",extie:IDGlobalRANNodeID,crit:ignore"`
+	MBSSupportIndicator                              *MBSSupportIndicator                             `per:",extie:IDMBSSupportIndicator,crit:ignore"`
+	PDUSetbasedHandlingIndicator                     *PDUSetbasedHandlingIndicator                    `per:",extie:IDPDUSetbasedHandlingIndicator,crit:ignore"`
+	ECNMarkingorCongestionInformationReportingStatus ECNMarkingorCongestionInformationReportingStatus `per:",extie:IDECNMarkingorCongestionInformationReportingStatus,crit:ignore"`
+	iEExtensions                                     extensionMeta                                    `per:",exttable"`
+	extensions                                       per.ExtensionAdditions                           `per:",extraw"`
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.
@@ -341,14 +272,14 @@ func (t *PathSwitchRequestTransfer) Marshal() (TransferContainer, error) {
 // ParsePathSwitchRequestTransfer decodes the transfer the target NG-RAN node
 // sends per session when it takes over the downlink tunnel.
 func ParsePathSwitchRequestTransfer(b TransferContainer) (*PathSwitchRequestTransfer, error) {
-	var t PathSwitchRequestTransfer
-
-	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
-		return nil, err
-	}
-
-	return &t, nil
+	return parseTransfer[PathSwitchRequestTransfer](b)
 }
+
+func DecodePathSwitchRequestTransfer(b TransferContainer) (*PathSwitchRequestTransfer, error) {
+	return decodeTransfer[PathSwitchRequestTransfer](b)
+}
+
+func (t *PathSwitchRequestTransfer) Diagnostics() Diagnostics { return diagnosticsOf(t) }
 
 // PathSwitchRequestAcknowledgeTransfer ::= SEQUENCE { uL-NGU-UP-TNLInformation
 // OPTIONAL, securityIndication OPTIONAL, iE-Extensions OPTIONAL }
@@ -356,23 +287,12 @@ func ParsePathSwitchRequestTransfer(b TransferContainer) (*PathSwitchRequestTran
 type PathSwitchRequestAcknowledgeTransfer struct {
 	ULNGUUPTNLInformation                  *UPTransportLayerInformation        `per:",optional"`
 	SecurityIndication                     *SecurityIndication                 `per:",optional"`
-	AdditionalNGUUPTNLInformation          UPTransportLayerInformationPairList `per:"-"`
-	RedundantULNGUUPTNLInformation         *UPTransportLayerInformation        `per:"-"`
-	AdditionalRedundantNGUUPTNLInformation UPTransportLayerInformationPairList `per:"-"`
-	iEExtensions                           messageMeta                         `per:",exttable:pathSwitchRequestAcknowledgeTransferExtIEs"`
+	AdditionalNGUUPTNLInformation          UPTransportLayerInformationPairList `per:",extie:IDAdditionalNGUUPTNLInformation,crit:ignore"`
+	RedundantULNGUUPTNLInformation         *UPTransportLayerInformation        `per:",extie:IDRedundantULNGUUPTNLInformation,crit:ignore"`
+	AdditionalRedundantNGUUPTNLInformation UPTransportLayerInformationPairList `per:",extie:IDAdditionalRedundantNGUUPTNLInformation,crit:ignore"`
+	QosFlowParametersList                  QosFlowParametersList               `per:",extie:IDQosFlowParametersList,crit:ignore"`
+	iEExtensions                           extensionMeta                       `per:",exttable"`
 	extensions                             per.ExtensionAdditions              `per:",extraw"`
-}
-
-var pathSwitchRequestAcknowledgeTransferExtIEs = []ieSpec[PathSwitchRequestAcknowledgeTransfer]{
-	listExtension(IDAdditionalNGUUPTNLInformation, CriticalityIgnore, func(m *PathSwitchRequestAcknowledgeTransfer) *UPTransportLayerInformationPairList {
-		return &m.AdditionalNGUUPTNLInformation
-	}),
-	optionalExtension(IDRedundantULNGUUPTNLInformation, CriticalityIgnore, func(m *PathSwitchRequestAcknowledgeTransfer) **UPTransportLayerInformation {
-		return &m.RedundantULNGUUPTNLInformation
-	}),
-	listExtension(IDAdditionalRedundantNGUUPTNLInformation, CriticalityIgnore, func(m *PathSwitchRequestAcknowledgeTransfer) *UPTransportLayerInformationPairList {
-		return &m.AdditionalRedundantNGUUPTNLInformation
-	}),
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.
@@ -391,21 +311,21 @@ func (t *PathSwitchRequestAcknowledgeTransfer) Marshal() (TransferContainer, err
 // ParsePathSwitchRequestAcknowledgeTransfer decodes the transfer the SMF
 // returns for a session whose path was switched.
 func ParsePathSwitchRequestAcknowledgeTransfer(b TransferContainer) (*PathSwitchRequestAcknowledgeTransfer, error) {
-	var t PathSwitchRequestAcknowledgeTransfer
-
-	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
-		return nil, err
-	}
-
-	return &t, nil
+	return parseTransfer[PathSwitchRequestAcknowledgeTransfer](b)
 }
+
+func DecodePathSwitchRequestAcknowledgeTransfer(b TransferContainer) (*PathSwitchRequestAcknowledgeTransfer, error) {
+	return decodeTransfer[PathSwitchRequestAcknowledgeTransfer](b)
+}
+
+func (t *PathSwitchRequestAcknowledgeTransfer) Diagnostics() Diagnostics { return diagnosticsOf(t) }
 
 // PathSwitchRequestSetupFailedTransfer ::= SEQUENCE { cause, iE-Extensions
 // OPTIONAL } (extensible) — TS 38.413 §9.3.4.15.
 type PathSwitchRequestSetupFailedTransfer struct {
-	_     [0]struct{} `per:"extseq"`
-	Cause Cause
-	_     ieExtensions `per:",skip"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+	Cause        Cause
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.
@@ -424,21 +344,21 @@ func (t *PathSwitchRequestSetupFailedTransfer) Marshal() (TransferContainer, err
 // ParsePathSwitchRequestSetupFailedTransfer decodes the transfer the SMF
 // returns for a session it could not switch.
 func ParsePathSwitchRequestSetupFailedTransfer(b TransferContainer) (*PathSwitchRequestSetupFailedTransfer, error) {
-	var t PathSwitchRequestSetupFailedTransfer
-
-	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
-		return nil, err
-	}
-
-	return &t, nil
+	return parseTransfer[PathSwitchRequestSetupFailedTransfer](b)
 }
+
+func DecodePathSwitchRequestSetupFailedTransfer(b TransferContainer) (*PathSwitchRequestSetupFailedTransfer, error) {
+	return decodeTransfer[PathSwitchRequestSetupFailedTransfer](b)
+}
+
+func (t *PathSwitchRequestSetupFailedTransfer) Diagnostics() Diagnostics { return diagnosticsOf(t) }
 
 // PathSwitchRequestUnsuccessfulTransfer ::= SEQUENCE { cause, iE-Extensions
 // OPTIONAL } (extensible) — TS 38.413 §9.3.4.20.
 type PathSwitchRequestUnsuccessfulTransfer struct {
-	_     [0]struct{} `per:"extseq"`
-	Cause Cause
-	_     ieExtensions `per:",skip"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+	Cause        Cause
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.
@@ -457,11 +377,11 @@ func (t *PathSwitchRequestUnsuccessfulTransfer) Marshal() (TransferContainer, er
 // ParsePathSwitchRequestUnsuccessfulTransfer decodes the transfer naming why a
 // session's path could not be switched.
 func ParsePathSwitchRequestUnsuccessfulTransfer(b TransferContainer) (*PathSwitchRequestUnsuccessfulTransfer, error) {
-	var t PathSwitchRequestUnsuccessfulTransfer
-
-	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
-		return nil, err
-	}
-
-	return &t, nil
+	return parseTransfer[PathSwitchRequestUnsuccessfulTransfer](b)
 }
+
+func DecodePathSwitchRequestUnsuccessfulTransfer(b TransferContainer) (*PathSwitchRequestUnsuccessfulTransfer, error) {
+	return decodeTransfer[PathSwitchRequestUnsuccessfulTransfer](b)
+}
+
+func (t *PathSwitchRequestUnsuccessfulTransfer) Diagnostics() Diagnostics { return diagnosticsOf(t) }

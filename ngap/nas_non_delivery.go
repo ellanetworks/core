@@ -19,25 +19,25 @@ type NASNonDeliveryIndication struct {
 
 var nASNonDeliveryIndicationIEs = []ieSpec[NASNonDeliveryIndication]{
 	{
-		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *NASNonDeliveryIndication, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.AMFUENGAPID)
+		ID: IDAMFUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *NASNonDeliveryIndication, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.AMFUENGAPID)
 		},
-		encode: func(m *NASNonDeliveryIndication) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
+		Encode: func(m *NASNonDeliveryIndication) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *NASNonDeliveryIndication, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.RANUENGAPID)
+		ID: IDRANUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *NASNonDeliveryIndication, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.RANUENGAPID)
 		},
-		encode: func(m *NASNonDeliveryIndication) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
+		Encode: func(m *NASNonDeliveryIndication) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
-		id: IDNASPDU, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *NASNonDeliveryIndication, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.NASPDU)
+		ID: IDNASPDU, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *NASNonDeliveryIndication, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.NASPDU)
 		},
-		encode: func(m *NASNonDeliveryIndication) (per.Marshaler, bool) {
+		Encode: func(m *NASNonDeliveryIndication) (per.Marshaler, bool) {
 			if m.NASPDU == nil {
 				return nil, false
 			}
@@ -46,11 +46,11 @@ var nASNonDeliveryIndicationIEs = []ieSpec[NASNonDeliveryIndication]{
 		},
 	},
 	{
-		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *NASNonDeliveryIndication, raw []byte, enc per.Encoding) error {
+		ID: IDCause, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *NASNonDeliveryIndication, r *per.Reader, enc per.Encoding) error {
 			var v Cause
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -58,7 +58,7 @@ var nASNonDeliveryIndicationIEs = []ieSpec[NASNonDeliveryIndication]{
 
 			return nil
 		},
-		encode: func(m *NASNonDeliveryIndication) (per.Marshaler, bool) {
+		Encode: func(m *NASNonDeliveryIndication) (per.Marshaler, bool) {
 			if m.Cause == nil {
 				return nil, false
 			}
@@ -90,4 +90,8 @@ func (m *NASNonDeliveryIndication) encodeBody(w *per.Writer, enc per.Encoding) e
 
 func ParseNASNonDeliveryIndication(value []byte) (*NASNonDeliveryIndication, error) {
 	return parseMessageBody[NASNonDeliveryIndication](ProcNASNonDeliveryIndication, TriggeringInitiatingMessage, nASNonDeliveryIndicationIEs, value)
+}
+
+func DecodeNASNonDeliveryIndication(value []byte) (*NASNonDeliveryIndication, error) {
+	return decodeMessageBody[NASNonDeliveryIndication](ProcNASNonDeliveryIndication, nASNonDeliveryIndicationIEs, value)
 }

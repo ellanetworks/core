@@ -34,7 +34,7 @@ func TestUEContextModificationFailureForgetsTheUEAMBR(t *testing.T) {
 	wire, err := (&s1ap.UEContextModificationFailure{
 		MMEUES1APID: s1ap.Ptr(ueConn.MMEUES1APID),
 		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(7)),
-		Cause:       &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0},
+		Cause:       s1ap.Ptr(s1ap.CauseRadioNetworkUnspecified.Cause()),
 	}).Marshal()
 	if err != nil {
 		t.Fatal(err)

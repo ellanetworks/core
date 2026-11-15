@@ -155,14 +155,14 @@ func TestMMETraceFailure(t *testing.T) {
 	other := id
 	other[7]++
 
-	c.TraceFailed(t.Context(), s1ap.EUTRANTraceID(other), s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5})
+	c.TraceFailed(t.Context(), s1ap.EUTRANTraceID(other), s1ap.CauseRadioNetworkPartialHandover.Cause())
 	ue.TraceConnection(t.Context())
 
 	if n := len(sentTraceStarts(t, w)); n != 1 {
 		t.Fatalf("%d Trace Start messages after a failure for another Trace ID, want 1", n)
 	}
 
-	c.TraceFailed(t.Context(), s1ap.EUTRANTraceID(id), s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5})
+	c.TraceFailed(t.Context(), s1ap.EUTRANTraceID(id), s1ap.CauseRadioNetworkPartialHandover.Cause())
 	ue.TraceConnection(t.Context())
 
 	starts := sentTraceStarts(t, w)

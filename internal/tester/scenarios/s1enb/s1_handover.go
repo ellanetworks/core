@@ -131,7 +131,7 @@ func runS1ENBHandover(ctx context.Context, env scenarios.Env, _ any) error {
 
 	targetENBUEID := target.AllocateENBUEID()
 
-	if ext := hoReq.ERABToBeSetup[0].Extensions; ext != nil && ext.DataForwardingNotPossible != nil {
+	if hoReq.ERABToBeSetup[0].DataForwardingNotPossible != nil {
 		return fmt.Errorf("handover request declared data forwarding not possible despite a direct forwarding path")
 	}
 
@@ -225,7 +225,7 @@ func assertForwardingRelayed(cmd *s1ap.HandoverCommand, erabID s1ap.ERABID, fwdT
 		return fmt.Errorf("forwarding item DL GTP-TEID = %v, want %#x", item.DLGTPTEID, fwdTEID)
 	}
 
-	if len(item.DLTransportLayerAddr) == 0 {
+	if item.DLTransportLayerAddr == nil || item.DLTransportLayerAddr.IsZero() {
 		return fmt.Errorf("forwarding item carried no DL transport layer address")
 	}
 

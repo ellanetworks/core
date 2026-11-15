@@ -6,8 +6,9 @@ package s1ap
 import (
 	"bytes"
 	"errors"
-	"reflect"
 	"testing"
+
+	"github.com/ellanetworks/core/per/ap"
 )
 
 // A real INITIAL CONTEXT SETUP RESPONSE: MME-UE-S1AP-ID 0x020000bf,
@@ -42,7 +43,7 @@ func TestInitialContextSetupResponseGoldenDecode(t *testing.T) {
 		t.Fatalf("ERABSetup len = %d, want 1", len(resp.ERABSetup))
 	}
 
-	if len(resp.ERABSetup[0].TransportLayerAddress) == 0 || resp.ERABSetup[0].GTPTEID == 0 {
+	if resp.ERABSetup[0].TransportLayerAddress.IsZero() || resp.ERABSetup[0].GTPTEID == 0 {
 		t.Fatalf("E-RAB item missing TLA/TEID: %+v", resp.ERABSetup[0])
 	}
 
@@ -69,7 +70,7 @@ func TestInitialContextSetupResponseGoldenDecode(t *testing.T) {
 
 	for i := range resp.ERABSetup {
 		a, b := resp.ERABSetup[i], resp2.ERABSetup[i]
-		if a.ERABID != b.ERABID || a.GTPTEID != b.GTPTEID || !bytes.Equal(a.TransportLayerAddress, b.TransportLayerAddress) {
+		if a.ERABID != b.ERABID || a.GTPTEID != b.GTPTEID || a.TransportLayerAddress != b.TransportLayerAddress {
 			t.Fatalf("E-RAB %d round-trip mismatch:\n  %+v\n  %+v", i, a, b)
 		}
 	}
@@ -85,7 +86,7 @@ func TestInitialContextSetupRoundTrips(t *testing.T) {
 		},
 	}
 
-	tla := TransportLayerAddress{10, 45, 0, 1}
+	tla := tlaOf(10, 45, 0, 1)
 
 	var key SecurityKey
 	for i := range key {
@@ -101,7 +102,7 @@ func TestInitialContextSetupRoundTrips(t *testing.T) {
 				ERABID: 5, QoS: qos, TransportLayerAddress: tla, GTPTEID: 0x12345678,
 				NASPDU: NASPDU{0x07, 0x42, 0x01},
 			}},
-			UESecurityCapabilities: UESecurityCapabilities{EncryptionAlgorithms: 0x8000, IntegrityProtectionAlgorithms: 0xc000},
+			UESecurityCapabilities: UESecurityCapabilities{EncryptionAlgorithms: SecurityAlgorithms{Value: 0x8000}, IntegrityProtectionAlgorithms: SecurityAlgorithms{Value: 0xc000}},
 			SecurityKey:            key,
 			UERadioCapability:      []byte{0xaa, 0xbb, 0xcc, 0xdd},
 		}
@@ -127,7 +128,7 @@ func TestInitialContextSetupRoundTrips(t *testing.T) {
 
 		gi, go_ := in.ERABToBeSetup[0], out.ERABToBeSetup[0]
 		if gi.ERABID != go_.ERABID || gi.GTPTEID != go_.GTPTEID || gi.QoS.QCI != go_.QoS.QCI ||
-			!reflect.DeepEqual(gi.QoS.ARP, go_.QoS.ARP) || !bytes.Equal(gi.TransportLayerAddress, go_.TransportLayerAddress) ||
+			gi.QoS.ARP != go_.QoS.ARP || gi.TransportLayerAddress != go_.TransportLayerAddress ||
 			!bytes.Equal(gi.NASPDU, go_.NASPDU) {
 			t.Fatalf("E-RAB item mismatch:\n  in  %+v\n  out %+v", gi, go_)
 		}
@@ -153,7 +154,7 @@ func TestInitialContextSetupRoundTrips(t *testing.T) {
 
 		if deref(out.MMEUES1APID) != deref(in.MMEUES1APID) || deref(out.ENBUES1APID) != deref(in.ENBUES1APID) || len(out.ERABSetup) != 1 ||
 			out.ERABSetup[0].ERABID != 5 || out.ERABSetup[0].GTPTEID != 0x12345678 ||
-			!bytes.Equal(out.ERABSetup[0].TransportLayerAddress, tla) {
+			out.ERABSetup[0].TransportLayerAddress != tla {
 			t.Fatalf("mismatch:\n  in  %+v\n  out %+v", in, out)
 		}
 	})
@@ -161,7 +162,7 @@ func TestInitialContextSetupRoundTrips(t *testing.T) {
 	t.Run("Failure", func(t *testing.T) {
 		in := &InitialContextSetupFailure{
 			MMEUES1APID: Ptr(MMEUES1APID(42)), ENBUES1APID: Ptr(ENBUES1APID(1)),
-			Cause: Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 0}),
+			Cause: Ptr(CauseRadioNetworkUnspecified.Cause()),
 		}
 
 		b, err := in.Marshal()
@@ -181,7 +182,7 @@ func TestInitialContextSetupRoundTrips(t *testing.T) {
 		}
 
 		if deref(out.MMEUES1APID) != deref(in.MMEUES1APID) || deref(out.ENBUES1APID) != deref(in.ENBUES1APID) ||
-			deref(out.Cause) != deref(in.Cause) {
+			!deref(out.Cause).Equal(deref(in.Cause)) {
 			t.Fatalf("mismatch:\n  in  %+v\n  out %+v", in, out)
 		}
 	})
@@ -191,11 +192,11 @@ func TestInitialContextSetupRoundTrips(t *testing.T) {
 // MME cannot set up a context without them.
 func TestInitialContextSetupRequestMissingRejectIE(t *testing.T) {
 	partial := container(t,
-		ieField{id: IDMMEUES1APID, crit: CriticalityReject, raw: ieRaw(t, Ptr(MMEUES1APID(1)))},
-		ieField{id: IDENBUES1APID, crit: CriticalityReject, raw: ieRaw(t, Ptr(ENBUES1APID(2)))},
-		ieField{id: IDUEAggregateMaximumBitrate, crit: CriticalityReject, raw: ieRaw(t, &UEAggregateMaximumBitRate{})},
-		ieField{id: IDUESecurityCapabilities, crit: CriticalityReject, raw: ieRaw(t, &UESecurityCapabilities{})},
-		ieField{id: IDSecurityKey, crit: CriticalityReject, raw: ieRaw(t, Ptr(SecurityKey{}))},
+		ieField{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(MMEUES1APID(1))))},
+		ieField{ID: IDENBUES1APID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(ENBUES1APID(2))))},
+		ieField{ID: IDUEAggregateMaximumBitrate, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, &UEAggregateMaximumBitRate{}))},
+		ieField{ID: IDUESecurityCapabilities, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, &UESecurityCapabilities{}))},
+		ieField{ID: IDSecurityKey, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(SecurityKey{})))},
 	)
 
 	// Without the E-RAB list the request is incomplete: it is mandatory and
@@ -228,7 +229,7 @@ func initialContextSetupRequestGoldenCases() []newMessageCase {
 				ENBUES1APID:               2,
 				UEAggregateMaximumBitRate: UEAggregateMaximumBitRate{DL: 1_000_000, UL: 500_000},
 				ERABToBeSetup:             []ERABToBeSetupItemCtxtSUReq{{ERABID: 5, QoS: goldQoS(), TransportLayerAddress: goldTLA(), GTPTEID: 1}},
-				UESecurityCapabilities:    UESecurityCapabilities{EncryptionAlgorithms: 0x8000, IntegrityProtectionAlgorithms: 0xc000},
+				UESecurityCapabilities:    UESecurityCapabilities{EncryptionAlgorithms: SecurityAlgorithms{Value: 0x8000}, IntegrityProtectionAlgorithms: SecurityAlgorithms{Value: 0xc000}},
 				GUMMEI:                    Ptr(goldGUMMEI()),
 				MMEUES1APID2:              Ptr(MMEUES1APID(3)),
 			},

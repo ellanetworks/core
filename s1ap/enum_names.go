@@ -3,176 +3,219 @@
 
 package s1ap
 
-// ASN.1 enumeration item names from TS 36.413 §9.3.4 and §9.3.5. Each Name
-// returns the empty string for a value the module does not name.
+import "github.com/ellanetworks/core/per"
 
-var criticalityNames = map[Criticality]string{
-	CriticalityReject: "reject",
-	CriticalityIgnore: "ignore",
-	CriticalityNotify: "notify",
+// ASN.1 enumeration item names from TS 36.413 §9.3.4 and §9.3.5. A Name backed
+// by a map returns the empty string for a value the module does not name; one
+// generated from a per.Enum returns "unknown(n)".
+
+var enumTriggeringMessage = per.Enum[TriggeringMessage]{
+	Root: []string{"initiating-message", "successful-outcome", "unsuccessfull-outcome"}, //nolint:misspell
 }
 
-func (c Criticality) Name() string { return criticalityNames[c] }
-
-var triggeringMessageNames = map[TriggeringMessage]string{
-	TriggeringInitiatingMessage: "initiating-message",
-	TriggeringSuccessfulOutcome: "successful-outcome",
-	// TS 36.413 §9.3.5 misspells this ASN.1 identifier; the label reads as intended.
-	TriggeringUnsuccessfulOutcome: "unsuccessful-outcome",
+var enumHandoverType = per.Enum[HandoverType]{
+	Root:      []string{"intralte", "ltetoutran", "ltetogeran", "utrantolte", "gerantolte"},
+	Extension: []string{"eps-to-5gs", "fivegs-to-eps"},
 }
 
-func (t TriggeringMessage) Name() string { return triggeringMessageNames[t] }
-
-var typeOfErrorNames = map[TypeOfError]string{
-	TypeOfErrorNotUnderstood: "not-understood",
-	TypeOfErrorMissing:       "missing",
+var enumCNDomain = per.Enum[CNDomain]{
+	Root: []string{"ps", "cs"},
 }
 
-func (t TypeOfError) Name() string { return typeOfErrorNames[t] }
-
-// Name returns the name of the Cause CHOICE alternative the group selects.
-func (g CauseGroup) Name() string { return causeGroupNames[g] }
-
-var pagingDRXNames = map[PagingDRX]string{
-	PagingDRXv32:  "v32",
-	PagingDRXv64:  "v64",
-	PagingDRXv128: "v128",
-	PagingDRXv256: "v256",
+var enumPreemptionCapability = per.Enum[PreemptionCapability]{
+	Root: []string{"shall-not-trigger-pre-emption", "may-trigger-pre-emption"},
 }
 
-func (d PagingDRX) Name() string { return pagingDRXNames[d] }
-
-var timeToWaitNames = map[TimeToWait]string{
-	TimeToWaitV1s:  "v1s",
-	TimeToWaitV2s:  "v2s",
-	TimeToWaitV5s:  "v5s",
-	TimeToWaitV10s: "v10s",
-	TimeToWaitV20s: "v20s",
-	TimeToWaitV60s: "v60s",
+var enumPreemptionVulnerability = per.Enum[PreemptionVulnerability]{
+	Root: []string{"not-pre-emptable", "pre-emptable"},
 }
 
-func (t TimeToWait) Name() string { return timeToWaitNames[t] }
-
-var rrcEstablishmentCauseNames = map[RRCEstablishmentCause]string{
-	RRCCauseEmergency:          "emergency",
-	RRCCauseHighPriorityAccess: "highPriorityAccess",
-	RRCCauseMTAccess:           "mt-Access",
-	RRCCauseMOSignalling:       "mo-Signalling",
-	RRCCauseMOData:             "mo-Data",
+var enumTypeOfError = per.Enum[TypeOfError]{
+	Root:       []string{"not-understood", "missing"},
+	Extensible: true,
 }
 
-func (c RRCEstablishmentCause) Name() string { return rrcEstablishmentCauseNames[c] }
-
-var handoverTypeNames = map[HandoverType]string{
-	HandoverTypeIntraLTE:    "intralte",
-	HandoverTypeLTEtoUTRAN:  "ltetoutran",
-	HandoverTypeLTEtoGERAN:  "ltetogeran",
-	HandoverTypeUTRANtoLTE:  "utrantolte",
-	HandoverTypeGERANtoLTE:  "gerantolte",
-	HandoverTypeEPSToFiveGS: "eps-to-5gs",
-	HandoverTypeFiveGSToEPS: "fivegs-to-eps",
+var enumEventType = per.Enum[EventType]{
+	Root:       []string{"direct", "change-of-serve-cell", "stop-change-of-serve-cell"},
+	Extensible: true,
 }
 
-func (t HandoverType) Name() string { return handoverTypeNames[t] }
-
-var cnDomainNames = map[CNDomain]string{
-	CNDomainPS: "ps",
-	CNDomainCS: "cs",
+var enumReportArea = per.Enum[ReportArea]{
+	Root:       []string{"ecgi"},
+	Extensible: true,
 }
 
-func (d CNDomain) Name() string { return cnDomainNames[d] }
-
-var pagingPriorityNames = map[PagingPriority]string{
-	PagingPriorityLevel1: "priolevel1",
-	PagingPriorityLevel2: "priolevel2",
-	PagingPriorityLevel3: "priolevel3",
-	PagingPriorityLevel4: "priolevel4",
-	PagingPriorityLevel5: "priolevel5",
-	PagingPriorityLevel6: "priolevel6",
-	PagingPriorityLevel7: "priolevel7",
-	PagingPriorityLevel8: "priolevel8",
+var enumBearerType = per.Enum[BearerType]{
+	Root:       []string{"non-IP"},
+	Extensible: true,
 }
 
-func (p PagingPriority) Name() string { return pagingPriorityNames[p] }
-
-var directForwardingPathAvailabilityNames = map[DirectForwardingPathAvailability]string{
-	DirectForwardingPathAvailable: "directPathAvailable",
+var enumEthernetType = per.Enum[EthernetType]{
+	Root:       []string{"true"},
+	Extensible: true,
 }
 
-func (d DirectForwardingPathAvailability) Name() string {
-	return directForwardingPathAvailabilityNames[d]
+var enumIntegrityProtectionIndication = per.Enum[IntegrityProtectionIndication]{
+	Root:       []string{"required", "preferred", "not-needed"},
+	Extensible: true,
 }
 
-var ueRetentionInformationNames = map[UERetentionInformation]string{
-	UERetentionUesRetained: "ues-retained",
+var enumPagingPriority = per.Enum[PagingPriority]{
+	Root:       []string{"priolevel1", "priolevel2", "priolevel3", "priolevel4", "priolevel5", "priolevel6", "priolevel7", "priolevel8"},
+	Extensible: true,
 }
 
-func (u UERetentionInformation) Name() string { return ueRetentionInformationNames[u] }
-
-var forbiddenInterRATsNames = map[ForbiddenInterRATs]string{
-	ForbiddenInterRATsAll:      "all",
-	ForbiddenInterRATsGERAN:    "geran",
-	ForbiddenInterRATsUTRAN:    "utran",
-	ForbiddenInterRATsCDMA2000: "cdma2000",
+var enumUERetentionInformation = per.Enum[UERetentionInformation]{
+	Root:       []string{"ues-retained"},
+	Extensible: true,
 }
 
-func (f ForbiddenInterRATs) Name() string { return forbiddenInterRATsNames[f] }
-
-var enbIDKindNames = map[ENBIDKind]string{
-	ENBIDMacro:      "macroENB-ID",
-	ENBIDHome:       "homeENB-ID",
-	ENBIDShortMacro: "short-macroENB-ID",
-	ENBIDLongMacro:  "long-macroENB-ID",
+var enumPagingDRX = per.Enum[PagingDRX]{
+	Root:       []string{"v32", "v64", "v128", "v256"},
+	Extensible: true,
 }
 
-// Name returns the name of the ENB-ID CHOICE alternative the kind selects.
-func (k ENBIDKind) Name() string { return enbIDKindNames[k] }
-
-var eventTypeNames = map[EventType]string{
-	EventTypeDirect:                "direct",
-	EventTypeChangeOfServeCell:     "change-of-serve-cell",
-	EventTypeStopChangeOfServeCell: "stop-change-of-serve-cell",
+var enumForbiddenInterRATs = per.Enum[ForbiddenInterRATs]{
+	Root:      []string{"all", "geran", "utran", "cdma2000"},
+	Extension: []string{"geranandutran", "cdma2000andutran"},
 }
 
-func (e EventType) Name() string { return eventTypeNames[e] }
-
-var reportAreaNames = map[ReportArea]string{
-	ReportAreaECGI: "ecgi",
+var enumDataForwardingNotPossible = per.Enum[DataForwardingNotPossible]{
+	Root:       []string{"data-Forwarding-not-Possible"},
+	Extensible: true,
 }
 
-func (r ReportArea) Name() string { return reportAreaNames[r] }
-
-var dlForwardingNames = map[DLForwarding]string{
-	DLForwardingProposed: "dL-Forwarding-proposed",
+var enumTimeToWait = per.Enum[TimeToWait]{
+	Root:       []string{"v1s", "v2s", "v5s", "v10s", "v20s", "v60s"},
+	Extensible: true,
 }
 
-func (d DLForwarding) Name() string { return dlForwardingNames[d] }
-
-var cellSizeNames = map[CellSize]string{
-	CellSizeVerySmall: "verysmall",
-	CellSizeSmall:     "small",
-	CellSizeMedium:    "medium",
-	CellSizeLarge:     "large",
+var enumTraceDepth = per.Enum[TraceDepth]{
+	Root:       []string{"minimum", "medium", "maximum", "minimumWithoutVendorSpecificExtension", "mediumWithoutVendorSpecificExtension", "maximumWithoutVendorSpecificExtension"},
+	Extensible: true,
 }
 
-func (c CellSize) Name() string { return cellSizeNames[c] }
-
-var bearerTypeNames = map[BearerType]string{
-	BearerTypeNonIP: "non-IP",
+var enumRRCEstablishmentCause = per.Enum[RRCEstablishmentCause]{
+	Root:      []string{"emergency", "highPriorityAccess", "mt-Access", "mo-Signalling", "mo-Data"},
+	Extension: []string{"delay-TolerantAccess", "mo-VoiceCall", "mo-ExceptionData"},
 }
 
-func (b BearerType) Name() string { return bearerTypeNames[b] }
-
-var ethernetTypeNames = map[EthernetType]string{
-	EthernetTypeTrue: "true",
+var enumGWContextReleaseIndication = per.Enum[GWContextReleaseIndication]{
+	Root:       []string{"true"},
+	Extensible: true,
 }
 
-func (e EthernetType) Name() string { return ethernetTypeNames[e] }
-
-var integrityProtectionIndicationNames = map[IntegrityProtectionIndication]string{
-	IntegrityProtectionRequired:  "required",
-	IntegrityProtectionPreferred: "preferred",
-	IntegrityProtectionNotNeeded: "not-needed",
+var enumDLForwarding = per.Enum[DLForwarding]{
+	Root:       []string{"dL-Forwarding-proposed"},
+	Extensible: true,
 }
 
-func (i IntegrityProtectionIndication) Name() string { return integrityProtectionIndicationNames[i] }
+var enumCellSize = per.Enum[CellSize]{
+	Root:       []string{"verysmall", "small", "medium", "large"},
+	Extensible: true,
+}
+
+var enumDirectForwardingPathAvailability = per.Enum[DirectForwardingPathAvailability]{
+	Root:       []string{"directPathAvailable"},
+	Extensible: true,
+}
+
+var enumResetAll = per.Enum[ResetAll]{
+	Root:       []string{"reset-all"},
+	Extensible: true,
+}
+
+var enumOverloadAction = per.Enum[OverloadAction]{
+	Root:      []string{"reject-non-emergency-mo-dt", "reject-rrc-cr-signalling", "permit-emergency-sessions-and-mobile-terminated-services-only"},
+	Extension: []string{"permit-high-priority-sessions-and-mobile-terminated-services-only", "reject-delay-tolerant-access", "permit-high-priority-sessions-and-exception-reporting-and-mobile-terminated-services-only", "not-accept-mo-data-or-delay-tolerant-access-from-CP-CIoT"},
+}
+
+var enumGUMMEIType = per.Enum[GUMMEIType]{
+	Root:      []string{"native", "mapped"},
+	Extension: []string{"mappedFrom5G"},
+}
+
+var enumNRrestrictioninEPSasSecondaryRAT = per.Enum[NRrestrictioninEPSasSecondaryRAT]{
+	Root:       []string{"nRrestrictedinEPSasSecondaryRAT"},
+	Extensible: true,
+}
+
+var enumUnlicensedSpectrumRestriction = per.Enum[UnlicensedSpectrumRestriction]{
+	Root:       []string{"unlicensed-restricted"},
+	Extensible: true,
+}
+
+var enumNRrestrictionin5GS = per.Enum[NRrestrictionin5GS]{
+	Root:       []string{"nRrestrictedin5GS"},
+	Extensible: true,
+}
+
+var enumCNType = per.Enum[CNType]{
+	Root:      []string{"fiveGCForbidden"},
+	Extension: []string{"epc-Forbiddden"},
+}
+
+var enumRequestTypeAdditionalInfo = per.Enum[RequestTypeAdditionalInfo]{
+	Root:       []string{"includePSCell"},
+	Extensible: true,
+}
+
+var enumDAPSIndicator = per.Enum[DAPSIndicator]{
+	Root:       []string{"dAPS-HO-required"},
+	Extensible: true,
+}
+
+var enumIMSvoiceEPSfallbackfrom5G = per.Enum[IMSvoiceEPSfallbackfrom5G]{
+	Root:       []string{"true"},
+	Extensible: true,
+}
+
+var enumEmergencyIndicator = per.Enum[EmergencyIndicator]{
+	Root:       []string{"true"},
+	Extensible: true,
+}
+
+var enumSubcarrierSpacingSSB = per.Enum[SubcarrierSpacingSSB]{
+	Root:      []string{"kHz15", "kHz30", "kHz60", "kHz120", "kHz240"},
+	Extension: []string{"kHz480", "kHz960"},
+}
+
+var enumRATType = per.Enum[RATType]{
+	Root:      []string{"nbiot"},
+	Extension: []string{"nbiot-leo", "nbiot-meo", "nbiot-geo", "nbiot-othersat", "eutran-leo", "eutran-meo", "eutran-geo", "eutran-othersat"},
+}
+
+var enumCoarseUELocationRequested = per.Enum[CoarseUELocationRequested]{
+	Root:       []string{"true"},
+	Extensible: true,
+}
+
+var enumTimeRefDistribution = per.Enum[TimeRefDistribution]{
+	Root:       []string{"true"},
+	Extensible: true,
+}
+
+var enumSONInformationRequest = per.Enum[SONInformationRequest]{
+	Root:      []string{"x2TNL-Configuration-Info"},
+	Extension: []string{"time-Synchronisation-Info", "activate-Muting", "deactivate-Muting"},
+}
+
+var enumSynchronisationStatus = per.Enum[SynchronisationStatus]{
+	Root:       []string{"synchronous", "asynchronous"},
+	Extensible: true,
+}
+
+var enumMutingAvailabilityIndication = per.Enum[MutingAvailabilityIndication]{
+	Root:       []string{"available", "unavailable"},
+	Extensible: true,
+}
+
+var enumMutingPatternPeriod = per.Enum[MutingPatternPeriod]{
+	Root:       []string{"ms0", "ms1280", "ms2560", "ms5120", "ms10240"},
+	Extensible: true,
+}
+
+var enumPatternPeriod = per.Enum[PatternPeriod]{
+	Root:       []string{"ms1280", "ms2560", "ms5120", "ms10240"},
+	Extensible: true,
+}

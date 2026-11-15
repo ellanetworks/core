@@ -17,32 +17,14 @@ type ERABToBeSetupItemBearerSUReq struct {
 	TransportLayerAddress TransportLayerAddress
 	GTPTEID               GTPTEID
 	NASPDU                NASPDU
-	CorrelationID         *CorrelationID         `per:"-"`
-	SIPTOCorrelationID    *CorrelationID         `per:"-"`
-	BearerType            *BearerType            `per:"-"`
-	EthernetType          *EthernetType          `per:"-"`
-	SecurityIndication    *SecurityIndication    `per:"-"`
-	iEExtensions          messageMeta            `per:",exttable:eRABToBeSetupItemBearerSUReqExtIEs"`
+	CorrelationID         *CorrelationID         `per:",extie:IDCorrelationID,crit:ignore"`
+	SIPTOCorrelationID    *CorrelationID         `per:",extie:IDSIPTOCorrelationID,crit:ignore"`
+	BearerType            *BearerType            `per:",extie:IDBearerType,crit:reject"`
+	EthernetType          *EthernetType          `per:",extie:IDEthernetType,crit:ignore"`
+	SecurityIndication    *SecurityIndication    `per:",extie:IDSecurityIndication,crit:reject"`
+	iEExtensions          extensionMeta          `per:",exttable"`
 	extensions            per.ExtensionAdditions `per:",extraw"`
 	containerCrit         `per:"-"`
-}
-
-var eRABToBeSetupItemBearerSUReqExtIEs = []ieSpec[ERABToBeSetupItemBearerSUReq]{
-	optionalExtension(IDCorrelationID, CriticalityIgnore, func(m *ERABToBeSetupItemBearerSUReq) **CorrelationID {
-		return &m.CorrelationID
-	}),
-	optionalExtension(IDSIPTOCorrelationID, CriticalityIgnore, func(m *ERABToBeSetupItemBearerSUReq) **CorrelationID {
-		return &m.SIPTOCorrelationID
-	}),
-	optionalExtension(IDBearerType, CriticalityReject, func(m *ERABToBeSetupItemBearerSUReq) **BearerType {
-		return &m.BearerType
-	}),
-	optionalExtension(IDEthernetType, CriticalityIgnore, func(m *ERABToBeSetupItemBearerSUReq) **EthernetType {
-		return &m.EthernetType
-	}),
-	optionalExtension(IDSecurityIndication, CriticalityReject, func(m *ERABToBeSetupItemBearerSUReq) **SecurityIndication {
-		return &m.SecurityIndication
-	}),
 }
 
 // ERABSetupItemBearerSURes ::= SEQUENCE { e-RAB-ID, transportLayerAddress,
@@ -61,28 +43,28 @@ type ERABSetupRequest struct {
 
 var eRABSetupRequestIEs = []ieSpec[ERABSetupRequest]{
 	{
-		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *ERABSetupRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.MMEUES1APID)
+		ID: IDMMEUES1APID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *ERABSetupRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.MMEUES1APID)
 		},
-		encode: func(m *ERABSetupRequest) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+		Encode: func(m *ERABSetupRequest) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *ERABSetupRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ENBUES1APID)
+		ID: IDENBUES1APID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *ERABSetupRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.ENBUES1APID)
 		},
-		encode: func(m *ERABSetupRequest) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+		Encode: func(m *ERABSetupRequest) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: IDUEAggregateMaximumBitrate, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *ERABSetupRequest, raw []byte, enc per.Encoding) error {
+		ID: IDUEAggregateMaximumBitrate, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *ERABSetupRequest, r *per.Reader, enc per.Encoding) error {
 			var (
 				err  error
 				ambr UEAggregateMaximumBitRate
 			)
 
-			err = perIEDecode(raw, &ambr)
+			err = decodeIE(r, &ambr)
 			if err != nil {
 				return err
 			}
@@ -91,7 +73,7 @@ var eRABSetupRequestIEs = []ieSpec[ERABSetupRequest]{
 
 			return nil
 		},
-		encode: func(m *ERABSetupRequest) (per.Marshaler, bool) {
+		Encode: func(m *ERABSetupRequest) (per.Marshaler, bool) {
 			if m.UEAggregateMaximumBitRate == nil {
 				return nil, false
 			}
@@ -100,18 +82,16 @@ var eRABSetupRequestIEs = []ieSpec[ERABSetupRequest]{
 		},
 	},
 	{
-		id: IDERABToBeSetupListBearerSUReq, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *ERABSetupRequest, raw []byte, enc per.Encoding) error {
+		ID: IDERABToBeSetupListBearerSUReq, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *ERABSetupRequest, r *per.Reader, enc per.Encoding) error {
 			var err error
 
-			m.ERABToBeSetup, err = decodeItemList[ERABToBeSetupItemBearerSUReq](per.NewReader(raw), enc, maxnoofERABs, IDERABToBeSetupItemBearerSUReq, CriticalityReject)
+			m.ERABToBeSetup, err = decodeItemList[ERABToBeSetupItemBearerSUReq](r, enc, maxnoofERABs, IDERABToBeSetupItemBearerSUReq, CriticalityReject)
 
 			return err
 		},
-		encode: func(m *ERABSetupRequest) (per.Marshaler, bool) {
-			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeSingleContainerList(w, enc, maxnoofERABs, IDERABToBeSetupItemBearerSUReq, CriticalityReject, m.ERABToBeSetup)
-			}), true
+		Encode: func(m *ERABSetupRequest) (per.Marshaler, bool) {
+			return containerList(maxnoofERABs, IDERABToBeSetupItemBearerSUReq, CriticalityReject, m.ERABToBeSetup), true
 		},
 	},
 }
@@ -140,6 +120,10 @@ func ParseERABSetupRequest(value []byte) (*ERABSetupRequest, error) {
 	return parseMessageBody[ERABSetupRequest](ProcERABSetup, TriggeringInitiatingMessage, eRABSetupRequestIEs, value)
 }
 
+func DecodeERABSetupRequest(value []byte) (*ERABSetupRequest, error) {
+	return decodeMessageBody[ERABSetupRequest](ProcERABSetup, eRABSetupRequestIEs, value)
+}
+
 // TS 36.413 §9.1.3.2.
 type ERABSetupResponse struct {
 	MMEUES1APID             *MMEUES1APID
@@ -154,11 +138,11 @@ type ERABSetupResponse struct {
 
 var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
 	{
-		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
+		ID: IDMMEUES1APID, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *ERABSetupResponse, r *per.Reader, enc per.Encoding) error {
 			var v MMEUES1APID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -166,7 +150,7 @@ var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
 
 			return nil
 		},
-		encode: func(m *ERABSetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *ERABSetupResponse) (per.Marshaler, bool) {
 			if m.MMEUES1APID == nil {
 				return nil, false
 			}
@@ -175,11 +159,11 @@ var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
 		},
 	},
 	{
-		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
+		ID: IDENBUES1APID, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *ERABSetupResponse, r *per.Reader, enc per.Encoding) error {
 			var v ENBUES1APID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -187,7 +171,7 @@ var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
 
 			return nil
 		},
-		encode: func(m *ERABSetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *ERABSetupResponse) (per.Marshaler, bool) {
 			if m.ENBUES1APID == nil {
 				return nil, false
 			}
@@ -196,49 +180,45 @@ var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
 		},
 	},
 	{
-		id: IDERABSetupListBearerSURes, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
+		ID: IDERABSetupListBearerSURes, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *ERABSetupResponse, r *per.Reader, enc per.Encoding) error {
 			var err error
 
-			m.ERABSetup, err = decodeItemList[ERABSetupItemBearerSURes](per.NewReader(raw), enc, maxnoofERABs, IDERABSetupItemBearerSURes, CriticalityIgnore)
+			m.ERABSetup, err = decodeItemList[ERABSetupItemBearerSURes](r, enc, maxnoofERABs, IDERABSetupItemBearerSURes, CriticalityIgnore)
 
 			return err
 		},
-		encode: func(m *ERABSetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *ERABSetupResponse) (per.Marshaler, bool) {
 			if len(m.ERABSetup) == 0 {
 				return nil, false
 			}
 
-			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeSingleContainerList(w, enc, maxnoofERABs, IDERABSetupItemBearerSURes, CriticalityIgnore, m.ERABSetup)
-			}), true
+			return containerList(maxnoofERABs, IDERABSetupItemBearerSURes, CriticalityIgnore, m.ERABSetup), true
 		},
 	},
 	{
-		id: IDERABFailedToSetupListBearerSURes, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
+		ID: IDERABFailedToSetupListBearerSURes, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *ERABSetupResponse, r *per.Reader, enc per.Encoding) error {
 			var err error
 
-			m.ERABFailedToSetup, err = decodeItemList[ERABItem](per.NewReader(raw), enc, maxnoofERABs, IDERABItem, CriticalityIgnore)
+			m.ERABFailedToSetup, err = decodeItemList[ERABItem](r, enc, maxnoofERABs, IDERABItem, CriticalityIgnore)
 
 			return err
 		},
-		encode: func(m *ERABSetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *ERABSetupResponse) (per.Marshaler, bool) {
 			if len(m.ERABFailedToSetup) == 0 {
 				return nil, false
 			}
 
-			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeSingleContainerList(w, enc, maxnoofERABs, IDERABItem, CriticalityIgnore, m.ERABFailedToSetup)
-			}), true
+			return containerList(maxnoofERABs, IDERABItem, CriticalityIgnore, m.ERABFailedToSetup), true
 		},
 	},
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *ERABSetupResponse, r *per.Reader, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
-			if err := perIEDecode(raw, &cd); err != nil {
+			if err := decodeIE(r, &cd); err != nil {
 				return err
 			}
 
@@ -246,7 +226,7 @@ var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
 
 			return nil
 		},
-		encode: func(m *ERABSetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *ERABSetupResponse) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -255,11 +235,11 @@ var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
 		},
 	},
 	{
-		id: IDUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *ERABSetupResponse, raw []byte, enc per.Encoding) error {
+		ID: IDUserLocationInformation, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *ERABSetupResponse, r *per.Reader, enc per.Encoding) error {
 			var uli UserLocationInformation
 
-			if err := perIEDecode(raw, &uli); err != nil {
+			if err := decodeIE(r, &uli); err != nil {
 				return err
 			}
 
@@ -267,7 +247,7 @@ var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
 
 			return nil
 		},
-		encode: func(m *ERABSetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *ERABSetupResponse) (per.Marshaler, bool) {
 			if m.UserLocationInformation == nil {
 				return nil, false
 			}
@@ -299,4 +279,8 @@ func (m *ERABSetupResponse) Marshal() ([]byte, error) {
 
 func ParseERABSetupResponse(value []byte) (*ERABSetupResponse, error) {
 	return parseMessageBody[ERABSetupResponse](ProcERABSetup, TriggeringSuccessfulOutcome, eRABSetupResponseIEs, value)
+}
+
+func DecodeERABSetupResponse(value []byte) (*ERABSetupResponse, error) {
+	return decodeMessageBody[ERABSetupResponse](ProcERABSetup, eRABSetupResponseIEs, value)
 }

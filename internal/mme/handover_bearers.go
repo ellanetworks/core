@@ -8,7 +8,7 @@ import (
 	"slices"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/per/ap"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
@@ -21,7 +21,7 @@ func HandoverBearers(ue *UeContext, forwarding bool) (bearers []s1ap.ERABToBeSet
 	candidates = make([]HandoverCandidate, 0, len(ue.Pdns))
 
 	for _, p := range ue.Pdns {
-		sgwTLA, err := models.EncodeTransportLayerAddress(p.SgwFTEID.Addr, p.SgwN3IPv6)
+		sgwTLA, err := ap.TransportLayerAddressFromAddrs(p.SgwFTEID.Addr, p.SgwN3IPv6)
 		if err != nil {
 			logger.MmeLog.Error("failed to encode S-GW transport layer address for handover",
 				logger.SUPI(ue.supiOrEmpty()), logger.ERABID(p.Ebi), zap.Error(err))
@@ -35,7 +35,7 @@ func HandoverBearers(ue *UeContext, forwarding bool) (bearers []s1ap.ERABToBeSet
 
 		bearer := s1ap.ERABToBeSetupItemHOReq{
 			ERABID:                s1ap.ERABID(p.Ebi),
-			TransportLayerAddress: s1ap.TransportLayerAddress(sgwTLA),
+			TransportLayerAddress: sgwTLA,
 			GTPTEID:               s1ap.GTPTEID(p.SgwFTEID.TEID),
 			QoS: s1ap.ERABLevelQoSParameters{
 				QCI: s1ap.QCI(p.Qci),
@@ -44,9 +44,7 @@ func HandoverBearers(ue *UeContext, forwarding bool) (bearers []s1ap.ERABToBeSet
 		}
 
 		if !forwarding {
-			bearer.Extensions = &s1ap.ERABToBeSetupItemHOReqExtIEs{
-				DataForwardingNotPossible: s1ap.Ptr(s1ap.DataForwardingNotPossibleTrue),
-			}
+			bearer.DataForwardingNotPossible = s1ap.Ptr(s1ap.DataForwardingNotPossibleTrue)
 		}
 
 		bearers = append(bearers, bearer)
@@ -76,22 +74,20 @@ func HandoverBearers(ue *UeContext, forwarding bool) (bearers []s1ap.ERABToBeSet
 }
 
 func dedicatedHandoverItem(b *DedicatedBearer, forwarding bool) (s1ap.ERABToBeSetupItemHOReq, error) {
-	sgwTLA, err := models.EncodeTransportLayerAddress(b.SGW.Addr, b.SGWN3IPv6)
+	sgwTLA, err := ap.TransportLayerAddressFromAddrs(b.SGW.Addr, b.SGWN3IPv6)
 	if err != nil {
 		return s1ap.ERABToBeSetupItemHOReq{}, err
 	}
 
 	item := s1ap.ERABToBeSetupItemHOReq{
 		ERABID:                s1ap.ERABID(b.EBI),
-		TransportLayerAddress: s1ap.TransportLayerAddress(sgwTLA),
+		TransportLayerAddress: sgwTLA,
 		GTPTEID:               s1ap.GTPTEID(b.SGW.TEID),
 		QoS:                   DedicatedERABQoS(&b.DedicatedBearerInfo),
 	}
 
 	if !forwarding {
-		item.Extensions = &s1ap.ERABToBeSetupItemHOReqExtIEs{
-			DataForwardingNotPossible: s1ap.Ptr(s1ap.DataForwardingNotPossibleTrue),
-		}
+		item.DataForwardingNotPossible = s1ap.Ptr(s1ap.DataForwardingNotPossibleTrue)
 	}
 
 	return item, nil

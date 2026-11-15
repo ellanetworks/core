@@ -4,9 +4,10 @@
 package ngap
 
 import (
+	"bytes"
 	"fmt"
 
-	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 // NGAP-PDU CHOICE root alternatives (TS 38.413), in declaration order.
@@ -14,8 +15,6 @@ const (
 	pduInitiatingMessage = iota
 	pduSuccessfulOutcome
 	pduUnsuccessfulOutcome
-
-	pduRootCount = 3
 )
 
 // PDU is the top-level NGAP-PDU CHOICE: one of [InitiatingMessage],
@@ -59,6 +58,18 @@ func (m *UnsuccessfulOutcome) criticality() Criticality     { return m.Criticali
 func (m *UnsuccessfulOutcome) value() []byte                { return m.Value }
 func (m *UnsuccessfulOutcome) choiceIndex() int             { return pduUnsuccessfulOutcome }
 
+func (m InitiatingMessage) Equal(o InitiatingMessage) bool {
+	return m.ProcedureCode == o.ProcedureCode && m.Criticality == o.Criticality && bytes.Equal(m.Value, o.Value)
+}
+
+func (m SuccessfulOutcome) Equal(o SuccessfulOutcome) bool {
+	return m.ProcedureCode == o.ProcedureCode && m.Criticality == o.Criticality && bytes.Equal(m.Value, o.Value)
+}
+
+func (m UnsuccessfulOutcome) Equal(o UnsuccessfulOutcome) bool {
+	return m.ProcedureCode == o.ProcedureCode && m.Criticality == o.Criticality && bytes.Equal(m.Value, o.Value)
+}
+
 // Each alternative is a non-extensible SEQUENCE with no optional fields, so it
 // carries no preamble; value is wrapped as an open type.
 func Marshal(pdu PDU) ([]byte, error) {
@@ -66,84 +77,29 @@ func Marshal(pdu PDU) ([]byte, error) {
 		return nil, fmt.Errorf("ngap: nil PDU")
 	}
 
-	w := per.NewWriter()
-	enc := per.Aligned
-
-	w.WriteBit(false)
-
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, pduRootCount-1, int64(pdu.choiceIndex())); err != nil {
-		return nil, err
-	}
-
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 255, int64(pdu.procedureCode())); err != nil {
-		return nil, err
-	}
-
-	if err := per.EncodeEnumerated(w, enc, criticalityRootCount, false, int64(pdu.criticality())); err != nil {
-		return nil, err
-	}
-
-	if err := per.EncodeOpenTypeBytes(w, enc, pdu.value()); err != nil {
-		return nil, err
-	}
-
-	w.AlignToByte()
-
-	return w.Bytes(), nil
+	return profile.EncodePDU(ap.Envelope{
+		Choice:        pdu.choiceIndex(),
+		ProcedureCode: uint8(pdu.procedureCode()),
+		Criticality:   pdu.criticality(),
+		Value:         pdu.value(),
+	})
 }
 
 // The open-type payload is left in Value for the message layer.
 func Unmarshal(b []byte) (PDU, error) {
-	r := per.NewReader(b)
-
-	isExt, err := r.ReadBit()
-	if err != nil {
-		return nil, fmt.Errorf("ngap: PDU choice: %w", err)
-	}
-
-	if isExt {
-		return nil, fmt.Errorf("ngap: unsupported NGAP-PDU extension alternative")
-	}
-
-	idx, err := per.DecodeConstrainedWholeNumber(r, per.Aligned, 0, pduRootCount-1)
-	if err != nil {
-		return nil, fmt.Errorf("ngap: PDU choice: %w", err)
-	}
-
-	pc, crit, val, err := decodeMessageFields(r)
+	e, err := profile.DecodePDU(b)
 	if err != nil {
 		return nil, err
 	}
 
-	switch idx {
+	pc := ProcedureCode(e.ProcedureCode)
+
+	switch e.Choice {
 	case pduInitiatingMessage:
-		return &InitiatingMessage{ProcedureCode: pc, Criticality: crit, Value: val}, nil
+		return &InitiatingMessage{ProcedureCode: pc, Criticality: e.Criticality, Value: e.Value}, nil
 	case pduSuccessfulOutcome:
-		return &SuccessfulOutcome{ProcedureCode: pc, Criticality: crit, Value: val}, nil
-	case pduUnsuccessfulOutcome:
-		return &UnsuccessfulOutcome{ProcedureCode: pc, Criticality: crit, Value: val}, nil
+		return &SuccessfulOutcome{ProcedureCode: pc, Criticality: e.Criticality, Value: e.Value}, nil
 	default:
-		return nil, fmt.Errorf("ngap: unreachable PDU index %d", idx)
+		return &UnsuccessfulOutcome{ProcedureCode: pc, Criticality: e.Criticality, Value: e.Value}, nil
 	}
-}
-
-func decodeMessageFields(r *per.Reader) (ProcedureCode, Criticality, []byte, error) {
-	enc := per.Aligned
-
-	pc, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 255)
-	if err != nil {
-		return 0, 0, nil, fmt.Errorf("ngap: procedureCode: %w", err)
-	}
-
-	crit, err := per.DecodeEnumerated(r, enc, criticalityRootCount, false)
-	if err != nil {
-		return 0, 0, nil, fmt.Errorf("ngap: criticality: %w", err)
-	}
-
-	val, err := per.DecodeOpenTypeBytes(r, enc)
-	if err != nil {
-		return 0, 0, nil, fmt.Errorf("ngap: value: %w", err)
-	}
-
-	return ProcedureCode(pc), Criticality(crit), val, nil
 }

@@ -11,23 +11,37 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/per/ap"
 )
 
-func testUserLocation(kind ngap.UserLocationInformationKind, cell uint64) ngap.UserLocationInformation {
-	plmn := ngap.PLMNIdentity{0x00, 0xf1, 0x10}
+type testULIKind int
 
-	return ngap.UserLocationInformation{
-		Kind:         kind,
-		PLMNIdentity: plmn,
-		CellIdentity: cell,
-		TAI:          ngap.TAI{PLMNIdentity: plmn, TAC: 7},
+const (
+	testULINR testULIKind = iota
+	testULIEUTRA
+)
+
+func testUserLocation(kind testULIKind, cell uint64) ngap.UserLocationInformation {
+	plmn := ngap.PLMNIdentity{0x00, 0xf1, 0x10}
+	tai := ngap.TAI{PLMNIdentity: plmn, TAC: 7}
+
+	if kind == testULIEUTRA {
+		return ngap.UserLocationInformation{EUTRA: &ngap.UserLocationInformationEUTRA{
+			EUTRACGI: ngap.EUTRACGI{PLMNIdentity: plmn, EUTRACellIdentity: ngap.EUTRACellIdentity(cell)},
+			TAI:      tai,
+		}}
 	}
+
+	return ngap.UserLocationInformation{NR: &ngap.UserLocationInformationNR{
+		NRCGI: ngap.NRCGI{PLMNIdentity: plmn, NRCellIdentity: ngap.NRCellIdentity(cell)},
+		TAI:   tai,
+	}}
 }
 
 func TestUpdateLocationConversion(t *testing.T) {
 	c := &UeConn{}
 
-	c.UpdateLocation(context.Background(), testUserLocation(ngap.UserLocationNR, 0x123456789))
+	c.UpdateLocation(context.Background(), testUserLocation(testULINR, 0x123456789))
 
 	nr := c.Location.NrLocation
 	if nr == nil || nr.Tai == nil || nr.Ncgi == nil {
@@ -54,7 +68,7 @@ func TestUpdateLocationConversion(t *testing.T) {
 func TestUpdateLocationEUTRA(t *testing.T) {
 	c := &UeConn{}
 
-	c.UpdateLocation(context.Background(), testUserLocation(ngap.UserLocationEUTRA, 0x0abcde1))
+	c.UpdateLocation(context.Background(), testUserLocation(testULIEUTRA, 0x0abcde1))
 
 	el := c.Location.EutraLocation
 	if el == nil || el.Ecgi == nil {
@@ -74,14 +88,14 @@ func TestUpdateLocationReplacesPreviousAccess(t *testing.T) {
 	ctx := context.Background()
 
 	c := &UeConn{}
-	c.UpdateLocation(ctx, testUserLocation(ngap.UserLocationNR, 0x123456789))
-	c.UpdateLocation(ctx, testUserLocation(ngap.UserLocationEUTRA, 0x0abcde1))
+	c.UpdateLocation(ctx, testUserLocation(testULINR, 0x123456789))
+	c.UpdateLocation(ctx, testUserLocation(testULIEUTRA, 0x0abcde1))
 
 	if c.Location.NrLocation != nil {
 		t.Errorf("NR location survived a move to E-UTRA: %+v", c.Location.NrLocation)
 	}
 
-	c.UpdateLocation(ctx, testUserLocation(ngap.UserLocationNR, 0x123456789))
+	c.UpdateLocation(ctx, testUserLocation(testULINR, 0x123456789))
 
 	if c.Location.EutraLocation != nil {
 		t.Errorf("E-UTRA location survived a move to NR: %+v", c.Location.EutraLocation)
@@ -91,14 +105,14 @@ func TestUpdateLocationReplacesPreviousAccess(t *testing.T) {
 func TestUpdateLocationTimeStamp(t *testing.T) {
 	c := &UeConn{}
 
-	uli := testUserLocation(ngap.UserLocationNR, 1)
+	uli := testUserLocation(testULINR, 1)
 	c.UpdateLocation(context.Background(), uli)
 
 	if got := c.Location.NrLocation.AgeOfLocationInformation; got != 0 {
 		t.Errorf("age = %d with no TimeStamp, want 0", got)
 	}
 
-	uli.TimeStamp = ntpTimeStamp(time.Now().UTC().Add(-90 * time.Minute))
+	uli.NR.TimeStamp = ntpTimeStamp(time.Now().UTC().Add(-90 * time.Minute))
 	c.UpdateLocation(context.Background(), uli)
 
 	if got := c.Location.NrLocation.AgeOfLocationInformation; got != 90 {
@@ -149,7 +163,7 @@ func TestUpdateLocationMirrorsToUeContext(t *testing.T) {
 		t.Fatal("expected empty location initially")
 	}
 
-	c.UpdateLocation(context.Background(), testUserLocation(ngap.UserLocationNR, 0x123456789))
+	c.UpdateLocation(context.Background(), testUserLocation(testULINR, 0x123456789))
 
 	if ue.IsUserLocationEmpty() {
 		t.Fatal("location not mirrored to the persistent UE context")
@@ -164,7 +178,7 @@ func TestUpdateLocationMirrorsToUeContext(t *testing.T) {
 func TestUpdateLocationBareConnectionNotMirrored(t *testing.T) {
 	c := &UeConn{}
 
-	c.UpdateLocation(context.Background(), testUserLocation(ngap.UserLocationNR, 1))
+	c.UpdateLocation(context.Background(), testUserLocation(testULINR, 1))
 
 	if c.Location.NrLocation == nil {
 		t.Fatal("connection location should be set even without a bound UE")
@@ -176,7 +190,7 @@ func TestUpdateLocationConcurrentReadWrite(t *testing.T) {
 	c := &UeConn{}
 	c.ue.Store(ue)
 
-	uli := testUserLocation(ngap.UserLocationNR, 0x123456789)
+	uli := testUserLocation(testULINR, 0x123456789)
 
 	done := make(chan struct{})
 
@@ -233,11 +247,7 @@ func TestUpdateLocationN3IWF(t *testing.T) {
 		Mcc: "001", Mnc: "01", SupportedTACs: `["000007"]`,
 	}}}}
 
-	c.UpdateLocation(context.Background(), ngap.UserLocationInformation{
-		Kind:       ngap.UserLocationN3IWF,
-		IPAddress:  ngap.TransportLayerAddress{192, 168, 1, 1},
-		PortNumber: 500,
-	})
+	c.UpdateLocation(context.Background(), ngap.UserLocationInformation{N3IWF: &ngap.UserLocationInformationN3IWFWithPortNumber{IPAddress: ap.TransportLayerAddressFromOctets([]byte{192, 168, 1, 1}), PortNumber: 500}})
 
 	n3 := c.Location.N3gaLocation
 	if n3 == nil {
@@ -265,12 +275,9 @@ func TestUpdateLocationN3IWFKeepsLastKnownWithoutOperator(t *testing.T) {
 	ctx := context.Background()
 
 	c := &UeConn{}
-	c.UpdateLocation(ctx, testUserLocation(ngap.UserLocationNR, 0x123456789))
+	c.UpdateLocation(ctx, testUserLocation(testULINR, 0x123456789))
 
-	c.UpdateLocation(ctx, ngap.UserLocationInformation{
-		Kind:      ngap.UserLocationN3IWF,
-		IPAddress: ngap.TransportLayerAddress{192, 168, 1, 1},
-	})
+	c.UpdateLocation(ctx, ngap.UserLocationInformation{N3IWF: &ngap.UserLocationInformationN3IWFWithPortNumber{IPAddress: ap.TransportLayerAddressFromOctets([]byte{192, 168, 1, 1})}})
 
 	if c.Location.NrLocation == nil {
 		t.Error("dropped the last known location on an unrecordable update")

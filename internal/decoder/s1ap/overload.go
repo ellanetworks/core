@@ -28,8 +28,13 @@ func buildOverloadStart(value []byte) (S1APMessageValue, string) {
 		return S1APMessageValue{Error: fmt.Sprintf("parse Overload Start: %v", err)}, ""
 	}
 
+	var action uint8
+	if a := m.OverloadResponse.OverloadAction; a != nil {
+		action = uint8(*a)
+	}
+
 	ies := []IE{
-		ie(s1ap.IDOverloadResponse, s1ap.CriticalityReject, OverloadResponse{OverloadAction: uint8(m.OverloadResponse.OverloadAction)}),
+		ie(s1ap.IDOverloadResponse, s1ap.CriticalityReject, OverloadResponse{OverloadAction: action}),
 	}
 
 	if len(m.GUMMEIList) > 0 {
@@ -42,7 +47,7 @@ func buildOverloadStart(value []byte) (S1APMessageValue, string) {
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
-	return S1APMessageValue{IEs: ies}, fmt.Sprintf("Overload Start (action %d)", uint8(m.OverloadResponse.OverloadAction))
+	return S1APMessageValue{IEs: ies}, fmt.Sprintf("Overload Start (action %d)", action)
 }
 
 func buildOverloadStop(value []byte) (S1APMessageValue, string) {

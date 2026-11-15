@@ -25,9 +25,9 @@ func buildPaging(value []byte) NGAPMessageValue {
 
 	var ies []IE
 
-	if m.FiveGSTMSI != nil {
+	if m.UEPagingIdentity != nil && m.UEPagingIdentity.FiveGSTMSI != nil {
 		ies = append(ies, ie(ngap.IDUEPagingIdentity, ngap.CriticalityIgnore,
-			UEPagingIdentity{FiveGSTMSI: buildFiveGSTMSI(*m.FiveGSTMSI)}))
+			UEPagingIdentity{FiveGSTMSI: buildFiveGSTMSI(*m.UEPagingIdentity.FiveGSTMSI)}))
 	}
 
 	if m.PagingDRX != nil {
@@ -37,7 +37,7 @@ func buildPaging(value []byte) NGAPMessageValue {
 	if m.TAIListForPaging != nil {
 		tais := make([]TAI, 0, len(m.TAIListForPaging))
 		for _, item := range m.TAIListForPaging {
-			tais = append(tais, tai(item))
+			tais = append(tais, tai(item.TAI))
 		}
 
 		ies = append(ies, ie(ngap.IDTAIListForPaging, ngap.CriticalityIgnore, tais))

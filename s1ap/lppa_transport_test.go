@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 const (
@@ -156,11 +157,11 @@ func TestLPPaTransportUnknownIE(t *testing.T) {
 	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: IDMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(9)},
-		{id: IDENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(9)},
-		{id: IDRoutingID, crit: CriticalityReject, val: RoutingID(0)},
-		{id: IDLPPaPDU, crit: CriticalityReject, val: LPPaPDU{0x01}},
-		{id: 999, crit: CriticalityIgnore, raw: []byte{0xaa}},
+		{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: MMEUES1APID(9)},
+		{ID: IDENBUES1APID, Criticality: CriticalityReject, Value: ENBUES1APID(9)},
+		{ID: IDRoutingID, Criticality: CriticalityReject, Value: RoutingID(0)},
+		{ID: IDLPPaPDU, Criticality: CriticalityReject, Value: LPPaPDU{0x01}},
+		{ID: 999, Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0xaa})},
 	}
 
 	if err := encodeIEContainer(w, per.Aligned, fields); err != nil {
@@ -184,8 +185,8 @@ func TestLPPaTransportMissingMandatoryIE(t *testing.T) {
 
 	// MME-UE-S1AP-ID and eNB-UE-S1AP-ID only; Routing-ID and LPPa-PDU omitted.
 	fields := []ieField{
-		{id: IDMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
-		{id: IDENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(1)},
+		{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: MMEUES1APID(1)},
+		{ID: IDENBUES1APID, Criticality: CriticalityReject, Value: ENBUES1APID(1)},
 	}
 
 	if err := encodeIEContainer(w, per.Aligned, fields); err != nil {

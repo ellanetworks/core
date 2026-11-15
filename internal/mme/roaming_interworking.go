@@ -47,10 +47,7 @@ func (m *MME) admitArrivingVisitor(ctx context.Context, ue *UeContext) error {
 
 	var r *Rejection
 	if errors.As(err, &r) {
-		return fmt.Errorf("%w: %w", r, interworking.TargetRefusal{Cause: s1ap.Cause{
-			Group: s1ap.CauseGroupRadioNetwork,
-			Value: s1ap.CauseRadioNetworkHOTargetNotAllowed,
-		}})
+		return fmt.Errorf("%w: %w", r, interworking.TargetRefusal{Cause: s1ap.CauseRadioNetworkHOTargetNotAllowed.Cause()})
 	}
 
 	return err

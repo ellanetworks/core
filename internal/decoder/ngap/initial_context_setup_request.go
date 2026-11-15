@@ -187,6 +187,10 @@ func buildInitialContextSetupRequest(value []byte) NGAPMessageValue {
 		ies = append(ies, ie(ngap.IDTraceActivation, ngap.CriticalityIgnore, traceActivation(*m.TraceActivation)))
 	}
 
+	if m.MobilityRestrictionList != nil {
+		ies = append(ies, ie(ngap.IDMobilityRestrictionList, ngap.CriticalityIgnore, mobilityRestrictionList(*m.MobilityRestrictionList)))
+	}
+
 	if m.NASPDU != nil {
 		ies = append(ies, ie(ngap.IDNASPDU, ngap.CriticalityIgnore, libNASPDU(*m.NASPDU)))
 	}
@@ -212,10 +216,10 @@ func buildInitialContextSetupRequest(value []byte) NGAPMessageValue {
 // pair stays hex, as this core does not negotiate E-UTRA algorithms.
 func libUESecurityCapabilities(c ngap.UESecurityCapabilities) UESecurityCapabilities {
 	return UESecurityCapabilities{
-		NRencryptionAlgorithms:             nrAlgorithmNames(c.NREncryptionAlgorithms, "NEA"),
-		NRintegrityProtectionAlgorithms:    nrAlgorithmNames(c.NRIntegrityProtectionAlgorithms, "NIA"),
-		EUTRAencryptionAlgorithms:          bitsHex(uint64(c.EUTRAEncryptionAlgorithms), 16),
-		EUTRAintegrityProtectionAlgorithms: bitsHex(uint64(c.EUTRAIntegrityProtectionAlgorithms), 16),
+		NRencryptionAlgorithms:             nrAlgorithmNames(c.NREncryptionAlgorithms.Uint16(), "NEA"),
+		NRintegrityProtectionAlgorithms:    nrAlgorithmNames(c.NRIntegrityProtectionAlgorithms.Uint16(), "NIA"),
+		EUTRAencryptionAlgorithms:          bitsHex(uint64(c.EUTRAEncryptionAlgorithms.Uint16()), 16),
+		EUTRAintegrityProtectionAlgorithms: bitsHex(uint64(c.EUTRAIntegrityProtectionAlgorithms.Uint16()), 16),
 	}
 }
 

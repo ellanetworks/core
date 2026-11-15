@@ -28,7 +28,7 @@ func HandleNGReset(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, re
 		cause = req.Cause.String()
 	}
 
-	if req.ResetType.All {
+	if req.ResetType.NGInterface != nil {
 		// TS 38.413: NG Reset is initiated when one side has lost its
 		// UE-associated logical NG-connection context. Treat as lower layer
 		// failure so ongoing NAS procedures are aborted per TS 24.501.
@@ -40,17 +40,22 @@ func HandleNGReset(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, re
 		return
 	}
 
-	released := releaseListedUEs(ctx, amfInstance, ran, req.ResetType.Part)
+	var part ngap.UEAssociatedLogicalNGConnectionList
+	if req.ResetType.PartOfNGInterface != nil {
+		part = *req.ResetType.PartOfNGInterface
+	}
+
+	released := releaseListedUEs(ctx, amfInstance, ran, part)
 
 	ran.Log(ctx).Info("NG Reset (part of interface)",
 		logger.Cause(cause),
-		zap.Int("requested", len(req.ResetType.Part)),
+		zap.Int("requested", len(part)),
 		zap.Int("connections", len(released)))
 
 	// TS 38.413 §8.7.4.2.2: the acknowledge echoes every UE-associated logical
 	// NG-connection the reset named, in the order received, including the ones
 	// this AMF does not hold.
-	sendNGResetAcknowledge(ctx, ran, req.ResetType.Part, req.Diagnostics())
+	sendNGResetAcknowledge(ctx, ran, part, req.Diagnostics())
 }
 
 // releaseListedUEs releases each UE the list names and returns the entries it

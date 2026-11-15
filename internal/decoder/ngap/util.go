@@ -5,8 +5,8 @@ package ngap
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
-	"net"
 	"time"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
@@ -45,22 +45,32 @@ func ieEnum(id ngap.ProtocolIEID) utils.EnumField {
 	return utils.MakeEnum(uint16(id), name, !ok)
 }
 
-// transportLayerAddressToString formats a NGAP TransportLayerAddress byte slice
-// as a human-readable string per 3GPP TS 38.414 Section 5.1:
-//   - 4 bytes  → IPv4 dotted-decimal
-//   - 16 bytes → IPv6 colon-notation
-//   - 20 bytes → "IPv4+IPv6" dual-stack
-func transportLayerAddressToString(addr []byte) string {
-	switch len(addr) {
-	case 4:
-		return fmt.Sprintf("%d.%d.%d.%d", addr[0], addr[1], addr[2], addr[3])
-	case 16:
-		return net.IP(addr).String()
-	case 20:
-		return fmt.Sprintf("%s+%s", net.IP(addr[0:4]).String(), net.IP(addr[4:20]).String())
+// transportLayerAddressToString formats a NGAP TransportLayerAddress as a
+// human-readable string per 3GPP TS 38.414 Section 5.1:
+//   - 32 bits  → IPv4 dotted-decimal
+//   - 128 bits → IPv6 colon-notation
+//   - 160 bits → "IPv4+IPv6" dual-stack
+func transportLayerAddressToString(addr ngap.TransportLayerAddress) string {
+	ipv4, ipv6 := addr.IPv4(), addr.IPv6()
+
+	switch {
+	case ipv4.IsValid() && ipv6.IsValid():
+		return ipv4.String() + "+" + ipv6.String()
+	case ipv4.IsValid():
+		return ipv4.String()
+	case ipv6.IsValid():
+		return ipv6.String()
 	default:
 		return ""
 	}
+}
+
+func transportLayerAddressText(addr ngap.TransportLayerAddress) string {
+	if text := transportLayerAddressToString(addr); text != "" {
+		return text
+	}
+
+	return hex.EncodeToString(addr.Bytes())
 }
 
 func procedureCodeToEnum(code ngap.ProcedureCode) utils.EnumField {

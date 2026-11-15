@@ -8,11 +8,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"os/exec"
-	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 const goldenSourceeNBContainer = "60018001004e40024500004e4001060002f839abcdef10ff100002f83900001011800fff800d0c0002f839000000010080001e"
@@ -64,7 +64,7 @@ func TestSourceeNBToTargeteNBTransparentContainerGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !reflect.DeepEqual(out, in) {
+	if !out.Equal(*in) {
 		t.Fatalf("decoded\n got %+v\nwant %+v", out, in)
 	}
 
@@ -105,7 +105,7 @@ func TestSourceeNBToTargeteNBTransparentContainerAlternatives(t *testing.T) {
 		TargetCellID: EUTRANCGI{PLMNIdentity: containerPLMN(), CellID: 1},
 		UEHistoryInformation: UEHistoryInformation{
 			{UTRANCell: Ptr(LastVisitedUTRANCellInformation{0x01, 0x02})},
-			{GERANCell: &LastVisitedGERANCellInformation{}},
+			{GERANCell: &LastVisitedGERANCellInformation{Undefined: &per.Null{}}},
 		},
 	}
 
@@ -119,7 +119,7 @@ func TestSourceeNBToTargeteNBTransparentContainerAlternatives(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !reflect.DeepEqual(out, in) {
+	if !out.Equal(*in) {
 		t.Fatalf("decoded\n got %+v\nwant %+v", out, in)
 	}
 }
@@ -197,9 +197,9 @@ func handSourceeNBContainer(t *testing.T, extCrit Criticality) []byte {
 		handAdditions(t, item)
 		item.AlignToByte()
 
-		return encodeContainerField(w, enc, ieField{id: IDERABInformationListItem, crit: CriticalityIgnore, raw: item.Bytes()})
+		return encodeContainerField(w, enc, ieField{ID: IDERABInformationListItem, Criticality: CriticalityIgnore, Value: ap.RawValue(item.Bytes())})
 	}))
-	mustNil(t, EUTRANCGI{PLMNIdentity: containerPLMN(), CellID: 0xabcdef1}.MarshalPER(w, enc))
+	mustNil(t, (&EUTRANCGI{PLMNIdentity: containerPLMN(), CellID: 0xabcdef1}).MarshalPER(w, enc))
 
 	mustNil(t, per.EncodeLength(w, enc, 1, maxnoofCellsinUEHistoryInfo, true, 3, func(int64) error {
 		handChoiceAddition(t, w, 7)
@@ -208,7 +208,8 @@ func handSourceeNBContainer(t *testing.T, extCrit Criticality) []byte {
 		mustNil(t, per.EncodeNormallySmall(w, enc, 0))
 		mustNil(t, per.EncodeOpenTypeBytes(w, enc, []byte{0x02, 0xaa, 0xbb}))
 
-		mustNil(t, encodeExtensibleChoice(w, enc, lastVisitedCellItemRootCount, lastVisitedCellItemGERAN))
+		w.WriteBit(false)
+		mustNil(t, per.EncodeConstrainedWholeNumber(w, enc, 0, 2, 2))
 		handChoiceAddition(t, w, 4)
 
 		return nil
@@ -226,9 +227,13 @@ func TestSourceeNBToTargeteNBTransparentContainerLossless(t *testing.T) {
 		t.Run(crit.String(), func(t *testing.T) {
 			b := handSourceeNBContainer(t, crit)
 
-			c, err := ParseSourceeNBToTargeteNBTransparentContainer(b)
+			c, err := DecodeSourceeNBToTargeteNBTransparentContainer(b)
 			if err != nil {
 				t.Fatal(err)
+			}
+
+			if d := c.Diagnostics(); len(d.IEs) == 0 {
+				t.Fatal("unknown extensions in the container are not reported")
 			}
 
 			if c.TargetCellID != (EUTRANCGI{PLMNIdentity: containerPLMN(), CellID: 0xabcdef1}) {
@@ -236,9 +241,9 @@ func TestSourceeNBToTargeteNBTransparentContainerLossless(t *testing.T) {
 			}
 
 			h := c.UEHistoryInformation
-			if len(h) != 3 || h[0].extension == nil || h[0].extension.index != 7 ||
+			if len(h) != 3 || h[0].Ext == nil || h[0].Ext.Index != 7 ||
 				h[1].NGRANCell == nil || !bytes.Equal(*h[1].NGRANCell, []byte{0xaa, 0xbb}) ||
-				h[2].GERANCell == nil || h[2].GERANCell.extension == nil {
+				h[2].GERANCell == nil || h[2].GERANCell.Ext == nil {
 				t.Fatalf("UE history = %+v", h)
 			}
 
@@ -280,15 +285,39 @@ func TestSourceeNBToTargeteNBTransparentContainerExtensionValue(t *testing.T) {
 		item.WriteBit(true)
 		item.WriteBit(false)
 		mustNil(t, ERABID(5).MarshalPER(item, per.Aligned))
-		mustNil(t, per.EncodeEnumerated(item, per.Aligned, dlForwardingRootCount, true, 1))
+		mustNil(t, per.EncodeEnumerated(item, per.Aligned, int64(len(enumDLForwarding.Root)), true, 1))
 		item.AlignToByte()
 
-		return encodeContainerField(w, per.Aligned, ieField{id: IDERABInformationListItem, crit: CriticalityIgnore, raw: item.Bytes()})
+		return encodeContainerField(w, per.Aligned, ieField{ID: IDERABInformationListItem, Criticality: CriticalityIgnore, Value: ap.RawValue(item.Bytes())})
 	}))
 	w.AlignToByte()
 
-	if _, err := ParseSourceeNBToTargeteNBTransparentContainer(w.Bytes()); !errors.Is(err, errNotComprehended) {
-		t.Fatalf("err = %v, want not comprehended", err)
+	mustNil(t, (&EUTRANCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 1}).MarshalPER(w, per.Aligned))
+	mustNil(t, per.EncodeLength(w, per.Aligned, 1, maxnoofCellsinUEHistoryInfo, true, 1, func(int64) error {
+		w.WriteBit(false)
+		mustNil(t, per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, 2, 2))
+		handChoiceAddition(t, w, 4)
+
+		return nil
+	}))
+	w.AlignToByte()
+
+	c, err := DecodeSourceeNBToTargeteNBTransparentContainer(w.Bytes())
+	if err != nil {
+		t.Fatalf("decode is lenient, got %v", err)
+	}
+
+	if got := *c.ERABInformationList[0].DLForwarding; got != DLForwarding(len(enumDLForwarding.Root)) {
+		t.Fatalf("DL-Forwarding = %d, want the extension index kept", got)
+	}
+
+	if !c.Diagnostics().RootNotComprehended {
+		t.Fatalf("diagnostics = %+v, want the extension value reported", c.Diagnostics())
+	}
+
+	var ase *ap.AbstractSyntaxError[ProtocolIEID]
+	if _, err := ParseSourceeNBToTargeteNBTransparentContainer(w.Bytes()); !errors.As(err, &ase) {
+		t.Fatalf("err = %v, want an abstract syntax error", err)
 	}
 }
 
@@ -301,11 +330,11 @@ func goldContainerHandoverRequest() *HandoverRequest {
 	return &HandoverRequest{
 		MMEUES1APID:            1,
 		HandoverType:           HandoverTypeIntraLTE,
-		Cause:                  Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 16}),
+		Cause:                  Ptr(CauseRadioNetworkHandoverDesirableForRadio.Cause()),
 		UEAMBR:                 UEAggregateMaximumBitRate{DL: 1_000_000, UL: 500_000},
 		ERABToBeSetup:          []ERABToBeSetupItemHOReq{{ERABID: 5, TransportLayerAddress: goldTLA(), GTPTEID: 1, QoS: goldQoS()}},
 		SourceToTarget:         c,
-		UESecurityCapabilities: UESecurityCapabilities{EncryptionAlgorithms: 0x8000, IntegrityProtectionAlgorithms: 0xc000},
+		UESecurityCapabilities: UESecurityCapabilities{EncryptionAlgorithms: SecurityAlgorithms{Value: 0x8000}, IntegrityProtectionAlgorithms: SecurityAlgorithms{Value: 0xc000}},
 		SecurityContext:        SecurityContext{NextHopChainingCount: 3},
 	}
 }
@@ -338,8 +367,8 @@ func transparentContainerGoldenCases() []newMessageCase {
 
 func TestPathSwitchRequestSourceMMEGUMMEIWireCriticality(t *testing.T) {
 	ies := wireIEs(t, goldPathSwitchRequestSourceMMEGUMMEI().encodeBody)
-	if last := ies[len(ies)-1]; last.id != IDSourceMMEGUMMEI || last.crit != CriticalityIgnore {
-		t.Fatalf("last IE = %d/%s, want SourceMME-GUMMEI ignore", last.id, last.crit)
+	if last := ies[len(ies)-1]; last.ID != IDSourceMMEGUMMEI || last.Criticality != CriticalityIgnore {
+		t.Fatalf("last IE = %d/%s, want SourceMME-GUMMEI ignore", last.ID, last.Criticality)
 	}
 }
 
@@ -395,7 +424,7 @@ func FuzzTransparentContainerRoundTrip(f *testing.F) {
 			t.Fatalf("decode re-encoded value: %v", err)
 		}
 
-		if !reflect.DeepEqual(again, c) {
+		if !again.Equal(*c) {
 			t.Fatalf("re-decoded\n got %+v\nwant %+v", again, c)
 		}
 

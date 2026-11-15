@@ -28,7 +28,7 @@ func TestMMEConfigurationUpdateOutcomesAreRouted(t *testing.T) {
 			t.Helper()
 
 			b := mustMarshal(t, (&s1ap.MMEConfigurationUpdateFailure{
-				Cause:      s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolSemanticError}),
+				Cause:      s1ap.Ptr(s1ap.CauseProtocolSemanticError.Cause()),
 				TimeToWait: s1ap.Ptr(s1ap.TimeToWait(1)),
 			}).Marshal)
 

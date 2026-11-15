@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
+	"github.com/ellanetworks/core/per"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -22,7 +23,7 @@ func testSourceeNBContainer(t *testing.T) s1ap.TransparentContainer {
 		UEHistoryInformation: s1ap.UEHistoryInformation{
 			{EUTRANCell: &s1ap.LastVisitedEUTRANCellInformation{GlobalCellID: testCGI, CellType: s1ap.CellType{CellSize: s1ap.CellSizeSmall}, TimeUEStayedInCell: 30}},
 			{UTRANCell: s1ap.Ptr(s1ap.LastVisitedUTRANCellInformation{0x01, 0x02})},
-			{GERANCell: &s1ap.LastVisitedGERANCellInformation{}},
+			{GERANCell: &s1ap.LastVisitedGERANCellInformation{Undefined: &per.Null{}}},
 			{NGRANCell: s1ap.Ptr(s1ap.LastVisitedNGRANCellInformation{0x0a})},
 		},
 	}).Marshal()
@@ -40,9 +41,9 @@ func TestDecodeSourceeNBToTargeteNBTransparentContainer(t *testing.T) {
 		MMEUES1APID:  7,
 		ENBUES1APID:  2,
 		HandoverType: s1ap.HandoverTypeIntraLTE,
-		Cause:        &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 16},
-		TargetID: s1ap.TargetID{TargeteNBID: s1ap.TargeteNBID{
-			GlobalENBID: s1ap.GlobalENBID{PLMNIdentity: testPLMN, ENBID: s1ap.ENBID{Kind: s1ap.ENBIDMacro, Value: 2}},
+		Cause:        s1ap.Ptr(s1ap.CauseRadioNetworkHandoverDesirableForRadio.Cause()),
+		TargetID: s1ap.TargetID{TargeteNBID: &s1ap.TargeteNBID{
+			GlobalENBID: s1ap.GlobalENBID{PLMNIdentity: testPLMN, ENBID: s1ap.ENBID{MacroENBID: s1ap.Ptr(s1ap.MacroENBID(2))}},
 			SelectedTAI: testTAI,
 		}},
 		SourceToTarget: c,
