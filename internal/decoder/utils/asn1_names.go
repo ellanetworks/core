@@ -3,7 +3,7 @@
 
 package utils
 
-var asn1Names = map[string]string{
+var asn1Names = map[string]string{ // #nosec: G101 -- ASN.1 identifier names, not credentials
 	"a2xguaranteedflowbitrate":    "a2x_guaranteed_flow_bit_rate",
 	"a2xmaximumflowbitrate":       "a2x_maximum_flow_bit_rate",
 	"a2xpc5flowbitrates":          "a2x_pc5_flow_bit_rates",

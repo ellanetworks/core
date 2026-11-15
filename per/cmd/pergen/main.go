@@ -29,5 +29,25 @@ func run(args []string) error {
 		return err
 	}
 
-	return os.WriteFile(cfg.Output, out, 0o600)
+	return writeOutput(cfg.Output, out)
+}
+
+func writeOutput(name string, data []byte) error {
+	root, err := os.OpenRoot(".")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = root.Close() }()
+
+	f, err := root.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		return err
+	}
+
+	return f.Close()
 }

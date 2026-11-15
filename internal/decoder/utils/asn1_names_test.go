@@ -78,7 +78,7 @@ func TestASN1NamesUpToDate(t *testing.T) {
 
 	var buf bytes.Buffer
 
-	buf.WriteString("// SPDX-FileCopyrightText: Ella Networks Inc.\n// SPDX-License-Identifier: BUSL-1.1\n\npackage utils\n\nvar asn1Names = map[string]string{\n")
+	buf.WriteString("// SPDX-FileCopyrightText: Ella Networks Inc.\n// SPDX-License-Identifier: BUSL-1.1\n\npackage utils\n\nvar asn1Names = map[string]string{ // #nosec: G101 -- ASN.1 identifier names, not credentials\n")
 
 	for _, k := range keys {
 		fmt.Fprintf(&buf, "\t%q: %q,\n", k, names[k])

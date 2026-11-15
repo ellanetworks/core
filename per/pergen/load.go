@@ -65,7 +65,7 @@ func load(ctx context.Context, dir, output string) (*loaded, error) {
 				return nil, fmt.Errorf("no export data for %s", path)
 			}
 
-			return os.Open(file)
+			return os.Open(filepath.Clean(file))
 		}),
 		Error: func(err error) {
 			if !pendingMethodError(err) {
