@@ -157,12 +157,14 @@ const (
 	outcomeUnknown
 	outcomeDuplicate
 	outcomePruned
+	outcomeUncomprehended
 )
 
-type decodedField struct {
+type decodedField[ID ~uint16] struct {
 	idx        int
 	outcome    outcome
 	wrongOrder bool
+	inner      []Field[ID]
 }
 
 func DecodeMessage[ID ~uint16, M any](p *Profile, table []IESpec[ID, M], value []byte, m *M, meta *Message[ID], prune bool) error {
@@ -210,6 +212,14 @@ func DecodeMessage[ID ~uint16, M any](p *Profile, table []IESpec[ID, M], value [
 		switch res.outcome {
 		case outcomeUnknown, outcomePruned:
 			d.report(f.ID, f.Criticality, KindNotComprehended)
+		case outcomeUncomprehended:
+			seen[res.idx] = true
+
+			if res.wrongOrder {
+				d.report(f.ID, f.Criticality, KindWrongOrder)
+			}
+
+			d.uncomprehended(f.ID, f.Criticality, res.inner)
 		case outcomeDuplicate:
 			d.report(f.ID, f.Criticality, KindTooManyOccurrences)
 		case outcomeDecoded:
@@ -270,11 +280,19 @@ func DecodeMessage[ID ~uint16, M any](p *Profile, table []IESpec[ID, M], value [
 				nested.IE(f.ID, f.Criticality, val)
 			}
 		}
+	}
 
-		for i, f := range fields {
-			if pruned[i] && table[results[i].idx].Required(m) {
+	typed := make([]bool, len(table))
+
+	for i, f := range fields {
+		switch results[i].outcome {
+		case outcomeDecoded:
+			typed[results[i].idx] = true
+		case outcomePruned, outcomeUncomprehended:
+			if table[results[i].idx].Required(m) {
 				exempt = append(exempt, f.ID)
 			}
+		case outcomeUnknown, outcomeDuplicate:
 		}
 	}
 
@@ -283,7 +301,7 @@ func DecodeMessage[ID ~uint16, M any](p *Profile, table []IESpec[ID, M], value [
 	for i := range table {
 		spec := &table[i]
 
-		if seen[i] && !prunedID(fields, pruned, spec.ID) {
+		if typed[i] {
 			continue
 		}
 
@@ -303,16 +321,6 @@ func DecodeMessage[ID ~uint16, M any](p *Profile, table []IESpec[ID, M], value [
 	return nil
 }
 
-func prunedID[ID ~uint16](fields []Field[ID], pruned []bool, id ID) bool {
-	for i := range pruned {
-		if pruned[i] && fields[i].ID == id {
-			return true
-		}
-	}
-
-	return false
-}
-
 func DecodeExtensionContainer[ID ~uint16, M any](p *Profile, r *per.Reader, enc per.Encoding, table []IESpec[ID, M], m *M, pres *Preserved[ID]) error {
 	fields, err := decodeExtensionFields[ID](p, r, enc, false)
 	if err != nil {
@@ -329,8 +337,8 @@ func DecodeExtensionContainer[ID ~uint16, M any](p *Profile, r *per.Reader, enc 
 	return nil
 }
 
-func decodeTable[ID ~uint16, M any](p *Profile, table []IESpec[ID, M], fields []Field[ID], m *M, skip []bool) ([]decodedField, Preserved[ID], error) {
-	results := make([]decodedField, len(fields))
+func decodeTable[ID ~uint16, M any](p *Profile, table []IESpec[ID, M], fields []Field[ID], m *M, skip []bool) ([]decodedField[ID], Preserved[ID], error) {
+	results := make([]decodedField[ID], len(fields))
 	occurred := make([]bool, len(table))
 	b := newPreservedBuilder[ID]()
 	last := -1
@@ -372,6 +380,15 @@ func decodeTable[ID ~uint16, M any](p *Profile, table []IESpec[ID, M], fields []
 		err := table[idx].Decode(m, r, per.Aligned)
 		if err == nil {
 			err = r.Complete()
+		}
+
+		if inner, raw := asUncomprehended[ID](err); raw {
+			results[i].outcome = outcomeUncomprehended
+			results[i].inner = inner
+
+			b.keep(f, false)
+
+			continue
 		}
 
 		if err != nil {

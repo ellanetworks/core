@@ -34,16 +34,13 @@ func TestNGResetWithUnknownResetTypeAlternativeIsRejected(t *testing.T) {
 			t.Fatalf("%v: parse = %v, want *AbstractSyntaxError", inner, err)
 		}
 
-		var onResetType bool
-
-		for _, ie := range ase.IEs {
-			if ie.IEID == IDResetType && ie.IECriticality == CriticalityReject {
-				onResetType = true
-			}
+		want := IDResetType
+		if inner == CriticalityReject {
+			want = 9999
 		}
 
-		if !onResetType {
-			t.Errorf("%v: diagnostics = %+v, want ResetType rejected on its own criticality", inner, ase.IEs)
+		if len(ase.IEs) != 1 || ase.IEs[0].IEID != want || ase.IEs[0].IECriticality != CriticalityReject {
+			t.Errorf("%v: diagnostics = %+v, want one reject entry for %v", inner, ase.IEs, want)
 		}
 	}
 }

@@ -264,9 +264,9 @@ func TestUEContextReleaseCommandChoiceExtension(t *testing.T) {
 		t.Errorf("cause = %s, want abstract-syntax-error-reject", ase.Cause)
 	}
 
-	if len(ase.IEs) != 2 || ase.IEs[1].IEID != IDUENGAPIDs ||
-		ase.IEs[1].TypeOfError != TypeOfErrorNotUnderstood {
-		t.Errorf("diagnostics = %+v, want the unknown choice-Extensions IE and then UE-NGAP-IDs", ase.IEs)
+	if len(ase.IEs) != 1 || ase.IEs[0].IEID != IDUENGAPIDs ||
+		ase.IEs[0].TypeOfError != TypeOfErrorNotUnderstood {
+		t.Errorf("diagnostics = %+v, want one not-understood entry for UE-NGAP-IDs", ase.IEs)
 	}
 }
 

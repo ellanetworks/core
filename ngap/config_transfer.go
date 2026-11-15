@@ -46,13 +46,13 @@ func (c SONConfigurationTransfer) TargetRANNodeID() (TargetRANNodeIDSON, error) 
 
 	for range sonConfigurationTransferPreambleBits {
 		if _, err := r.ReadBit(); err != nil {
-			return TargetRANNodeIDSON{}, fmt.Errorf("ngap: SONConfigurationTransfer preamble: %w", err)
+			return TargetRANNodeIDSON{}, &TransferSyntaxError{Protocol: profile.Name, Err: fmt.Errorf("SONConfigurationTransfer preamble: %w", err)}
 		}
 	}
 
 	var t TargetRANNodeIDSON
 	if err := t.UnmarshalPER(r, per.Aligned); err != nil {
-		return TargetRANNodeIDSON{}, err
+		return TargetRANNodeIDSON{}, &TransferSyntaxError{Protocol: profile.Name, Err: fmt.Errorf("SONConfigurationTransfer targetRANNodeID: %w", err)}
 	}
 
 	return t, nil

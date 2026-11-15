@@ -5,16 +5,24 @@ package impl
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/per"
 )
 
 type ListItem[ID ~uint16] struct {
-	crit        WireCriticality
-	before      string
-	after       string
-	placeholder bool
+	crit   WireCriticality
+	before string
+	after  string
+}
+
+type uncomprehendedValueError[ID ~uint16] struct {
+	inner []Field[ID]
+}
+
+func (e *uncomprehendedValueError[ID]) Error() string {
+	return "ap: single-container list holds no item of its own IE"
 }
 
 func ListItemCriticality[ID ~uint16](wire Criticality) ListItem[ID] {
@@ -74,14 +82,12 @@ func EncodeItemList[ID ~uint16, T any](p *Profile, w *per.Writer, enc per.Encodi
 			fields = append(fields, f.Encodable())
 		}
 
-		if !it.placeholder {
-			m, ok := any(&items[i]).(per.Marshaler)
-			if !ok {
-				return fmt.Errorf("ap: %T does not implement per.Marshaler", items[i])
-			}
-
-			fields = append(fields, FieldValue[ID]{ID: id, Criticality: it.crit.Of(crit), Value: m})
+		m, ok := any(&items[i]).(per.Marshaler)
+		if !ok {
+			return fmt.Errorf("ap: %T does not implement per.Marshaler", items[i])
 		}
+
+		fields = append(fields, FieldValue[ID]{ID: id, Criticality: it.crit.Of(crit), Value: m})
 
 		for _, f := range decodeForeign[ID](it.after) {
 			fields = append(fields, f.Encodable())
@@ -112,6 +118,7 @@ func DecodeItemList[ID ~uint16, T any](p *Profile, r *per.Reader, enc per.Encodi
 	var (
 		items   []T
 		pending []byte
+		all     []Field[ID]
 	)
 
 	err := per.DecodeLength(r, enc, 1, ub, true, func(count int64) error {
@@ -120,6 +127,8 @@ func DecodeItemList[ID ~uint16, T any](p *Profile, r *per.Reader, enc per.Encodi
 			if err != nil {
 				return err
 			}
+
+			all = append(all, f)
 
 			if f.ID != id {
 				pending = appendForeign(pending, f)
@@ -135,6 +144,12 @@ func DecodeItemList[ID ~uint16, T any](p *Profile, r *per.Reader, enc per.Encodi
 			}
 
 			if err := DecodeValue(f.Value, u); err != nil {
+				if _, raw := asUncomprehended[ID](err); raw {
+					pending = appendForeign(pending, f)
+
+					continue
+				}
+
 				return err
 			}
 
@@ -156,20 +171,11 @@ func DecodeItemList[ID ~uint16, T any](p *Profile, r *per.Reader, enc per.Encodi
 		return nil, err
 	}
 
+	if len(items) == 0 {
+		return nil, &uncomprehendedValueError[ID]{inner: all}
+	}
+
 	if len(pending) > 0 {
-		if len(items) == 0 {
-			var item T
-
-			it, err := asListItem[ID](&item)
-			if err != nil {
-				return nil, err
-			}
-
-			it.placeholder, it.before = true, string(pending)
-
-			return []T{item}, nil
-		}
-
 		it, err := asListItem[ID](&items[len(items)-1])
 		if err != nil {
 			return nil, err
@@ -181,10 +187,20 @@ func DecodeItemList[ID ~uint16, T any](p *Profile, r *per.Reader, enc per.Encodi
 	return items, nil
 }
 
+func asUncomprehended[ID ~uint16](err error) ([]Field[ID], bool) {
+	var e *uncomprehendedValueError[ID]
+	if errors.As(err, &e) {
+		return e.inner, true
+	}
+
+	return nil, false
+}
+
 func DiagnoseItemList[ID ~uint16, T any](d *Diagnosis[ID], id ID, crit Criticality, items *[]T) bool {
 	list := *items
 	kept := list[:0]
 	comprehended := 0
+	pruned := false
 
 	var pending []byte
 
@@ -195,28 +211,25 @@ func DiagnoseItemList[ID ~uint16, T any](d *Diagnosis[ID], id ID, crit Criticali
 		}
 
 		for _, f := range it.ForeignIEs() {
-			d.Unknown(f.ID, f.Criticality)
+			diagnoseRawIE[ID, T](d, id, f)
 		}
 
-		if !it.placeholder {
-			wire := it.crit.Of(crit)
+		wire := it.crit.Of(crit)
+		notComprehended := d.IE(id, wire, &list[i])
 
-			switch {
-			case !d.IE(id, wire, &list[i]):
-				comprehended++
-			case d.prune:
-				if raw, ok := marshalItem(&list[i]); ok {
-					pending = append(pending, it.before...)
-					pending = appendForeign(pending, Field[ID]{ID: id, Criticality: wire, Value: raw})
-					pending = append(pending, it.after...)
+		if !notComprehended {
+			comprehended++
+		}
 
-					continue
-				}
+		if notComprehended && d.prune {
+			if raw, ok := marshalItem(&list[i]); ok {
+				pending = append(pending, it.before...)
+				pending = appendForeign(pending, Field[ID]{ID: id, Criticality: wire, Value: raw})
+				pending = append(pending, it.after...)
+				pruned = true
+
+				continue
 			}
-		}
-
-		if !d.prune {
-			continue
 		}
 
 		if len(pending) > 0 {
@@ -227,25 +240,34 @@ func DiagnoseItemList[ID ~uint16, T any](d *Diagnosis[ID], id ID, crit Criticali
 		kept = append(kept, list[i])
 	}
 
-	if d.prune {
-		if len(pending) > 0 {
-			if len(kept) > 0 {
-				it, _ := asListItem[ID](&kept[len(kept)-1])
-				it.after += string(pending)
-			} else {
-				var item T
-
-				it, _ := asListItem[ID](&item)
-				it.placeholder, it.before = true, string(pending)
-
-				kept = append(kept, item)
-			}
-		}
-
-		*items = kept
+	if !pruned || len(kept) == 0 {
+		return len(list) > 0 && comprehended == 0
 	}
 
-	return len(list) > 0 && comprehended == 0
+	if len(pending) > 0 {
+		it, _ := asListItem[ID](&kept[len(kept)-1])
+		it.after += string(pending)
+	}
+
+	*items = kept
+
+	return false
+}
+
+func diagnoseRawIE[ID ~uint16, T any](d *Diagnosis[ID], id ID, f Field[ID]) {
+	if f.ID == id {
+		var item T
+
+		if u, ok := any(&item).(per.Unmarshaler); ok {
+			if inner, raw := asUncomprehended[ID](DecodeValue(f.Value, u)); raw {
+				d.uncomprehended(f.ID, f.Criticality, inner)
+
+				return
+			}
+		}
+	}
+
+	d.Unknown(f.ID, f.Criticality)
 }
 
 func marshalItem(v any) ([]byte, bool) {

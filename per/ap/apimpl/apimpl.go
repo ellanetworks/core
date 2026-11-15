@@ -131,20 +131,20 @@ func ParseMessageBody[ID ~uint16, P ~uint8, M any](p *Profile, procedure P, tabl
 	return impl.ParseMessageBody(p, procedure, table, value, m, meta)
 }
 
-func DecodeTransfer[ID ~uint16, T any, PT interface {
+func DecodeTransfer[ID ~uint16, P ~uint8, T any, PT interface {
 	*T
 	per.Unmarshaler
-}](b []byte,
+}](p *Profile, what string, b []byte,
 ) (PT, error) {
-	return impl.DecodeTransfer[ID, T, PT](b)
+	return impl.DecodeTransfer[ID, P, T, PT](p, what, b)
 }
 
-func ParseTransfer[ID ~uint16, T any, PT interface {
+func ParseTransfer[ID ~uint16, P ~uint8, T any, PT interface {
 	*T
 	per.Unmarshaler
-}](b []byte,
+}](p *Profile, what string, b []byte,
 ) (PT, error) {
-	return impl.ParseTransfer[ID, T, PT](b)
+	return impl.ParseTransfer[ID, P, T, PT](p, what, b)
 }
 
 func Prune[ID ~uint16](v impl.Diagnosable[ID]) Diagnostics[ID] { return impl.Prune(v) }

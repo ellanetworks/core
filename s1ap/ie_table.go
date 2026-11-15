@@ -5,7 +5,6 @@ package s1ap
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/ellanetworks/core/per"
 	"github.com/ellanetworks/core/per/ap"
@@ -111,12 +110,7 @@ func decodeValue[T any, PT interface {
 	per.Unmarshaler
 }](what string, b []byte,
 ) (PT, error) {
-	v, err := apimpl.DecodeTransfer[ProtocolIEID, T, PT](b)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: %s: %w", what, err)
-	}
-
-	return v, nil
+	return apimpl.DecodeTransfer[ProtocolIEID, ProcedureCode, T, PT](profile, what, b)
 }
 
 func parseValue[T any, PT interface {
@@ -124,12 +118,7 @@ func parseValue[T any, PT interface {
 	per.Unmarshaler
 }](what string, b []byte,
 ) (PT, error) {
-	v, err := apimpl.ParseTransfer[ProtocolIEID, T, PT](b)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: %s: %w", what, err)
-	}
-
-	return v, nil
+	return apimpl.ParseTransfer[ProtocolIEID, ProcedureCode, T, PT](profile, what, b)
 }
 
 func diagnosticsOf(v any) Diagnostics {

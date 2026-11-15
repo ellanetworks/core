@@ -43,7 +43,8 @@ type Diagnostic[ID ~uint16] struct {
 	Criticality Criticality
 	Kind        Kind
 
-	pos int
+	pos     int
+	chained bool
 }
 
 func (d Diagnostic[ID]) String() string {
@@ -177,20 +178,87 @@ func (d *Diagnosis[ID]) Unknown(id ID, crit Criticality) {
 }
 
 func (d *Diagnosis[ID]) IE(id ID, crit Criticality, v any) bool {
+	return d.ie(id, crit, v, false)
+}
+
+func (d *Diagnosis[ID]) ie(id ID, crit Criticality, v any, chain bool) bool {
 	dv, ok := v.(Diagnosable[ID])
 	if !ok {
 		return false
 	}
+
+	start := len(d.entries)
 
 	d.path = append(d.path, id)
 	notComprehended := dv.Diagnose(d)
 	d.path = d.path[:len(d.path)-1]
 
 	if notComprehended {
-		d.report(id, crit, KindNotComprehended)
+		d.enclose(id, crit, start, chain)
 	}
 
 	return notComprehended
+}
+
+func (d *Diagnosis[ID]) uncomprehended(id ID, crit Criticality, inner []Field[ID]) {
+	start := len(d.entries)
+
+	d.path = append(d.path, id)
+
+	for _, f := range inner {
+		d.report(f.ID, f.Criticality, KindNotComprehended)
+		d.entries[len(d.entries)-1].chained = true
+	}
+
+	d.path = d.path[:len(d.path)-1]
+
+	d.enclose(id, crit, start, false)
+}
+
+func (d *Diagnosis[ID]) enclose(id ID, crit Criticality, start int, chain bool) {
+	inner := -1
+
+	for i := start; i < len(d.entries); i++ {
+		if d.entries[i].chained && (inner < 0 || severity(d.entries[i].Criticality) > severity(d.entries[inner].Criticality)) {
+			inner = i
+		}
+	}
+
+	if inner >= 0 && severity(d.entries[inner].Criticality) >= severity(crit) {
+		for i := start; i < len(d.entries); i++ {
+			if d.entries[i].chained {
+				d.entries[i].chained = chain
+			}
+		}
+
+		return
+	}
+
+	if inner >= 0 {
+		kept := d.entries[:start]
+
+		for _, e := range d.entries[start:] {
+			if !e.chained {
+				kept = append(kept, e)
+			}
+		}
+
+		d.entries = kept
+	}
+
+	d.report(id, crit, KindNotComprehended)
+	d.entries[len(d.entries)-1].chained = chain
+}
+
+func severity(c Criticality) int {
+	switch c {
+	case CriticalityReject:
+		return 2
+	case CriticalityNotify:
+		return 1
+	default:
+		return 0
+	}
 }
 
 func (d *Diagnosis[ID]) Diagnostics() Diagnostics[ID] {
@@ -219,16 +287,29 @@ func DiagnoseExtensions[ID ~uint16, M any](d *Diagnosis[ID], table []IESpec[ID, 
 	top := len(d.path) == 0
 	slots := pres.slots()
 	last := -1
+	rest := pres.fields
 
 	for i, s := range slots {
 		if top {
 			d.pos = i
 		}
 
+		var f Field[ID]
+
+		if s.preserved {
+			f, rest = nextPreserved[ID](rest)
+		}
+
 		switch {
 		case s.duplicate:
 			d.report(s.id, s.crit, KindTooManyOccurrences)
 		case s.preserved:
+			if inner, raw := uncomprehendedExtension(table, f); raw {
+				d.uncomprehended(s.id, s.crit, inner)
+
+				continue
+			}
+
 			d.report(s.id, s.crit, KindNotComprehended)
 		default:
 			idx := lookup(table, s.id)
@@ -292,7 +373,7 @@ func DiagnoseChoiceExtension[ID ~uint16, T any, PT interface {
 	per.Marshaler
 }](d *Diagnosis[ID], id ID, crit Criticality, alt *PT, raw **SingleContainer[ID],
 ) bool {
-	if !d.IE(id, crit, *alt) {
+	if !d.ie(id, crit, *alt, true) {
 		return false
 	}
 
@@ -308,6 +389,20 @@ func DiagnoseChoiceExtension[ID ~uint16, T any, PT interface {
 
 func DiagnoseUnknownChoiceExtension[ID ~uint16](d *Diagnosis[ID], c *SingleContainer[ID]) bool {
 	d.Unknown(c.ID, c.Criticality)
+	d.entries[len(d.entries)-1].chained = true
 
 	return true
+}
+
+func uncomprehendedExtension[ID ~uint16, M any](table []IESpec[ID, M], f Field[ID]) ([]Field[ID], bool) {
+	idx := lookup(table, f.ID)
+	if idx < 0 {
+		return nil, false
+	}
+
+	var scratch M
+
+	r := per.NewReader(f.Value)
+
+	return asUncomprehended[ID](table[idx].Decode(&scratch, r, per.Aligned))
 }

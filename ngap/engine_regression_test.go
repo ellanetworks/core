@@ -282,3 +282,25 @@ func FuzzMessageLossless(f *testing.F) {
 		}
 	})
 }
+
+func TestTransferDecodeErrorsAreTransferSyntaxErrors(t *testing.T) {
+	for name, err := range map[string]error{
+		"truncated transfer": func() error {
+			_, err := DecodePDUSessionResourceSetupResponseTransfer(TransferContainer{0x80})
+			return err
+		}(),
+		"trailing octets": func() error {
+			_, err := ParseHandoverCommandTransfer(TransferContainer{0x00, 0x00, 0x00})
+			return err
+		}(),
+		"SON transfer": func() error {
+			_, err := SONConfigurationTransfer{}.TargetRANNodeID()
+			return err
+		}(),
+	} {
+		var tse *TransferSyntaxError
+		if !errors.As(err, &tse) || tse.ProcedureKnown {
+			t.Errorf("%s: err = %v (%T), want a *TransferSyntaxError", name, err, err)
+		}
+	}
+}

@@ -147,8 +147,12 @@ func TestItemListOfOnlyForeignIEsIsNotComprehended(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 
-	if len(m.ERABSetup) != 1 || len(m.ERABSetup[0].ForeignIEs()) != 1 {
-		t.Errorf("ERABSetup = %+v, want the foreign IE kept in the list", m.ERABSetup)
+	if m.ERABSetup != nil {
+		t.Errorf("ERABSetup = %+v, want no typed item: the list holds none of its own", m.ERABSetup)
+	}
+
+	if u := m.UnknownIEs(); len(u) != 1 || u[0].ID != IDERABSetupListBearerSURes {
+		t.Errorf("unknown IEs = %+v, want the list IE kept raw at its wire position", u)
 	}
 
 	var kinds []string
@@ -158,7 +162,6 @@ func TestItemListOfOnlyForeignIEsIsNotComprehended(t *testing.T) {
 
 	want := []string{
 		DiagnosticIE{Path: []ProtocolIEID{IDERABSetupListBearerSURes}, ID: idForeignListItem, Criticality: CriticalityIgnore}.String(),
-		DiagnosticIE{ID: IDERABSetupListBearerSURes, Criticality: CriticalityIgnore}.String(),
 	}
 
 	if !slices.Equal(kinds, want) {

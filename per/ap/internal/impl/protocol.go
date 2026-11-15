@@ -6,6 +6,7 @@ package impl
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/ellanetworks/core/per"
 )
@@ -71,26 +72,41 @@ func modeledIEs[ID ~uint16, M any](p *Profile, table []IESpec[ID, M], value []by
 	return out
 }
 
-func DecodeTransfer[ID ~uint16, T any, PT interface {
+func DecodeTransfer[ID ~uint16, P ~uint8, T any, PT interface {
 	*T
 	per.Unmarshaler
-}](b []byte,
+}](p *Profile, what string, b []byte,
 ) (PT, error) {
 	v := PT(new(T))
 
-	if err := DecodeValue(b, v); err != nil {
-		return nil, err
+	err := DecodeValue(b, v)
+	if err == nil {
+		return v, nil
 	}
 
-	return v, nil
+	if what == "" {
+		what = strings.TrimPrefix(fmt.Sprintf("%T", v), "*")
+	}
+
+	if inner, raw := asUncomprehended[ID](err); raw {
+		var d Diagnosis[ID]
+
+		for _, f := range inner {
+			d.report(f.ID, f.Criticality, KindNotComprehended)
+		}
+
+		return nil, fmt.Errorf("%s: %s: %w", p.Name, what, &AbstractSyntaxError[ID]{IEs: d.entries})
+	}
+
+	return nil, &TransferSyntaxError[P]{Protocol: p.Name, Err: fmt.Errorf("%s: %w", what, err)}
 }
 
-func ParseTransfer[ID ~uint16, T any, PT interface {
+func ParseTransfer[ID ~uint16, P ~uint8, T any, PT interface {
 	*T
 	per.Unmarshaler
-}](b []byte,
+}](p *Profile, what string, b []byte,
 ) (PT, error) {
-	v, err := DecodeTransfer[ID, T, PT](b)
+	v, err := DecodeTransfer[ID, P, T, PT](p, what, b)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +117,11 @@ func ParseTransfer[ID ~uint16, T any, PT interface {
 	}
 
 	if err := Prune(dv).Check(); err != nil {
-		return nil, err
+		if what == "" {
+			what = strings.TrimPrefix(fmt.Sprintf("%T", v), "*")
+		}
+
+		return nil, fmt.Errorf("%s: %s: %w", p.Name, what, err)
 	}
 
 	return v, nil

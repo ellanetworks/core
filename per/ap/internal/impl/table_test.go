@@ -611,3 +611,27 @@ func TestChoiceExtensionNotComprehendedReachesTheEnclosingIE(t *testing.T) {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+func TestOneFaultIsReportedOnceOnTheGoverningCriticality(t *testing.T) {
+	for _, c := range []struct {
+		inner, enclosing Criticality
+		wantID           uint16
+		wantCrit         Criticality
+	}{
+		{CriticalityIgnore, CriticalityReject, idB, CriticalityReject},
+		{CriticalityNotify, CriticalityReject, idB, CriticalityReject},
+		{CriticalityReject, CriticalityIgnore, 999, CriticalityReject},
+		{CriticalityNotify, CriticalityIgnore, 999, CriticalityNotify},
+		{CriticalityReject, CriticalityReject, 999, CriticalityReject},
+		{CriticalityIgnore, CriticalityIgnore, 999, CriticalityIgnore},
+	} {
+		var d Diagnosis[uint16]
+
+		d.IE(idB, c.enclosing, &choice{Raw: &SingleContainer[uint16]{ID: 999, Criticality: c.inner, Value: "\x00"}})
+
+		ies := d.Diagnostics().IEs
+		if len(ies) != 1 || ies[0].ID != c.wantID || ies[0].Criticality != c.wantCrit {
+			t.Errorf("inner %v enclosing %v: diagnostics = %v, want one entry for %d (%v)", c.inner, c.enclosing, ies, c.wantID, c.wantCrit)
+		}
+	}
+}

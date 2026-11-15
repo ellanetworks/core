@@ -5,7 +5,6 @@ package ngap
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/ellanetworks/core/per"
 	"github.com/ellanetworks/core/per/ap"
@@ -113,7 +112,7 @@ func decodeTransfer[T any, PT interface {
 	per.Unmarshaler
 }](b []byte,
 ) (PT, error) {
-	return apimpl.DecodeTransfer[ProtocolIEID, T, PT](b)
+	return apimpl.DecodeTransfer[ProtocolIEID, ProcedureCode, T, PT](profile, "", b)
 }
 
 func parseTransfer[T any, PT interface {
@@ -121,17 +120,7 @@ func parseTransfer[T any, PT interface {
 	per.Unmarshaler
 }](b []byte,
 ) (PT, error) {
-	t, err := apimpl.ParseTransfer[ProtocolIEID, T, PT](b)
-	if err != nil {
-		var e *ap.AbstractSyntaxError[ProtocolIEID]
-		if errors.As(err, &e) {
-			return nil, fmt.Errorf("ngap: %w", err)
-		}
-
-		return nil, err
-	}
-
-	return t, nil
+	return apimpl.ParseTransfer[ProtocolIEID, ProcedureCode, T, PT](profile, "", b)
 }
 
 func diagnosticsOf(v any) Diagnostics {

@@ -77,7 +77,6 @@ func TestItemListKeepsForeignIEs(t *testing.T) {
 		{"front", []FieldValue[uint16]{foreignField(CriticalityReject), typedField(1), typedField(2)}, []uint8{1, 2}, 1, false},
 		{"middle", []FieldValue[uint16]{typedField(1), foreignField(CriticalityIgnore), typedField(2)}, []uint8{1, 2}, 1, false},
 		{"end", []FieldValue[uint16]{typedField(1), foreignField(CriticalityNotify), foreignField(CriticalityIgnore)}, []uint8{1}, 2, false},
-		{"only", []FieldValue[uint16]{foreignField(CriticalityIgnore), foreignField(CriticalityReject)}, []uint8{0}, 2, true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			b := encodeTestList(t, c.fields)
@@ -195,7 +194,7 @@ func TestItemListNotComprehendedItemIsJudgedOnItsOwnCriticality(t *testing.T) {
 	}{
 		{"ignore item", []FieldValue[uint16]{typedField(1), typedField(notComprehendedOctet), typedField(2)}, []uint8{1, notComprehendedOctet, 2}, []uint8{1, 2}, false, false},
 		{"reject item", []FieldValue[uint16]{typedField(1), bad}, []uint8{1, notComprehendedOctet}, []uint8{1}, true, false},
-		{"every item", []FieldValue[uint16]{typedField(notComprehendedOctet)}, []uint8{notComprehendedOctet}, []uint8{0}, false, true},
+		{"every item", []FieldValue[uint16]{typedField(notComprehendedOctet)}, []uint8{notComprehendedOctet}, []uint8{notComprehendedOctet}, false, true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			b := encodeTestList(t, c.fields)
@@ -250,4 +249,15 @@ func values(items []testItem) []uint8 {
 	}
 
 	return out
+}
+
+func TestItemListOfOnlyForeignIEsHasNoTypedValue(t *testing.T) {
+	fields := []FieldValue[uint16]{foreignField(CriticalityIgnore), foreignField(CriticalityReject)}
+
+	items, err := DecodeItemList[uint16, testItem](testProfile, per.NewReader(encodeTestList(t, fields)), per.Aligned, testListUB, testItemID, CriticalityIgnore)
+
+	inner, ok := asUncomprehended[uint16](err)
+	if !ok || items != nil || len(inner) != 2 || inner[1].Criticality != CriticalityReject {
+		t.Fatalf("DecodeItemList = %v, %v, want no typed items and the two raw IEs", items, err)
+	}
 }

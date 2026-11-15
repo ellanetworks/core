@@ -61,9 +61,9 @@ func TestChoiceExtensionOnRejectIEIsAbstractSyntaxError(t *testing.T) {
 		t.Errorf("cause = %s, want abstract-syntax-error-reject", ase.Cause)
 	}
 
-	if len(ase.IEs) != 2 || ase.IEs[1].IEID != IDGlobalRANNodeID ||
-		ase.IEs[1].TypeOfError != TypeOfErrorNotUnderstood {
-		t.Errorf("diagnostics = %+v, want the unknown choice-Extensions IE and then GlobalRANNodeID, which no alternative is left to comprehend", ase.IEs)
+	if len(ase.IEs) != 1 || ase.IEs[0].IEID != IDGlobalRANNodeID ||
+		ase.IEs[0].TypeOfError != TypeOfErrorNotUnderstood {
+		t.Errorf("diagnostics = %+v, want one not-understood entry for GlobalRANNodeID", ase.IEs)
 	}
 }
 
