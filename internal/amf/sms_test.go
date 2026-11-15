@@ -19,6 +19,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smsf"
 	"github.com/ellanetworks/core/nas/fgs"
+	"github.com/ellanetworks/core/ngap"
 )
 
 type fakeSMSHandler struct {
@@ -274,6 +275,45 @@ func TestAnIdleUEIsPagedAndReachableOnceTheProcedureSettles(t *testing.T) {
 
 	if sender.pagingCalls != 1 {
 		t.Fatalf("paging calls = %d, want 1", sender.pagingCalls)
+	}
+}
+
+func TestAUEBeingReleasedIsPagedForSMSOnceTheReleaseCompletes(t *testing.T) {
+	a, _, sender := newSMSTestAMF(t)
+	ue := newIdleSMSUE(t, a)
+	connectSMSUE(t, a, ue, sender)
+
+	ueConn := ue.Conn()
+	a.ReleaseOnRANRequest(t.Context(), ueConn, ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUserInactivity}, nil)
+
+	done := make(chan error, 1)
+
+	go func() { done <- a.EnableUEReachabilityForSMS(context.Background(), "001019756139901") }()
+
+	waitFor(t, func() bool { return ue.PagingState() == amf.PagingAttempting })
+
+	select {
+	case err := <-done:
+		t.Fatalf("reachability reported (%v) over a connection being released", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	completeRelease(t, a, ueConn)
+
+	if sender.pagingCalls != 1 {
+		t.Fatalf("paging calls = %d, want 1 once the release completed", sender.pagingCalls)
+	}
+
+	connectSMSUE(t, a, ue, sender)
+	ue.PagingDelivered(t.Context())
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("EnableUEReachabilityForSMS: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("reachability not reported after the UE answered the page")
 	}
 }
 
