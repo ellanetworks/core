@@ -34,6 +34,8 @@ import { Edit as EditIcon } from "@mui/icons-material";
 
 import {
   listRadios,
+  radioDisplayName,
+  radioPath,
   type APIRadio,
   type ListRadiosResponse,
 } from "@/queries/radios";
@@ -218,8 +220,13 @@ const messageTypeProtocol = (messageType: string): string => {
   return inNGAP ? "NGAP" : "S1AP";
 };
 
+const radioOptionName = (radio: APIRadio): string =>
+  radio.name || (radio.type ? `${radio.type} ${radio.id}` : radio.ref);
+
 const radioOptionLabel = (radio: APIRadio): string =>
-  radio.address ? `${radio.name} (${radio.address})` : radio.name;
+  radio.address
+    ? `${radioOptionName(radio)} (${radio.address})`
+    : radioOptionName(radio);
 
 const DirectionCell: React.FC<{ value?: string }> = ({ value }) => {
   const theme = useTheme();
@@ -318,11 +325,11 @@ export default function RadioEvents() {
   });
   const radioOptions: APIRadio[] = useMemo(() => {
     const radios = radiosQuery.data?.items ?? [];
-    return radioFilter && !radios.some((r) => r.name === radioFilter)
+    return radioFilter && !radios.some((r) => r.ref === radioFilter)
       ? [
           {
-            name: radioFilter,
-            ref: "",
+            name: "",
+            ref: radioFilter,
             id: radioFilter,
             address: "",
             type: "",
@@ -394,6 +401,7 @@ export default function RadioEvents() {
           messageType: match.message_type,
           direction: match.direction,
           radio: match.radio,
+          radioRef: match.radio_ref,
           address: match.address,
         }
       : null;
@@ -445,10 +453,15 @@ export default function RadioEvents() {
         minWidth: 120,
         filterable: false,
         renderCell: (p) => {
-          const radioName = p.row.radio;
+          const radioRef = p.row.radio_ref;
+          const radioName = radioDisplayName(p.row.radio, radioRef);
           const address = p.row.address || "";
-          if (!radioName) {
-            return <Typography variant="body2">{address || "—"}</Typography>;
+          if (!radioRef) {
+            return (
+              <Typography variant="body2">
+                {radioName || address || "—"}
+              </Typography>
+            );
           }
           return (
             <Box
@@ -460,7 +473,7 @@ export default function RadioEvents() {
               }}
             >
               <Link
-                to={`/radios/by-name/${encodeURIComponent(radioName)}`}
+                to={`/radios/${radioPath(radioRef)}`}
                 style={{ textDecoration: "none" }}
                 onClick={(e: React.MouseEvent) => e.stopPropagation()}
               >
@@ -525,6 +538,7 @@ export default function RadioEvents() {
         messageType: r.message_type,
         direction: r.direction,
         radio: r.radio,
+        radioRef: r.radio_ref,
         address: r.address,
       });
       setSearchParams(
@@ -629,10 +643,10 @@ export default function RadioEvents() {
           <TimeRangePicker value={timeRange} onChange={setTimeRange} />
           <Autocomplete
             options={radioOptions}
-            value={radioOptions.find((r) => r.name === radioFilter) ?? null}
-            onChange={(_event, value) => setRadioFilter(value?.name ?? "")}
+            value={radioOptions.find((r) => r.ref === radioFilter) ?? null}
+            onChange={(_event, value) => setRadioFilter(value?.ref ?? "")}
             getOptionLabel={radioOptionLabel}
-            isOptionEqualToValue={(option, value) => option.name === value.name}
+            isOptionEqualToValue={(option, value) => option.ref === value.ref}
             size="small"
             sx={{ flex: "1 1 260px", minWidth: 220 }}
             renderInput={(params) => (

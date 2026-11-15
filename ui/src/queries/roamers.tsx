@@ -76,11 +76,11 @@ const listRoamersBy = (
 
 export const listRoamersByRadio = (
   authToken: string,
-  radioName: string,
+  radioRef: string,
   page: number,
   perPage: number,
 ): Promise<ListRoamersResponse> =>
-  listRoamersBy(authToken, "radio", radioName, page, perPage);
+  listRoamersBy(authToken, "radio", radioRef, page, perPage);
 
 export const listRoamersByDataNetwork = (
   authToken: string,

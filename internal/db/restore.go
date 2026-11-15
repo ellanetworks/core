@@ -18,6 +18,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	ellaraft "github.com/ellanetworks/core/internal/raft"
@@ -374,18 +375,47 @@ func restoreLocalOnlyTables(ctx context.Context, livePath, destPath string) erro
 	return nil
 }
 
+func tableColumns(ctx context.Context, q querier, table string) ([]string, error) {
+	rows, err := q.QueryContext(ctx, "SELECT name FROM pragma_table_info(?)", table)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() { _ = rows.Close() }()
+
+	var columns []string
+
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+
+		columns = append(columns, name)
+	}
+
+	return columns, rows.Err()
+}
+
 func copyTableRowsTx(ctx context.Context, src *sql.DB, dest *sql.Tx, table string) error {
-	rows, err := src.QueryContext(ctx, fmt.Sprintf("SELECT * FROM %s", table))
+	srcColumns, err := tableColumns(ctx, src, table)
+	if err != nil {
+		return fmt.Errorf("list columns for %s: %w", table, err)
+	}
+
+	destColumns, err := tableColumns(ctx, dest, table)
+	if err != nil {
+		return fmt.Errorf("list restored columns for %s: %w", table, err)
+	}
+
+	columns := slices.DeleteFunc(srcColumns, func(c string) bool { return !slices.Contains(destColumns, c) })
+
+	rows, err := src.QueryContext(ctx, fmt.Sprintf("SELECT %s FROM %s", strings.Join(columns, ", "), table)) // #nosec: G201 -- table comes from the hardcoded localOnlyTables list; columns come from sqlite metadata
 	if err != nil {
 		return fmt.Errorf("query rows for %s: %w", table, err)
 	}
 
 	defer func() { _ = rows.Close() }()
-
-	columns, err := rows.Columns()
-	if err != nil {
-		return fmt.Errorf("list columns for %s: %w", table, err)
-	}
 
 	placeholders := make([]string, len(columns))
 	for i := range placeholders {

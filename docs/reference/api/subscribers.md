@@ -20,7 +20,7 @@ This path returns the list of network subscribers, ordered by IMSI.
 | ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
 | `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
 | `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
-| `radio`    | query | str  |         |         | Filter by radio name. |
+| `radio`    | query | str  |         |         | Filter by the `ref` of the last serving radio, e.g. `gNB:001-01:00002a@24`. |
 | `data_network` | query | str |     |         | Filter by data network name.|
 | `search`   | query | str  |         | ≤ 254 chars | Filter by IMSI, MSISDN or description substring. |
 
@@ -41,7 +41,8 @@ This path returns the list of network subscribers, ordered by IMSI.
                     "systems": ["5G"],
                     "num_sessions": 1,
                     "last_seen_at": "2026-03-16T12:34:56Z",
-                    "last_seen_radio": "gNB-1"
+                    "last_seen_radio": "gNB-1",
+                    "last_seen_radio_ref": "gNB:001-01:00002a@24"
                 }
             }
         ],
@@ -133,6 +134,7 @@ None
         "registered": true,
         "connection_state": "connected",
         "radio": "gNB-1",
+        "radio_ref": "gNB:001-01:00002a@24",
         "last_seen_at": "2026-03-16T12:34:56Z",
         "imei": "359881234567890",
         "ciphering_algorithm": "128-NEA2",
@@ -219,7 +221,8 @@ None
 | `system` | `5G` or `4G`. The core that registered the device. |
 | `registered` | RM state in 5G, EMM state in 4G. `false` on an entry the core remembers but holds no context for. |
 | `connection_state` | `connected`, `idle`, or `null`. CM state in 5G, ECM state in 4G. |
-| `radio` | Radio serving this registration, or the last one that did when the device is idle or deregistered. |
+| `radio` | Name of the radio serving this registration, or of the last one that did when the device is idle or deregistered. Absent when that radio sent no name. |
+| `radio_ref` | `ref` of the radio serving this registration, or of the last one that did when the device is idle or deregistered. |
 | `last_seen_at` | Timestamp of last activity in this system (RFC 3339). |
 | `imei` | 15-digit IMEI of the device. Absent once the core has released the context. |
 | `ciphering_algorithm` | `NEA0` / `128-NEA1..3` in 5G, `EEA0` / `128-EEA1..3` in 4G. Absent when none is established. |

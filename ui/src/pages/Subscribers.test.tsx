@@ -393,6 +393,18 @@ describe("Subscribers connection state", () => {
     expect(cellOf(IMSIS[2], "status")).not.toHaveTextContent(/4G|5G/);
   });
 
+  it("shows a registration held by another node", async () => {
+    seedStatuses({
+      [IMSIS[0]]: { registered: true, systems: ["4G"] },
+    });
+    await renderSubscribers();
+    await screen.findByText(IMSIS[0]);
+
+    expect(cellOf(IMSIS[0], "status")).toHaveTextContent("Registered");
+    expect(cellOf(IMSIS[0], "status")).not.toHaveTextContent("Idle");
+    expect(cellOf(IMSIS[0], "status")).toHaveTextContent("4G");
+  });
+
   it("shows a registration in progress", async () => {
     seedStatuses({
       [IMSIS[0]]: {
@@ -414,6 +426,7 @@ describe("Subscribers connection state", () => {
         registered: true,
         connection_state: "idle",
         last_seen_radio: "gnb-01",
+        last_seen_radio_ref: "gNB:001-01:000001@24",
       },
       [IMSIS[1]]: { registered: false },
     });
@@ -421,7 +434,40 @@ describe("Subscribers connection state", () => {
     await screen.findByText(IMSIS[0]);
 
     expect(cellOf(IMSIS[0], "last_seen_radio")).toHaveTextContent("gnb-01");
+    expect(
+      within(cellOf(IMSIS[0], "last_seen_radio") as HTMLElement).getByRole(
+        "link",
+      ),
+    ).toHaveAttribute(
+      "href",
+      `/radios/${encodeURIComponent("gNB:001-01:000001@24")}`,
+    );
     expect(cellOf(IMSIS[1], "last_seen_radio")).toHaveTextContent("—");
+  });
+
+  it("links the last radio by ref when it has no name", async () => {
+    seedStatuses({
+      [IMSIS[0]]: {
+        registered: true,
+        connection_state: "idle",
+        last_seen_radio_ref: "eNB:001-01:MacroeNB-00001",
+      },
+      [IMSIS[1]]: { registered: false },
+    });
+    await renderSubscribers();
+    await screen.findByText(IMSIS[0]);
+
+    expect(
+      within(cellOf(IMSIS[0], "last_seen_radio") as HTMLElement).getByRole(
+        "link",
+        {
+          name: "eNB:001-01:MacroeNB-00001",
+        },
+      ),
+    ).toHaveAttribute(
+      "href",
+      `/radios/${encodeURIComponent("eNB:001-01:MacroeNB-00001")}`,
+    );
   });
 });
 

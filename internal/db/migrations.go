@@ -49,6 +49,7 @@ var migrations = []migration{
 	{25, "add IMS services: data_networks.ims, policies pre-emption capability and vulnerability, IMS application server, PSI, service profile, iFC and service profile assignment tables, IMS registrations per implicit registration set", migrateV25},
 	{26, "index daily_usage by imsi and ue_registrations by version, so deleting a subscriber and allocating the next registration version do not scan every row; group SMSC peers into SMSCs with several nodes; add slice data networks, carrying NAT (per node) and local switching from the node-wide settings", migrateV26},
 	{27, "add local-breakout roaming: roaming_partners and their roaming_partner_plmns, visitors (inbound roamers, apart from subscribers), roaming diameter peers, ue_registrations, ip_leases and flow_reports keyed by IMSI without a subscriber FK, daily_usage keyed by IMSI with its home PLMN (no subscriber FK, so no idx_daily_usage_imsi), sepp_ca and per-node sepp_identities; add ims_settings (configurable IMS home domain) and ims_peers (allowlist of inbound IMS Diameter peers)", migrateV27},
+	{28, "add radio_ref column to network_logs: radio events keyed by the Global eNB / RAN Node ID, not the optional, mutable name", migrateV28},
 }
 
 // baselineVersion is the highest migration that runs locally during

@@ -158,7 +158,7 @@ func (ueConn *UeConn) SendTraceStart(ctx context.Context, id tracing.RANTraceID)
 		return err
 	}
 
-	activation, err := amfInstance.traceActivation(id)
+	activation, err := amfInstance.traceActivation(id, conn)
 	if err != nil {
 		return err
 	}
@@ -191,17 +191,22 @@ func (ueConn *UeConn) handoverTraceActivation() (*ngap.TraceActivation, error) {
 		return nil, nil
 	}
 
-	return ueConn.amf.traceActivation(id)
+	return ueConn.amf.traceActivation(id, ueConn.Conn())
 }
 
-func (a *AMF) traceActivation(id tracing.RANTraceID) (*ngap.TraceActivation, error) {
+func (a *AMF) traceActivation(id tracing.RANTraceID, conn NGAPWriter) (*ngap.TraceActivation, error) {
 	if a.ranTrace == nil {
 		return nil, fmt.Errorf("RAN trace is not enabled")
 	}
 
-	tce, err := ap.TransportLayerAddressFrom(a.ranTrace.Config().TCEAddress)
+	addr, err := tracing.TCEAddress(conn)
 	if err != nil {
-		return nil, fmt.Errorf("no Trace Collection Entity address")
+		return nil, err
+	}
+
+	tce, err := ap.TransportLayerAddressFrom(addr)
+	if err != nil {
+		return nil, err
 	}
 
 	return &ngap.TraceActivation{

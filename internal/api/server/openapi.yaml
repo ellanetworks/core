@@ -855,7 +855,7 @@ paths:
           in: query
           schema:
             type: string
-          description: Filter by last-seen radio.
+          description: "Filter by last-seen radio `ref`, e.g. `gNB:001-01:00002a@24`."
         - name: data_network
           in: query
           schema:
@@ -1022,7 +1022,7 @@ paths:
           in: query
           schema:
             type: string
-          description: Filter by last-seen radio.
+          description: "Filter by last-seen radio `ref`, e.g. `gNB:001-01:00002a@24`."
         - name: data_network
           in: query
           schema:
@@ -3561,7 +3561,7 @@ paths:
           in: query
           schema:
             type: string
-          description: Filter by radio name.
+          description: "Filter by radio `ref`, e.g. `eNB:001-01:MacroeNB-00008`."
         - name: message_type
           in: query
           schema:
@@ -5093,7 +5093,10 @@ components:
           description: "Last seen time (RFC 3339). Absent when never seen."
         last_seen_radio:
           type: string
-          description: "Last serving radio. Absent when never seen."
+          description: "Name of the last serving radio. Absent when never seen or when the radio sent no name."
+        last_seen_radio_ref:
+          type: string
+          description: "`ref` of the last serving radio. Absent when never seen."
       required: [registered, num_sessions]
 
     Subscriber:
@@ -5176,7 +5179,10 @@ components:
           description: "CM state (5G) or ECM state (4G)."
         radio:
           type: string
-          description: "Current or last serving radio. Absent when never seen."
+          description: "Name of the current or last serving radio. Absent when never seen or when the radio sent no name."
+        radio_ref:
+          type: string
+          description: "`ref` of the current or last serving radio. Absent when never seen."
         last_seen_at:
           type: string
           description: "Last activity time (RFC 3339). Absent when never seen."
@@ -7747,7 +7753,10 @@ components:
           enum: [inbound, outbound]
         radio:
           type: string
-          description: Radio name.
+          description: Radio name when the event was logged. Empty when the radio sent no name.
+        radio_ref:
+          type: string
+          description: Radio `ref`. Empty when the radio had no identity yet.
         address:
           type: string
           description: Radio address.
@@ -7757,7 +7766,7 @@ components:
           description: Raw message (base64).
         details:
           type: string
-      required: [id, timestamp, protocol, message_type, direction, radio, address]
+      required: [id, timestamp, protocol, message_type, direction, radio, radio_ref, address]
 
     ListRadioEventsResponse:
       type: object
