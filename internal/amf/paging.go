@@ -125,23 +125,9 @@ func (amf *AMF) abandonPaging(link trace.SpanContext, ue *UeContext, attempt uin
 // non-nil req is buffered for delivery when the UE answers. Callers should guard
 // first, via guardIdlePaging.
 func (amf *AMF) pageIdleUE(ctx context.Context, ue *UeContext, req *MTRequest) (models.N1N2MessageTransferCause, error) {
-	if amf.DBInstance == nil {
-		return "", fmt.Errorf("AMF not configured with database, cannot page")
-	}
-
-	operatorInfo, err := amf.OperatorInfo(ctx)
+	pkg, err := amf.pagingPDU(ctx, ue)
 	if err != nil {
-		return "", fmt.Errorf("get operator info: %w", err)
-	}
-
-	paging, err := amf.buildPaging(operatorInfo.Guami, ue)
-	if err != nil {
-		return "", fmt.Errorf("build paging: %w", err)
-	}
-
-	pkg, err := paging.Marshal()
-	if err != nil {
-		return "", fmt.Errorf("marshal paging: %w", err)
+		return "", err
 	}
 
 	// Buffer immediately before the send: the UE may answer on another goroutine the
@@ -160,6 +146,74 @@ func (amf *AMF) pageIdleUE(ctx context.Context, ue *UeContext, req *MTRequest) (
 	return cause, nil
 }
 
+func (amf *AMF) pagingPDU(ctx context.Context, ue *UeContext) ([]byte, error) {
+	if amf.DBInstance == nil {
+		return nil, fmt.Errorf("AMF not configured with database, cannot page")
+	}
+
+	operatorInfo, err := amf.OperatorInfo(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get operator info: %w", err)
+	}
+
+	paging, err := amf.buildPaging(operatorInfo.Guami, ue)
+	if err != nil {
+		return nil, fmt.Errorf("build paging: %w", err)
+	}
+
+	pkg, err := paging.Marshal()
+	if err != nil {
+		return nil, fmt.Errorf("marshal paging: %w", err)
+	}
+
+	return pkg, nil
+}
+
+func (amf *AMF) holdUntilReleased(ctx context.Context, ue *UeContext, releasing *UeConn, req *MTRequest) (models.N1N2MessageTransferCause, error) {
+	if err := guardPageable(ue); err != nil {
+		return "", err
+	}
+
+	cause, err := ue.bufferMT(ctx, req, releasing)
+	if err != nil {
+		return "", err
+	}
+
+	releasing.Log(ctx).Info("downlink request held until the UE Context Release completes; the UE will be paged")
+
+	return cause, nil
+}
+
+func (amf *AMF) pageHeldForRelease(ctx context.Context, ue *UeContext, released *UeConn) {
+	if ue == nil {
+		return
+	}
+
+	req := ue.takeHeldForRelease()
+	if req == nil {
+		return
+	}
+
+	if released.ReleaseAction() != UeContextN2NormalRelease || guardIdlePaging(ue) != nil {
+		ue.PagingAttemptFailed(ctx, req, models.N1N2FailureCauseUnspecified)
+
+		return
+	}
+
+	pkg, err := amf.pagingPDU(ctx, ue)
+	if err != nil {
+		logger.From(ctx, logger.AmfLog).Warn("could not page the UE for a downlink request held across its release",
+			logger.SUPI(ue.Supi().String()), zap.Error(err))
+		ue.PagingAttemptFailed(ctx, req, models.N1N2FailureCauseUnspecified)
+
+		return
+	}
+
+	if err := amf.SendPaging(ctx, ue, pkg); err != nil {
+		ue.PagingAttemptFailed(ctx, req, models.N1N2FailureCauseUnspecified)
+	}
+}
+
 // guardIdlePaging rejects paging a UE that is already connected, mid-registration,
 // mid-handover, or not registered.
 func guardIdlePaging(ue *UeContext) error {
@@ -167,6 +221,10 @@ func guardIdlePaging(ue *UeContext) error {
 		return errUEConnected
 	}
 
+	return guardPageable(ue)
+}
+
+func guardPageable(ue *UeContext) error {
 	if ue.State() == RegistrationInitiated {
 		return &models.N1N2MessageTransferError{Cause: models.N1N2ErrTemporaryRejectRegistrationOngoing}
 	}

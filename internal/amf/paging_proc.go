@@ -64,12 +64,13 @@ func outranks(candidate, current *models.Arp) bool {
 }
 
 type pagingProc struct {
-	mu      sync.Mutex
-	state   PagingState
-	pending *MTRequest
-	guard   guard.Guard
-	attempt uint64
-	settled chan struct{}
+	mu              sync.Mutex
+	state           PagingState
+	pending         *MTRequest
+	guard           guard.Guard
+	attempt         uint64
+	settled         chan struct{}
+	awaitingRelease bool
 }
 
 func (ue *UeContext) PagingState() PagingState {
@@ -99,9 +100,13 @@ func (ue *UeContext) MTDeliveryInProgress() bool {
 }
 
 func (ue *UeContext) beginPaging(ctx context.Context, req *MTRequest) (models.N1N2MessageTransferCause, error) {
+	return ue.bufferMT(ctx, req, nil)
+}
+
+func (ue *UeContext) bufferMT(ctx context.Context, req *MTRequest, releasing *UeConn) (models.N1N2MessageTransferCause, error) {
 	ue.paging.mu.Lock()
 
-	if ue.Conn() != nil {
+	if ue.Conn() != releasing {
 		ue.paging.mu.Unlock()
 
 		return "", errUEConnected
@@ -127,6 +132,7 @@ func (ue *UeContext) beginPaging(ctx context.Context, req *MTRequest) (models.N1
 	displaced := ue.paging.pending
 	ue.paging.pending = req
 	ue.paging.state = PagingAttempting
+	ue.paging.awaitingRelease = releasing != nil
 
 	ue.paging.mu.Unlock()
 
@@ -163,9 +169,24 @@ func (ue *UeContext) PagingAnswered() {
 	ue.paging.mu.Lock()
 	defer ue.paging.mu.Unlock()
 
+	ue.paging.awaitingRelease = false
+
 	if ue.paging.state == PagingAttempting {
 		ue.paging.state = PagingDelivering
 	}
+}
+
+func (ue *UeContext) takeHeldForRelease() *MTRequest {
+	ue.paging.mu.Lock()
+	defer ue.paging.mu.Unlock()
+
+	if !ue.paging.awaitingRelease {
+		return nil
+	}
+
+	ue.paging.awaitingRelease = false
+
+	return ue.paging.pending
 }
 
 func (ue *UeContext) PagingDelivered(ctx context.Context) {
@@ -273,6 +294,7 @@ func (ue *UeContext) takePendingLocked() *MTRequest {
 
 func (ue *UeContext) settlePagingLocked() {
 	ue.paging.state = PagingIdle
+	ue.paging.awaitingRelease = false
 
 	if ue.paging.settled != nil {
 		close(ue.paging.settled)

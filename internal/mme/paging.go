@@ -403,6 +403,50 @@ func (m *MME) pageToDeliver(ctx context.Context, ue *UeContext, buffer func()) e
 	return nil
 }
 
+func (m *MME) holdUntilReleased(ue *UeContext, req *MTRequest, buffer func()) bool {
+	ue.connMu.Lock()
+	defer ue.connMu.Unlock()
+
+	m.mu.RLock()
+
+	c := ue.Conn()
+	releasing := c != nil && c.releasing
+
+	m.mu.RUnlock()
+
+	if !releasing || ue.EMMState() != EMMRegistered {
+		return false
+	}
+
+	if buffer != nil {
+		buffer()
+	}
+
+	ue.paging.mu.Lock()
+	if ue.paging.deferred == nil {
+		ue.paging.deferred = req
+	}
+	ue.paging.mu.Unlock()
+
+	return true
+}
+
+func (m *MME) HoldLPPaUntilReleased(supi etsi.SUPI, measID int64, lppaPayload []byte) bool {
+	ue, ok := m.LookupUeBySupi(supi)
+	if !ok {
+		return false
+	}
+
+	if !m.holdUntilReleased(ue, &MTRequest{}, func() { ue.SetLPPaBuffered(measID, lppaPayload) }) {
+		return false
+	}
+
+	logger.MmeLog.Info("LPPa message held until the UE Context Release completes; the UE will be paged",
+		logger.SUPI(supi.String()), zap.Int64("measurement_id", measID))
+
+	return true
+}
+
 func (m *MME) pagingInProgress(ue *UeContext) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

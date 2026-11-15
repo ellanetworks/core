@@ -172,7 +172,14 @@ func (amf *AMF) TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req mod
 
 func (amf *AMF) connOrPage(ctx context.Context, ue *UeContext, req models.N1N2MessageTransferRequest) (*UeConn, models.N1N2MessageTransferCause, error) {
 	if conn := ue.Conn(); conn != nil {
-		return conn, "", nil
+		if !amf.ReleaseClaimed(conn) {
+			return conn, "", nil
+		}
+
+		cause, err := amf.holdUntilReleased(ctx, ue, conn, &MTRequest{Req: req})
+		if !errors.Is(err, errUEConnected) {
+			return nil, cause, err
+		}
 	}
 
 	cause, err := amf.storeN1N2AndPage(ctx, ue, req)
