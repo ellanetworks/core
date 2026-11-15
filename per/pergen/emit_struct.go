@@ -62,7 +62,7 @@ func (g *generator) emitMarshalExt(recv, typeName string, rootFields, extFields 
 	for _, fi := range rootFields {
 		switch {
 		case fi.genTable:
-			fmt.Fprintf(r, "\text := ap.ExtensionFields(%s, %s, %s.%s)\n", fi.extTable, recv, recv, fi.name)
+			fmt.Fprintf(r, "\text := apimpl.ExtensionFields(%s, %s, %s.%s)\n", fi.extTable, recv, recv, fi.name)
 		case fi.extTable != "":
 			fmt.Fprintf(r, "\text := extensionFields(%s, %s, &%s.%s)\n", fi.extTable, recv, recv, fi.name)
 		}
@@ -100,7 +100,7 @@ func (g *generator) emitMarshalExt(recv, typeName string, rootFields, extFields 
 		expr := recv + "." + fi.name
 		if fi.genTable {
 			fmt.Fprintf(r, "\tif len(ext) > 0 {\n")
-			fmt.Fprintf(r, "\t\tif err := ap.EncodeExtensionContainer(%s, w, enc, ext); err != nil {\n\t\t\treturn err\n\t\t}\n", g.cfg.Profile)
+			fmt.Fprintf(r, "\t\tif err := apimpl.EncodeExtensionContainer(%s, w, enc, ext); err != nil {\n\t\t\treturn err\n\t\t}\n", g.cfg.Profile)
 			fmt.Fprintf(r, "\t}\n")
 		} else if fi.extTable != "" {
 			fmt.Fprintf(r, "\tif len(ext) > 0 {\n")
@@ -331,7 +331,7 @@ func (g *generator) emitUnmarshalExt(recv, typeName string, rootFields, extField
 		expr := recv + "." + fi.name
 		if fi.genTable {
 			fmt.Fprintf(r, "\tif %s {\n", preambleVar(fi))
-			fmt.Fprintf(r, "\t\tif err := ap.DecodeExtensionContainer(%s, r, enc, %s, %s, &%s); err != nil {\n\t\t\treturn err\n\t\t}\n", g.cfg.Profile, fi.extTable, recv, expr)
+			fmt.Fprintf(r, "\t\tif err := apimpl.DecodeExtensionContainer(%s, r, enc, %s, %s, &%s); err != nil {\n\t\t\treturn err\n\t\t}\n", g.cfg.Profile, fi.extTable, recv, expr)
 			fmt.Fprintf(r, "\t}\n")
 		} else if fi.extTable != "" {
 			fmt.Fprintf(r, "\tif %s {\n", preambleVar(fi))
@@ -402,9 +402,9 @@ func (g *generator) emitUnmarshalExt(recv, typeName string, rootFields, extField
 				fmt.Fprintf(r, "\t\t\t\tvar v %s\n", ef.typeStr)
 
 				if ef.kind == kindDelegate {
-					fmt.Fprintf(r, "\t\t\t\tif err := per.DecodeOpenType(r, enc, &v); err != nil {\n\t\t\t\t\treturn err\n\t\t\t\t}\n")
+					fmt.Fprintf(r, "\t\t\t\tif err := %s(r, enc, &v); err != nil {\n\t\t\t\t\treturn err\n\t\t\t\t}\n", g.openTypeDecoder())
 				} else {
-					fmt.Fprintf(r, "\t\t\t\tif err := per.DecodeOpenType(r, enc, per.UnmarshalerFunc(func(r *per.Reader, enc per.Encoding) error {\n")
+					fmt.Fprintf(r, "\t\t\t\tif err := %s(r, enc, per.UnmarshalerFunc(func(r *per.Reader, enc per.Encoding) error {\n", g.openTypeDecoder())
 					g.emitFieldUnmarshal(r, "v", ef, 4)
 					fmt.Fprintf(r, "\t\t\t\t\treturn nil\n")
 					fmt.Fprintf(r, "\t\t\t\t})); err != nil {\n\t\t\t\t\treturn err\n\t\t\t\t}\n")

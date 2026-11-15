@@ -8,7 +8,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 const (
@@ -257,11 +257,11 @@ func TestInitialContextSetupRequestAMBRCondition(t *testing.T) {
 // (§10.3.5); the AMF cannot set up a context without them.
 func TestInitialContextSetupRequestMissingRejectIE(t *testing.T) {
 	full := container(t,
-		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))},
-		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(RANUENGAPID(2))))},
-		ieField{ID: IDGUAMI, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(goldContextGUAMI())))},
-		ieField{ID: IDUESecurityCapabilities, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(goldUESecurityCapabilities())))},
-		ieField{ID: IDSecurityKey, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(goldSecurityKey())))},
+		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))},
+		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(RANUENGAPID(2))))},
+		ieField{ID: IDGUAMI, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(goldContextGUAMI())))},
+		ieField{ID: IDUESecurityCapabilities, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(goldUESecurityCapabilities())))},
+		ieField{ID: IDSecurityKey, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(goldSecurityKey())))},
 	)
 
 	// Without the Allowed NSSAI the request is incomplete: it is mandatory and

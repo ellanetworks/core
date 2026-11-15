@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 type goldenRoundTrip struct {
@@ -135,7 +135,7 @@ func checkWireCase(t *testing.T, c wireCase) {
 }
 
 func rawUnknownIE(id ProtocolIEID, value ...byte) ieField {
-	return ieField{ID: id, Criticality: CriticalityIgnore, Value: ap.RawValue(value)}
+	return ieField{ID: id, Criticality: CriticalityIgnore, Value: apimpl.RawValue(value)}
 }
 
 func marshalT(t *testing.T, m interface{ Marshal() ([]byte, error) }) []byte {

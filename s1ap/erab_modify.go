@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // ERABToBeModifiedItemBearerModReq ::= SEQUENCE { e-RAB-ID,
@@ -29,17 +30,19 @@ type TransportInformation struct {
 // ERABModifyItemBearerModRes ::= SEQUENCE { e-RAB-ID, iE-Extensions OPTIONAL }
 // (extensible) (TS 36.413).
 type ERABModifyItemBearerModRes struct {
-	extensions   per.ExtensionAdditions `per:",extraw"`
-	ERABID       ERABID
-	iEExtensions extensionMeta `per:",exttable"`
+	extensions    per.ExtensionAdditions `per:",extraw"`
+	ERABID        ERABID
+	iEExtensions  extensionMeta `per:",exttable"`
+	containerCrit `per:"-"`
 }
 
 // TS 36.413 §9.1.3.3.
 type ERABModifyRequest struct {
-	MMEUES1APID               MMEUES1APID
-	ENBUES1APID               ENBUES1APID
-	UEAggregateMaximumBitRate *UEAggregateMaximumBitRate
-	ERABToBeModified          ERABToBeModifiedListBearerModReq
+	MMEUES1APID                  MMEUES1APID
+	ENBUES1APID                  ENBUES1APID
+	UEAggregateMaximumBitRate    *UEAggregateMaximumBitRate
+	ERABToBeModified             ERABToBeModifiedListBearerModReq
+	SecondaryRATDataUsageRequest *SecondaryRATDataUsageRequest
 
 	messageMeta
 }
@@ -94,9 +97,10 @@ var eRABModifyRequestIEs = []ieSpec[ERABModifyRequest]{
 			return err
 		},
 		Encode: func(m *ERABModifyRequest) (per.Marshaler, bool) {
-			return containerList(maxnoofERABs, IDERABToBeModifiedItemBearerModReq, CriticalityReject, m.ERABToBeModified), true
+			return containerList(maxnoofERABs, IDERABToBeModifiedItemBearerModReq, CriticalityReject, &m.ERABToBeModified), true
 		},
 	},
+	apimpl.OptionalIE(IDSecondaryRATDataUsageRequest, CriticalityIgnore, func(m *ERABModifyRequest) **SecondaryRATDataUsageRequest { return &m.SecondaryRATDataUsageRequest }),
 }
 
 func (m *ERABModifyRequest) encodeBody(w *per.Writer, enc per.Encoding) error {
@@ -129,12 +133,13 @@ func DecodeERABModifyRequest(value []byte) (*ERABModifyRequest, error) {
 
 // TS 36.413 §9.1.3.4.
 type ERABModifyResponse struct {
-	MMEUES1APID             *MMEUES1APID
-	ENBUES1APID             *ENBUES1APID
-	ERABModify              []ERABModifyItemBearerModRes
-	ERABFailedToModify      []ERABItem
-	CriticalityDiagnostics  *CriticalityDiagnostics
-	UserLocationInformation *UserLocationInformation
+	MMEUES1APID                     *MMEUES1APID
+	ENBUES1APID                     *ENBUES1APID
+	ERABModify                      []ERABModifyItemBearerModRes
+	ERABFailedToModify              []ERABItem
+	CriticalityDiagnostics          *CriticalityDiagnostics
+	UserLocationInformation         *UserLocationInformation
+	SecondaryRATDataUsageReportList SecondaryRATDataUsageReportList
 
 	messageMeta
 }
@@ -196,7 +201,7 @@ var eRABModifyResponseIEs = []ieSpec[ERABModifyResponse]{
 				return nil, false
 			}
 
-			return containerList(maxnoofERABs, IDERABModifyItemBearerModRes, CriticalityIgnore, m.ERABModify), true
+			return containerList(maxnoofERABs, IDERABModifyItemBearerModRes, CriticalityIgnore, &m.ERABModify), true
 		},
 	},
 	{
@@ -213,7 +218,7 @@ var eRABModifyResponseIEs = []ieSpec[ERABModifyResponse]{
 				return nil, false
 			}
 
-			return containerList(maxnoofERABs, IDERABItem, CriticalityIgnore, m.ERABFailedToModify), true
+			return containerList(maxnoofERABs, IDERABItem, CriticalityIgnore, &m.ERABFailedToModify), true
 		},
 	},
 	{
@@ -237,6 +242,9 @@ var eRABModifyResponseIEs = []ieSpec[ERABModifyResponse]{
 			return m.CriticalityDiagnostics, true
 		},
 	},
+	apimpl.ListIE(IDSecondaryRATDataUsageReportList, CriticalityIgnore, func(m *ERABModifyResponse) *SecondaryRATDataUsageReportList {
+		return &m.SecondaryRATDataUsageReportList
+	}),
 	{
 		ID: IDUserLocationInformation, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *ERABModifyResponse, r *per.Reader, enc per.Encoding) error {

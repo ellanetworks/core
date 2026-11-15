@@ -15,7 +15,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 const unknownExtensionID ProtocolIEID = 65000
@@ -1210,12 +1210,12 @@ const (
 
 func TestTNLRequestTransfersKeepUnknownIEsAndAdditions(t *testing.T) {
 	setup := tnlSetupRequestTransfer()
-	setup.Append(rawIE{ID: unknownExtensionID, Criticality: CriticalityIgnore, Value: []byte{0xde, 0xad}})
-	setup.ExtensionAdditions = unknownAdditions(t)
+	setup.appendUnknown(rawIE{ID: unknownExtensionID, Criticality: CriticalityIgnore, Value: []byte{0xde, 0xad}})
+	setup.setExtensionAdditions(unknownAdditions(t))
 
 	modify := tnlModifyRequestTransfer()
-	modify.Append(rawIE{ID: unknownExtensionID, Criticality: CriticalityNotify, Value: []byte{0xde, 0xad}})
-	modify.ExtensionAdditions = unknownAdditions(t)
+	modify.appendUnknown(rawIE{ID: unknownExtensionID, Criticality: CriticalityNotify, Value: []byte{0xde, 0xad}})
+	modify.setExtensionAdditions(unknownAdditions(t))
 
 	for _, c := range []struct {
 		name     string
@@ -1267,7 +1267,7 @@ func TestTNLManyUnknownExtensionsKeptExactly(t *testing.T) {
 
 	fields := make([]ieField, 0, 3*paddingIEs)
 	for i := range 3 * paddingIEs {
-		fields = append(fields, ieField{ID: unknownExtensionID - ProtocolIEID(i), Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{byte(i)})})
+		fields = append(fields, ieField{ID: unknownExtensionID - ProtocolIEID(i), Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{byte(i)})})
 	}
 
 	w := per.NewWriter()
@@ -1316,7 +1316,7 @@ func TestTNLRequestTransferKeepsManyUnknownIEs(t *testing.T) {
 	}
 
 	for i := range 3 * paddingIEs {
-		all = append(all, ieField{ID: unknownExtensionID - ProtocolIEID(i), Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{byte(i)})})
+		all = append(all, ieField{ID: unknownExtensionID - ProtocolIEID(i), Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{byte(i)})})
 	}
 
 	w := per.NewWriter()
@@ -1342,7 +1342,7 @@ func TestTNLRequestTransferKeepsManyUnknownIEs(t *testing.T) {
 func TestMessageWithManyUnknownIEsReencodesLosslessly(t *testing.T) {
 	fields := ngSetupFields()
 	for i := range paddingIEs + 1 {
-		fields = append(fields, ieField{ID: ProtocolIEID(40000 + i), Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x00})})
+		fields = append(fields, ieField{ID: ProtocolIEID(40000 + i), Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0x00})})
 	}
 
 	value := container(t, fields...)

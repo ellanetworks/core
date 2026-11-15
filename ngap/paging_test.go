@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // Golden PAGING PDUs
@@ -154,21 +154,30 @@ func TestUEPagingIdentityChoiceExtensionIsPreserved(t *testing.T) {
 	}
 
 	if err := encodeContainerField(w, ieField{
-		ID: 9999, Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x00}),
+		ID: 9999, Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0x00}),
 	}); err != nil {
 		t.Fatal(err)
 	}
 
 	value := container(t,
-		ieField{ID: IDUEPagingIdentity, Criticality: CriticalityIgnore, Value: ap.RawValue(perBytes(w))},
+		ieField{ID: IDUEPagingIdentity, Criticality: CriticalityIgnore, Value: apimpl.RawValue(perBytes(w))},
 		ieField{ID: IDTAIListForPaging, Criticality: CriticalityIgnore, Value: &TAIListForPaging{
 			{TAI: TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}},
 		}},
 	)
 
-	msg, err := ParsePaging(value)
+	parsed, err := ParsePaging(value)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
+	}
+
+	if parsed.UEPagingIdentity != nil {
+		t.Errorf("parsed UEPagingIdentity = %+v, want it treated as not received", parsed.UEPagingIdentity)
+	}
+
+	msg, err := DecodePaging(value)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
 	}
 
 	if msg.UEPagingIdentity == nil || msg.UEPagingIdentity.ChoiceExtension == nil || msg.UEPagingIdentity.FiveGSTMSI != nil {

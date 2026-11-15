@@ -5,14 +5,16 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // ERABReleaseItemBearerRelComp ::= SEQUENCE { e-RAB-ID, iE-Extensions OPTIONAL }
 // (extensible): an E-RAB the eNB confirms released (TS 36.413).
 type ERABReleaseItemBearerRelComp struct {
-	extensions   per.ExtensionAdditions `per:",extraw"`
-	ERABID       ERABID
-	iEExtensions extensionMeta `per:",exttable"`
+	extensions    per.ExtensionAdditions `per:",extraw"`
+	ERABID        ERABID
+	iEExtensions  extensionMeta `per:",exttable"`
+	containerCrit `per:"-"`
 }
 
 // TS 36.413 §9.1.3.5.
@@ -80,7 +82,7 @@ var eRABReleaseCommandIEs = []ieSpec[ERABReleaseCommand]{
 				return nil, false
 			}
 
-			return containerList(maxnoofERABs, IDERABItem, CriticalityIgnore, m.ERABToBeReleased), true
+			return containerList(maxnoofERABs, IDERABItem, CriticalityIgnore, &m.ERABToBeReleased), true
 		},
 	},
 	{
@@ -128,12 +130,13 @@ func DecodeERABReleaseCommand(value []byte) (*ERABReleaseCommand, error) {
 
 // TS 36.413 §9.1.3.6.
 type ERABReleaseResponse struct {
-	MMEUES1APID             *MMEUES1APID
-	ENBUES1APID             *ENBUES1APID
-	ERABReleased            []ERABReleaseItemBearerRelComp
-	ERABFailedToRelease     []ERABItem
-	CriticalityDiagnostics  *CriticalityDiagnostics
-	UserLocationInformation *UserLocationInformation
+	MMEUES1APID                     *MMEUES1APID
+	ENBUES1APID                     *ENBUES1APID
+	ERABReleased                    []ERABReleaseItemBearerRelComp
+	ERABFailedToRelease             []ERABItem
+	CriticalityDiagnostics          *CriticalityDiagnostics
+	UserLocationInformation         *UserLocationInformation
+	SecondaryRATDataUsageReportList SecondaryRATDataUsageReportList
 
 	messageMeta
 }
@@ -195,7 +198,7 @@ var eRABReleaseResponseIEs = []ieSpec[ERABReleaseResponse]{
 				return nil, false
 			}
 
-			return containerList(maxnoofERABs, IDERABReleaseItemBearerRelComp, CriticalityIgnore, m.ERABReleased), true
+			return containerList(maxnoofERABs, IDERABReleaseItemBearerRelComp, CriticalityIgnore, &m.ERABReleased), true
 		},
 	},
 	{
@@ -212,7 +215,7 @@ var eRABReleaseResponseIEs = []ieSpec[ERABReleaseResponse]{
 				return nil, false
 			}
 
-			return containerList(maxnoofERABs, IDERABItem, CriticalityIgnore, m.ERABFailedToRelease), true
+			return containerList(maxnoofERABs, IDERABItem, CriticalityIgnore, &m.ERABFailedToRelease), true
 		},
 	},
 	{
@@ -257,6 +260,9 @@ var eRABReleaseResponseIEs = []ieSpec[ERABReleaseResponse]{
 			return m.UserLocationInformation, true
 		},
 	},
+	apimpl.ListIE(IDSecondaryRATDataUsageReportList, CriticalityIgnore, func(m *ERABReleaseResponse) *SecondaryRATDataUsageReportList {
+		return &m.SecondaryRATDataUsageReportList
+	}),
 }
 
 func (m *ERABReleaseResponse) encodeBody(w *per.Writer, enc per.Encoding) error {
@@ -288,10 +294,11 @@ func DecodeERABReleaseResponse(value []byte) (*ERABReleaseResponse, error) {
 }
 
 type ERABReleaseIndication struct {
-	MMEUES1APID             MMEUES1APID
-	ENBUES1APID             ENBUES1APID
-	ERABReleased            []ERABItem
-	UserLocationInformation *UserLocationInformation
+	MMEUES1APID                     MMEUES1APID
+	ENBUES1APID                     ENBUES1APID
+	ERABReleased                    []ERABItem
+	UserLocationInformation         *UserLocationInformation
+	SecondaryRATDataUsageReportList SecondaryRATDataUsageReportList
 
 	messageMeta
 }
@@ -325,7 +332,7 @@ var eRABReleaseIndicationIEs = []ieSpec[ERABReleaseIndication]{
 				return nil, false
 			}
 
-			return containerList(maxnoofERABs, IDERABItem, CriticalityIgnore, m.ERABReleased), true
+			return containerList(maxnoofERABs, IDERABItem, CriticalityIgnore, &m.ERABReleased), true
 		},
 	},
 	{
@@ -349,6 +356,9 @@ var eRABReleaseIndicationIEs = []ieSpec[ERABReleaseIndication]{
 			return m.UserLocationInformation, true
 		},
 	},
+	apimpl.ListIE(IDSecondaryRATDataUsageReportList, CriticalityIgnore, func(m *ERABReleaseIndication) *SecondaryRATDataUsageReportList {
+		return &m.SecondaryRATDataUsageReportList
+	}),
 }
 
 func (m *ERABReleaseIndication) encodeBody(w *per.Writer, enc per.Encoding) error {

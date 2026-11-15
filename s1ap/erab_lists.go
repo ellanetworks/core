@@ -3,7 +3,10 @@
 
 package s1ap
 
-import "github.com/ellanetworks/core/per"
+import (
+	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
+)
 
 type ERABToBeSwitchedULItem struct {
 	ERABID                ERABID
@@ -116,14 +119,14 @@ func (l *ERABToBeModifiedListBearerModInd) UnmarshalPER(r *per.Reader, enc per.E
 	return nil
 }
 
-type ERABNotToBeModifiedListBearerModInd []ERABToBeModifiedItemBearerModInd
+type ERABNotToBeModifiedListBearerModInd []ERABNotToBeModifiedItemBearerModInd
 
 func (l ERABNotToBeModifiedListBearerModInd) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	return encodeSingleContainerList(w, enc, maxnoofERABs, IDERABNotToBeModifiedItemBearerModInd, CriticalityReject, l)
 }
 
 func (l *ERABNotToBeModifiedListBearerModInd) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	items, err := decodeItemList[ERABToBeModifiedItemBearerModInd](r, enc, maxnoofERABs, IDERABNotToBeModifiedItemBearerModInd, CriticalityReject)
+	items, err := decodeItemList[ERABNotToBeModifiedItemBearerModInd](r, enc, maxnoofERABs, IDERABNotToBeModifiedItemBearerModInd, CriticalityReject)
 	if err != nil {
 		return err
 	}
@@ -216,4 +219,52 @@ func (l *ERABToBeSwitchedULList) UnmarshalPER(r *per.Reader, enc per.Encoding) e
 	*l = items
 
 	return nil
+}
+
+func (l *ERABToBeSetupListCtxtSUReq) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	return diagnoseItemList(d, IDERABToBeSetupItemCtxtSUReq, CriticalityReject, l)
+}
+
+func (l *ERABSetupListCtxtSURes) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	return diagnoseItemList(d, IDERABSetupItemCtxtSURes, CriticalityIgnore, l)
+}
+
+func (l *ERABToBeSetupListBearerSUReq) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	return diagnoseItemList(d, IDERABToBeSetupItemBearerSUReq, CriticalityReject, l)
+}
+
+func (l *ERABSetupListBearerSURes) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	return diagnoseItemList(d, IDERABSetupItemBearerSURes, CriticalityIgnore, l)
+}
+
+func (l *ERABToBeModifiedListBearerModReq) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	return diagnoseItemList(d, IDERABToBeModifiedItemBearerModReq, CriticalityReject, l)
+}
+
+func (l *ERABToBeModifiedListBearerModInd) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	return diagnoseItemList(d, IDERABToBeModifiedItemBearerModInd, CriticalityReject, l)
+}
+
+func (l *ERABNotToBeModifiedListBearerModInd) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	return diagnoseItemList(d, IDERABNotToBeModifiedItemBearerModInd, CriticalityReject, l)
+}
+
+func (l *ERABToBeSetupListHOReq) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	return diagnoseItemList(d, IDERABToBeSetupItemHOReq, CriticalityReject, l)
+}
+
+func (l *ERABAdmittedList) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	return diagnoseItemList(d, IDERABAdmittedItem, CriticalityIgnore, l)
+}
+
+func (l *ERABSubjecttoDataForwardingList) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	return diagnoseItemList(d, IDERABDataForwardingItem, CriticalityIgnore, l)
+}
+
+func (l *ERABToBeSwitchedDLList) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	return diagnoseItemList(d, IDERABToBeSwitchedDLItem, CriticalityReject, l)
+}
+
+func (l *ERABToBeSwitchedULList) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	return diagnoseItemList(d, IDERABToBeSwitchedULItem, CriticalityIgnore, l)
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/per"
 	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 func unmarshalPERValue[T any](b []byte) (T, error) {
@@ -49,7 +50,7 @@ func deref[T any](p *T) T {
 
 //nolint:unparam
 func encodeIEContainer(w *per.Writer, enc per.Encoding, fields []ieField) error {
-	return ap.EncodeIEContainer(profile, w, enc, fields)
+	return apimpl.EncodeIEContainer(profile, w, enc, fields)
 }
 
 func typeOfError(d DiagnosticIE) TypeOfError {
@@ -82,7 +83,7 @@ func rawRow[M any](id ProtocolIEID, crit Criticality, value []byte) ieSpec[M] {
 	return ieSpec[M]{
 		ID: id, Presence: presenceOptional, Criticality: crit,
 		Decode: func(*M, *per.Reader, per.Encoding) error { return nil },
-		Encode: func(*M) (per.Marshaler, bool) { return ap.RawValue(value), true },
+		Encode: func(*M) (per.Marshaler, bool) { return apimpl.RawValue(value), true },
 	}
 }
 
@@ -99,5 +100,5 @@ func tableRow[M any](table []ieSpec[M], id ProtocolIEID, crit Criticality) ieSpe
 }
 
 func encodeContainerField(w *per.Writer, f ieField) error {
-	return ap.EncodeField(profile, w, per.Aligned, f)
+	return apimpl.EncodeField(profile, w, per.Aligned, f)
 }

@@ -5,6 +5,8 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 const (
@@ -43,7 +45,19 @@ type Paging struct {
 	PagingPriority       *PagingPriority
 	// The eNB-reported paging-specific capability; when set, the eNB may use it
 	// to apply specific paging schemes.
-	UERadioCapabilityForPaging []byte
+	UERadioCapabilityForPaging   []byte
+	CSGIdList                    CSGIdList
+	AssistanceDataForPaging      *AssistanceDataForPaging
+	PagingeDRXInformation        *PagingeDRXInformation
+	ExtendedUEIdentityIndexValue *ExtendedUEIdentityIndexValue
+	NBIoTPagingeDRXInformation   *NBIoTPagingeDRXInformation
+	NBIoTUEIdentityIndexValue    *NBIoTUEIdentityIndexValue
+	EnhancedCoverageRestricted   *EnhancedCoverageRestricted
+	CEModeBRestricted            *CEModeBRestricted
+	DataSize                     *DataSize
+	WUSAssistanceInformation     *WUSAssistanceInformation
+	NBIoTPagingDRX               *NBIoTPagingDRX
+	PagingCause                  *PagingCause
 
 	messageMeta
 }
@@ -163,6 +177,7 @@ var pagingIEs = []ieSpec[Paging]{
 			return &m.TAIList, true
 		},
 	},
+	apimpl.ListIE(IDCSGIdList, CriticalityIgnore, func(m *Paging) *CSGIdList { return &m.CSGIdList }),
 	{
 		ID: IDPagingPriority, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *Paging, r *per.Reader, enc per.Encoding) error {
@@ -202,6 +217,17 @@ var pagingIEs = []ieSpec[Paging]{
 			}), true
 		},
 	},
+	apimpl.OptionalIE(IDAssistanceDataForPaging, CriticalityIgnore, func(m *Paging) **AssistanceDataForPaging { return &m.AssistanceDataForPaging }),
+	apimpl.OptionalIE(IDPagingeDRXInformation, CriticalityIgnore, func(m *Paging) **PagingeDRXInformation { return &m.PagingeDRXInformation }),
+	apimpl.OptionalIE(IDExtendedUEIdentityIndexValue, CriticalityIgnore, func(m *Paging) **ExtendedUEIdentityIndexValue { return &m.ExtendedUEIdentityIndexValue }),
+	apimpl.OptionalIE(IDNBIoTPagingeDRXInformation, CriticalityIgnore, func(m *Paging) **NBIoTPagingeDRXInformation { return &m.NBIoTPagingeDRXInformation }),
+	apimpl.OptionalIE(IDNBIoTUEIdentityIndexValue, CriticalityIgnore, func(m *Paging) **NBIoTUEIdentityIndexValue { return &m.NBIoTUEIdentityIndexValue }),
+	apimpl.OptionalIE(IDEnhancedCoverageRestricted, CriticalityIgnore, func(m *Paging) **EnhancedCoverageRestricted { return &m.EnhancedCoverageRestricted }),
+	apimpl.OptionalIE(IDCEModeBRestricted, CriticalityIgnore, func(m *Paging) **CEModeBRestricted { return &m.CEModeBRestricted }),
+	apimpl.OptionalIE(IDDataSize, CriticalityIgnore, func(m *Paging) **DataSize { return &m.DataSize }),
+	apimpl.OptionalIE(IDWUSAssistanceInformation, CriticalityIgnore, func(m *Paging) **WUSAssistanceInformation { return &m.WUSAssistanceInformation }),
+	apimpl.OptionalIE(IDNBIoTPagingDRX, CriticalityIgnore, func(m *Paging) **NBIoTPagingDRX { return &m.NBIoTPagingDRX }),
+	apimpl.OptionalIE(IDPagingCause, CriticalityIgnore, func(m *Paging) **PagingCause { return &m.PagingCause }),
 }
 
 func (m *Paging) encodeBody(w *per.Writer, enc per.Encoding) error {
@@ -230,4 +256,8 @@ func ParsePaging(value []byte) (*Paging, error) {
 
 func DecodePaging(value []byte) (*Paging, error) {
 	return decodeMessageBody[Paging](ProcPaging, pagingIEs, value)
+}
+
+func (l *TAIList) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	return diagnoseItemList(d, IDTAIItem, CriticalityIgnore, l)
 }

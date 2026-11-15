@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 type corpusPDU struct {
@@ -35,6 +36,12 @@ type typedKey struct {
 
 type typedMessage interface {
 	Marshal() ([]byte, error)
+}
+
+var corpusWithoutTypedCodec = map[typedKey]bool{}
+
+var corpusRefusedByTypedCodec = map[string]string{
+	"corpus.txt:6": "s1ap: S1Setup (17): protocol: abstract-syntax-error-reject (1): pagingDRX (44) (reject, not-understood)",
 }
 
 var hexLiteral = regexp.MustCompile(`"([0-9a-fA-F]{8,})"`)
@@ -270,8 +277,51 @@ func withEnvelopeOf(t *testing.T, re []byte, orig PDU) []byte {
 	return b
 }
 
+type corpusSkips struct {
+	unmodeled map[typedKey]bool
+	refused   map[string]string
+}
+
+func (s *corpusSkips) codec(c corpusPDU, pdu PDU) (func([]byte) (typedMessage, error), bool) {
+	key := typedKey{TriggeringMessage(pdu.choiceIndex()), pdu.procedureCode()}
+
+	codec, ok := typedCodecs[key]
+	if !ok {
+		s.unmodeled[key] = true
+
+		return nil, false
+	}
+
+	if _, err := codec(pdu.value()); err != nil {
+		s.refused[c.source] = err.Error()
+
+		return nil, false
+	}
+
+	return codec, true
+}
+
+func (s *corpusSkips) check(t *testing.T) {
+	t.Helper()
+
+	if !maps.Equal(s.unmodeled, corpusWithoutTypedCodec) {
+		t.Errorf("corpus PDUs without a typed codec %v, want %v", slices.Collect(maps.Keys(s.unmodeled)), slices.Collect(maps.Keys(corpusWithoutTypedCodec)))
+	}
+
+	if !maps.Equal(s.refused, corpusRefusedByTypedCodec) {
+		t.Errorf("corpus PDUs the typed codec refuses %q, want %q", s.refused, corpusRefusedByTypedCodec)
+	}
+}
+
+func newCorpusSkips() *corpusSkips {
+	return &corpusSkips{unmodeled: map[typedKey]bool{}, refused: map[string]string{}}
+}
+
 func TestTypedCodecReencodesCorpusExactly(t *testing.T) {
-	var exact, envelope, refused int
+	var exact, envelope int
+
+	skips := newCorpusSkips()
+	defer skips.check(t)
 
 	for _, c := range loadCorpus(t) {
 		pdu, err := Unmarshal(c.b)
@@ -279,16 +329,14 @@ func TestTypedCodecReencodesCorpusExactly(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		codec, ok := typedCodecs[typedKey{TriggeringMessage(pdu.choiceIndex()), pdu.procedureCode()}]
+		codec, ok := skips.codec(c, pdu)
 		if !ok {
 			continue
 		}
 
 		msg, err := codec(pdu.value())
 		if err != nil {
-			refused++
-
-			continue
+			t.Fatal(err)
 		}
 
 		re, err := msg.Marshal()
@@ -311,7 +359,7 @@ func TestTypedCodecReencodesCorpusExactly(t *testing.T) {
 		exact++
 	}
 
-	t.Logf("%d re-encoded byte for byte (%d of them under a procedure criticality other than the wire's), %d refused", exact, envelope, refused)
+	t.Logf("%d re-encoded byte for byte (%d of them under a procedure criticality other than the wire's)", exact, envelope)
 
 	if exact < 20 {
 		t.Fatalf("only %d corpus PDUs re-encoded", exact)
@@ -319,7 +367,10 @@ func TestTypedCodecReencodesCorpusExactly(t *testing.T) {
 }
 
 func TestRawPDUSpliceMatchesTypedCodec(t *testing.T) {
-	var compared, refused, unmodeled int
+	var compared int
+
+	skips := newCorpusSkips()
+	defer skips.check(t)
 
 	for _, c := range loadCorpus(t) {
 		pdu, err := Unmarshal(c.b)
@@ -327,9 +378,8 @@ func TestRawPDUSpliceMatchesTypedCodec(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		codec, ok := typedCodecs[typedKey{TriggeringMessage(pdu.choiceIndex()), pdu.procedureCode()}]
+		codec, ok := skips.codec(c, pdu)
 		if !ok {
-			unmodeled++
 			continue
 		}
 
@@ -346,8 +396,7 @@ func TestRawPDUSpliceMatchesTypedCodec(t *testing.T) {
 			for _, v := range ueIDValues[s.field] {
 				msg, err := codec(pdu.value())
 				if err != nil {
-					refused++
-					break
+					t.Fatal(err)
 				}
 
 				re, err := msg.Marshal()
@@ -392,7 +441,7 @@ func TestRawPDUSpliceMatchesTypedCodec(t *testing.T) {
 		}
 	}
 
-	t.Logf("compared %d splices with the typed codec; typed codec skipped: %d refused, %d unmodeled", compared, refused, unmodeled)
+	t.Logf("compared %d splices with the typed codec", compared)
 
 	if compared < 20 {
 		t.Fatalf("only %d comparisons", compared)
@@ -719,9 +768,9 @@ func TestRawPDUUnmodeledProcedure(t *testing.T) {
 	body.WriteBit(false)
 
 	if err := encodeIEContainer(body, per.Aligned, []ieField{
-		{ID: 60000, Criticality: CriticalityNotify, Value: ap.RawValue([]byte{0xde, 0xad})},
-		{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: ap.RawValue(id)},
-		{ID: 60001, Criticality: CriticalityIgnore, Value: ap.RawValue(bytes.Repeat([]byte{0xbe}, 200))},
+		{ID: 60000, Criticality: CriticalityNotify, Value: apimpl.RawValue([]byte{0xde, 0xad})},
+		{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: apimpl.RawValue(id)},
+		{ID: 60001, Criticality: CriticalityIgnore, Value: apimpl.RawValue(bytes.Repeat([]byte{0xbe}, 200))},
 	}); err != nil {
 		t.Fatal(err)
 	}

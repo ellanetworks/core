@@ -242,24 +242,9 @@ func (e *ENB) SendUplinkNASTransport(mmeUEID, enbUEID int64, nas []byte) error {
 // eNB's S1-U endpoint. It returns the eNB downlink TEID it reported, so the caller
 // can build the target GTP tunnel.
 func (e *ENB) SendPathSwitchRequest(enbUEID, sourceMMEUEID int64, erabID s1ap.ERABID, caps s1ap.UESecurityCapabilities) (dlTEID uint32, err error) {
-	addr := e.n3TransportLayerAddress()
-
 	dlTEID = e.allocTEID()
 
-	req := &s1ap.PathSwitchRequest{
-		ENBUES1APID: s1ap.ENBUES1APID(enbUEID),
-		ERABToBeSwitchedDL: []s1ap.ERABToBeSwitchedDLItem{{
-			ERABID:                erabID,
-			TransportLayerAddress: addr,
-			GTPTEID:               s1ap.GTPTEID(dlTEID),
-		}},
-		SourceMMEUES1APID:      s1ap.MMEUES1APID(sourceMMEUEID),
-		EUTRANCGI:              s1ap.Ptr(e.eutranCGI()),
-		TAI:                    s1ap.Ptr(e.taiFor(enbUEID)),
-		UESecurityCapabilities: s1ap.Ptr(caps),
-	}
-
-	b, err := req.Marshal()
+	b, err := e.buildPathSwitchRequest(enbUEID, sourceMMEUEID, erabID, dlTEID, caps)
 	if err != nil {
 		return 0, fmt.Errorf("s1enb: build Path Switch Request: %w", err)
 	}
@@ -269,6 +254,23 @@ func (e *ENB) SendPathSwitchRequest(enbUEID, sourceMMEUEID int64, erabID s1ap.ER
 	}
 
 	return dlTEID, nil
+}
+
+func (e *ENB) buildPathSwitchRequest(enbUEID, sourceMMEUEID int64, erabID s1ap.ERABID, dlTEID uint32, caps s1ap.UESecurityCapabilities) ([]byte, error) {
+	req := &s1ap.PathSwitchRequest{
+		ENBUES1APID: s1ap.ENBUES1APID(enbUEID),
+		ERABToBeSwitchedDL: []s1ap.ERABToBeSwitchedDLItem{{
+			ERABID:                erabID,
+			TransportLayerAddress: e.n3TransportLayerAddress(),
+			GTPTEID:               s1ap.GTPTEID(dlTEID),
+		}},
+		SourceMMEUES1APID:      s1ap.MMEUES1APID(sourceMMEUEID),
+		EUTRANCGI:              s1ap.Ptr(e.eutranCGI()),
+		TAI:                    s1ap.Ptr(e.taiFor(enbUEID)),
+		UESecurityCapabilities: s1ap.Ptr(caps),
+	}
+
+	return req.Marshal()
 }
 
 // CauseUserInactivity is the S1AP radioNetwork cause an eNB uses to request a UE

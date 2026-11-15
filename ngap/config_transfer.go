@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TargetRANNodeIDSON ::= SEQUENCE { globalRANNodeID, selectedTAI,
@@ -81,10 +82,10 @@ var uplinkRANConfigurationTransferIEs = []ieSpec[UplinkRANConfigurationTransfer]
 			return m.SONConfigurationTransfer, true
 		},
 	},
-	optionalExtension(IDENDCSONConfigurationTransferUL, CriticalityIgnore, func(m *UplinkRANConfigurationTransfer) **ENDCSONConfigurationTransfer {
+	apimpl.OptionalIE(IDENDCSONConfigurationTransferUL, CriticalityIgnore, func(m *UplinkRANConfigurationTransfer) **ENDCSONConfigurationTransfer {
 		return &m.ENDCSONConfigurationTransferUL
 	}),
-	optionalExtension(IDIntersystemSONConfigurationTransferUL, CriticalityIgnore, func(m *UplinkRANConfigurationTransfer) **IntersystemSONConfigurationTransfer {
+	apimpl.OptionalIE(IDIntersystemSONConfigurationTransferUL, CriticalityIgnore, func(m *UplinkRANConfigurationTransfer) **IntersystemSONConfigurationTransfer {
 		return &m.IntersystemSONConfigurationTransferUL
 	}),
 }
@@ -142,10 +143,10 @@ var downlinkRANConfigurationTransferIEs = []ieSpec[DownlinkRANConfigurationTrans
 			return m.SONConfigurationTransfer, true
 		},
 	},
-	optionalExtension(IDENDCSONConfigurationTransferDL, CriticalityIgnore, func(m *DownlinkRANConfigurationTransfer) **ENDCSONConfigurationTransfer {
+	apimpl.OptionalIE(IDENDCSONConfigurationTransferDL, CriticalityIgnore, func(m *DownlinkRANConfigurationTransfer) **ENDCSONConfigurationTransfer {
 		return &m.ENDCSONConfigurationTransferDL
 	}),
-	optionalExtension(IDIntersystemSONConfigurationTransferDL, CriticalityIgnore, func(m *DownlinkRANConfigurationTransfer) **IntersystemSONConfigurationTransfer {
+	apimpl.OptionalIE(IDIntersystemSONConfigurationTransferDL, CriticalityIgnore, func(m *DownlinkRANConfigurationTransfer) **IntersystemSONConfigurationTransfer {
 		return &m.IntersystemSONConfigurationTransferDL
 	}),
 }

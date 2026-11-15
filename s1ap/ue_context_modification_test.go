@@ -35,7 +35,7 @@ func TestUEContextModificationRoundTrips(t *testing.T) {
 		}
 
 		if out.MMEUES1APID != 42 || out.ENBUES1APID != 7 || out.UEAggregateMaximumBitRate == nil ||
-			*out.UEAggregateMaximumBitRate != *in.UEAggregateMaximumBitRate {
+			!out.UEAggregateMaximumBitRate.Equal(*in.UEAggregateMaximumBitRate) {
 			t.Fatalf("mismatch:\n  in  %+v\n  out %+v", in, out)
 		}
 	})

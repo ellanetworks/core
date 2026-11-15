@@ -101,8 +101,5 @@ func NgENBNodeID(mcc, mnc, enbID string) (ngap.GlobalRANNodeID, error) {
 		return ngap.GlobalRANNodeID{}, fmt.Errorf("ng-eNB id %q is %d octets, too few for a %d-bit node id", enbID, len(b), ngENBIDBits)
 	}
 
-	return ngap.GlobalRANNodeID{
-		Kind: ngap.RANNodeIDMacroNgENB, PLMNIdentity: plmn,
-		Value: uint32(v >> uint(8*len(b)-ngENBIDBits)), Bits: ngENBIDBits,
-	}, nil
+	return ngap.NewGlobalNgENBID(plmn, ngap.NgENBID{MacroNgENBID: new(ngap.MacroNgENBID(uint32(v >> uint(8*len(b)-ngENBIDBits))))}), nil
 }

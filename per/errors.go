@@ -13,6 +13,7 @@ var (
 	// ErrUnaligned: an octet-oriented operation on a non-octet-aligned position.
 	ErrUnaligned = errors.New("per: not octet-aligned")
 	// ErrEmpty: a CHOICE or mandatory field has no value set.
-	ErrEmpty  = errors.New("per: no value set")
-	ErrChoice = errors.New("per: CHOICE has more than one alternative set")
+	ErrEmpty    = errors.New("per: no value set")
+	ErrChoice   = errors.New("per: CHOICE has more than one alternative set")
+	ErrTrailing = errors.New("per: octets after the complete encoding")
 )

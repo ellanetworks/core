@@ -13,6 +13,6 @@
     "unknown": false
   },
   "value": {
-    "error": "could not decode raw s1ap message: s1ap: unsupported S1AP-PDU extension alternative"
+    "error": "could not decode raw s1ap message: s1ap: transfer syntax error: s1ap: unsupported S1AP-PDU extension alternative"
   }
 }

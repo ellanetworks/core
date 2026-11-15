@@ -35,7 +35,7 @@ func gUMMEIListIE(l []GUMMEI) (per.Marshaler, bool) {
 		return nil, false
 	}
 
-	return seqOf(1, maxnoofMMECs, l), true
+	return seqOf(1, maxnoofMMECs, &l), true
 }
 
 type OverloadStart struct {

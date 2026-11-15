@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 func TestAMFConfigurationUpdateRoundTrips(t *testing.T) {
@@ -376,7 +376,7 @@ func tnlAssociationItemWithRawExtension(t *testing.T) []byte {
 			return err
 		}
 
-		return encodeExtensionContainer(w, per.Aligned, []ieField{{ID: 9999, Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x5a})}})
+		return encodeExtensionContainer(w, per.Aligned, []ieField{{ID: 9999, Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0x5a})}})
 	}))
 	w.AlignToByte()
 
@@ -385,7 +385,7 @@ func tnlAssociationItemWithRawExtension(t *testing.T) []byte {
 
 func TestTNLAssociationItemRawExtensionRoundTrips(t *testing.T) {
 	value := container(t,
-		ieField{ID: IDAMFTNLAssociationFailedToSetupList, Criticality: CriticalityIgnore, Value: ap.RawValue(tnlAssociationItemWithRawExtension(t))},
+		ieField{ID: IDAMFTNLAssociationFailedToSetupList, Criticality: CriticalityIgnore, Value: apimpl.RawValue(tnlAssociationItemWithRawExtension(t))},
 	)
 
 	out, err := ParseAMFConfigurationUpdateAcknowledge(value)

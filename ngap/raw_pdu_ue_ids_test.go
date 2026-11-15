@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 func handUEContextReleaseCommand(t *testing.T, ran uint32) []byte {
@@ -40,8 +40,8 @@ func handUEContextReleaseCommand(t *testing.T, ran uint32) []byte {
 	body := per.NewWriter()
 	body.WriteBit(false)
 	mustNil(t, encodeIEContainer(body, enc, []ieField{
-		{ID: IDUENGAPIDs, Criticality: CriticalityReject, Value: ap.RawValue(ids.Bytes())},
-		{ID: IDCause, Criticality: CriticalityIgnore, Value: ap.RawValue(cause)},
+		{ID: IDUENGAPIDs, Criticality: CriticalityReject, Value: apimpl.RawValue(ids.Bytes())},
+		{ID: IDCause, Criticality: CriticalityIgnore, Value: apimpl.RawValue(cause)},
 	}))
 
 	b, err := Marshal(&InitiatingMessage{ProcedureCode: ProcUEContextRelease, Criticality: CriticalityReject, Value: body.Bytes()})

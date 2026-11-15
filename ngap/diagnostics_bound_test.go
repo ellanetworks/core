@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // CriticalityDiagnostics-IE-List is SIZE(1..maxnoofErrors), so an untruncated
@@ -18,7 +18,7 @@ func TestNotUnderstoodReportStaysSendable(t *testing.T) {
 		fields = append(fields, ieField{
 			ID:          ProtocolIEID(40000 + i), // outside every id this version models
 			Criticality: CriticalityReject,
-			Value:       ap.RawValue([]byte{0x00}),
+			Value:       apimpl.RawValue([]byte{0x00}),
 		})
 	}
 

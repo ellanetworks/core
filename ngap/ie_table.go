@@ -9,24 +9,31 @@ import (
 
 	"github.com/ellanetworks/core/per"
 	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // One row of a message's TS 38.413 §9.2/§9.3 IE table.
-type ieSpec[M any] = ap.IESpec[ProtocolIEID, M]
+type ieSpec[M any] = apimpl.IESpec[ProtocolIEID, M]
 
 const (
-	presenceOptional    = ap.PresenceOptional
-	presenceConditional = ap.PresenceConditional
-	presenceMandatory   = ap.PresenceMandatory
+	presenceOptional    = apimpl.PresenceOptional
+	presenceConditional = apimpl.PresenceConditional
+	presenceMandatory   = apimpl.PresenceMandatory
 )
 
 type messageMeta struct {
-	ap.Message[ProtocolIEID]
+	apimpl.Message[ProtocolIEID]
 }
 
-type extensionMeta = ap.Preserved[ProtocolIEID]
+type extensionMeta = apimpl.Preserved[ProtocolIEID]
 
 func (u *messageMeta) meta() *messageMeta { return u }
+
+func (u *messageMeta) appendUnknown(f RawIE) { apimpl.MessagePreserved(&u.Message).Append(f) }
+
+func (u *messageMeta) setExtensionAdditions(a per.ExtensionAdditions) {
+	*apimpl.MessageAdditions(&u.Message) = a
+}
 
 func (u messageMeta) Diagnostics() Diagnostics { return Diagnostics{u.Message.Diagnostics()} }
 
@@ -39,11 +46,7 @@ func encodeMessageBody[M any, PM interface {
 	message
 }](w *per.Writer, enc per.Encoding, procedure ProcedureCode, table []ieSpec[M], m PM,
 ) error {
-	if err := ap.EncodeMessage(profile, w, enc, table, (*M)(m), &m.meta().Message); err != nil {
-		return fmt.Errorf("ngap: %s: %w", procedure, err)
-	}
-
-	return nil
+	return apimpl.EncodeMessageBody(profile, w, enc, procedure, table, (*M)(m), &m.meta().Message)
 }
 
 func decodeMessageBody[M any, PM interface {
@@ -53,8 +56,8 @@ func decodeMessageBody[M any, PM interface {
 ) (PM, error) {
 	m := PM(new(M))
 
-	if err := ap.DecodeMessage(profile, table, value, (*M)(m), &m.meta().Message); err != nil {
-		return nil, &TransferSyntaxError{Protocol: profile.Name, Procedure: procedure, Err: err}
+	if err := apimpl.DecodeMessageBody(profile, procedure, table, value, (*M)(m), &m.meta().Message); err != nil {
+		return nil, err
 	}
 
 	return m, nil
@@ -65,19 +68,16 @@ func parseMessageBody[M any, PM interface {
 	message
 }](procedure ProcedureCode, trigger TriggeringMessage, table []ieSpec[M], value []byte,
 ) (PM, error) {
-	m, err := decodeMessageBody[M, PM](procedure, table, value)
-	if err != nil {
-		return nil, err
-	}
+	m := PM(new(M))
 
-	if err := m.meta().Message.Diagnostics().Check(); err != nil {
-		return nil, newAbstractSyntaxError(procedure, trigger, err, table, value)
+	if err := apimpl.ParseMessageBody(profile, procedure, table, value, (*M)(m), &m.meta().Message); err != nil {
+		return nil, newAbstractSyntaxError(procedure, trigger, err)
 	}
 
 	return m, nil
 }
 
-func newAbstractSyntaxError[M any](procedure ProcedureCode, trigger TriggeringMessage, err error, table []ieSpec[M], value []byte) error {
+func newAbstractSyntaxError(procedure ProcedureCode, trigger TriggeringMessage, err error) error {
 	var e *ap.AbstractSyntaxError[ProtocolIEID]
 	if !errors.As(err, &e) {
 		return err
@@ -93,66 +93,19 @@ func newAbstractSyntaxError[M any](procedure ProcedureCode, trigger TriggeringMe
 		Trigger:   trigger,
 		Cause:     cause.Cause(),
 		IEs:       criticalityDiagnosticsItems(e.IEs),
-		decoded:   modeledIEs(table, value),
+		decoded:   e.Decoded,
 	}
 }
 
 func criticalityDiagnosticsItems(ds []DiagnosticIE) []CriticalityDiagnosticsIEItem {
-	var out []CriticalityDiagnosticsIEItem
-
-	for _, d := range ds {
-		if len(out) >= maxnoofErrors {
-			break
-		}
-
+	return apimpl.DiagnosticItems(ds, maxnoofErrors, func(d DiagnosticIE, missing bool) CriticalityDiagnosticsIEItem {
 		kind := TypeOfErrorNotUnderstood
-		if d.Kind == ap.KindMissing {
+		if missing {
 			kind = TypeOfErrorMissing
 		}
 
-		out = append(out, CriticalityDiagnosticsIEItem{IECriticality: d.Criticality, IEID: d.ID, TypeOfError: kind})
-	}
-
-	return out
-}
-
-func modeledIEs[M any](table []ieSpec[M], value []byte) []RawIE {
-	r := per.NewReader(value)
-
-	if _, err := r.ReadBit(); err != nil {
-		return nil
-	}
-
-	fields, err := decodeIEContainer(r, per.Aligned)
-	if err != nil {
-		return nil
-	}
-
-	var out []RawIE
-
-	seen := make(map[ProtocolIEID]bool, len(table))
-
-	for _, f := range fields {
-		if seen[f.ID] || !inTable(table, f.ID) {
-			continue
-		}
-
-		seen[f.ID] = true
-
-		out = append(out, f)
-	}
-
-	return out
-}
-
-func inTable[M any](table []ieSpec[M], id ProtocolIEID) bool {
-	for i := range table {
-		if table[i].ID == id {
-			return true
-		}
-	}
-
-	return false
+		return CriticalityDiagnosticsIEItem{IECriticality: d.Criticality, IEID: d.ID, TypeOfError: kind}
+	})
 }
 
 func decodeTransfer[T any, PT interface {
@@ -160,13 +113,7 @@ func decodeTransfer[T any, PT interface {
 	per.Unmarshaler
 }](b []byte,
 ) (PT, error) {
-	t := PT(new(T))
-
-	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
-		return nil, err
-	}
-
-	return t, nil
+	return apimpl.DecodeTransfer[ProtocolIEID, T, PT](b)
 }
 
 func parseTransfer[T any, PT interface {
@@ -174,23 +121,19 @@ func parseTransfer[T any, PT interface {
 	per.Unmarshaler
 }](b []byte,
 ) (PT, error) {
-	t, err := decodeTransfer[T, PT](b)
+	t, err := apimpl.ParseTransfer[ProtocolIEID, T, PT](b)
 	if err != nil {
-		return nil, err
-	}
+		var e *ap.AbstractSyntaxError[ProtocolIEID]
+		if errors.As(err, &e) {
+			return nil, fmt.Errorf("ngap: %w", err)
+		}
 
-	if err := diagnosticsOf(t).Check(); err != nil {
-		return nil, fmt.Errorf("ngap: %w", err)
+		return nil, err
 	}
 
 	return t, nil
 }
 
 func diagnosticsOf(v any) Diagnostics {
-	dv, ok := v.(ap.Diagnosable[ProtocolIEID])
-	if !ok {
-		return Diagnostics{}
-	}
-
-	return Diagnostics{ap.Diagnose(dv)}
+	return Diagnostics{apimpl.DiagnosticsOf[ProtocolIEID](v)}
 }

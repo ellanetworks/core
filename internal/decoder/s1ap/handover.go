@@ -146,6 +146,17 @@ func buildHandoverRequired(value []byte) (S1APMessageValue, string) {
 	}
 
 	ies = append(ies, ie(s1ap.IDSourceToTargetTransparentContainer, s1ap.CriticalityReject, sourceToTargetTransparentContainer(m.SourceToTarget, m.HandoverType == s1ap.HandoverTypeIntraLTE)))
+
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDSRVCCHOIndication, s1ap.CriticalityReject, m.SRVCCHOIndication},
+		{s1ap.IDSourceToTargetTransparentContainerSecondary, s1ap.CriticalityReject, m.SourceToTargetTransparentContainerSecondary},
+		{s1ap.IDMSClassmark2, s1ap.CriticalityReject, m.MSClassmark2},
+		{s1ap.IDMSClassmark3, s1ap.CriticalityIgnore, m.MSClassmark3},
+		{s1ap.IDCSGId, s1ap.CriticalityReject, m.CSGId},
+		{s1ap.IDCellAccessMode, s1ap.CriticalityReject, m.CellAccessMode},
+		{s1ap.IDPSServiceNotAvailable, s1ap.CriticalityIgnore, m.PSServiceNotAvailable},
+	})
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, fmt.Sprintf("Handover Required (MME-UE %d, eNB-UE %d)", m.MMEUES1APID, m.ENBUES1APID)
@@ -224,6 +235,37 @@ func buildHandoverRequest(value []byte) (S1APMessageValue, string) {
 		ies = append(ies, ie(s1ap.IDMMEUES1APID2, s1ap.CriticalityIgnore, uint32(*m.MMEUES1APID2)))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDTimeRefDistribution, s1ap.CriticalityIgnore, m.TimeRefDistribution},
+	})
+
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDRequestType, s1ap.CriticalityIgnore, m.RequestType},
+		{s1ap.IDSRVCCOperationPossible, s1ap.CriticalityIgnore, m.SRVCCOperationPossible},
+		{s1ap.IDCSGId, s1ap.CriticalityReject, m.CSGId},
+		{s1ap.IDCSGMembershipStatus, s1ap.CriticalityIgnore, m.CSGMembershipStatus},
+		{s1ap.IDManagementBasedMDTAllowed, s1ap.CriticalityIgnore, m.ManagementBasedMDTAllowed},
+		{s1ap.IDManagementBasedMDTPLMNList, s1ap.CriticalityIgnore, m.ManagementBasedMDTPLMNList},
+		{s1ap.IDMaskedIMEISV, s1ap.CriticalityIgnore, m.MaskedIMEISV},
+		{s1ap.IDExpectedUEBehaviour, s1ap.CriticalityIgnore, m.ExpectedUEBehaviour},
+		{s1ap.IDProSeAuthorized, s1ap.CriticalityIgnore, m.ProSeAuthorized},
+		{s1ap.IDUEUserPlaneCIoTSupportIndicator, s1ap.CriticalityIgnore, m.UEUserPlaneCIoTSupportIndicator},
+		{s1ap.IDV2XServicesAuthorized, s1ap.CriticalityIgnore, m.V2XServicesAuthorized},
+		{s1ap.IDUESidelinkAggregateMaximumBitrate, s1ap.CriticalityIgnore, m.UESidelinkAggregateMaximumBitrate},
+		{s1ap.IDEnhancedCoverageRestricted, s1ap.CriticalityIgnore, m.EnhancedCoverageRestricted},
+		{s1ap.IDNRUESecurityCapabilities, s1ap.CriticalityIgnore, m.NRUESecurityCapabilities},
+		{s1ap.IDCEModeBRestricted, s1ap.CriticalityIgnore, m.CEModeBRestricted},
+		{s1ap.IDAerialUEsubscriptionInformation, s1ap.CriticalityIgnore, m.AerialUEsubscriptionInformation},
+		{s1ap.IDPendingDataIndication, s1ap.CriticalityIgnore, m.PendingDataIndication},
+		{s1ap.IDSubscriptionBasedUEDifferentiationInfo, s1ap.CriticalityIgnore, m.SubscriptionBasedUEDifferentiationInfo},
+		{s1ap.IDAdditionalRRMPriorityIndex, s1ap.CriticalityIgnore, m.AdditionalRRMPriorityIndex},
+		{s1ap.IDIABAuthorized, s1ap.CriticalityReject, m.IABAuthorized},
+		{s1ap.IDNRV2XServicesAuthorized, s1ap.CriticalityIgnore, m.NRV2XServicesAuthorized},
+		{s1ap.IDNRUESidelinkAggregateMaximumBitrate, s1ap.CriticalityIgnore, m.NRUESidelinkAggregateMaximumBitrate},
+		{s1ap.IDPC5QoSParameters, s1ap.CriticalityIgnore, m.PC5QoSParameters},
+		{s1ap.IDUERadioCapabilityID, s1ap.CriticalityReject, m.UERadioCapabilityID},
+	})
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, fmt.Sprintf("Handover Request (MME-UE %d, %d E-RAB)", m.MMEUES1APID, len(m.ERABToBeSetup))
@@ -277,6 +319,12 @@ func buildHandoverRequestAcknowledge(value []byte) (S1APMessageValue, string) {
 	if m.CriticalityDiagnostics != nil {
 		ies = append(ies, ie(s1ap.IDCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*m.CriticalityDiagnostics)))
 	}
+
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDCSGId, s1ap.CriticalityIgnore, m.CSGId},
+		{s1ap.IDCellAccessMode, s1ap.CriticalityIgnore, m.CellAccessMode},
+		{s1ap.IDCEmodeBSupportIndicator, s1ap.CriticalityIgnore, m.CEmodeBSupportIndicator},
+	})
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
@@ -338,6 +386,10 @@ func buildHandoverCommand(value []byte) (S1APMessageValue, string) {
 		ies = append(ies, ie(s1ap.IDCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*m.CriticalityDiagnostics)))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDTargetToSourceTransparentContainerSecondary, s1ap.CriticalityReject, m.TargetToSourceTransparentContainerSecondary},
+	})
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, fmt.Sprintf("Handover Command (MME-UE %d, eNB-UE %d)", m.MMEUES1APID, m.ENBUES1APID)
@@ -390,6 +442,17 @@ func buildHandoverNotify(value []byte) (S1APMessageValue, string) {
 	if m.TAI != nil {
 		ies = append(ies, ie(s1ap.IDTAI, s1ap.CriticalityIgnore, tai(*m.TAI)))
 	}
+
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDTunnelInformationForBBF, s1ap.CriticalityIgnore, m.TunnelInformationForBBF},
+	})
+
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDLHNID, s1ap.CriticalityIgnore, m.LHNID},
+		{s1ap.IDPSCellInformation, s1ap.CriticalityIgnore, m.PSCellInformation},
+		{s1ap.IDNotifySourceeNB, s1ap.CriticalityIgnore, m.NotifySourceeNB},
+		{s1ap.IDLTENTNTAIInformation, s1ap.CriticalityIgnore, m.LTENTNTAIInformation},
+	})
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 

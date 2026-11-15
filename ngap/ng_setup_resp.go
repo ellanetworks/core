@@ -5,6 +5,7 @@ package ngap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 38.413 §9.2.6.2.
@@ -122,7 +123,7 @@ var nGSetupResponseIEs = []ieSpec[NGSetupResponse]{
 			return m.UERetentionInformation, true
 		},
 	},
-	optionalExtension(IDIABSupported, CriticalityIgnore, func(m *NGSetupResponse) **IABSupported { return &m.IABSupported }),
+	apimpl.OptionalIE(IDIABSupported, CriticalityIgnore, func(m *NGSetupResponse) **IABSupported { return &m.IABSupported }),
 	{
 		ID: IDExtendedAMFName, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *NGSetupResponse, r *per.Reader, enc per.Encoding) error {
@@ -144,9 +145,9 @@ var nGSetupResponseIEs = []ieSpec[NGSetupResponse]{
 			return m.ExtendedAMFName, true
 		},
 	},
-	optionalExtension(IDMobileIABSupported, CriticalityIgnore, func(m *NGSetupResponse) **MobileIABSupported { return &m.MobileIABSupported }),
-	optionalExtension(IDAIOTFIdentifier, CriticalityReject, func(m *NGSetupResponse) **AIOTFIdentifier { return &m.AIOTFIdentifier }),
-	optionalExtension(IDAIOTFName, CriticalityReject, func(m *NGSetupResponse) **AIOTFName { return &m.AIOTFName }),
+	apimpl.OptionalIE(IDMobileIABSupported, CriticalityIgnore, func(m *NGSetupResponse) **MobileIABSupported { return &m.MobileIABSupported }),
+	apimpl.OptionalIE(IDAIOTFIdentifier, CriticalityReject, func(m *NGSetupResponse) **AIOTFIdentifier { return &m.AIOTFIdentifier }),
+	apimpl.OptionalIE(IDAIOTFName, CriticalityReject, func(m *NGSetupResponse) **AIOTFName { return &m.AIOTFName }),
 }
 
 func (m *NGSetupResponse) encodeBody(w *per.Writer, enc per.Encoding) error {

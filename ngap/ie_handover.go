@@ -5,7 +5,7 @@ package ngap
 
 import (
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // HandoverType ::= ENUMERATED { intra5gs, fivegs-to-eps, eps-to-5gs, ...,
@@ -110,12 +110,12 @@ type TargeteNBID struct {
 // Which alternative belongs is not free: TS 38.413 §9.2.3.1 pairs it with the
 // Handover Type IE, and the message handler is what holds them together.
 type TargetID struct {
-	TargetRANNodeID   *TargetRANNodeID   `per:",choice:0"`
-	TargeteNBID       *TargeteNBID       `per:",choice:1"`
-	TargetRNCID       *TargetRNCID       `per:",choice:2,extie:IDTargetRNCID,crit:reject"`
-	TargetHomeENBID   *TargetHomeENBID   `per:",choice:2,extie:IDTargetHomeENBID,crit:reject"`
-	ChoiceExtension   *SingleContainer   `per:",choice:2,extie"`
-	choiceCriticality ap.WireCriticality `per:",choicecrit"`
+	TargetRANNodeID   *TargetRANNodeID       `per:",choice:0"`
+	TargeteNBID       *TargeteNBID           `per:",choice:1"`
+	TargetRNCID       *TargetRNCID           `per:",choice:2,extie:IDTargetRNCID,crit:reject"`
+	TargetHomeENBID   *TargetHomeENBID       `per:",choice:2,extie:IDTargetHomeENBID,crit:reject"`
+	ChoiceExtension   *SingleContainer       `per:",choice:2,extie"`
+	choiceCriticality apimpl.WireCriticality `per:",choicecrit"`
 }
 
 type TargetRNCID struct {

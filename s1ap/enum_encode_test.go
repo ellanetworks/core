@@ -49,6 +49,349 @@ func enumCaseOf[T per.Integer, PT interface {
 
 func extensibleEnums() []enumCase {
 	return []enumCase{
+		enumCaseOf("AdditionalCSFallbackIndicator", &enumAdditionalCSFallbackIndicator, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return AdditionalCSFallbackIndicator(v)
+		}),
+		enumCaseOf("AerialUEsubscriptionInformation", &enumAerialUEsubscriptionInformation, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return AerialUEsubscriptionInformation(v)
+		}),
+		enumCaseOf("CEModeBRestricted", &enumCEModeBRestricted, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return CEModeBRestricted(v)
+		}),
+		enumCaseOf("CEmodeBSupportIndicator", &enumCEmodeBSupportIndicator, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return CEmodeBSupportIndicator(v)
+		}),
+		enumCaseOf("CSFallbackIndicator", &enumCSFallbackIndicator, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return CSFallbackIndicator(v)
+		}),
+		enumCaseOf("CellAccessMode", &enumCellAccessMode, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return CellAccessMode(v)
+		}),
+		enumCaseOf("CoverageLevel", &enumCoverageLevel, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return CoverageLevel(v)
+		}),
+		enumCaseOf("DLNASPDUDeliveryAckRequest", &enumDLNASPDUDeliveryAckRequest, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return DLNASPDUDeliveryAckRequest(v)
+		}),
+		enumCaseOf("EDTSession", &enumEDTSession, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return EDTSession(v)
+		}),
+		enumCaseOf("EndIndication", &enumEndIndication, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return EndIndication(v)
+		}),
+		enumCaseOf("EnhancedCoverageRestricted", &enumEnhancedCoverageRestricted, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return EnhancedCoverageRestricted(v)
+		}),
+		enumCaseOf("IABAuthorized", &enumIABAuthorized, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return IABAuthorized(v)
+		}),
+		enumCaseOf("IABNodeIndication", &enumIABNodeIndication, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return IABNodeIndication(v)
+		}),
+		enumCaseOf("IABSupported", &enumIABSupported, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return IABSupported(v)
+		}),
+		enumCaseOf("LTEMIndication", &enumLTEMIndication, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return LTEMIndication(v)
+		}),
+		enumCaseOf("MMERelaySupportIndicator", &enumMMERelaySupportIndicator, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return MMERelaySupportIndicator(v)
+		}),
+		enumCaseOf("ManagementBasedMDTAllowed", &enumManagementBasedMDTAllowed, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return ManagementBasedMDTAllowed(v)
+		}),
+		enumCaseOf("NBIoTDefaultPagingDRX", &enumNBIoTDefaultPagingDRX, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return NBIoTDefaultPagingDRX(v)
+		}),
+		enumCaseOf("NBIoTPagingDRX", &enumNBIoTPagingDRX, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return NBIoTPagingDRX(v)
+		}),
+		enumCaseOf("NotifySourceeNB", &enumNotifySourceeNB, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return NotifySourceeNB(v)
+		}),
+		enumCaseOf("PSServiceNotAvailable", &enumPSServiceNotAvailable, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return PSServiceNotAvailable(v)
+		}),
+		enumCaseOf("PagingCause", &enumPagingCause, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return PagingCause(v)
+		}),
+		enumCaseOf("PendingDataIndication", &enumPendingDataIndication, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return PendingDataIndication(v)
+		}),
+		enumCaseOf("RelayNodeIndicator", &enumRelayNodeIndicator, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return RelayNodeIndicator(v)
+		}),
+		enumCaseOf("SRVCCHOIndication", &enumSRVCCHOIndication, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return SRVCCHOIndication(v)
+		}),
+		enumCaseOf("SRVCCOperationNotPossible", &enumSRVCCOperationNotPossible, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return SRVCCOperationNotPossible(v)
+		}),
+		enumCaseOf("SRVCCOperationPossible", &enumSRVCCOperationPossible, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return SRVCCOperationPossible(v)
+		}),
+		enumCaseOf("SecondaryRATDataUsageRequest", &enumSecondaryRATDataUsageRequest, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return SecondaryRATDataUsageRequest(v)
+		}),
+		enumCaseOf("SubscriptionBasedUEDifferentiationInfoPeriodicCommunicationIndicator", &enumSubscriptionBasedUEDifferentiationInfoPeriodicCommunicationIndicator, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return SubscriptionBasedUEDifferentiationInfoPeriodicCommunicationIndicator(v)
+		}),
+		enumCaseOf("SubscriptionBasedUEDifferentiationInfoStationaryIndication", &enumSubscriptionBasedUEDifferentiationInfoStationaryIndication, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return SubscriptionBasedUEDifferentiationInfoStationaryIndication(v)
+		}),
+		enumCaseOf("SubscriptionBasedUEDifferentiationInfoTrafficProfile", &enumSubscriptionBasedUEDifferentiationInfoTrafficProfile, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return SubscriptionBasedUEDifferentiationInfoTrafficProfile(v)
+		}),
+		enumCaseOf("SubscriptionBasedUEDifferentiationInfoBatteryIndication", &enumSubscriptionBasedUEDifferentiationInfoBatteryIndication, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return SubscriptionBasedUEDifferentiationInfoBatteryIndication(v)
+		}),
+		enumCaseOf("UECapabilityInfoRequest", &enumUECapabilityInfoRequest, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return UECapabilityInfoRequest(v)
+		}),
+		enumCaseOf("UEUserPlaneCIoTSupportIndicator", &enumUEUserPlaneCIoTSupportIndicator, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return UEUserPlaneCIoTSupportIndicator(v)
+		}),
+		enumCaseOf("ExpectedHOInterval", &enumExpectedHOInterval, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return ExpectedHOInterval(v)
+		}),
+		enumCaseOf("NBIoTPagingeDRXCycle", &enumNBIoTPagingeDRXCycle, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return NBIoTPagingeDRXCycle(v)
+		}),
+		enumCaseOf("NBIoTPagingTimeWindow", &enumNBIoTPagingTimeWindow, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return NBIoTPagingTimeWindow(v)
+		}),
+		enumCaseOf("VehicleUE", &enumVehicleUE, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return VehicleUE(v)
+		}),
+		enumCaseOf("PedestrianUE", &enumPedestrianUE, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return PedestrianUE(v)
+		}),
+		enumCaseOf("PagingeDRXCycle", &enumPagingeDRXCycle, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return PagingeDRXCycle(v)
+		}),
+		enumCaseOf("PagingTimeWindow", &enumPagingTimeWindow, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return PagingTimeWindow(v)
+		}),
+		enumCaseOf("ProSeDirectDiscovery", &enumProSeDirectDiscovery, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return ProSeDirectDiscovery(v)
+		}),
+		enumCaseOf("ProSeDirectCommunication", &enumProSeDirectCommunication, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return ProSeDirectCommunication(v)
+		}),
+		enumCaseOf("ProSeUEtoNetworkRelaying", &enumProSeUEtoNetworkRelaying, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return ProSeUEtoNetworkRelaying(v)
+		}),
+		enumCaseOf("PagingProbabilityInformation", &enumPagingProbabilityInformation, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return PagingProbabilityInformation(v)
+		}),
+		enumCaseOf("NextPagingAreaScope", &enumNextPagingAreaScope, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return NextPagingAreaScope(v)
+		}),
+		enumCaseOf("SourceOfUEActivityBehaviourInformation", &enumSourceOfUEActivityBehaviourInformation, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return SourceOfUEActivityBehaviourInformation(v)
+		}),
+		enumCaseOf("SecondaryRATType", &enumSecondaryRATType, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return SecondaryRATType(v)
+		}),
+		enumCaseOf("RangeType", &enumRangeType, func(v int64) interface {
+			per.Marshaler
+			Name() string
+			Diagnose(*ap.Diagnosis[ProtocolIEID]) bool
+		} {
+			return RangeType(v)
+		}),
 		enumCaseOf("PagingDRX", &enumPagingDRX, func(v int64) interface {
 			per.Marshaler
 			Name() string

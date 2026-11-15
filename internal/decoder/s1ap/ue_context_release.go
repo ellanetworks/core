@@ -28,6 +28,10 @@ func buildUEContextReleaseRequest(value []byte) (S1APMessageValue, string) {
 		ies = append(ies, ie(s1ap.IDGWContextReleaseIndication, s1ap.CriticalityReject, true))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDSecondaryRATDataUsageReportList, s1ap.CriticalityIgnore, m.SecondaryRATDataUsageReportList},
+	})
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, fmt.Sprintf("UE Context Release Request (MME-UE %d, eNB-UE %d)", m.MMEUES1APID, m.ENBUES1APID)
@@ -78,6 +82,13 @@ func buildUEContextReleaseComplete(value []byte) (S1APMessageValue, string) {
 	if m.UserLocationInformation != nil {
 		ies = append(ies, ie(s1ap.IDUserLocationInformation, s1ap.CriticalityIgnore, userLocationInformation(*m.UserLocationInformation)))
 	}
+
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDInformationOnRecommendedCellsAndENBsForPaging, s1ap.CriticalityIgnore, m.InformationOnRecommendedCellsAndENBsForPaging},
+		{s1ap.IDCellIdentifierAndCELevelForCECapableUEs, s1ap.CriticalityIgnore, m.CellIdentifierAndCELevelForCECapableUEs},
+		{s1ap.IDSecondaryRATDataUsageReportList, s1ap.CriticalityIgnore, m.SecondaryRATDataUsageReportList},
+		{s1ap.IDTimeSinceSecondaryNodeRelease, s1ap.CriticalityIgnore, m.TimeSinceSecondaryNodeRelease},
+	})
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 

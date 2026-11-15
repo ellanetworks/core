@@ -40,7 +40,7 @@ func runX2PathSwitchFailure(_ context.Context, env scenarios.Env, _ any) error {
 
 	defer closePair()
 
-	targetENBUEID := pair.Target.AllocateENBUEID()
+	targetENBUEID := pair.Target.AllocateENBUEIDFor(pair.UE)
 	unknownMMEUEID := pair.Attached.MMEUES1APID + x2UnknownMMEUEGap
 
 	if _, err := pair.Target.SendPathSwitchRequest(targetENBUEID, unknownMMEUEID, pair.Attached.ERABID, pair.UE.S1APSecurityCapabilities()); err != nil {

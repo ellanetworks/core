@@ -224,20 +224,28 @@ func fillConditions(t *testing.T, v reflect.Value) {
 	}
 }
 
+func sampleMessage(t *testing.T, typ reflect.Type) reflect.Value {
+	t.Helper()
+
+	in := reflect.New(typ)
+
+	for i := range typ.NumField() {
+		if f := typ.Field(i); f.IsExported() && !f.Anonymous {
+			fillSample(t, in.Elem().Field(i), 0)
+		}
+	}
+
+	if m, ok := in.Interface().(*HandoverCommand); ok {
+		m.HandoverType = HandoverTypeFiveGSToEPS
+	}
+
+	return in
+}
+
 func TestEveryMessageIERoundTrips(t *testing.T) {
 	for _, c := range messageCases() {
 		t.Run(c.asn1, func(t *testing.T) {
-			in := reflect.New(c.typ)
-
-			for i := range c.typ.NumField() {
-				if f := c.typ.Field(i); f.IsExported() && !f.Anonymous {
-					fillSample(t, in.Elem().Field(i), 0)
-				}
-			}
-
-			if m, ok := in.Interface().(*HandoverCommand); ok {
-				m.HandoverType = HandoverTypeFiveGSToEPS
-			}
+			in := sampleMessage(t, c.typ)
 
 			b, err := in.Interface().(interface{ Marshal() ([]byte, error) }).Marshal()
 			if err != nil {

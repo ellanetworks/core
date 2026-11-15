@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/per"
 	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 func pwsPLMN() PLMNIdentity { return PLMNIdentity{0x00, 0xf1, 0x10} }
@@ -419,7 +420,7 @@ func TestPWSChoiceExtensionsArePreserved(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if err := encodeContainerField(w, ieField{ID: 999, Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x00})}); err != nil {
+			if err := encodeContainerField(w, ieField{ID: 999, Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0x00})}); err != nil {
 				t.Fatal(err)
 			}
 

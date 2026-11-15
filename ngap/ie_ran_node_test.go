@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/per"
 	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 func testNgENBNodeID(t *testing.T, plmn PLMNIdentity, id uint32, bits int) GlobalRANNodeID {
@@ -81,7 +82,7 @@ func TestGlobalRANNodeIDTypedChoiceExtensionWireBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := encodeContainerField(want, ieField{ID: IDGlobalTWIFID, Criticality: CriticalityReject, Value: ap.RawValue(inner)}); err != nil {
+	if err := encodeContainerField(want, ieField{ID: IDGlobalTWIFID, Criticality: CriticalityReject, Value: apimpl.RawValue(inner)}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -196,7 +197,7 @@ func TestGlobalRANNodeIDUnknownChoiceExtensionsArePreserved(t *testing.T) {
 					t.Fatal(err)
 				}
 
-				if err := encodeContainerField(w, ieField{ID: 9999, Criticality: crit, Value: ap.RawValue([]byte{0x00})}); err != nil {
+				if err := encodeContainerField(w, ieField{ID: 9999, Criticality: crit, Value: apimpl.RawValue([]byte{0x00})}); err != nil {
 					t.Fatal(err)
 				}
 
@@ -277,7 +278,7 @@ func TestTypedChoiceExtensionsKeepWireCriticality(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if err := encodeContainerField(w, ieField{ID: tc.id, Criticality: CriticalityNotify, Value: ap.RawValue(inner)}); err != nil {
+			if err := encodeContainerField(w, ieField{ID: tc.id, Criticality: CriticalityNotify, Value: apimpl.RawValue(inner)}); err != nil {
 				t.Fatal(err)
 			}
 

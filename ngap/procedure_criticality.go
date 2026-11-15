@@ -93,6 +93,12 @@ var procedureInfos = map[ProcedureCode]procedureInfo{
 	ProcMTCommunicationHandling:               {CriticalityReject, true},
 	ProcRANPagingRequest:                      {CriticalityIgnore, false},
 	ProcBroadcastSessionTransport:             {CriticalityReject, true},
+	ProcNGRemoval:                             {CriticalityReject, true},
+	ProcInventoryRequest:                      {CriticalityReject, true},
+	ProcInventoryReport:                       {CriticalityReject, false},
+	ProcCommandRequest:                        {CriticalityReject, true},
+	ProcAIOTSessionRelease:                    {CriticalityReject, false},
+	ProcAIOTSessionReleaseRequest:             {CriticalityReject, false},
 }
 
 // TS 38.413 §9.4.3.

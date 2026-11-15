@@ -58,6 +58,21 @@ func buildPaging(value []byte) (S1APMessageValue, string) {
 		ies = append(ies, ie(s1ap.IDUERadioCapabilityForPaging, s1ap.CriticalityIgnore, hex.EncodeToString(m.UERadioCapabilityForPaging)))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDCSGIdList, s1ap.CriticalityIgnore, m.CSGIdList},
+		{s1ap.IDAssistanceDataForPaging, s1ap.CriticalityIgnore, m.AssistanceDataForPaging},
+		{s1ap.IDPagingeDRXInformation, s1ap.CriticalityIgnore, m.PagingeDRXInformation},
+		{s1ap.IDExtendedUEIdentityIndexValue, s1ap.CriticalityIgnore, m.ExtendedUEIdentityIndexValue},
+		{s1ap.IDNBIoTPagingeDRXInformation, s1ap.CriticalityIgnore, m.NBIoTPagingeDRXInformation},
+		{s1ap.IDNBIoTUEIdentityIndexValue, s1ap.CriticalityIgnore, m.NBIoTUEIdentityIndexValue},
+		{s1ap.IDEnhancedCoverageRestricted, s1ap.CriticalityIgnore, m.EnhancedCoverageRestricted},
+		{s1ap.IDCEModeBRestricted, s1ap.CriticalityIgnore, m.CEModeBRestricted},
+		{s1ap.IDDataSize, s1ap.CriticalityIgnore, m.DataSize},
+		{s1ap.IDWUSAssistanceInformation, s1ap.CriticalityIgnore, m.WUSAssistanceInformation},
+		{s1ap.IDNBIoTPagingDRX, s1ap.CriticalityIgnore, m.NBIoTPagingDRX},
+		{s1ap.IDPagingCause, s1ap.CriticalityIgnore, m.PagingCause},
+	})
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	mtmsi := "?"

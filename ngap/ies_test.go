@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 func TestEncodeIEContainerKnownVector(t *testing.T) {
@@ -17,7 +17,7 @@ func TestEncodeIEContainerKnownVector(t *testing.T) {
 	err := encodeIEContainer(w, per.Aligned, []ieField{{
 		ID:          27,
 		Criticality: CriticalityIgnore,
-		Value:       ap.RawValue([]byte{0xab, 0xcd}),
+		Value:       apimpl.RawValue([]byte{0xab, 0xcd}),
 	}})
 	if err != nil {
 		t.Fatal(err)
@@ -54,8 +54,8 @@ func TestEmptyIEContainer(t *testing.T) {
 
 func TestIEContainerRoundTrip(t *testing.T) {
 	in := []ieField{
-		{ID: 27, Criticality: CriticalityReject, Value: ap.RawValue([]byte{0x01, 0x02, 0x03})},
-		{ID: 1, Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0xff})},
+		{ID: 27, Criticality: CriticalityReject, Value: apimpl.RawValue([]byte{0x01, 0x02, 0x03})},
+		{ID: 1, Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0xff})},
 		{ID: 65535, Criticality: CriticalityNotify, Value: per.MarshalerFunc(func(*per.Writer, per.Encoding) error { return nil })},
 	}
 
@@ -89,8 +89,8 @@ func TestIEContainerRoundTrip(t *testing.T) {
 func TestRawIEReencodePreserves(t *testing.T) {
 	// A container decoded and re-encoded from preserved raw IEs is byte-identical.
 	original := []ieField{
-		{ID: 10, Criticality: CriticalityReject, Value: ap.RawValue([]byte{0xde, 0xad})},
-		{ID: 20, Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0xbe, 0xef, 0x00})},
+		{ID: 10, Criticality: CriticalityReject, Value: apimpl.RawValue([]byte{0xde, 0xad})},
+		{ID: 20, Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0xbe, 0xef, 0x00})},
 	}
 
 	w1 := per.NewWriter()

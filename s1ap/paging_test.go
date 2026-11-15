@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 func TestPagingRoundtrip(t *testing.T) {
@@ -166,7 +166,7 @@ func TestUEPagingIDAlternatives(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			msg, err := DecodePaging(container(t,
-				ieField{ID: IDUEPagingID, Criticality: CriticalityIgnore, Value: ap.RawValue(tc.id)},
+				ieField{ID: IDUEPagingID, Criticality: CriticalityIgnore, Value: apimpl.RawValue(tc.id)},
 				ieField{ID: IDTAIList, Criticality: CriticalityIgnore, Value: taiList},
 			))
 			if err != nil {
@@ -177,13 +177,25 @@ func TestUEPagingIDAlternatives(t *testing.T) {
 				t.Errorf("rest of the message lost: %+v", msg.TAIList)
 			}
 
-			if tc.want.Ext != nil {
-				if msg.UEPagingID != nil {
-					t.Fatalf("UEPagingID = %+v, want it kept raw", msg.UEPagingID)
-				}
+			if msg.UEPagingID == nil || !msg.UEPagingID.Equal(tc.want) {
+				t.Fatalf("UEPagingID = %+v, want %+v: decode keeps the value", msg.UEPagingID, tc.want)
+			}
 
+			if tc.want.Ext != nil {
 				if err := msg.Diagnostics().Check(); err != nil {
 					t.Fatalf("an ignore IE must not fail the check: %v", err)
+				}
+
+				parsed, err := ParsePaging(container(t,
+					ieField{ID: IDUEPagingID, Criticality: CriticalityIgnore, Value: apimpl.RawValue(tc.id)},
+					ieField{ID: IDTAIList, Criticality: CriticalityIgnore, Value: taiList},
+				))
+				if err != nil {
+					t.Fatalf("parse: %v", err)
+				}
+
+				if parsed.UEPagingID != nil {
+					t.Fatalf("parsed UEPagingID = %+v, want the not comprehended IE treated as not received", parsed.UEPagingID)
 				}
 			} else if msg.UEPagingID == nil || !msg.UEPagingID.Equal(tc.want) {
 				t.Fatalf("UEPagingID = %+v, want %+v", msg.UEPagingID, tc.want)
@@ -200,7 +212,7 @@ func TestUEPagingIDAlternatives(t *testing.T) {
 			}
 
 			if got := pdu.(*InitiatingMessage).Value; !bytes.Equal(got, container(t,
-				ieField{ID: IDUEPagingID, Criticality: CriticalityIgnore, Value: ap.RawValue(tc.id)},
+				ieField{ID: IDUEPagingID, Criticality: CriticalityIgnore, Value: apimpl.RawValue(tc.id)},
 				ieField{ID: IDTAIList, Criticality: CriticalityIgnore, Value: taiList},
 			)) {
 				t.Fatalf("re-encoded body % x", got)

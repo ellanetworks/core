@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 36.413 §9.1.5.4.
@@ -26,10 +27,34 @@ type HandoverRequest struct {
 	SecurityContext SecurityContext
 	// C-iffromUTRANGERAN: present exactly when Handover Type is UTRANtoLTE or
 	// GERANtoLTE (§9.1.5.4).
-	NASSecurityParameterstoEUTRAN NASSecurityParameterstoEUTRAN
-	GUMMEI                        *GUMMEI
-	MMEUES1APID2                  *MMEUES1APID
-	TimeRefDistribution           *TimeRefDistribution
+	NASSecurityParameterstoEUTRAN          NASSecurityParameterstoEUTRAN
+	GUMMEI                                 *GUMMEI
+	MMEUES1APID2                           *MMEUES1APID
+	TimeRefDistribution                    *TimeRefDistribution
+	RequestType                            *RequestType
+	SRVCCOperationPossible                 *SRVCCOperationPossible
+	CSGId                                  *CSGId
+	CSGMembershipStatus                    *CSGMembershipStatus
+	ManagementBasedMDTAllowed              *ManagementBasedMDTAllowed
+	ManagementBasedMDTPLMNList             MDTPLMNList
+	MaskedIMEISV                           *MaskedIMEISV
+	ExpectedUEBehaviour                    *ExpectedUEBehaviour
+	ProSeAuthorized                        *ProSeAuthorized
+	UEUserPlaneCIoTSupportIndicator        *UEUserPlaneCIoTSupportIndicator
+	V2XServicesAuthorized                  *V2XServicesAuthorized
+	UESidelinkAggregateMaximumBitrate      *UESidelinkAggregateMaximumBitrate
+	EnhancedCoverageRestricted             *EnhancedCoverageRestricted
+	NRUESecurityCapabilities               *NRUESecurityCapabilities
+	CEModeBRestricted                      *CEModeBRestricted
+	AerialUEsubscriptionInformation        *AerialUEsubscriptionInformation
+	PendingDataIndication                  *PendingDataIndication
+	SubscriptionBasedUEDifferentiationInfo *SubscriptionBasedUEDifferentiationInfo
+	AdditionalRRMPriorityIndex             *AdditionalRRMPriorityIndex
+	IABAuthorized                          *IABAuthorized
+	NRV2XServicesAuthorized                *NRV2XServicesAuthorized
+	NRUESidelinkAggregateMaximumBitrate    *NRUESidelinkAggregateMaximumBitrate
+	PC5QoSParameters                       *PC5QoSParameters
+	UERadioCapabilityID                    *UERadioCapabilityID
 
 	messageMeta
 }
@@ -93,7 +118,7 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 			return err
 		},
 		Encode: func(m *HandoverRequest) (per.Marshaler, bool) {
-			return containerList(maxnoofERABs, IDERABToBeSetupItemHOReq, CriticalityReject, m.ERABToBeSetup), true
+			return containerList(maxnoofERABs, IDERABToBeSetupItemHOReq, CriticalityReject, &m.ERABToBeSetup), true
 		},
 	},
 	{
@@ -158,6 +183,8 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 			return m.TraceActivation, true
 		},
 	},
+	apimpl.OptionalIE(IDRequestType, CriticalityIgnore, func(m *HandoverRequest) **RequestType { return &m.RequestType }),
+	apimpl.OptionalIE(IDSRVCCOperationPossible, CriticalityIgnore, func(m *HandoverRequest) **SRVCCOperationPossible { return &m.SRVCCOperationPossible }),
 	{
 		ID: IDSecurityContext, Presence: presenceMandatory, Criticality: CriticalityReject,
 		Decode: func(m *HandoverRequest, r *per.Reader, enc per.Encoding) error {
@@ -179,6 +206,8 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 			return m.NASSecurityParameterstoEUTRAN, true
 		},
 	},
+	apimpl.OptionalIE(IDCSGId, CriticalityReject, func(m *HandoverRequest) **CSGId { return &m.CSGId }),
+	apimpl.OptionalIE(IDCSGMembershipStatus, CriticalityIgnore, func(m *HandoverRequest) **CSGMembershipStatus { return &m.CSGMembershipStatus }),
 	{
 		ID: IDGUMMEI, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *HandoverRequest, r *per.Reader, enc per.Encoding) error {
@@ -221,6 +250,32 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 			return m.MMEUES1APID2, true
 		},
 	},
+	apimpl.OptionalIE(IDManagementBasedMDTAllowed, CriticalityIgnore, func(m *HandoverRequest) **ManagementBasedMDTAllowed { return &m.ManagementBasedMDTAllowed }),
+	apimpl.ListIE(IDManagementBasedMDTPLMNList, CriticalityIgnore, func(m *HandoverRequest) *MDTPLMNList { return &m.ManagementBasedMDTPLMNList }),
+	apimpl.OptionalIE(IDMaskedIMEISV, CriticalityIgnore, func(m *HandoverRequest) **MaskedIMEISV { return &m.MaskedIMEISV }),
+	apimpl.OptionalIE(IDExpectedUEBehaviour, CriticalityIgnore, func(m *HandoverRequest) **ExpectedUEBehaviour { return &m.ExpectedUEBehaviour }),
+	apimpl.OptionalIE(IDProSeAuthorized, CriticalityIgnore, func(m *HandoverRequest) **ProSeAuthorized { return &m.ProSeAuthorized }),
+	apimpl.OptionalIE(IDUEUserPlaneCIoTSupportIndicator, CriticalityIgnore, func(m *HandoverRequest) **UEUserPlaneCIoTSupportIndicator { return &m.UEUserPlaneCIoTSupportIndicator }),
+	apimpl.OptionalIE(IDV2XServicesAuthorized, CriticalityIgnore, func(m *HandoverRequest) **V2XServicesAuthorized { return &m.V2XServicesAuthorized }),
+	apimpl.OptionalIE(IDUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *HandoverRequest) **UESidelinkAggregateMaximumBitrate {
+		return &m.UESidelinkAggregateMaximumBitrate
+	}),
+	apimpl.OptionalIE(IDEnhancedCoverageRestricted, CriticalityIgnore, func(m *HandoverRequest) **EnhancedCoverageRestricted { return &m.EnhancedCoverageRestricted }),
+	apimpl.OptionalIE(IDNRUESecurityCapabilities, CriticalityIgnore, func(m *HandoverRequest) **NRUESecurityCapabilities { return &m.NRUESecurityCapabilities }),
+	apimpl.OptionalIE(IDCEModeBRestricted, CriticalityIgnore, func(m *HandoverRequest) **CEModeBRestricted { return &m.CEModeBRestricted }),
+	apimpl.OptionalIE(IDAerialUEsubscriptionInformation, CriticalityIgnore, func(m *HandoverRequest) **AerialUEsubscriptionInformation { return &m.AerialUEsubscriptionInformation }),
+	apimpl.OptionalIE(IDPendingDataIndication, CriticalityIgnore, func(m *HandoverRequest) **PendingDataIndication { return &m.PendingDataIndication }),
+	apimpl.OptionalIE(IDSubscriptionBasedUEDifferentiationInfo, CriticalityIgnore, func(m *HandoverRequest) **SubscriptionBasedUEDifferentiationInfo {
+		return &m.SubscriptionBasedUEDifferentiationInfo
+	}),
+	apimpl.OptionalIE(IDAdditionalRRMPriorityIndex, CriticalityIgnore, func(m *HandoverRequest) **AdditionalRRMPriorityIndex { return &m.AdditionalRRMPriorityIndex }),
+	apimpl.OptionalIE(IDIABAuthorized, CriticalityReject, func(m *HandoverRequest) **IABAuthorized { return &m.IABAuthorized }),
+	apimpl.OptionalIE(IDNRV2XServicesAuthorized, CriticalityIgnore, func(m *HandoverRequest) **NRV2XServicesAuthorized { return &m.NRV2XServicesAuthorized }),
+	apimpl.OptionalIE(IDNRUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *HandoverRequest) **NRUESidelinkAggregateMaximumBitrate {
+		return &m.NRUESidelinkAggregateMaximumBitrate
+	}),
+	apimpl.OptionalIE(IDPC5QoSParameters, CriticalityIgnore, func(m *HandoverRequest) **PC5QoSParameters { return &m.PC5QoSParameters }),
+	apimpl.OptionalIE(IDUERadioCapabilityID, CriticalityReject, func(m *HandoverRequest) **UERadioCapabilityID { return &m.UERadioCapabilityID }),
 	{
 		ID: IDTimeRefDistribution, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *HandoverRequest, r *per.Reader, enc per.Encoding) error {
@@ -260,12 +315,15 @@ func DecodeHandoverRequest(value []byte) (*HandoverRequest, error) {
 
 // TS 36.413 §9.1.5.5.
 type HandoverRequestAcknowledge struct {
-	MMEUES1APID            *MMEUES1APID
-	ENBUES1APID            *ENBUES1APID
-	ERABAdmitted           ERABAdmittedList
-	ERABFailedToSetup      []ERABItem
-	TargetToSource         TransparentContainer
-	CriticalityDiagnostics *CriticalityDiagnostics
+	MMEUES1APID             *MMEUES1APID
+	ENBUES1APID             *ENBUES1APID
+	ERABAdmitted            ERABAdmittedList
+	ERABFailedToSetup       []ERABItem
+	TargetToSource          TransparentContainer
+	CriticalityDiagnostics  *CriticalityDiagnostics
+	CSGId                   *CSGId
+	CellAccessMode          *CellAccessMode
+	CEmodeBSupportIndicator *CEmodeBSupportIndicator
 
 	messageMeta
 }
@@ -327,7 +385,7 @@ var handoverRequestAcknowledgeIEs = []ieSpec[HandoverRequestAcknowledge]{
 				return nil, false
 			}
 
-			return containerList(maxnoofERABs, IDERABAdmittedItem, CriticalityIgnore, m.ERABAdmitted), true
+			return containerList(maxnoofERABs, IDERABAdmittedItem, CriticalityIgnore, &m.ERABAdmitted), true
 		},
 	},
 	{
@@ -344,7 +402,7 @@ var handoverRequestAcknowledgeIEs = []ieSpec[HandoverRequestAcknowledge]{
 				return nil, false
 			}
 
-			return containerList(maxnoofERABs, IDERABFailedtoSetupItemHOReqAck, CriticalityIgnore, m.ERABFailedToSetup), true
+			return containerList(maxnoofERABs, IDERABFailedtoSetupItemHOReqAck, CriticalityIgnore, &m.ERABFailedToSetup), true
 		},
 	},
 	{
@@ -360,6 +418,7 @@ var handoverRequestAcknowledgeIEs = []ieSpec[HandoverRequestAcknowledge]{
 			return &m.TargetToSource, true
 		},
 	},
+	apimpl.OptionalIE(IDCSGId, CriticalityIgnore, func(m *HandoverRequestAcknowledge) **CSGId { return &m.CSGId }),
 	{
 		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *HandoverRequestAcknowledge, r *per.Reader, enc per.Encoding) error {
@@ -381,6 +440,8 @@ var handoverRequestAcknowledgeIEs = []ieSpec[HandoverRequestAcknowledge]{
 			return m.CriticalityDiagnostics, true
 		},
 	},
+	apimpl.OptionalIE(IDCellAccessMode, CriticalityIgnore, func(m *HandoverRequestAcknowledge) **CellAccessMode { return &m.CellAccessMode }),
+	apimpl.OptionalIE(IDCEmodeBSupportIndicator, CriticalityIgnore, func(m *HandoverRequestAcknowledge) **CEmodeBSupportIndicator { return &m.CEmodeBSupportIndicator }),
 }
 
 func (m *HandoverRequestAcknowledge) encodeBody(w *per.Writer, enc per.Encoding) error {

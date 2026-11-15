@@ -5,12 +5,12 @@ package fixture
 
 import (
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 type ID uint16
 
-var profile = &ap.Profile{Name: "fixture", MaxProtocolIEs: 65535, MaxProtocolExtensions: 65535}
+var profile = &apimpl.Profile{Name: "fixture", MaxProtocolIEs: 65535, MaxProtocolExtensions: 65535}
 
 const IDX ID = 1
 

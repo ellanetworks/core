@@ -47,6 +47,11 @@ func buildLocationReport(value []byte) (S1APMessageValue, string) {
 		ies = append(ies, ie(s1ap.IDRequestType, s1ap.CriticalityIgnore, requestType(*m.RequestType)))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDPSCellInformation, s1ap.CriticalityIgnore, m.PSCellInformation},
+		{s1ap.IDLTENTNTAIInformation, s1ap.CriticalityIgnore, m.LTENTNTAIInformation},
+	})
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, fmt.Sprintf("Location Report (MME-UE %d, eNB-UE %d)", m.MMEUES1APID, m.ENBUES1APID)

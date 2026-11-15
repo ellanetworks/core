@@ -29,7 +29,14 @@ type ERABToBeSetupItemBearerSUReq struct {
 
 // ERABSetupItemBearerSURes ::= SEQUENCE { e-RAB-ID, transportLayerAddress,
 // gTP-TEID }: the eNB endpoint the UPF sends downlink traffic to.
-type ERABSetupItemBearerSURes = ERABSetupItemCtxtSURes
+type ERABSetupItemBearerSURes struct {
+	ERABID                ERABID
+	TransportLayerAddress TransportLayerAddress
+	GTPTEID               GTPTEID
+	iEExtensions          extensionMeta          `per:",exttable"`
+	extensions            per.ExtensionAdditions `per:",extraw"`
+	containerCrit         `per:"-"`
+}
 
 // TS 36.413 §9.1.3.1.
 type ERABSetupRequest struct {
@@ -91,7 +98,7 @@ var eRABSetupRequestIEs = []ieSpec[ERABSetupRequest]{
 			return err
 		},
 		Encode: func(m *ERABSetupRequest) (per.Marshaler, bool) {
-			return containerList(maxnoofERABs, IDERABToBeSetupItemBearerSUReq, CriticalityReject, m.ERABToBeSetup), true
+			return containerList(maxnoofERABs, IDERABToBeSetupItemBearerSUReq, CriticalityReject, &m.ERABToBeSetup), true
 		},
 	},
 }
@@ -193,7 +200,7 @@ var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
 				return nil, false
 			}
 
-			return containerList(maxnoofERABs, IDERABSetupItemBearerSURes, CriticalityIgnore, m.ERABSetup), true
+			return containerList(maxnoofERABs, IDERABSetupItemBearerSURes, CriticalityIgnore, &m.ERABSetup), true
 		},
 	},
 	{
@@ -210,7 +217,7 @@ var eRABSetupResponseIEs = []ieSpec[ERABSetupResponse]{
 				return nil, false
 			}
 
-			return containerList(maxnoofERABs, IDERABItem, CriticalityIgnore, m.ERABFailedToSetup), true
+			return containerList(maxnoofERABs, IDERABItem, CriticalityIgnore, &m.ERABFailedToSetup), true
 		},
 	},
 	{

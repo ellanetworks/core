@@ -122,3 +122,9 @@ func (g *GnodeB) dropSelectedPLMN(ranUENGAPID int64) {
 
 	delete(g.selectedPLMNs, ranUENGAPID)
 }
+
+func (g *GnodeB) InheritSelectedPLMN(ranUENGAPID int64, source *GnodeB, sourceRANUENGAPID int64) error {
+	mcc, mnc := source.SelectedPLMN(sourceRANUENGAPID)
+
+	return g.SelectPLMN(ranUENGAPID, mcc, mnc)
+}

@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 const goldenSourceNGRANContainer = "7001800040050501004000050140200145030002f8391234567890ff10320002f8390abcdef1800fff9ff604020b0002f83900001011000064"
@@ -174,7 +174,7 @@ func handAdditions(t *testing.T, w *per.Writer) {
 func handChoiceExtension(t *testing.T, w *per.Writer) {
 	t.Helper()
 
-	mustNil(t, encodeContainerField(w, ieField{ID: 998, Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x01, 0x02, 0x03})}))
+	mustNil(t, encodeContainerField(w, ieField{ID: 998, Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0x01, 0x02, 0x03})}))
 }
 
 func handSourceNGRANContainer(t *testing.T, extCrit Criticality) []byte {

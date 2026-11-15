@@ -381,7 +381,7 @@ func TestHandoverRequestNASSecurityParametersCondition(t *testing.T) {
 			HandoverType:           ht,
 			Cause:                  Ptr(CauseRadioNetworkUnspecified.Cause()),
 			UEAMBR:                 UEAggregateMaximumBitRate{DL: 1000, UL: 1000},
-			ERABToBeSetup:          []ERABToBeSetupItemHOReq{{ERABID: 5}},
+			ERABToBeSetup:          []ERABToBeSetupItemHOReq{{ERABID: 5, TransportLayerAddress: goldTLA()}},
 			SourceToTarget:         TransparentContainer{0x01},
 			UESecurityCapabilities: UESecurityCapabilities{EncryptionAlgorithms: SecurityAlgorithms{Value: 0x8000}},
 		}

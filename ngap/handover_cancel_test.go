@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 const (
@@ -92,8 +92,8 @@ func TestHandoverCancelAcknowledgeGolden(t *testing.T) {
 // continue without it; the AMF still has to see that it was missing.
 func TestHandoverCancelMissingCause(t *testing.T) {
 	value := container(t,
-		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))},
-		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(RANUENGAPID(2))))},
+		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))},
+		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(RANUENGAPID(2))))},
 	)
 
 	out, err := ParseHandoverCancel(value)
@@ -113,7 +113,7 @@ func TestHandoverCancelMissingCause(t *testing.T) {
 
 func TestHandoverCancelMissingRANUENGAPID(t *testing.T) {
 	value := container(t,
-		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))},
+		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))},
 	)
 
 	_, err := ParseHandoverCancel(value)

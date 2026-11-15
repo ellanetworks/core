@@ -548,6 +548,30 @@ var typedCodecs = map[typedKey]func([]byte) (typedMessage, error){
 
 		return m, nil
 	},
+	{TriggeringInitiatingMessage, ProcS1Removal}: func(v []byte) (typedMessage, error) {
+		m, err := ParseS1RemovalRequest(v)
+		if err != nil {
+			return nil, err
+		}
+
+		return m, nil
+	},
+	{TriggeringSuccessfulOutcome, ProcS1Removal}: func(v []byte) (typedMessage, error) {
+		m, err := ParseS1RemovalResponse(v)
+		if err != nil {
+			return nil, err
+		}
+
+		return m, nil
+	},
+	{TriggeringUnsuccessfulOutcome, ProcS1Removal}: func(v []byte) (typedMessage, error) {
+		m, err := ParseS1RemovalFailure(v)
+		if err != nil {
+			return nil, err
+		}
+
+		return m, nil
+	},
 }
 
 func sampleMessages() []typedMessage {

@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 36.413 §9.1.8.4.
@@ -15,6 +16,9 @@ type S1SetupRequest struct {
 	DefaultPagingDRX *PagingDRX
 	// What the eNB offers (§8.7.3.2); the MME never accepts it.
 	UERetentionInformation *UERetentionInformation
+	CSGIdList              CSGIdList
+	NBIoTDefaultPagingDRX  *NBIoTDefaultPagingDRX
+	ConnectedengNBList     ConnectedengNBList
 
 	messageMeta
 }
@@ -77,6 +81,7 @@ var s1SetupRequestIEs = []ieSpec[S1SetupRequest]{
 			return m.DefaultPagingDRX, true
 		},
 	},
+	apimpl.ListIE(IDCSGIdList, CriticalityReject, func(m *S1SetupRequest) *CSGIdList { return &m.CSGIdList }),
 	{
 		ID: IDUERetentionInformation, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *S1SetupRequest, r *per.Reader, enc per.Encoding) error {
@@ -98,6 +103,8 @@ var s1SetupRequestIEs = []ieSpec[S1SetupRequest]{
 			return m.UERetentionInformation, true
 		},
 	},
+	apimpl.OptionalIE(IDNBIoTDefaultPagingDRX, CriticalityIgnore, func(m *S1SetupRequest) **NBIoTDefaultPagingDRX { return &m.NBIoTDefaultPagingDRX }),
+	apimpl.ListIE(IDConnectedengNBList, CriticalityIgnore, func(m *S1SetupRequest) *ConnectedengNBList { return &m.ConnectedengNBList }),
 }
 
 func (m *S1SetupRequest) encodeBody(w *per.Writer, enc per.Encoding) error {

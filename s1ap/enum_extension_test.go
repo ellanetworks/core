@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // The k'th extension addition of an ENUMERATED whose root holds nRoot values.
@@ -29,7 +29,7 @@ func extensionEnum(t *testing.T, nRoot, k int64) []byte {
 func TestPagingEnumExtensionsAreIgnored(t *testing.T) {
 	msg, err := ParsePaging(container(t,
 		ieField{ID: IDPagingDRX, Criticality: CriticalityIgnore, Value: PagingDRXv128},
-		ieField{ID: IDPagingPriority, Criticality: CriticalityIgnore, Value: ap.RawValue(extensionEnum(t, int64(len(enumPagingPriority.Root)), 100))},
+		ieField{ID: IDPagingPriority, Criticality: CriticalityIgnore, Value: apimpl.RawValue(extensionEnum(t, int64(len(enumPagingPriority.Root)), 100))},
 	))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -50,7 +50,7 @@ func TestPagingEnumExtensionsAreIgnored(t *testing.T) {
 func TestNotComprehendedIEIsNotDelivered(t *testing.T) {
 	msg, err := ParseENBConfigurationUpdate(container(t,
 		ieField{ID: IDENBname, Criticality: CriticalityIgnore, Value: Name("ella-enb")},
-		ieField{ID: IDDefaultPagingDRX, Criticality: CriticalityIgnore, Value: ap.RawValue(extensionEnum(t, int64(len(enumPagingDRX.Root)), 100))},
+		ieField{ID: IDDefaultPagingDRX, Criticality: CriticalityIgnore, Value: apimpl.RawValue(extensionEnum(t, int64(len(enumPagingDRX.Root)), 100))},
 	))
 	if err != nil {
 		t.Fatalf("parse: %v", err)

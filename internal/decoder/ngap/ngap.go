@@ -65,6 +65,7 @@ func DecodeNGAPMessage(raw []byte) NGAPMessage {
 		}
 	}
 
+	msg.Value.IEs = wireOrder(raw, msg.Value.IEs)
 	msg.Summary = buildNGAPSummary(msg)
 
 	return msg

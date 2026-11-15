@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/per"
 	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // A real reject-criticality SupportedTAs-Item extension this version does not
@@ -62,7 +63,7 @@ func TestRejectExtensionInsideIgnoreIERejects(t *testing.T) {
 		ieField{ID: IDENBUES1APID, Criticality: CriticalityReject, Value: ENBUES1APID(2)},
 		ieField{ID: IDNASPDU, Criticality: CriticalityReject, Value: NASPDU{0x7e, 0x00}},
 		ieField{ID: IDEUTRANCGI, Criticality: CriticalityIgnore, Value: &EUTRANCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0x0abcde1}},
-		ieField{ID: IDTAI, Criticality: CriticalityIgnore, Value: ap.RawValue(extendedTAI(t, CriticalityReject))},
+		ieField{ID: IDTAI, Criticality: CriticalityIgnore, Value: apimpl.RawValue(extendedTAI(t, CriticalityReject))},
 	))
 
 	var ase *AbstractSyntaxError
@@ -90,7 +91,7 @@ func TestIgnoreExtensionKeepsItsIE(t *testing.T) {
 		ieField{ID: IDENBUES1APID, Criticality: CriticalityReject, Value: ENBUES1APID(2)},
 		ieField{ID: IDNASPDU, Criticality: CriticalityReject, Value: NASPDU{0x7e, 0x00}},
 		ieField{ID: IDEUTRANCGI, Criticality: CriticalityIgnore, Value: &EUTRANCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0x0abcde1}},
-		ieField{ID: IDTAI, Criticality: CriticalityIgnore, Value: ap.RawValue(extendedTAI(t, CriticalityIgnore))},
+		ieField{ID: IDTAI, Criticality: CriticalityIgnore, Value: apimpl.RawValue(extendedTAI(t, CriticalityIgnore))},
 	))
 	if err != nil {
 		t.Fatalf("parse: %v", err)

@@ -120,7 +120,7 @@ func TestPathSwitchRequestAcknowledgeRoundTrip(t *testing.T) {
 		t.Fatalf("security context = %+v, want %+v", out.SecurityContext, in.SecurityContext)
 	}
 
-	if out.UEAggregateMaximumBitRate == nil || *out.UEAggregateMaximumBitRate != *in.UEAggregateMaximumBitRate {
+	if out.UEAggregateMaximumBitRate == nil || !out.UEAggregateMaximumBitRate.Equal(*in.UEAggregateMaximumBitRate) {
 		t.Fatalf("UE-AMBR = %+v, want %+v", out.UEAggregateMaximumBitRate, in.UEAggregateMaximumBitRate)
 	}
 

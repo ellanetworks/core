@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // ERABToBeModifiedItemBearerModInd ::= SEQUENCE { e-RAB-ID, transportLayerAddress,
@@ -18,14 +19,25 @@ type ERABToBeModifiedItemBearerModInd struct {
 	containerCrit         `per:"-"`
 }
 
+type ERABNotToBeModifiedItemBearerModInd struct {
+	ERABID                ERABID
+	TransportLayerAddress TransportLayerAddress
+	DLGTPTEID             GTPTEID
+	iEExtensions          extensionMeta          `per:",exttable"`
+	extensions            per.ExtensionAdditions `per:",extraw"`
+	containerCrit         `per:"-"`
+}
+
 // TS 36.413 §9.1.3.8.
 type ERABModificationIndication struct {
-	MMEUES1APID             MMEUES1APID
-	ENBUES1APID             ENBUES1APID
-	ToBeModified            ERABToBeModifiedListBearerModInd
-	NotToBeModified         ERABNotToBeModifiedListBearerModInd
-	UserLocationInformation *UserLocationInformation
-	TunnelInformationForBBF *TunnelInformation
+	MMEUES1APID                     MMEUES1APID
+	ENBUES1APID                     ENBUES1APID
+	ToBeModified                    ERABToBeModifiedListBearerModInd
+	NotToBeModified                 ERABNotToBeModifiedListBearerModInd
+	UserLocationInformation         *UserLocationInformation
+	TunnelInformationForBBF         *TunnelInformation
+	CSGMembershipInfo               *CSGMembershipInfo
+	SecondaryRATDataUsageReportList SecondaryRATDataUsageReportList
 
 	messageMeta
 }
@@ -55,7 +67,7 @@ var eRABModificationIndicationIEs = []ieSpec[ERABModificationIndication]{
 			return err
 		},
 		Encode: func(m *ERABModificationIndication) (per.Marshaler, bool) {
-			return containerList(maxnoofERABs, IDERABToBeModifiedItemBearerModInd, CriticalityReject, m.ToBeModified), true
+			return containerList(maxnoofERABs, IDERABToBeModifiedItemBearerModInd, CriticalityReject, &m.ToBeModified), true
 		},
 	},
 	{
@@ -63,7 +75,7 @@ var eRABModificationIndicationIEs = []ieSpec[ERABModificationIndication]{
 		Decode: func(m *ERABModificationIndication, r *per.Reader, enc per.Encoding) error {
 			var err error
 
-			m.NotToBeModified, err = decodeItemList[ERABToBeModifiedItemBearerModInd](r, enc, maxnoofERABs, IDERABNotToBeModifiedItemBearerModInd, CriticalityReject)
+			m.NotToBeModified, err = decodeItemList[ERABNotToBeModifiedItemBearerModInd](r, enc, maxnoofERABs, IDERABNotToBeModifiedItemBearerModInd, CriticalityReject)
 
 			return err
 		},
@@ -72,9 +84,10 @@ var eRABModificationIndicationIEs = []ieSpec[ERABModificationIndication]{
 				return nil, false
 			}
 
-			return containerList(maxnoofERABs, IDERABNotToBeModifiedItemBearerModInd, CriticalityReject, m.NotToBeModified), true
+			return containerList(maxnoofERABs, IDERABNotToBeModifiedItemBearerModInd, CriticalityReject, &m.NotToBeModified), true
 		},
 	},
+	apimpl.OptionalIE(IDCSGMembershipInfo, CriticalityReject, func(m *ERABModificationIndication) **CSGMembershipInfo { return &m.CSGMembershipInfo }),
 	{
 		ID: IDTunnelInformationForBBF, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *ERABModificationIndication, r *per.Reader, enc per.Encoding) error {
@@ -84,6 +97,9 @@ var eRABModificationIndicationIEs = []ieSpec[ERABModificationIndication]{
 			return optionalIE(m.TunnelInformationForBBF)
 		},
 	},
+	apimpl.ListIE(IDSecondaryRATDataUsageReportList, CriticalityIgnore, func(m *ERABModificationIndication) *SecondaryRATDataUsageReportList {
+		return &m.SecondaryRATDataUsageReportList
+	}),
 	{
 		ID: IDUserLocationInformation, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *ERABModificationIndication, r *per.Reader, enc per.Encoding) error {
@@ -138,9 +154,10 @@ func DecodeERABModificationIndication(value []byte) (*ERABModificationIndication
 // erabModifyItemBearerModConf ::= SEQUENCE { e-RAB-ID, iE-Extensions OPTIONAL }
 // (extensible).
 type erabModifyItemBearerModConf struct {
-	extensions   per.ExtensionAdditions `per:",extraw"`
-	erabID       ERABID
-	iEExtensions extensionMeta `per:",exttable"`
+	extensions    per.ExtensionAdditions `per:",extraw"`
+	erabID        ERABID
+	iEExtensions  extensionMeta `per:",exttable"`
+	containerCrit `per:"-"`
 }
 
 // TS 36.413 §9.1.3.9.
@@ -151,6 +168,7 @@ type ERABModificationConfirm struct {
 	FailedToModify         []ERABItem
 	ToBeReleased           []ERABItem
 	CriticalityDiagnostics *CriticalityDiagnostics
+	CSGMembershipStatus    *CSGMembershipStatus
 
 	messageMeta
 }
@@ -223,7 +241,7 @@ var erabModificationConfirmIEs = []ieSpec[ERABModificationConfirm]{
 				items[i] = erabModifyItemBearerModConf{erabID: id}
 			}
 
-			return containerList(maxnoofERABs, IDERABModifyItemBearerModConf, CriticalityIgnore, items), true
+			return containerList(maxnoofERABs, IDERABModifyItemBearerModConf, CriticalityIgnore, &items), true
 		},
 	},
 	{
@@ -240,7 +258,7 @@ var erabModificationConfirmIEs = []ieSpec[ERABModificationConfirm]{
 				return nil, false
 			}
 
-			return containerList(maxnoofERABs, IDERABItem, CriticalityIgnore, m.FailedToModify), true
+			return containerList(maxnoofERABs, IDERABItem, CriticalityIgnore, &m.FailedToModify), true
 		},
 	},
 	{
@@ -257,7 +275,7 @@ var erabModificationConfirmIEs = []ieSpec[ERABModificationConfirm]{
 				return nil, false
 			}
 
-			return containerList(maxnoofERABs, IDERABItem, CriticalityIgnore, m.ToBeReleased), true
+			return containerList(maxnoofERABs, IDERABItem, CriticalityIgnore, &m.ToBeReleased), true
 		},
 	},
 	{
@@ -281,6 +299,7 @@ var erabModificationConfirmIEs = []ieSpec[ERABModificationConfirm]{
 			return m.CriticalityDiagnostics, true
 		},
 	},
+	apimpl.OptionalIE(IDCSGMembershipStatus, CriticalityIgnore, func(m *ERABModificationConfirm) **CSGMembershipStatus { return &m.CSGMembershipStatus }),
 }
 
 func (m *ERABModificationConfirm) encodeBody(w *per.Writer, enc per.Encoding) error {

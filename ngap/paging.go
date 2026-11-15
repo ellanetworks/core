@@ -5,6 +5,7 @@ package ngap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // maxnoofTAIforPaging bounds TAIListForPaging (TS 38.413, NGAP-Constants).
@@ -262,18 +263,18 @@ var pagingIEs = []ieSpec[Paging]{
 			return m.PagingOrigin, true
 		},
 	},
-	optionalExtension(IDAssistanceDataForPaging, CriticalityIgnore, func(m *Paging) **AssistanceDataForPaging { return &m.AssistanceDataForPaging }),
-	optionalExtension(IDNBIoTPagingeDRXInfo, CriticalityIgnore, func(m *Paging) **NBIoTPagingeDRXInfo { return &m.NBIoTPagingeDRXInfo }),
-	optionalExtension(IDNBIoTPagingDRX, CriticalityIgnore, func(m *Paging) **NBIoTPagingDRX { return &m.NBIoTPagingDRX }),
-	optionalExtension(IDEnhancedCoverageRestriction, CriticalityIgnore, func(m *Paging) **EnhancedCoverageRestriction { return &m.EnhancedCoverageRestriction }),
-	optionalExtension(IDWUSAssistanceInformation, CriticalityIgnore, func(m *Paging) **WUSAssistanceInformation { return &m.WUSAssistanceInformation }),
-	optionalExtension(IDEUTRAPagingeDRXInformation, CriticalityIgnore, func(m *Paging) **EUTRAPagingeDRXInformation { return &m.EUTRAPagingeDRXInformation }),
-	optionalExtension(IDCEmodeBrestricted, CriticalityIgnore, func(m *Paging) **CEmodeBrestricted { return &m.CEmodeBrestricted }),
-	optionalExtension(IDNRPagingeDRXInformation, CriticalityIgnore, func(m *Paging) **NRPagingeDRXInformation { return &m.NRPagingeDRXInformation }),
-	optionalExtension(IDPagingCause, CriticalityIgnore, func(m *Paging) **PagingCause { return &m.PagingCause }),
-	optionalExtension(IDPEIPSassistanceInformation, CriticalityIgnore, func(m *Paging) **PEIPSassistanceInformation { return &m.PEIPSassistanceInformation }),
-	optionalExtension(IDLPWUSPSAssistanceInformation, CriticalityIgnore, func(m *Paging) **LPWUSPSAssistanceInformation { return &m.LPWUSPSAssistanceInformation }),
-	optionalExtension(IDLPWUSDisableIndication, CriticalityIgnore, func(m *Paging) **LPWUSDisableIndication { return &m.LPWUSDisableIndication }),
+	apimpl.OptionalIE(IDAssistanceDataForPaging, CriticalityIgnore, func(m *Paging) **AssistanceDataForPaging { return &m.AssistanceDataForPaging }),
+	apimpl.OptionalIE(IDNBIoTPagingeDRXInfo, CriticalityIgnore, func(m *Paging) **NBIoTPagingeDRXInfo { return &m.NBIoTPagingeDRXInfo }),
+	apimpl.OptionalIE(IDNBIoTPagingDRX, CriticalityIgnore, func(m *Paging) **NBIoTPagingDRX { return &m.NBIoTPagingDRX }),
+	apimpl.OptionalIE(IDEnhancedCoverageRestriction, CriticalityIgnore, func(m *Paging) **EnhancedCoverageRestriction { return &m.EnhancedCoverageRestriction }),
+	apimpl.OptionalIE(IDWUSAssistanceInformation, CriticalityIgnore, func(m *Paging) **WUSAssistanceInformation { return &m.WUSAssistanceInformation }),
+	apimpl.OptionalIE(IDEUTRAPagingeDRXInformation, CriticalityIgnore, func(m *Paging) **EUTRAPagingeDRXInformation { return &m.EUTRAPagingeDRXInformation }),
+	apimpl.OptionalIE(IDCEmodeBrestricted, CriticalityIgnore, func(m *Paging) **CEmodeBrestricted { return &m.CEmodeBrestricted }),
+	apimpl.OptionalIE(IDNRPagingeDRXInformation, CriticalityIgnore, func(m *Paging) **NRPagingeDRXInformation { return &m.NRPagingeDRXInformation }),
+	apimpl.OptionalIE(IDPagingCause, CriticalityIgnore, func(m *Paging) **PagingCause { return &m.PagingCause }),
+	apimpl.OptionalIE(IDPEIPSassistanceInformation, CriticalityIgnore, func(m *Paging) **PEIPSassistanceInformation { return &m.PEIPSassistanceInformation }),
+	apimpl.OptionalIE(IDLPWUSPSAssistanceInformation, CriticalityIgnore, func(m *Paging) **LPWUSPSAssistanceInformation { return &m.LPWUSPSAssistanceInformation }),
+	apimpl.OptionalIE(IDLPWUSDisableIndication, CriticalityIgnore, func(m *Paging) **LPWUSDisableIndication { return &m.LPWUSDisableIndication }),
 }
 
 func (m *Paging) encodeBody(w *per.Writer, enc per.Encoding) error {

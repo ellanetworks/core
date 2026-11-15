@@ -5,6 +5,7 @@ package ngap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 38.413 §9.2.6.4. Every IE is optional: §8.7.2.2 leaves the corresponding
@@ -116,10 +117,10 @@ var rANConfigurationUpdateIEs = []ieSpec[RANConfigurationUpdate]{
 			return m.NGRANTNLAssociationToRemoveList, true
 		},
 	},
-	optionalExtension(IDNBIoTDefaultPagingDRX, CriticalityIgnore, func(m *RANConfigurationUpdate) **NBIoTDefaultPagingDRX { return &m.NBIoTDefaultPagingDRX }),
-	optionalExtension(IDExtendedRANNodeName, CriticalityIgnore, func(m *RANConfigurationUpdate) **ExtendedRANNodeName { return &m.ExtendedRANNodeName }),
-	optionalExtension(IDAdditionalULI, CriticalityIgnore, func(m *RANConfigurationUpdate) **AdditionalULI { return &m.AdditionalULI }),
-	optionalExtension(IDAIoTSupport, CriticalityReject, func(m *RANConfigurationUpdate) **AIoTSupport { return &m.AIoTSupport }),
+	apimpl.OptionalIE(IDNBIoTDefaultPagingDRX, CriticalityIgnore, func(m *RANConfigurationUpdate) **NBIoTDefaultPagingDRX { return &m.NBIoTDefaultPagingDRX }),
+	apimpl.OptionalIE(IDExtendedRANNodeName, CriticalityIgnore, func(m *RANConfigurationUpdate) **ExtendedRANNodeName { return &m.ExtendedRANNodeName }),
+	apimpl.OptionalIE(IDAdditionalULI, CriticalityIgnore, func(m *RANConfigurationUpdate) **AdditionalULI { return &m.AdditionalULI }),
+	apimpl.OptionalIE(IDAIoTSupport, CriticalityReject, func(m *RANConfigurationUpdate) **AIoTSupport { return &m.AIoTSupport }),
 }
 
 func (m *RANConfigurationUpdate) encodeBody(w *per.Writer, enc per.Encoding) error {

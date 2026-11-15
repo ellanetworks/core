@@ -115,6 +115,10 @@ func runN2HandoverIndirectForwarding(_ context.Context, env scenarios.Env, _ any
 
 	targetGNB.WatchTEID(targetForwardingTEID)
 
+	if err := targetGNB.InheritSelectedPLMN(int64(100), sourceGNB, ranUENGAPID); err != nil {
+		return fmt.Errorf("carry the selected PLMN to the target gNB: %w", err)
+	}
+
 	err = targetGNB.SendHandoverRequestAcknowledge(&gnb.HandoverRequestAcknowledgeOpts{
 		AMFUENGAPID: targetAmfUENGAPID,
 		RANUENGAPID: int64(100),

@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/per"
 	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // Golden NG RESET PDUs
@@ -181,7 +182,7 @@ func TestResetTypeChoiceExtensionIsPreserved(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := encodeContainerField(w, ieField{ID: 9999, Criticality: CriticalityReject, Value: ap.RawValue([]byte{0x00})}); err != nil {
+	if err := encodeContainerField(w, ieField{ID: 9999, Criticality: CriticalityReject, Value: apimpl.RawValue([]byte{0x00})}); err != nil {
 		t.Fatal(err)
 	}
 

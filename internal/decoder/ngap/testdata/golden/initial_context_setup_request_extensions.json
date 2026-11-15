@@ -1,0 +1,283 @@
+{
+  "summary": "InitialContextSetup, AMF-UE=1, RAN-UE=2",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 14,
+    "label": "InitialContextSetup",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 10,
+          "label": "AMF-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 85,
+          "label": "RAN-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 2
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 18,
+          "label": "CoreNetworkAssistanceInformationForInactive",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "ue_identity_index_value": {
+            "index_length10": {
+              "hex": "5540",
+              "bits": 10
+            }
+          },
+          "periodic_registration_update_timer": {
+            "hex": "21",
+            "bits": 8
+          },
+          "mico_mode_indication": {
+            "type": "enum",
+            "value": 0,
+            "label": "true",
+            "unknown": false
+          },
+          "tai_list_for_inactive": [
+            {
+              "tai": {
+                "plmn_id": {
+                  "mcc": "001",
+                  "mnc": "01"
+                },
+                "tac": "000001"
+              }
+            }
+          ],
+          "eutra_paginge_drx_information": {
+            "eutra_paging_e_drx_cycle": {
+              "type": "enum",
+              "value": 2,
+              "label": "hf2",
+              "unknown": false
+            }
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 28,
+          "label": "GUAMI",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "plmn_id": {
+            "mcc": "001",
+            "mnc": "01"
+          },
+          "amf_region_id": "02",
+          "amf_set_id": "004",
+          "amf_pointer": "00"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 0,
+          "label": "AllowedNSSAI",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "sst": 1
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 119,
+          "label": "UESecurityCapabilities",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "nr_encryption_algorithms": [
+            "NEA1",
+            "NEA2"
+          ],
+          "nr_integrity_protection_algorithms": [
+            "NIA1",
+            "NIA2"
+          ],
+          "eutra_encryption_algorithms": "c000",
+          "eutra_integrity_protection_algorithms": "c000"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 94,
+          "label": "SecurityKey",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 216,
+          "label": "NRV2XServicesAuthorized",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "vehicle_ue": {
+            "type": "enum",
+            "value": 0,
+            "label": "authorized",
+            "unknown": false
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 218,
+          "label": "NRUESidelinkAggregateMaximumBitrate",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "ue_sidelink_aggregate_maximum_bit_rate": 1000000
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 254,
+          "label": "ManagementBasedMDTPLMNList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": [
+          {
+            "mcc": "001",
+            "mnc": "01"
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 335,
+          "label": "UESliceMaximumBitRateList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": [
+          {
+            "s_nssai": {
+              "sst": 1
+            },
+            "ue_slice_maximum_bit_rate_dl": 300,
+            "ue_slice_maximum_bit_rate_ul": 200
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 346,
+          "label": "FiveG-ProSeUEPC5AggregateMaximumBitRate",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "ue_sidelink_aggregate_maximum_bit_rate": 1000000
+        }
+      }
+    ]
+  }
+}

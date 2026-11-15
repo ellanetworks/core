@@ -6,6 +6,7 @@ package ngap
 import (
 	"github.com/ellanetworks/core/per"
 	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // UE NGAP ID ranges (TS 38.413 §9.3.3). The AMF id is 40 bits wide, so both
@@ -150,7 +151,7 @@ type UserLocationInformation struct {
 	WAGF                   *UserLocationInformationWAGF                   `per:",choice:3,extie:IDUserLocationInformationWAGF,crit:ignore"`
 	N3IWFWithoutPortNumber *UserLocationInformationN3IWFWithoutPortNumber `per:",choice:3,extie:IDUserLocationInformationN3IWFwithoutPortNumber,crit:ignore"`
 	ChoiceExtension        *SingleContainer                               `per:",choice:3,extie"`
-	choiceCriticality      ap.WireCriticality                             `per:",choicecrit"`
+	choiceCriticality      apimpl.WireCriticality                         `per:",choicecrit"`
 }
 
 type UserLocationInformationEUTRA struct {
@@ -203,13 +204,13 @@ type UserLocationInformationTWIF struct {
 }
 
 type UserLocationInformationWAGF struct {
-	GlobalLineID      *GlobalLineID      `per:",choice:0"`
-	HFCNodeID         *HFCNodeID         `per:",choice:1"`
-	GlobalCableID     *GlobalCableID     `per:",choice:2,extie:IDGlobalCableID,crit:ignore"`
-	HFCNodeIDNew      *HFCNodeIDNew      `per:",choice:2,extie:IDHFCNodeIDnew,crit:ignore"`
-	GlobalCableIDNew  *GlobalCableIDNew  `per:",choice:2,extie:IDGlobalCableIDnew,crit:ignore"`
-	ChoiceExtension   *SingleContainer   `per:",choice:2,extie"`
-	choiceCriticality ap.WireCriticality `per:",choicecrit"`
+	GlobalLineID      *GlobalLineID          `per:",choice:0"`
+	HFCNodeID         *HFCNodeID             `per:",choice:1"`
+	GlobalCableID     *GlobalCableID         `per:",choice:2,extie:IDGlobalCableID,crit:ignore"`
+	HFCNodeIDNew      *HFCNodeIDNew          `per:",choice:2,extie:IDHFCNodeIDnew,crit:ignore"`
+	GlobalCableIDNew  *GlobalCableIDNew      `per:",choice:2,extie:IDGlobalCableIDnew,crit:ignore"`
+	ChoiceExtension   *SingleContainer       `per:",choice:2,extie"`
+	choiceCriticality apimpl.WireCriticality `per:",choicecrit"`
 }
 
 type UserLocationInformationN3IWFWithoutPortNumber struct {

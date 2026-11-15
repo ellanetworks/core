@@ -1114,7 +1114,7 @@ func handOverVoiceUE(source, target *s1enb.ENB, u imsCallUE, voice *s1enb.Dedica
 		return handedOver{}, fmt.Errorf("voice E-RAB QoS %+v in the Handover Request, want QCI 1 with GBR QoS Information (TS 36.413 §8.4.2.4)", qos)
 	}
 
-	out := handedOver{enbUEID: target.AllocateENBUEID(), mmeUEID: int64(req.MMEUES1APID)}
+	out := handedOver{enbUEID: target.AllocateENBUEIDFor(u.ue), mmeUEID: int64(req.MMEUES1APID)}
 
 	teids, err := target.SendHandoverRequestAcknowledgePartial(out.enbUEID, out.mmeUEID, erabs, nil, s1ap.Cause{})
 	if err != nil {

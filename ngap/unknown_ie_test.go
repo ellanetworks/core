@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // An NG SETUP REQUEST carrying one unmodeled IE at the given criticality.
@@ -26,7 +26,7 @@ func encodeWithExtraIE(t *testing.T, crit Criticality, id ProtocolIEID) []byte {
 		{ID: IDGlobalRANNodeID, Criticality: CriticalityReject, Value: &src.GlobalRANNodeID},
 		{ID: IDSupportedTAList, Criticality: CriticalityReject, Value: src.SupportedTAList},
 		{ID: IDDefaultPagingDRX, Criticality: CriticalityIgnore, Value: PagingDRXv128},
-		{ID: id, Criticality: crit, Value: ap.RawValue([]byte{0xde, 0xad})},
+		{ID: id, Criticality: crit, Value: apimpl.RawValue([]byte{0xde, 0xad})},
 	}
 
 	if err := encodeIEContainer(w, per.Aligned, fields); err != nil {
@@ -203,7 +203,7 @@ func TestUnknownIEKeepsItsWirePosition(t *testing.T) {
 	value := container(t,
 		ieField{ID: IDGlobalRANNodeID, Criticality: CriticalityReject, Value: &src.GlobalRANNodeID},
 		ieField{ID: IDSupportedTAList, Criticality: CriticalityReject, Value: src.SupportedTAList},
-		ieField{ID: unmodeledIEID, Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0xde, 0xad})},
+		ieField{ID: unmodeledIEID, Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0xde, 0xad})},
 		ieField{ID: IDDefaultPagingDRX, Criticality: CriticalityIgnore, Value: PagingDRXv128},
 	)
 
@@ -236,11 +236,11 @@ func TestUnknownIEKeepsItsWirePosition(t *testing.T) {
 func TestUnknownIEBeforeEveryTypedIEKeepsItsWirePosition(t *testing.T) {
 	src := goldRequest()
 	value := container(t,
-		ieField{ID: unmodeledIEID, Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x01})},
+		ieField{ID: unmodeledIEID, Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0x01})},
 		ieField{ID: IDGlobalRANNodeID, Criticality: CriticalityReject, Value: &src.GlobalRANNodeID},
 		ieField{ID: IDSupportedTAList, Criticality: CriticalityReject, Value: src.SupportedTAList},
 		ieField{ID: IDDefaultPagingDRX, Criticality: CriticalityIgnore, Value: PagingDRXv128},
-		ieField{ID: ProtocolIEID(9999), Criticality: CriticalityNotify, Value: ap.RawValue([]byte{0x02})},
+		ieField{ID: ProtocolIEID(9999), Criticality: CriticalityNotify, Value: apimpl.RawValue([]byte{0x02})},
 	)
 
 	req, err := ParseNGSetupRequest(value)

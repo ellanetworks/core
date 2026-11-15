@@ -49,12 +49,12 @@ func TestBuildInitialUEMessageCarriesSelectedPLMNInTAI(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	uli := msg.UserLocationInformation
-	if uli.Kind != ngap.UserLocationEUTRA || uli.TAI.PLMNIdentity != (ngap.PLMNIdentity{0x13, 0x00, 0x62}) {
-		t.Errorf("location = %+v, want an E-UTRA cell with TAI PLMN 310/260", uli)
+	uli := msg.UserLocationInformation.EUTRA
+	if uli == nil || uli.TAI.PLMNIdentity != (ngap.PLMNIdentity{0x13, 0x00, 0x62}) {
+		t.Fatalf("location = %+v, want an E-UTRA cell with TAI PLMN 310/260", msg.UserLocationInformation)
 	}
 
-	if uli.PLMNIdentity != (ngap.PLMNIdentity{0x00, 0xf1, 0x10}) {
-		t.Errorf("E-UTRA CGI PLMN = % x, want the primary PLMN", uli.PLMNIdentity)
+	if uli.EUTRACGI.PLMNIdentity != (ngap.PLMNIdentity{0x00, 0xf1, 0x10}) {
+		t.Errorf("E-UTRA CGI PLMN = % x, want the primary PLMN", uli.EUTRACGI.PLMNIdentity)
 	}
 }

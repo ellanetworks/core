@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 func TestUECapabilityInfoIndicationRoundTrips(t *testing.T) {
@@ -80,8 +80,8 @@ func TestUECapabilityInfoIndicationPaging(t *testing.T) {
 // without it is still delivered and the absence reported (§10.3.5).
 func TestUECapabilityInfoIndicationWithoutCapability(t *testing.T) {
 	value := container(t,
-		ieField{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(MMEUES1APID(1))))},
-		ieField{ID: IDENBUES1APID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(ENBUES1APID(2))))},
+		ieField{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(MMEUES1APID(1))))},
+		ieField{ID: IDENBUES1APID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(ENBUES1APID(2))))},
 	)
 
 	msg, err := ParseUECapabilityInfoIndication(value)
@@ -103,8 +103,8 @@ func TestUECapabilityInfoIndicationWithoutCapability(t *testing.T) {
 // missing one (§10.3.5).
 func TestUECapabilityInfoIndicationMissingRejectIE(t *testing.T) {
 	value := container(t,
-		ieField{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(MMEUES1APID(1))))},
-		ieField{ID: IDUERadioCapability, Criticality: CriticalityIgnore, Value: ap.RawValue(ieRaw(t, UERadioCapability{0x01}))},
+		ieField{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(MMEUES1APID(1))))},
+		ieField{ID: IDUERadioCapability, Criticality: CriticalityIgnore, Value: apimpl.RawValue(ieRaw(t, UERadioCapability{0x01}))},
 	)
 
 	_, err := ParseUECapabilityInfoIndication(value)

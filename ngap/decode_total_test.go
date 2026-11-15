@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 type totalCase struct {
@@ -92,8 +92,8 @@ func TestDecodeIsTotalAndLossless(t *testing.T) {
 	falsely := CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage
 	f := ngSetupFields()
 
-	unknownIgnore := ieField{ID: 40000, Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x01})}
-	unknownReject := ieField{ID: 40001, Criticality: CriticalityReject, Value: ap.RawValue([]byte{0x02})}
+	unknownIgnore := ieField{ID: 40000, Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0x01})}
+	unknownReject := ieField{ID: 40001, Criticality: CriticalityReject, Value: apimpl.RawValue([]byte{0x02})}
 
 	item := goldAMFConfigurationUpdateRelay().PLMNSupportList[1]
 	item.iEExtensions.Append(rawIE{ID: 9999, Criticality: CriticalityReject, Value: []byte{0x5a}})
@@ -130,7 +130,7 @@ func TestDecodeIsTotalAndLossless(t *testing.T) {
 }
 
 func TestRawPDUUEIDAccessorRefusesDuplicate(t *testing.T) {
-	id := ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))}
+	id := ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))}
 
 	b, err := Marshal(&InitiatingMessage{ProcedureCode: ProcUplinkNASTransport, Criticality: CriticalityIgnore, Value: container(t, id, id)})
 	if err != nil {

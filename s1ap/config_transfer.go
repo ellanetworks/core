@@ -5,11 +5,14 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 36.413 §9.1.16.
 type ENBConfigurationTransfer struct {
-	SONConfigurationTransfer *SONConfigurationTransfer
+	SONConfigurationTransfer               *SONConfigurationTransfer
+	ENDCSONConfigurationTransferECT        *ENDCSONConfigurationTransfer
+	IntersystemSONConfigurationTransferECT *IntersystemSONConfigurationTransfer
 
 	messageMeta
 }
@@ -24,6 +27,12 @@ var eNBConfigurationTransferIEs = []ieSpec[ENBConfigurationTransfer]{
 			return optionalIE(m.SONConfigurationTransfer)
 		},
 	},
+	apimpl.OptionalIE(IDENDCSONConfigurationTransferECT, CriticalityIgnore, func(m *ENBConfigurationTransfer) **ENDCSONConfigurationTransfer {
+		return &m.ENDCSONConfigurationTransferECT
+	}),
+	apimpl.OptionalIE(IDIntersystemSONConfigurationTransferECT, CriticalityIgnore, func(m *ENBConfigurationTransfer) **IntersystemSONConfigurationTransfer {
+		return &m.IntersystemSONConfigurationTransferECT
+	}),
 }
 
 func (m *ENBConfigurationTransfer) encodeBody(w *per.Writer, enc per.Encoding) error {
@@ -56,7 +65,9 @@ func DecodeENBConfigurationTransfer(value []byte) (*ENBConfigurationTransfer, er
 
 // TS 36.413 §9.1.17.
 type MMEConfigurationTransfer struct {
-	SONConfigurationTransfer *SONConfigurationTransfer
+	SONConfigurationTransfer               *SONConfigurationTransfer
+	ENDCSONConfigurationTransferMCT        *ENDCSONConfigurationTransfer
+	IntersystemSONConfigurationTransferMCT *IntersystemSONConfigurationTransfer
 
 	messageMeta
 }
@@ -72,6 +83,12 @@ var mMEConfigurationTransferIEs = []ieSpec[MMEConfigurationTransfer]{
 			return optionalIE(m.SONConfigurationTransfer)
 		},
 	},
+	apimpl.OptionalIE(IDENDCSONConfigurationTransferMCT, CriticalityIgnore, func(m *MMEConfigurationTransfer) **ENDCSONConfigurationTransfer {
+		return &m.ENDCSONConfigurationTransferMCT
+	}),
+	apimpl.OptionalIE(IDIntersystemSONConfigurationTransferMCT, CriticalityIgnore, func(m *MMEConfigurationTransfer) **IntersystemSONConfigurationTransfer {
+		return &m.IntersystemSONConfigurationTransferMCT
+	}),
 }
 
 func (m *MMEConfigurationTransfer) encodeBody(w *per.Writer, enc per.Encoding) error {

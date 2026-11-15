@@ -83,7 +83,7 @@ func (g *generator) parseStruct(name string, named *types.Named, s *types.Struct
 				return nil, err
 			}
 
-			if err := g.requireType(f, apImportPath, "WireCriticality", false); err != nil {
+			if err := g.requireType(f, apInternalPath, "WireCriticality", false); err != nil {
 				return nil, err
 			}
 
@@ -103,7 +103,7 @@ func (g *generator) parseStruct(name string, named *types.Named, s *types.Struct
 				return nil, err
 			}
 
-			if err := g.requireType(f, apImportPath, "Preserved", false); err != nil {
+			if err := g.requireType(f, apInternalPath, "Preserved", false); err != nil {
 				return nil, err
 			}
 
@@ -117,7 +117,7 @@ func (g *generator) parseStruct(name string, named *types.Named, s *types.Struct
 				return nil, err
 			}
 
-			if err := g.requireType(f, apImportPath, "SingleContainer", true); err != nil {
+			if err := g.requireType(f, apInternalPath, "SingleContainer", true); err != nil {
 				return nil, err
 			}
 

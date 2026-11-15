@@ -59,6 +59,11 @@ func libPDUSessionResourceSetupRequestTransfer(raw ngap.TransferContainer) (*PDU
 	out.RedundantULNGUUPTNLInformation = optionalGTPTunnel(t.RedundantULNGUUPTNLInformation)
 	out.AdditionalRedundantULNGUUPTNLInformation = gtpTunnelList(t.AdditionalRedundantULNGUUPTNLInformation)
 
+	out.RedundantPDUSessionInformation = renderPresent(t.RedundantPDUSessionInformation)
+	out.CommonNetworkInstance = renderPresent(t.CommonNetworkInstance)
+	out.RedundantCommonNetworkInstance = renderPresent(t.RedundantCommonNetworkInstance)
+	out.DownlinkTLContainer = renderPresent(t.DownlinkTLContainer)
+	out.MBSSessionSetupRequestList = renderPresent(t.MBSSessionSetupRequestList)
 	out.UnrecognizedIEs = unmodeledIEs(t.UnknownIEs())
 
 	return out, nil

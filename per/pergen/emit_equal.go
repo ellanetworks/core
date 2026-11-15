@@ -295,8 +295,10 @@ func (g *generator) typeRef(t types.Type) (string, error) {
 		switch {
 		case g.pkg != nil && p.Path() == g.pkg.Path():
 			return ""
-		case p.Path() == apImportPath:
+		case p.Path() == apImportPath || p.Path() == apPublicPath || p.Path() == apInternalPath:
 			g.usesAP = true
+
+			return "apimpl"
 		case p.Path() != perImportPath:
 			foreign = append(foreign, p.Path())
 		}

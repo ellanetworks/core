@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 36.413 §9.1.8.5.
@@ -15,7 +16,10 @@ type S1SetupResponse struct {
 	CriticalityDiagnostics *CriticalityDiagnostics
 	// Whether the MME retained UE contexts across the setup (§8.7.3.2); Ella
 	// Core never does, so it is left absent on send.
-	UERetentionInformation *UERetentionInformation
+	UERetentionInformation   *UERetentionInformation
+	MMERelaySupportIndicator *MMERelaySupportIndicator
+	ServedDCNs               *ServedDCNs
+	IABSupported             *IABSupported
 
 	messageMeta
 }
@@ -82,6 +86,7 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 			}), true
 		},
 	},
+	apimpl.OptionalIE(IDMMERelaySupportIndicator, CriticalityIgnore, func(m *S1SetupResponse) **MMERelaySupportIndicator { return &m.MMERelaySupportIndicator }),
 	{
 		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *S1SetupResponse, r *per.Reader, enc per.Encoding) error {
@@ -124,6 +129,8 @@ var s1SetupResponseIEs = []ieSpec[S1SetupResponse]{
 			return m.UERetentionInformation, true
 		},
 	},
+	apimpl.OptionalIE(IDServedDCNs, CriticalityIgnore, func(m *S1SetupResponse) **ServedDCNs { return &m.ServedDCNs }),
+	apimpl.OptionalIE(IDIABSupported, CriticalityIgnore, func(m *S1SetupResponse) **IABSupported { return &m.IABSupported }),
 }
 
 func (m *S1SetupResponse) encodeBody(w *per.Writer, enc per.Encoding) error {

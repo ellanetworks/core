@@ -7,7 +7,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // S1AP-PDU CHOICE root alternatives (TS 36.413), in declaration order.
@@ -77,7 +77,7 @@ func Marshal(pdu PDU) ([]byte, error) {
 		return nil, fmt.Errorf("s1ap: nil PDU")
 	}
 
-	return profile.EncodePDU(ap.Envelope{
+	return apimpl.EncodePDU(profile, apimpl.Envelope{
 		Choice:        pdu.choiceIndex(),
 		ProcedureCode: uint8(pdu.procedureCode()),
 		Criticality:   pdu.criticality(),
@@ -87,7 +87,7 @@ func Marshal(pdu PDU) ([]byte, error) {
 
 // The open-type payload is left in Value for the message layer.
 func Unmarshal(b []byte) (PDU, error) {
-	e, err := profile.DecodePDU(b)
+	e, err := apimpl.DecodePDU[ProcedureCode](profile, b)
 	if err != nil {
 		return nil, err
 	}

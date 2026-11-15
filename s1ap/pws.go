@@ -436,7 +436,7 @@ var pWSRestartIndicationIEs = []ieSpec[PWSRestartIndication]{
 				return nil, false
 			}
 
-			return seqOf(1, maxnoofCellsforRestart, m.ECGIListForRestart), true
+			return seqOf(1, maxnoofCellsforRestart, &m.ECGIListForRestart), true
 		},
 	},
 	{
@@ -460,7 +460,7 @@ var pWSRestartIndicationIEs = []ieSpec[PWSRestartIndication]{
 				return nil, false
 			}
 
-			return seqOf(1, maxnoofRestartTAIs, m.TAIListForRestart), true
+			return seqOf(1, maxnoofRestartTAIs, &m.TAIListForRestart), true
 		},
 	},
 	{
@@ -477,7 +477,7 @@ var pWSRestartIndicationIEs = []ieSpec[PWSRestartIndication]{
 				return nil, false
 			}
 
-			return seqOf(1, maxnoofRestartEmergencyAreaIDs, m.EmergencyAreaIDListForRestart), true
+			return seqOf(1, maxnoofRestartEmergencyAreaIDs, &m.EmergencyAreaIDListForRestart), true
 		},
 	},
 }
@@ -532,7 +532,7 @@ var pWSFailureIndicationIEs = []ieSpec[PWSFailureIndication]{
 				return nil, false
 			}
 
-			return seqOf(1, maxnoofCellsineNB, m.PWSFailedECGIList), true
+			return seqOf(1, maxnoofCellsineNB, &m.PWSFailedECGIList), true
 		},
 	},
 	{

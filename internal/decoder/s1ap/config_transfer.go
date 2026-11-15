@@ -30,6 +30,11 @@ func buildENBConfigurationTransfer(value []byte) (S1APMessageValue, string) {
 			sonConfigurationTransfer(m.SONConfigurationTransfer)))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDENDCSONConfigurationTransferECT, s1ap.CriticalityIgnore, m.ENDCSONConfigurationTransferECT},
+		{s1ap.IDIntersystemSONConfigurationTransferECT, s1ap.CriticalityIgnore, m.IntersystemSONConfigurationTransferECT},
+	})
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, "eNB Configuration Transfer"
@@ -47,6 +52,11 @@ func buildMMEConfigurationTransfer(value []byte) (S1APMessageValue, string) {
 		ies = append(ies, ie(s1ap.IDSONConfigurationTransferMCT, s1ap.CriticalityIgnore,
 			sonConfigurationTransfer(m.SONConfigurationTransfer)))
 	}
+
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDENDCSONConfigurationTransferMCT, s1ap.CriticalityIgnore, m.ENDCSONConfigurationTransferMCT},
+		{s1ap.IDIntersystemSONConfigurationTransferMCT, s1ap.CriticalityIgnore, m.IntersystemSONConfigurationTransferMCT},
+	})
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 

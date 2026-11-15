@@ -5,6 +5,7 @@ package ngap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 38.413 §9.2.13.1.
@@ -70,8 +71,8 @@ var uERadioCapabilityInfoIndicationIEs = []ieSpec[UERadioCapabilityInfoIndicatio
 			return m.UERadioCapabilityForPaging, true
 		},
 	},
-	listExtension(IDUERadioCapabilityEUTRAFormat, CriticalityIgnore, func(m *UERadioCapabilityInfoIndication) *UERadioCapability { return &m.UERadioCapabilityEUTRAFormat }),
-	optionalExtension(IDXrDeviceWith2Rx, CriticalityIgnore, func(m *UERadioCapabilityInfoIndication) **XrDeviceWith2Rx { return &m.XrDeviceWith2Rx }),
+	apimpl.ListIE(IDUERadioCapabilityEUTRAFormat, CriticalityIgnore, func(m *UERadioCapabilityInfoIndication) *UERadioCapability { return &m.UERadioCapabilityEUTRAFormat }),
+	apimpl.OptionalIE(IDXrDeviceWith2Rx, CriticalityIgnore, func(m *UERadioCapabilityInfoIndication) **XrDeviceWith2Rx { return &m.XrDeviceWith2Rx }),
 }
 
 func (m *UERadioCapabilityInfoIndication) encodeBody(w *per.Writer, enc per.Encoding) error {

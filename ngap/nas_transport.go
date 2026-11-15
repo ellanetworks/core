@@ -5,6 +5,7 @@ package ngap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 38.413 §9.2.5.1.
@@ -174,22 +175,22 @@ var initialUEMessageIEs = []ieSpec[InitialUEMessage]{
 			return m.AllowedNSSAI, true
 		},
 	},
-	optionalExtension(IDSourceToTargetAMFInformationReroute, CriticalityIgnore, func(m *InitialUEMessage) **SourceToTargetAMFInformationReroute {
+	apimpl.OptionalIE(IDSourceToTargetAMFInformationReroute, CriticalityIgnore, func(m *InitialUEMessage) **SourceToTargetAMFInformationReroute {
 		return &m.SourceToTargetAMFInformationReroute
 	}),
-	optionalExtension(IDSelectedPLMNIdentity, CriticalityIgnore, func(m *InitialUEMessage) **PLMNIdentity { return &m.SelectedPLMNIdentity }),
-	optionalExtension(IDIABNodeIndication, CriticalityReject, func(m *InitialUEMessage) **IABNodeIndication { return &m.IABNodeIndication }),
-	optionalExtension(IDCEmodeBSupportIndicator, CriticalityReject, func(m *InitialUEMessage) **CEmodeBSupportIndicator { return &m.CEmodeBSupportIndicator }),
-	optionalExtension(IDLTEMIndication, CriticalityIgnore, func(m *InitialUEMessage) **LTEMIndication { return &m.LTEMIndication }),
-	optionalExtension(IDEDTSession, CriticalityIgnore, func(m *InitialUEMessage) **EDTSession { return &m.EDTSession }),
-	optionalExtension(IDAuthenticatedIndication, CriticalityIgnore, func(m *InitialUEMessage) **AuthenticatedIndication { return &m.AuthenticatedIndication }),
-	optionalExtension(IDNPNAccessInformation, CriticalityReject, func(m *InitialUEMessage) **NPNAccessInformation { return &m.NPNAccessInformation }),
-	optionalExtension(IDRedCapIndication, CriticalityIgnore, func(m *InitialUEMessage) **RedCapIndication { return &m.RedCapIndication }),
-	optionalExtension(IDSelectedNID, CriticalityIgnore, func(m *InitialUEMessage) **NID { return &m.SelectedNID }),
-	optionalExtension(IDMobileIABNodeIndication, CriticalityReject, func(m *InitialUEMessage) **MobileIABNodeIndication { return &m.MobileIABNodeIndication }),
-	listExtension(IDPartiallyAllowedNSSAI, CriticalityIgnore, func(m *InitialUEMessage) *PartiallyAllowedNSSAI { return &m.PartiallyAllowedNSSAI }),
-	optionalExtension(IDERedCapIndication, CriticalityIgnore, func(m *InitialUEMessage) **ERedCapIndication { return &m.ERedCapIndication }),
-	optionalExtension(IDAUN3DeviceAccessInfo, CriticalityIgnore, func(m *InitialUEMessage) **AUN3DeviceAccessInfo { return &m.AUN3DeviceAccessInfo }),
+	apimpl.OptionalIE(IDSelectedPLMNIdentity, CriticalityIgnore, func(m *InitialUEMessage) **PLMNIdentity { return &m.SelectedPLMNIdentity }),
+	apimpl.OptionalIE(IDIABNodeIndication, CriticalityReject, func(m *InitialUEMessage) **IABNodeIndication { return &m.IABNodeIndication }),
+	apimpl.OptionalIE(IDCEmodeBSupportIndicator, CriticalityReject, func(m *InitialUEMessage) **CEmodeBSupportIndicator { return &m.CEmodeBSupportIndicator }),
+	apimpl.OptionalIE(IDLTEMIndication, CriticalityIgnore, func(m *InitialUEMessage) **LTEMIndication { return &m.LTEMIndication }),
+	apimpl.OptionalIE(IDEDTSession, CriticalityIgnore, func(m *InitialUEMessage) **EDTSession { return &m.EDTSession }),
+	apimpl.OptionalIE(IDAuthenticatedIndication, CriticalityIgnore, func(m *InitialUEMessage) **AuthenticatedIndication { return &m.AuthenticatedIndication }),
+	apimpl.OptionalIE(IDNPNAccessInformation, CriticalityReject, func(m *InitialUEMessage) **NPNAccessInformation { return &m.NPNAccessInformation }),
+	apimpl.OptionalIE(IDRedCapIndication, CriticalityIgnore, func(m *InitialUEMessage) **RedCapIndication { return &m.RedCapIndication }),
+	apimpl.OptionalIE(IDSelectedNID, CriticalityIgnore, func(m *InitialUEMessage) **NID { return &m.SelectedNID }),
+	apimpl.OptionalIE(IDMobileIABNodeIndication, CriticalityReject, func(m *InitialUEMessage) **MobileIABNodeIndication { return &m.MobileIABNodeIndication }),
+	apimpl.ListIE(IDPartiallyAllowedNSSAI, CriticalityIgnore, func(m *InitialUEMessage) *PartiallyAllowedNSSAI { return &m.PartiallyAllowedNSSAI }),
+	apimpl.OptionalIE(IDERedCapIndication, CriticalityIgnore, func(m *InitialUEMessage) **ERedCapIndication { return &m.ERedCapIndication }),
+	apimpl.OptionalIE(IDAUN3DeviceAccessInfo, CriticalityIgnore, func(m *InitialUEMessage) **AUN3DeviceAccessInfo { return &m.AUN3DeviceAccessInfo }),
 	{
 		ID: IDGUAMI, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *InitialUEMessage, r *per.Reader, enc per.Encoding) error {
@@ -353,9 +354,9 @@ var uplinkNASTransportIEs = []ieSpec[UplinkNASTransport]{
 			return m.UserLocationInformation, true
 		},
 	},
-	optionalExtension(IDWAGFIdentityInformation, CriticalityReject, func(m *UplinkNASTransport) **IdentityInformation { return &m.WAGFIdentityInformation }),
-	optionalExtension(IDTNGFIdentityInformation, CriticalityReject, func(m *UplinkNASTransport) **IdentityInformation { return &m.TNGFIdentityInformation }),
-	optionalExtension(IDTWIFIdentityInformation, CriticalityReject, func(m *UplinkNASTransport) **IdentityInformation { return &m.TWIFIdentityInformation }),
+	apimpl.OptionalIE(IDWAGFIdentityInformation, CriticalityReject, func(m *UplinkNASTransport) **IdentityInformation { return &m.WAGFIdentityInformation }),
+	apimpl.OptionalIE(IDTNGFIdentityInformation, CriticalityReject, func(m *UplinkNASTransport) **IdentityInformation { return &m.TNGFIdentityInformation }),
+	apimpl.OptionalIE(IDTWIFIdentityInformation, CriticalityReject, func(m *UplinkNASTransport) **IdentityInformation { return &m.TWIFIdentityInformation }),
 }
 
 func (m *UplinkNASTransport) Marshal() ([]byte, error) {
@@ -434,8 +435,8 @@ var downlinkNASTransportIEs = []ieSpec[DownlinkNASTransport]{
 		},
 		Encode: func(m *DownlinkNASTransport) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
-	optionalExtension(IDOldAMF, CriticalityReject, func(m *DownlinkNASTransport) **Name { return &m.OldAMF }),
-	optionalExtension(IDRANPagingPriority, CriticalityIgnore, func(m *DownlinkNASTransport) **RANPagingPriority { return &m.RANPagingPriority }),
+	apimpl.OptionalIE(IDOldAMF, CriticalityReject, func(m *DownlinkNASTransport) **Name { return &m.OldAMF }),
+	apimpl.OptionalIE(IDRANPagingPriority, CriticalityIgnore, func(m *DownlinkNASTransport) **RANPagingPriority { return &m.RANPagingPriority }),
 	{
 		ID: IDNASPDU, Presence: presenceMandatory, Criticality: CriticalityReject,
 		Decode: func(m *DownlinkNASTransport, r *per.Reader, enc per.Encoding) error {
@@ -449,24 +450,24 @@ var downlinkNASTransportIEs = []ieSpec[DownlinkNASTransport]{
 			return &m.NASPDU, true
 		},
 	},
-	optionalExtension(IDMobilityRestrictionList, CriticalityIgnore, func(m *DownlinkNASTransport) **MobilityRestrictionList { return &m.MobilityRestrictionList }),
-	optionalExtension(IDIndexToRFSP, CriticalityIgnore, func(m *DownlinkNASTransport) **IndexToRFSP { return &m.IndexToRFSP }),
-	optionalExtension(IDUEAggregateMaximumBitRate, CriticalityIgnore, func(m *DownlinkNASTransport) **UEAggregateMaximumBitRate { return &m.UEAggregateMaximumBitRate }),
-	listExtension(IDAllowedNSSAI, CriticalityReject, func(m *DownlinkNASTransport) *AllowedNSSAI { return &m.AllowedNSSAI }),
-	optionalExtension(IDSRVCCOperationPossible, CriticalityIgnore, func(m *DownlinkNASTransport) **SRVCCOperationPossible { return &m.SRVCCOperationPossible }),
-	optionalExtension(IDEnhancedCoverageRestriction, CriticalityIgnore, func(m *DownlinkNASTransport) **EnhancedCoverageRestriction { return &m.EnhancedCoverageRestriction }),
-	optionalExtension(IDExtendedConnectedTime, CriticalityIgnore, func(m *DownlinkNASTransport) **ExtendedConnectedTime { return &m.ExtendedConnectedTime }),
-	optionalExtension(IDUEDifferentiationInfo, CriticalityIgnore, func(m *DownlinkNASTransport) **UEDifferentiationInfo { return &m.UEDifferentiationInfo }),
-	optionalExtension(IDCEmodeBrestricted, CriticalityIgnore, func(m *DownlinkNASTransport) **CEmodeBrestricted { return &m.CEmodeBrestricted }),
-	listExtension(IDUERadioCapability, CriticalityIgnore, func(m *DownlinkNASTransport) *UERadioCapability { return &m.UERadioCapability }),
-	optionalExtension(IDUECapabilityInfoRequest, CriticalityIgnore, func(m *DownlinkNASTransport) **UECapabilityInfoRequest { return &m.UECapabilityInfoRequest }),
-	optionalExtension(IDEndIndication, CriticalityIgnore, func(m *DownlinkNASTransport) **EndIndication { return &m.EndIndication }),
-	optionalExtension(IDUERadioCapabilityID, CriticalityReject, func(m *DownlinkNASTransport) **UERadioCapabilityID { return &m.UERadioCapabilityID }),
-	optionalExtension(IDTargetNSSAIInformation, CriticalityIgnore, func(m *DownlinkNASTransport) **TargetNSSAIInformation { return &m.TargetNSSAIInformation }),
-	optionalExtension(IDMaskedIMEISV, CriticalityIgnore, func(m *DownlinkNASTransport) **MaskedIMEISV { return &m.MaskedIMEISV }),
-	listExtension(IDPartiallyAllowedNSSAI, CriticalityIgnore, func(m *DownlinkNASTransport) *PartiallyAllowedNSSAI { return &m.PartiallyAllowedNSSAI }),
-	optionalExtension(IDMobileIABAuthorized, CriticalityIgnore, func(m *DownlinkNASTransport) **MobileIABAuthorized { return &m.MobileIABAuthorized }),
-	optionalExtension(IDExtendedOldAMF, CriticalityIgnore, func(m *DownlinkNASTransport) **ExtendedAMFName { return &m.ExtendedOldAMF }),
+	apimpl.OptionalIE(IDMobilityRestrictionList, CriticalityIgnore, func(m *DownlinkNASTransport) **MobilityRestrictionList { return &m.MobilityRestrictionList }),
+	apimpl.OptionalIE(IDIndexToRFSP, CriticalityIgnore, func(m *DownlinkNASTransport) **IndexToRFSP { return &m.IndexToRFSP }),
+	apimpl.OptionalIE(IDUEAggregateMaximumBitRate, CriticalityIgnore, func(m *DownlinkNASTransport) **UEAggregateMaximumBitRate { return &m.UEAggregateMaximumBitRate }),
+	apimpl.ListIE(IDAllowedNSSAI, CriticalityReject, func(m *DownlinkNASTransport) *AllowedNSSAI { return &m.AllowedNSSAI }),
+	apimpl.OptionalIE(IDSRVCCOperationPossible, CriticalityIgnore, func(m *DownlinkNASTransport) **SRVCCOperationPossible { return &m.SRVCCOperationPossible }),
+	apimpl.OptionalIE(IDEnhancedCoverageRestriction, CriticalityIgnore, func(m *DownlinkNASTransport) **EnhancedCoverageRestriction { return &m.EnhancedCoverageRestriction }),
+	apimpl.OptionalIE(IDExtendedConnectedTime, CriticalityIgnore, func(m *DownlinkNASTransport) **ExtendedConnectedTime { return &m.ExtendedConnectedTime }),
+	apimpl.OptionalIE(IDUEDifferentiationInfo, CriticalityIgnore, func(m *DownlinkNASTransport) **UEDifferentiationInfo { return &m.UEDifferentiationInfo }),
+	apimpl.OptionalIE(IDCEmodeBrestricted, CriticalityIgnore, func(m *DownlinkNASTransport) **CEmodeBrestricted { return &m.CEmodeBrestricted }),
+	apimpl.ListIE(IDUERadioCapability, CriticalityIgnore, func(m *DownlinkNASTransport) *UERadioCapability { return &m.UERadioCapability }),
+	apimpl.OptionalIE(IDUECapabilityInfoRequest, CriticalityIgnore, func(m *DownlinkNASTransport) **UECapabilityInfoRequest { return &m.UECapabilityInfoRequest }),
+	apimpl.OptionalIE(IDEndIndication, CriticalityIgnore, func(m *DownlinkNASTransport) **EndIndication { return &m.EndIndication }),
+	apimpl.OptionalIE(IDUERadioCapabilityID, CriticalityReject, func(m *DownlinkNASTransport) **UERadioCapabilityID { return &m.UERadioCapabilityID }),
+	apimpl.OptionalIE(IDTargetNSSAIInformation, CriticalityIgnore, func(m *DownlinkNASTransport) **TargetNSSAIInformation { return &m.TargetNSSAIInformation }),
+	apimpl.OptionalIE(IDMaskedIMEISV, CriticalityIgnore, func(m *DownlinkNASTransport) **MaskedIMEISV { return &m.MaskedIMEISV }),
+	apimpl.ListIE(IDPartiallyAllowedNSSAI, CriticalityIgnore, func(m *DownlinkNASTransport) *PartiallyAllowedNSSAI { return &m.PartiallyAllowedNSSAI }),
+	apimpl.OptionalIE(IDMobileIABAuthorized, CriticalityIgnore, func(m *DownlinkNASTransport) **MobileIABAuthorized { return &m.MobileIABAuthorized }),
+	apimpl.OptionalIE(IDExtendedOldAMF, CriticalityIgnore, func(m *DownlinkNASTransport) **ExtendedAMFName { return &m.ExtendedOldAMF }),
 }
 
 func (m *DownlinkNASTransport) encodeBody(w *per.Writer, enc per.Encoding) error {

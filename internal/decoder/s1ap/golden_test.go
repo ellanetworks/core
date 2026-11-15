@@ -181,7 +181,7 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		ToBeModified: []s1ap.ERABToBeModifiedItemBearerModInd{
 			{ERABID: 5, TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 45, 0, 1}), DLGTPTEID: 0x21},
 		},
-		NotToBeModified: []s1ap.ERABToBeModifiedItemBearerModInd{
+		NotToBeModified: s1ap.ERABNotToBeModifiedListBearerModInd{
 			{ERABID: 6, TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 45, 0, 2}), DLGTPTEID: 0x22},
 		},
 		UserLocationInformation: &s1ap.UserLocationInformation{EUTRANCGI: testCGI, TAI: testTAI},
@@ -464,6 +464,10 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 
 	addPWSOverloadCorpus(t, corpus)
 
+	for name, b := range extensionIEsCorpus(t) {
+		corpus[name] = b
+	}
+
 	return corpus
 }
 
@@ -536,7 +540,7 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			s1ap.ProcDownlinkNonUEAssociatedLPPaTransport, s1ap.ProcUplinkNonUEAssociatedLPPaTransport,
 			s1ap.ProcWriteReplaceWarning, s1ap.ProcKill, s1ap.ProcPWSRestartIndication,
 			s1ap.ProcPWSFailureIndication, s1ap.ProcOverloadStart, s1ap.ProcOverloadStop,
-			s1ap.ProcRerouteNASRequest,
+			s1ap.ProcRerouteNASRequest, s1ap.ProcS1Removal,
 		},
 		"SuccessfulOutcome": {
 			s1ap.ProcS1Setup, s1ap.ProcInitialContextSetup, s1ap.ProcUEContextRelease, s1ap.ProcUEContextModification,
@@ -545,12 +549,12 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			s1ap.ProcReset, s1ap.ProcPathSwitchRequest,
 			s1ap.ProcERABModify, s1ap.ProcERABModificationIndication,
 			s1ap.ProcENBConfigurationUpdate,
-			s1ap.ProcWriteReplaceWarning, s1ap.ProcKill,
+			s1ap.ProcWriteReplaceWarning, s1ap.ProcKill, s1ap.ProcS1Removal,
 		},
 		"UnsuccessfulOutcome": {
 			s1ap.ProcS1Setup, s1ap.ProcInitialContextSetup, s1ap.ProcUEContextModification,
 			s1ap.ProcHandoverPreparation, s1ap.ProcHandoverResourceAllocation,
-			s1ap.ProcPathSwitchRequest, s1ap.ProcENBConfigurationUpdate,
+			s1ap.ProcPathSwitchRequest, s1ap.ProcENBConfigurationUpdate, s1ap.ProcS1Removal,
 		},
 	}
 

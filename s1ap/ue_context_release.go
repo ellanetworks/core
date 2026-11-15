@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // UE-S1AP-IDs ::= CHOICE { uE-S1AP-ID-pair, mME-UE-S1AP-ID, ... }. The MME
@@ -113,10 +114,14 @@ func DecodeUEContextReleaseCommand(value []byte) (*UEContextReleaseCommand, erro
 
 // TS 36.413 §9.1.4.7.
 type UEContextReleaseComplete struct {
-	MMEUES1APID             *MMEUES1APID
-	ENBUES1APID             *ENBUES1APID
-	CriticalityDiagnostics  *CriticalityDiagnostics
-	UserLocationInformation *UserLocationInformation
+	MMEUES1APID                                   *MMEUES1APID
+	ENBUES1APID                                   *ENBUES1APID
+	CriticalityDiagnostics                        *CriticalityDiagnostics
+	UserLocationInformation                       *UserLocationInformation
+	InformationOnRecommendedCellsAndENBsForPaging *InformationOnRecommendedCellsAndENBsForPaging
+	CellIdentifierAndCELevelForCECapableUEs       *CellIdentifierAndCELevelForCECapableUEs
+	SecondaryRATDataUsageReportList               SecondaryRATDataUsageReportList
+	TimeSinceSecondaryNodeRelease                 *TimeSinceSecondaryNodeRelease
 
 	messageMeta
 }
@@ -206,6 +211,18 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 			return m.UserLocationInformation, true
 		},
 	},
+	apimpl.OptionalIE(IDInformationOnRecommendedCellsAndENBsForPaging, CriticalityIgnore, func(m *UEContextReleaseComplete) **InformationOnRecommendedCellsAndENBsForPaging {
+		return &m.InformationOnRecommendedCellsAndENBsForPaging
+	}),
+	apimpl.OptionalIE(IDCellIdentifierAndCELevelForCECapableUEs, CriticalityIgnore, func(m *UEContextReleaseComplete) **CellIdentifierAndCELevelForCECapableUEs {
+		return &m.CellIdentifierAndCELevelForCECapableUEs
+	}),
+	apimpl.ListIE(IDSecondaryRATDataUsageReportList, CriticalityIgnore, func(m *UEContextReleaseComplete) *SecondaryRATDataUsageReportList {
+		return &m.SecondaryRATDataUsageReportList
+	}),
+	apimpl.OptionalIE(IDTimeSinceSecondaryNodeRelease, CriticalityIgnore, func(m *UEContextReleaseComplete) **TimeSinceSecondaryNodeRelease {
+		return &m.TimeSinceSecondaryNodeRelease
+	}),
 }
 
 func (m *UEContextReleaseComplete) encodeBody(w *per.Writer, enc per.Encoding) error {
@@ -238,10 +255,11 @@ func DecodeUEContextReleaseComplete(value []byte) (*UEContextReleaseComplete, er
 
 // TS 36.413 §9.1.4.5.
 type UEContextReleaseRequest struct {
-	MMEUES1APID                MMEUES1APID
-	ENBUES1APID                ENBUES1APID
-	Cause                      *Cause
-	GWContextReleaseIndication *GWContextReleaseIndication
+	MMEUES1APID                     MMEUES1APID
+	ENBUES1APID                     ENBUES1APID
+	Cause                           *Cause
+	GWContextReleaseIndication      *GWContextReleaseIndication
+	SecondaryRATDataUsageReportList SecondaryRATDataUsageReportList
 
 	messageMeta
 }
@@ -303,6 +321,9 @@ var uEContextReleaseRequestIEs = []ieSpec[UEContextReleaseRequest]{
 			return m.GWContextReleaseIndication, true
 		},
 	},
+	apimpl.ListIE(IDSecondaryRATDataUsageReportList, CriticalityIgnore, func(m *UEContextReleaseRequest) *SecondaryRATDataUsageReportList {
+		return &m.SecondaryRATDataUsageReportList
+	}),
 }
 
 func (m *UEContextReleaseRequest) encodeBody(w *per.Writer, enc per.Encoding) error {

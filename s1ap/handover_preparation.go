@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 36.413 §9.1.5.1.
@@ -21,7 +22,14 @@ type HandoverRequired struct {
 	// root value and carries "not available" as the IE's absence.
 	DirectForwardingPathAvailability *DirectForwardingPathAvailability
 
-	SourceToTarget TransparentContainer
+	SourceToTarget                              TransparentContainer
+	SRVCCHOIndication                           *SRVCCHOIndication
+	SourceToTargetTransparentContainerSecondary *TransparentContainer
+	MSClassmark2                                *MSClassmark2
+	MSClassmark3                                *MSClassmark3
+	CSGId                                       *CSGId
+	CellAccessMode                              *CellAccessMode
+	PSServiceNotAvailable                       *PSServiceNotAvailable
 
 	messageMeta
 }
@@ -97,6 +105,7 @@ var handoverRequiredIEs = []ieSpec[HandoverRequired]{
 			return m.DirectForwardingPathAvailability, true
 		},
 	},
+	apimpl.OptionalIE(IDSRVCCHOIndication, CriticalityReject, func(m *HandoverRequired) **SRVCCHOIndication { return &m.SRVCCHOIndication }),
 	{
 		ID: IDSourceToTargetTransparentContainer, Presence: presenceMandatory, Criticality: CriticalityReject,
 		Decode: func(m *HandoverRequired, r *per.Reader, enc per.Encoding) error {
@@ -110,6 +119,14 @@ var handoverRequiredIEs = []ieSpec[HandoverRequired]{
 			return &m.SourceToTarget, true
 		},
 	},
+	apimpl.OptionalIE(IDSourceToTargetTransparentContainerSecondary, CriticalityReject, func(m *HandoverRequired) **TransparentContainer {
+		return &m.SourceToTargetTransparentContainerSecondary
+	}),
+	apimpl.ConditionalIE(IDMSClassmark2, CriticalityReject, handoverRequiredSRVCCToGERAN, func(m *HandoverRequired) **MSClassmark2 { return &m.MSClassmark2 }),
+	apimpl.ConditionalIE(IDMSClassmark3, CriticalityIgnore, handoverRequiredSRVCCToGERAN, func(m *HandoverRequired) **MSClassmark3 { return &m.MSClassmark3 }),
+	apimpl.OptionalIE(IDCSGId, CriticalityReject, func(m *HandoverRequired) **CSGId { return &m.CSGId }),
+	apimpl.OptionalIE(IDCellAccessMode, CriticalityReject, func(m *HandoverRequired) **CellAccessMode { return &m.CellAccessMode }),
+	apimpl.OptionalIE(IDPSServiceNotAvailable, CriticalityIgnore, func(m *HandoverRequired) **PSServiceNotAvailable { return &m.PSServiceNotAvailable }),
 }
 
 func (m *HandoverRequired) encodeBody(w *per.Writer, enc per.Encoding) error {
@@ -142,16 +159,17 @@ func DecodeHandoverRequired(value []byte) (*HandoverRequired, error) {
 
 // TS 36.413 §9.1.5.2. The MME tells the source eNB that the target has
 // resources ready. TS 38.413 §9.2.3.2 carries the same shape; S1AP alone has a
-// second target container for SRVCC, which is not modelled.
+// second target container for SRVCC.
 type HandoverCommand struct {
-	MMEUES1APID                     MMEUES1APID
-	ENBUES1APID                     ENBUES1APID
-	HandoverType                    HandoverType
-	NASSecurityParametersfromEUTRAN NASSecurityParametersfromEUTRAN
-	ERABSubjecttoDataForwarding     ERABSubjecttoDataForwardingList
-	ERABToRelease                   []ERABItem
-	TargetToSource                  TransparentContainer
-	CriticalityDiagnostics          *CriticalityDiagnostics
+	MMEUES1APID                                 MMEUES1APID
+	ENBUES1APID                                 ENBUES1APID
+	HandoverType                                HandoverType
+	NASSecurityParametersfromEUTRAN             NASSecurityParametersfromEUTRAN
+	ERABSubjecttoDataForwarding                 ERABSubjecttoDataForwardingList
+	ERABToRelease                               []ERABItem
+	TargetToSource                              TransparentContainer
+	CriticalityDiagnostics                      *CriticalityDiagnostics
+	TargetToSourceTransparentContainerSecondary *TransparentContainer
 
 	messageMeta
 }
@@ -212,7 +230,7 @@ var handoverCommandIEs = []ieSpec[HandoverCommand]{
 				return nil, false
 			}
 
-			return containerList(maxnoofERABs, IDERABDataForwardingItem, CriticalityIgnore, m.ERABSubjecttoDataForwarding), true
+			return containerList(maxnoofERABs, IDERABDataForwardingItem, CriticalityIgnore, &m.ERABSubjecttoDataForwarding), true
 		},
 	},
 	{
@@ -229,7 +247,7 @@ var handoverCommandIEs = []ieSpec[HandoverCommand]{
 				return nil, false
 			}
 
-			return containerList(maxnoofERABs, IDERABItem, CriticalityIgnore, m.ERABToRelease), true
+			return containerList(maxnoofERABs, IDERABItem, CriticalityIgnore, &m.ERABToRelease), true
 		},
 	},
 	{
@@ -245,6 +263,7 @@ var handoverCommandIEs = []ieSpec[HandoverCommand]{
 			return &m.TargetToSource, true
 		},
 	},
+	apimpl.OptionalIE(IDTargetToSourceTransparentContainerSecondary, CriticalityReject, func(m *HandoverCommand) **TransparentContainer { return &m.TargetToSourceTransparentContainerSecondary }),
 	{
 		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *HandoverCommand, r *per.Reader, enc per.Encoding) error {
@@ -419,4 +438,8 @@ func ParseHandoverPreparationFailure(value []byte) (*HandoverPreparationFailure,
 
 func DecodeHandoverPreparationFailure(value []byte) (*HandoverPreparationFailure, error) {
 	return decodeMessageBody[HandoverPreparationFailure](ProcHandoverPreparation, handoverPreparationFailureIEs, value)
+}
+
+func handoverRequiredSRVCCToGERAN(m *HandoverRequired) bool {
+	return m.HandoverType == HandoverTypeLTEtoGERAN && m.SRVCCHOIndication != nil
 }

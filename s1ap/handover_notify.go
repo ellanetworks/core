@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 36.413 §9.1.5.7.
@@ -14,6 +15,10 @@ type HandoverNotify struct {
 	EUTRANCGI               *EUTRANCGI
 	TAI                     *TAI
 	TunnelInformationForBBF *TunnelInformation
+	LHNID                   *LHNID
+	PSCellInformation       *PSCellInformation
+	NotifySourceeNB         *NotifySourceeNB
+	LTENTNTAIInformation    *LTENTNTAIInformation
 
 	messageMeta
 }
@@ -82,6 +87,10 @@ var handoverNotifyIEs = []ieSpec[HandoverNotify]{
 		},
 		Encode: func(m *HandoverNotify) (per.Marshaler, bool) { return optionalIE(m.TunnelInformationForBBF) },
 	},
+	apimpl.OptionalIE(IDLHNID, CriticalityIgnore, func(m *HandoverNotify) **LHNID { return &m.LHNID }),
+	apimpl.OptionalIE(IDPSCellInformation, CriticalityIgnore, func(m *HandoverNotify) **PSCellInformation { return &m.PSCellInformation }),
+	apimpl.OptionalIE(IDNotifySourceeNB, CriticalityIgnore, func(m *HandoverNotify) **NotifySourceeNB { return &m.NotifySourceeNB }),
+	apimpl.OptionalIE(IDLTENTNTAIInformation, CriticalityIgnore, func(m *HandoverNotify) **LTENTNTAIInformation { return &m.LTENTNTAIInformation }),
 }
 
 func (m *HandoverNotify) encodeBody(w *per.Writer, enc per.Encoding) error {

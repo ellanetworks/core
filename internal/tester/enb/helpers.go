@@ -29,12 +29,7 @@ func ngENBNodeID(mcc, mnc, enbID string) (ngap.GlobalRANNodeID, error) {
 		v = v<<8 | uint64(o)
 	}
 
-	return ngap.GlobalRANNodeID{
-		Kind:         ngap.RANNodeIDMacroNgENB,
-		PLMNIdentity: plmn,
-		Value:        uint32(v >> uint(8*len(b)-ngENBIDBits)),
-		Bits:         ngENBIDBits,
-	}, nil
+	return ngap.NewGlobalNgENBID(plmn, ngap.NgENBID{MacroNgENBID: new(ngap.MacroNgENBID(uint32(v >> uint(8*len(b)-ngENBIDBits))))}), nil
 }
 
 // userLocation builds the User Location Information this simulator reports: the
@@ -72,10 +67,5 @@ func userLocation(mcc, mnc, selMcc, selMnc, enbID, tac string) (ngap.UserLocatio
 		return ngap.UserLocationInformation{}, fmt.Errorf("could not build E-UTRA cell identity: %w", err)
 	}
 
-	return ngap.UserLocationInformation{
-		Kind:         ngap.UserLocationEUTRA,
-		PLMNIdentity: plmn,
-		CellIdentity: cellID,
-		TAI:          ngap.TAI{PLMNIdentity: selected, TAC: tacValue},
-	}, nil
+	return ngap.UserLocationInformation{EUTRA: &ngap.UserLocationInformationEUTRA{EUTRACGI: ngap.EUTRACGI{PLMNIdentity: plmn, EUTRACellIdentity: ngap.EUTRACellIdentity(cellID)}, TAI: ngap.TAI{PLMNIdentity: selected, TAC: tacValue}}}, nil
 }

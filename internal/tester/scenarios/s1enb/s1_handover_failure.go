@@ -171,7 +171,7 @@ func runS1HandoverCancel(_ context.Context, env scenarios.Env, _ any) error {
 		return err
 	}
 
-	targetENBUEID := pair.Target.AllocateENBUEID()
+	targetENBUEID := pair.Target.AllocateENBUEIDFor(pair.UE)
 
 	if _, _, err := pair.Target.SendHandoverRequestAcknowledge(targetENBUEID, int64(req.MMEUES1APID), pair.Attached.ERABID, false); err != nil {
 		return fmt.Errorf("admit the handover at the target eNB: %w", err)

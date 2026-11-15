@@ -160,10 +160,11 @@ type ERABSetupItemCtxtSURes struct {
 
 // ERABItem ::= SEQUENCE { e-RAB-ID, cause, iE-Extensions OPTIONAL } (extensible).
 type ERABItem struct {
-	extensions   per.ExtensionAdditions `per:",extraw"`
-	ERABID       ERABID
-	Cause        Cause
-	iEExtensions extensionMeta `per:",exttable"`
+	extensions    per.ExtensionAdditions `per:",extraw"`
+	ERABID        ERABID
+	Cause         Cause
+	iEExtensions  extensionMeta `per:",exttable"`
+	containerCrit `per:"-"`
 }
 
 type BearerType uint8

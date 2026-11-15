@@ -126,5 +126,10 @@ func buildUEContextReleaseComplete(value []byte) NGAPMessageValue {
 			criticalityDiagnostics(*m.CriticalityDiagnostics)))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDInfoOnRecommendedCellsAndRANNodesForPaging, ngap.CriticalityIgnore, m.InfoOnRecommendedCellsAndRANNodesForPaging},
+		{ngap.IDPagingAssisDataforCEcapabUE, ngap.CriticalityIgnore, m.PagingAssisDataforCEcapabUE},
+	})
+
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }

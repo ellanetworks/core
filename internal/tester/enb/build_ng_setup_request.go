@@ -62,7 +62,9 @@ func BuildNGSetupRequest(opts *NGSetupRequestOpts) ([]byte, error) {
 		return nil, err
 	}
 
-	bplmns, err := gnb.BuildBroadcastPLMNList(node.PLMNIdentity, ngap.SliceSupportList{{SNSSAI: snssai}}, opts.AdditionalPLMNs)
+	nodePLMN, _ := node.PLMNIdentity()
+
+	bplmns, err := gnb.BuildBroadcastPLMNList(nodePLMN, ngap.SliceSupportList{{SNSSAI: snssai}}, opts.AdditionalPLMNs)
 	if err != nil {
 		return nil, err
 	}

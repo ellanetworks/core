@@ -5,6 +5,7 @@ package ngap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // PDUSessionResourceSetupItemSUReq ::= SEQUENCE { pDUSessionID,
@@ -121,7 +122,7 @@ var pDUSessionResourceSetupRequestIEs = []ieSpec[PDUSessionResourceSetupRequest]
 		},
 		Encode: func(m *PDUSessionResourceSetupRequest) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
-	optionalExtension(IDRANPagingPriority, CriticalityIgnore, func(m *PDUSessionResourceSetupRequest) **RANPagingPriority { return &m.RANPagingPriority }),
+	apimpl.OptionalIE(IDRANPagingPriority, CriticalityIgnore, func(m *PDUSessionResourceSetupRequest) **RANPagingPriority { return &m.RANPagingPriority }),
 	{
 		ID: IDNASPDU, Presence: presenceOptional, Criticality: CriticalityReject,
 		Decode: func(m *PDUSessionResourceSetupRequest, r *per.Reader, enc per.Encoding) error {
@@ -177,7 +178,7 @@ var pDUSessionResourceSetupRequestIEs = []ieSpec[PDUSessionResourceSetupRequest]
 			return m.UEAggregateMaximumBitRate, true
 		},
 	},
-	listExtension(IDUESliceMaximumBitRateList, CriticalityIgnore, func(m *PDUSessionResourceSetupRequest) *UESliceMaximumBitRateList {
+	apimpl.ListIE(IDUESliceMaximumBitRateList, CriticalityIgnore, func(m *PDUSessionResourceSetupRequest) *UESliceMaximumBitRateList {
 		return &m.UESliceMaximumBitRateList
 	}),
 }
@@ -526,7 +527,7 @@ var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetup
 			return m.QosFlowSetupRequest, true
 		},
 	},
-	listExtension(IDCommonNetworkInstance, CriticalityIgnore, func(m *PDUSessionResourceSetupRequestTransfer) *CommonNetworkInstance {
+	apimpl.ListIE(IDCommonNetworkInstance, CriticalityIgnore, func(m *PDUSessionResourceSetupRequestTransfer) *CommonNetworkInstance {
 		return &m.CommonNetworkInstance
 	}),
 	{
@@ -550,22 +551,22 @@ var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetup
 			return m.DirectForwardingPathAvailability, true
 		},
 	},
-	optionalExtension(IDRedundantULNGUUPTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceSetupRequestTransfer) **UPTransportLayerInformation {
+	apimpl.OptionalIE(IDRedundantULNGUUPTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceSetupRequestTransfer) **UPTransportLayerInformation {
 		return &m.RedundantULNGUUPTNLInformation
 	}),
-	listExtension(IDAdditionalRedundantULNGUUPTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceSetupRequestTransfer) *UPTransportLayerInformationList {
+	apimpl.ListIE(IDAdditionalRedundantULNGUUPTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceSetupRequestTransfer) *UPTransportLayerInformationList {
 		return &m.AdditionalRedundantULNGUUPTNLInformation
 	}),
-	listExtension(IDRedundantCommonNetworkInstance, CriticalityIgnore, func(m *PDUSessionResourceSetupRequestTransfer) *CommonNetworkInstance {
+	apimpl.ListIE(IDRedundantCommonNetworkInstance, CriticalityIgnore, func(m *PDUSessionResourceSetupRequestTransfer) *CommonNetworkInstance {
 		return &m.RedundantCommonNetworkInstance
 	}),
-	optionalExtension(IDRedundantPDUSessionInformation, CriticalityIgnore, func(m *PDUSessionResourceSetupRequestTransfer) **RedundantPDUSessionInformation {
+	apimpl.OptionalIE(IDRedundantPDUSessionInformation, CriticalityIgnore, func(m *PDUSessionResourceSetupRequestTransfer) **RedundantPDUSessionInformation {
 		return &m.RedundantPDUSessionInformation
 	}),
-	listExtension(IDMBSSessionSetupRequestList, CriticalityIgnore, func(m *PDUSessionResourceSetupRequestTransfer) *MBSSessionSetupRequestList {
+	apimpl.ListIE(IDMBSSessionSetupRequestList, CriticalityIgnore, func(m *PDUSessionResourceSetupRequestTransfer) *MBSSessionSetupRequestList {
 		return &m.MBSSessionSetupRequestList
 	}),
-	listExtension(IDDownlinkTLContainer, CriticalityIgnore, func(m *PDUSessionResourceSetupRequestTransfer) *TLContainer { return &m.DownlinkTLContainer }),
+	apimpl.ListIE(IDDownlinkTLContainer, CriticalityIgnore, func(m *PDUSessionResourceSetupRequestTransfer) *TLContainer { return &m.DownlinkTLContainer }),
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.

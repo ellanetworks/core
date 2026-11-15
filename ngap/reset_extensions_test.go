@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 type handItem struct {
@@ -93,8 +93,8 @@ func handNGReset(t *testing.T, items []handItem) []byte {
 	body := per.NewWriter()
 	body.WriteBit(false)
 	mustNil(t, encodeIEContainer(body, per.Aligned, []ieField{
-		{ID: IDCause, Criticality: CriticalityIgnore, Value: ap.RawValue(cause)},
-		{ID: IDResetType, Criticality: CriticalityReject, Value: ap.RawValue(rt.Bytes())},
+		{ID: IDCause, Criticality: CriticalityIgnore, Value: apimpl.RawValue(cause)},
+		{ID: IDResetType, Criticality: CriticalityReject, Value: apimpl.RawValue(rt.Bytes())},
 	}))
 
 	b, err := Marshal(&InitiatingMessage{ProcedureCode: ProcNGReset, Criticality: CriticalityReject, Value: body.Bytes()})
@@ -112,7 +112,7 @@ func handNGResetAck(t *testing.T, items []handItem) []byte {
 	body := per.NewWriter()
 	body.WriteBit(false)
 	mustNil(t, encodeIEContainer(body, per.Aligned, []ieField{
-		{ID: IDUEAssociatedLogicalNGConnectionList, Criticality: CriticalityIgnore, Value: ap.RawValue(list.Bytes())},
+		{ID: IDUEAssociatedLogicalNGConnectionList, Criticality: CriticalityIgnore, Value: apimpl.RawValue(list.Bytes())},
 	}))
 
 	b, err := Marshal(&SuccessfulOutcome{ProcedureCode: ProcNGReset, Criticality: CriticalityReject, Value: body.Bytes()})

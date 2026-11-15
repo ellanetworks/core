@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // A real INITIAL CONTEXT SETUP RESPONSE: MME-UE-S1AP-ID 0x020000bf,
@@ -120,7 +120,7 @@ func TestInitialContextSetupRoundTrips(t *testing.T) {
 		}
 
 		if out.MMEUES1APID != in.MMEUES1APID || out.ENBUES1APID != in.ENBUES1APID ||
-			out.UEAggregateMaximumBitRate != in.UEAggregateMaximumBitRate ||
+			!out.UEAggregateMaximumBitRate.Equal(in.UEAggregateMaximumBitRate) ||
 			out.UESecurityCapabilities != in.UESecurityCapabilities || out.SecurityKey != in.SecurityKey ||
 			!bytes.Equal(out.UERadioCapability, in.UERadioCapability) || len(out.ERABToBeSetup) != 1 {
 			t.Fatalf("scalar mismatch:\n  in  %+v\n  out %+v", in, out)
@@ -192,11 +192,11 @@ func TestInitialContextSetupRoundTrips(t *testing.T) {
 // MME cannot set up a context without them.
 func TestInitialContextSetupRequestMissingRejectIE(t *testing.T) {
 	partial := container(t,
-		ieField{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(MMEUES1APID(1))))},
-		ieField{ID: IDENBUES1APID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(ENBUES1APID(2))))},
-		ieField{ID: IDUEAggregateMaximumBitrate, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, &UEAggregateMaximumBitRate{}))},
-		ieField{ID: IDUESecurityCapabilities, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, &UESecurityCapabilities{}))},
-		ieField{ID: IDSecurityKey, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(SecurityKey{})))},
+		ieField{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(MMEUES1APID(1))))},
+		ieField{ID: IDENBUES1APID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(ENBUES1APID(2))))},
+		ieField{ID: IDUEAggregateMaximumBitrate, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, &UEAggregateMaximumBitRate{}))},
+		ieField{ID: IDUESecurityCapabilities, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, &UESecurityCapabilities{}))},
+		ieField{ID: IDSecurityKey, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(SecurityKey{})))},
 	)
 
 	// Without the E-RAB list the request is incomplete: it is mandatory and

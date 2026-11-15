@@ -119,6 +119,23 @@ func buildInitialUEMessage(value []byte) NGAPMessageValue {
 		ies = append(ies, ie(ngap.IDRequestedNSSAI, ngap.CriticalityIgnore, slices))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDSourceToTargetAMFInformationReroute, ngap.CriticalityIgnore, m.SourceToTargetAMFInformationReroute},
+		{ngap.IDSelectedPLMNIdentity, ngap.CriticalityIgnore, m.SelectedPLMNIdentity},
+		{ngap.IDIABNodeIndication, ngap.CriticalityReject, m.IABNodeIndication},
+		{ngap.IDCEmodeBSupportIndicator, ngap.CriticalityReject, m.CEmodeBSupportIndicator},
+		{ngap.IDLTEMIndication, ngap.CriticalityIgnore, m.LTEMIndication},
+		{ngap.IDEDTSession, ngap.CriticalityIgnore, m.EDTSession},
+		{ngap.IDAuthenticatedIndication, ngap.CriticalityIgnore, m.AuthenticatedIndication},
+		{ngap.IDNPNAccessInformation, ngap.CriticalityReject, m.NPNAccessInformation},
+		{ngap.IDRedCapIndication, ngap.CriticalityIgnore, m.RedCapIndication},
+		{ngap.IDSelectedNID, ngap.CriticalityIgnore, m.SelectedNID},
+		{ngap.IDMobileIABNodeIndication, ngap.CriticalityReject, m.MobileIABNodeIndication},
+		{ngap.IDPartiallyAllowedNSSAI, ngap.CriticalityIgnore, m.PartiallyAllowedNSSAI},
+		{ngap.IDERedCapIndication, ngap.CriticalityIgnore, m.ERedCapIndication},
+		{ngap.IDAUN3DeviceAccessInfo, ngap.CriticalityIgnore, m.AUN3DeviceAccessInfo},
+	})
+
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }
 

@@ -4,99 +4,31 @@
 package s1ap
 
 import (
+	"reflect"
+	"slices"
 	"testing"
 )
 
-// TestTableOrderMatchesASN1 pins the IEs each table models to their relative
-// order in the message's S1AP-PROTOCOL-IES container (TS 36.413 §9.3.3), which
-// is the order encode emits them in. IEs a table does not model are not pinned.
 func TestTableOrderMatchesASN1(t *testing.T) {
-	tests := []struct {
-		name string
-		got  []ProtocolIEID
-		want []ProtocolIEID
-	}{
-		{"ENBConfigurationTransfer", tableIDs(eNBConfigurationTransferIEs), []ProtocolIEID{IDSONConfigurationTransferECT}},
-		{"MMEConfigurationTransfer", tableIDs(mMEConfigurationTransferIEs), []ProtocolIEID{IDSONConfigurationTransferMCT}},
-		{"ENBConfigurationUpdate", tableIDs(eNBConfigurationUpdateIEs), []ProtocolIEID{IDENBname, IDSupportedTAs, IDDefaultPagingDRX}},
-		{"ENBConfigurationUpdateAcknowledge", tableIDs(eNBConfigurationUpdateAcknowledgeIEs), []ProtocolIEID{IDCriticalityDiagnostics}},
-		{"ENBConfigurationUpdateFailure", tableIDs(eNBConfigurationUpdateFailureIEs), []ProtocolIEID{IDCause, IDTimeToWait, IDCriticalityDiagnostics}},
-		{"MMEConfigurationUpdate", tableIDs(mMEConfigurationUpdateIEs), []ProtocolIEID{IDMMEname, IDServedGUMMEIs, IDRelativeMMECapacity}},
-		{"MMEConfigurationUpdateAcknowledge", tableIDs(mMEConfigurationUpdateAcknowledgeIEs), []ProtocolIEID{IDCriticalityDiagnostics}},
-		{"MMEConfigurationUpdateFailure", tableIDs(mMEConfigurationUpdateFailureIEs), []ProtocolIEID{IDCause, IDTimeToWait, IDCriticalityDiagnostics}},
-		{"ERABModificationConfirm", tableIDs(erabModificationConfirmIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDERABModifyListBearerModConf, IDERABFailedToModifyListBearerModConf, IDERABToBeReleasedListBearerModConf, IDCriticalityDiagnostics}},
-		{"ERABModificationIndication", tableIDs(eRABModificationIndicationIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDERABToBeModifiedListBearerModInd, IDERABNotToBeModifiedListBearerModInd, IDTunnelInformationForBBF, IDUserLocationInformation}},
-		{"ERABModifyRequest", tableIDs(eRABModifyRequestIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDUEAggregateMaximumBitrate, IDERABToBeModifiedListBearerModReq}},
-		{"ERABModifyResponse", tableIDs(eRABModifyResponseIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDERABModifyListBearerModRes, IDERABFailedToModifyList, IDCriticalityDiagnostics, IDUserLocationInformation}},
-		{"ERABReleaseCommand", tableIDs(eRABReleaseCommandIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDUEAggregateMaximumBitrate, IDERABToBeReleasedList, IDNASPDU}},
-		{"ERABReleaseIndication", tableIDs(eRABReleaseIndicationIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDERABReleasedList, IDUserLocationInformation}},
-		{"ERABReleaseResponse", tableIDs(eRABReleaseResponseIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDERABReleaseListBearerRelComp, IDERABFailedToReleaseList, IDCriticalityDiagnostics, IDUserLocationInformation}},
-		{"ERABSetupRequest", tableIDs(eRABSetupRequestIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDUEAggregateMaximumBitrate, IDERABToBeSetupListBearerSUReq}},
-		{"ERABSetupResponse", tableIDs(eRABSetupResponseIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDERABSetupListBearerSURes, IDERABFailedToSetupListBearerSURes, IDCriticalityDiagnostics, IDUserLocationInformation}},
-		{"ErrorIndication", tableIDs(errorIndicationIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDCause, IDCriticalityDiagnostics, IDSTMSI}},
-		{"TraceStart", tableIDs(traceStartIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDTraceActivation}},
-		{"TraceFailureIndication", tableIDs(traceFailureIndicationIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDEUTRANTraceID, IDCause}},
-		{"HandoverCancel", tableIDs(handoverCancelIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDCause}},
-		{"HandoverCancelAcknowledge", tableIDs(handoverCancelAcknowledgeIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDCriticalityDiagnostics}},
-		{"HandoverNotify", tableIDs(handoverNotifyIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDEUTRANCGI, IDTAI, IDTunnelInformationForBBF}},
-		{"HandoverRequired", tableIDs(handoverRequiredIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDHandoverType, IDCause, IDTargetID, IDDirectForwardingPathAvailability, IDSourceToTargetTransparentContainer}},
-		{"HandoverCommand", tableIDs(handoverCommandIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDHandoverType, IDNASSecurityParametersfromEUTRAN, IDERABSubjecttoDataForwardingList, IDERABtoReleaseListHOCmd, IDTargetToSourceTransparentContainer, IDCriticalityDiagnostics}},
-		{"HandoverPreparationFailure", tableIDs(handoverPreparationFailureIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDCause, IDCriticalityDiagnostics}},
-		{"HandoverRequest", tableIDs(handoverRequestIEs), []ProtocolIEID{IDMMEUES1APID, IDHandoverType, IDCause, IDUEAggregateMaximumBitrate, IDERABToBeSetupListHOReq, IDSourceToTargetTransparentContainer, IDUESecurityCapabilities, IDHandoverRestrictionList, IDTraceActivation, IDSecurityContext, IDNASSecurityParameterstoEUTRAN, IDGUMMEI, IDMMEUES1APID2, IDTimeRefDistribution}},
-		{"HandoverRequestAcknowledge", tableIDs(handoverRequestAcknowledgeIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDERABAdmittedList, IDERABFailedToSetupListHOReqAck, IDTargetToSourceTransparentContainer, IDCriticalityDiagnostics}},
-		{"HandoverFailure", tableIDs(handoverFailureIEs), []ProtocolIEID{IDMMEUES1APID, IDCause, IDCriticalityDiagnostics}},
-		{"InitialContextSetupRequest", tableIDs(initialContextSetupRequestIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDUEAggregateMaximumBitrate, IDERABToBeSetupListCtxtSUReq, IDUESecurityCapabilities, IDSecurityKey, IDUERadioCapability, IDGUMMEI, IDMMEUES1APID2, IDCoarseUELocation, IDTimeRefDistribution}},
-		{"InitialContextSetupResponse", tableIDs(initialContextSetupResponseIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDERABSetupListCtxtSURes, IDERABFailedToSetupListCtxtSURes, IDCriticalityDiagnostics}},
-		{"InitialContextSetupFailure", tableIDs(initialContextSetupFailureIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDCause, IDCriticalityDiagnostics}},
-		{"LocationReport", tableIDs(locationReportIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDEUTRANCGI, IDTAI, IDRequestType}},
-		{"NASNonDeliveryIndication", tableIDs(nASNonDeliveryIndicationIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDNASPDU, IDCause}},
-		{"InitialUEMessage", tableIDs(initialUEMessageIEs), []ProtocolIEID{IDENBUES1APID, IDNASPDU, IDTAI, IDEUTRANCGI, IDRRCEstablishmentCause, IDSTMSI, IDGUMMEI, IDGWTransportLayerAddress, IDTunnelInformationForBBF, IDSIPTOLGWTransportLayerAddress, IDCoarseUELocationRequested}},
-		{"UplinkNASTransport", tableIDs(uplinkNASTransportIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDNASPDU, IDEUTRANCGI, IDTAI, IDGWTransportLayerAddress, IDSIPTOLGWTransportLayerAddress}},
-		{"DownlinkNASTransport", tableIDs(downlinkNASTransportIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDNASPDU, IDCoarseUELocation}},
-		{"Paging", tableIDs(pagingIEs), []ProtocolIEID{IDUEIdentityIndexValue, IDUEPagingID, IDPagingDRX, IDCNDomain, IDTAIList, IDPagingPriority, IDUERadioCapabilityForPaging}},
-		{"PathSwitchRequest", tableIDs(pathSwitchRequestIEs), []ProtocolIEID{IDENBUES1APID, IDERABToBeSwitchedDLList, IDSourceMMEUES1APID, IDEUTRANCGI, IDTAI, IDUESecurityCapabilities, IDSourceMMEGUMMEI, IDTunnelInformationForBBF}},
-		{"PathSwitchRequestAcknowledge", tableIDs(pathSwitchRequestAcknowledgeIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDUEAggregateMaximumBitrate, IDERABToBeSwitchedULList, IDERABToBeReleasedList, IDSecurityContext, IDMMEUES1APID2, IDUESecurityCapabilities, IDTimeRefDistribution}},
-		{"E-RABToBeModifyItemBearerModReqExtIEs", tableIDs(extIEsERABToBeModifiedItemBearerModReq), []ProtocolIEID{IDTransportInformation}},
-		{"E-RABToBeSetupItemHOReq-ExtIEs", tableIDs(extIEsERABToBeSetupItemHOReq), []ProtocolIEID{IDDataForwardingNotPossible, IDBearerType, IDEthernetType, IDSecurityIndication}},
-		{"E-RABToBeSetupItemCtxtSUReqExtIEs", tableIDs(extIEsERABToBeSetupItemCtxtSUReq), []ProtocolIEID{IDCorrelationID, IDSIPTOCorrelationID, IDBearerType, IDEthernetType, IDSecurityIndication}},
-		{"E-RABToBeSetupItemBearerSUReqExtIEs", tableIDs(extIEsERABToBeSetupItemBearerSUReq), []ProtocolIEID{IDCorrelationID, IDSIPTOCorrelationID, IDBearerType, IDEthernetType, IDSecurityIndication}},
-		{"E-RABToBeSwitchedDLItem-ExtIEs", tableIDs(extIEsERABToBeSwitchedDLItem), []ProtocolIEID{IDSecurityIndication}},
-		{"E-RABQoSParameters-ExtIEs", tableIDs(extIEsERABLevelQoSParameters), []ProtocolIEID{IDDownlinkPacketLossRate, IDUplinkPacketLossRate}},
-		{"GBR-QosInformation-ExtIEs", tableIDs(extIEsGBRQosInformation), []ProtocolIEID{IDExtendedERABMaximumBitrateDL, IDExtendedERABMaximumBitrateUL, IDExtendedERABGuaranteedBitrateDL, IDExtendedERABGuaranteedBitrateUL}},
-		{"PathSwitchRequestFailure", tableIDs(pathSwitchRequestFailureIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDCause, IDCriticalityDiagnostics}},
-		{"Reset", tableIDs(resetIEs), []ProtocolIEID{IDCause, IDResetType}},
-		{"ResetAcknowledge", tableIDs(resetAcknowledgeIEs), []ProtocolIEID{IDUEAssociatedLogicalS1ConnectionListResAck, IDCriticalityDiagnostics}},
-		{"S1SetupRequest", tableIDs(s1SetupRequestIEs), []ProtocolIEID{IDGlobalENBID, IDENBname, IDSupportedTAs, IDDefaultPagingDRX, IDUERetentionInformation}},
-		{"S1SetupFailure", tableIDs(s1SetupFailureIEs), []ProtocolIEID{IDCause, IDTimeToWait, IDCriticalityDiagnostics}},
-		{"S1SetupResponse", tableIDs(s1SetupResponseIEs), []ProtocolIEID{IDMMEname, IDServedGUMMEIs, IDRelativeMMECapacity, IDCriticalityDiagnostics, IDUERetentionInformation}},
-		{"ENBStatusTransfer", tableIDs(eNBStatusTransferIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDENBStatusTransferTransparentContainer}},
-		{"MMEStatusTransfer", tableIDs(mMEStatusTransferIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDENBStatusTransferTransparentContainer}},
-		{"UECapabilityInfoIndication", tableIDs(uECapabilityInfoIndicationIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDUERadioCapability, IDUERadioCapabilityForPaging}},
-		{"UEContextModificationRequest", tableIDs(uEContextModificationRequestIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDUEAggregateMaximumBitrate, IDTimeRefDistribution}},
-		{"S1RemovalRequest", tableIDs(s1RemovalRequestIEs), []ProtocolIEID{IDGlobalENBID}},
-		{"S1RemovalResponse", tableIDs(s1RemovalResponseIEs), []ProtocolIEID{IDMMEname, IDCriticalityDiagnostics}},
-		{"S1RemovalFailure", tableIDs(s1RemovalFailureIEs), []ProtocolIEID{IDCause, IDCriticalityDiagnostics}},
-		{"SONConfigurationTransfer-ExtIEs", tableIDs(extIEsSONConfigurationTransfer), []ProtocolIEID{IDX2TNLConfigurationInfo, IDSynchronisationInformation, IDRequestedTNLInfo}},
-		{"UEContextModificationResponse", tableIDs(uEContextModificationResponseIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDCriticalityDiagnostics}},
-		{"UEContextModificationFailure", tableIDs(uEContextModificationFailureIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDCause, IDCriticalityDiagnostics}},
-		{"UEContextReleaseCommand", tableIDs(uEContextReleaseCommandIEs), []ProtocolIEID{IDUES1APIDs, IDCause}},
-		{"UEContextReleaseComplete", tableIDs(uEContextReleaseCompleteIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDCriticalityDiagnostics, IDUserLocationInformation}},
-		{"UEContextReleaseRequest", tableIDs(uEContextReleaseRequestIEs), []ProtocolIEID{IDMMEUES1APID, IDENBUES1APID, IDCause, IDGWContextReleaseIndication}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if len(tt.got) != len(tt.want) {
-				t.Fatalf("%d IEs, want %d: %v vs %v", len(tt.got), len(tt.want), tt.got, tt.want)
-			}
-
-			for i := range tt.got {
-				if tt.got[i] != tt.want[i] {
-					t.Errorf("row %d = %s, want %s", i, tt.got[i], tt.want[i])
-				}
+	for _, c := range messageCases() {
+		t.Run(c.asn1, func(t *testing.T) {
+			want := asn1Rows(t, c.asn1, "ProtocolIE-Container")
+			if !slices.Equal(c.rows, want) {
+				t.Errorf("table %v\nspec  %v", c.rows, want)
 			}
 		})
 	}
+}
+
+func TestMessageCasesAreComplete(t *testing.T) {
+	cases := messageCases()
+
+	types := make([]reflect.Type, len(cases))
+	for i, c := range cases {
+		types[i] = c.typ
+	}
+
+	checkComplete(t, "IE table", scannedDecls(t).ieTables, types)
 }
 
 func tableIDs[M any](table []ieSpec[M]) []ProtocolIEID {

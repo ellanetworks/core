@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // As a peer would send it, without the rules the encoder normally enforces.
@@ -73,7 +73,7 @@ func TestIEsOutOfOrderRejected(t *testing.T) {
 // §10.3.6 considers only IEs the receiver's version defines.
 func TestUnknownIEDoesNotBreakOrdering(t *testing.T) {
 	fields := uplinkNASFields()
-	unknown := ieField{ID: ProtocolIEID(60000), Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x01, 0x02})}
+	unknown := ieField{ID: ProtocolIEID(60000), Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0x01, 0x02})}
 	fields = append([]ieField{fields[0], fields[1], unknown}, fields[2:]...)
 
 	msg, err := ParseUplinkNASTransport(container(t, fields...))
@@ -167,7 +167,7 @@ func TestDiagnosticsAreBounded(t *testing.T) {
 	fields := uplinkNASFields()
 	for i := range paddingIEs + 10 {
 		fields = append(fields, ieField{
-			ID: ProtocolIEID(40000 + i), Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x00}),
+			ID: ProtocolIEID(40000 + i), Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0x00}),
 		})
 	}
 
@@ -193,7 +193,7 @@ func TestUEIDsSurvivePadding(t *testing.T) {
 	var padded []ieField
 	for i := range paddingIEs * 2 {
 		padded = append(padded, ieField{
-			ID: ProtocolIEID(40000 + i), Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x00}),
+			ID: ProtocolIEID(40000 + i), Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0x00}),
 		})
 	}
 
@@ -281,11 +281,11 @@ func TestNotifyReportedAmongIgnoredIEs(t *testing.T) {
 	fields := uplinkNASFields()
 	for i := range paddingIEs + 10 {
 		fields = append(fields, ieField{
-			ID: ProtocolIEID(40000 + i), Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x00}),
+			ID: ProtocolIEID(40000 + i), Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0x00}),
 		})
 	}
 
-	fields = append(fields, ieField{ID: ProtocolIEID(50000), Criticality: CriticalityNotify, Value: ap.RawValue([]byte{0x00})})
+	fields = append(fields, ieField{ID: ProtocolIEID(50000), Criticality: CriticalityNotify, Value: apimpl.RawValue([]byte{0x00})})
 
 	msg, err := ParseUplinkNASTransport(container(t, fields...))
 	if err != nil {

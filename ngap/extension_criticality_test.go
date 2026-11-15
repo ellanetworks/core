@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // A real extension id TAI does not model: TAI-ExtIEs is empty (TS 38.413
@@ -65,7 +65,7 @@ func extendedTAIList(t *testing.T, crit Criticality) []byte {
 func TestRejectExtensionInsideIgnoreIERejects(t *testing.T) {
 	_, err := ParsePaging(container(t,
 		ieField{ID: IDUEPagingIdentity, Criticality: CriticalityIgnore, Value: &FiveGSTMSI{AMFSetID: 1, AMFPointer: 1, FiveGTMSI: 0xdeadbeef}},
-		ieField{ID: IDTAIListForPaging, Criticality: CriticalityIgnore, Value: ap.RawValue(extendedTAIList(t, CriticalityReject))},
+		ieField{ID: IDTAIListForPaging, Criticality: CriticalityIgnore, Value: apimpl.RawValue(extendedTAIList(t, CriticalityReject))},
 	))
 
 	var ase *AbstractSyntaxError
@@ -90,7 +90,7 @@ func TestRejectExtensionInsideIgnoreIERejects(t *testing.T) {
 func TestIgnoreExtensionKeepsItsIE(t *testing.T) {
 	msg, err := ParsePaging(container(t,
 		ieField{ID: IDUEPagingIdentity, Criticality: CriticalityIgnore, Value: &FiveGSTMSI{AMFSetID: 1, AMFPointer: 1, FiveGTMSI: 0xdeadbeef}},
-		ieField{ID: IDTAIListForPaging, Criticality: CriticalityIgnore, Value: ap.RawValue(extendedTAIList(t, CriticalityIgnore))},
+		ieField{ID: IDTAIListForPaging, Criticality: CriticalityIgnore, Value: apimpl.RawValue(extendedTAIList(t, CriticalityIgnore))},
 	))
 	if err != nil {
 		t.Fatalf("parse: %v", err)

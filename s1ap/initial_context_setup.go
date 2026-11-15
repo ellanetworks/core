@@ -5,21 +5,50 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 36.413 §9.1.4.1.
 type InitialContextSetupRequest struct {
-	MMEUES1APID               MMEUES1APID
-	ENBUES1APID               ENBUES1APID
-	UEAggregateMaximumBitRate UEAggregateMaximumBitRate
-	ERABToBeSetup             ERABToBeSetupListCtxtSUReq
-	UESecurityCapabilities    UESecurityCapabilities
-	SecurityKey               SecurityKey
-	UERadioCapability         UERadioCapability
-	GUMMEI                    *GUMMEI
-	MMEUES1APID2              *MMEUES1APID
-	CoarseUELocation          *CoarseUELocation
-	TimeRefDistribution       *TimeRefDistribution
+	MMEUES1APID                            MMEUES1APID
+	ENBUES1APID                            ENBUES1APID
+	UEAggregateMaximumBitRate              UEAggregateMaximumBitRate
+	ERABToBeSetup                          ERABToBeSetupListCtxtSUReq
+	UESecurityCapabilities                 UESecurityCapabilities
+	SecurityKey                            SecurityKey
+	UERadioCapability                      UERadioCapability
+	GUMMEI                                 *GUMMEI
+	MMEUES1APID2                           *MMEUES1APID
+	CoarseUELocation                       *CoarseUELocation
+	TimeRefDistribution                    *TimeRefDistribution
+	TraceActivation                        *TraceActivation
+	HandoverRestrictionList                *HandoverRestrictionList
+	SubscriberProfileIDforRFP              *SubscriberProfileIDforRFP
+	CSFallbackIndicator                    *CSFallbackIndicator
+	SRVCCOperationPossible                 *SRVCCOperationPossible
+	CSGMembershipStatus                    *CSGMembershipStatus
+	RegisteredLAI                          *LAI
+	ManagementBasedMDTAllowed              *ManagementBasedMDTAllowed
+	ManagementBasedMDTPLMNList             MDTPLMNList
+	AdditionalCSFallbackIndicator          *AdditionalCSFallbackIndicator
+	MaskedIMEISV                           *MaskedIMEISV
+	ExpectedUEBehaviour                    *ExpectedUEBehaviour
+	ProSeAuthorized                        *ProSeAuthorized
+	UEUserPlaneCIoTSupportIndicator        *UEUserPlaneCIoTSupportIndicator
+	V2XServicesAuthorized                  *V2XServicesAuthorized
+	UESidelinkAggregateMaximumBitrate      *UESidelinkAggregateMaximumBitrate
+	EnhancedCoverageRestricted             *EnhancedCoverageRestricted
+	NRUESecurityCapabilities               *NRUESecurityCapabilities
+	CEModeBRestricted                      *CEModeBRestricted
+	AerialUEsubscriptionInformation        *AerialUEsubscriptionInformation
+	PendingDataIndication                  *PendingDataIndication
+	SubscriptionBasedUEDifferentiationInfo *SubscriptionBasedUEDifferentiationInfo
+	AdditionalRRMPriorityIndex             *AdditionalRRMPriorityIndex
+	IABAuthorized                          *IABAuthorized
+	NRV2XServicesAuthorized                *NRV2XServicesAuthorized
+	NRUESidelinkAggregateMaximumBitrate    *NRUESidelinkAggregateMaximumBitrate
+	PC5QoSParameters                       *PC5QoSParameters
+	UERadioCapabilityID                    *UERadioCapabilityID
 
 	messageMeta
 }
@@ -56,7 +85,7 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 			return err
 		},
 		Encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) {
-			return containerList(maxnoofERABs, IDERABToBeSetupItemCtxtSUReq, CriticalityReject, m.ERABToBeSetup), true
+			return containerList(maxnoofERABs, IDERABToBeSetupItemCtxtSUReq, CriticalityReject, &m.ERABToBeSetup), true
 		},
 	},
 	{
@@ -73,6 +102,8 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 		},
 		Encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) { return &m.SecurityKey, true },
 	},
+	apimpl.OptionalIE(IDTraceActivation, CriticalityIgnore, func(m *InitialContextSetupRequest) **TraceActivation { return &m.TraceActivation }),
+	apimpl.OptionalIE(IDHandoverRestrictionList, CriticalityIgnore, func(m *InitialContextSetupRequest) **HandoverRestrictionList { return &m.HandoverRestrictionList }),
 	{
 		ID: IDUERadioCapability, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *InitialContextSetupRequest, r *per.Reader, enc per.Encoding) error {
@@ -86,6 +117,11 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 			return m.UERadioCapability, true
 		},
 	},
+	apimpl.OptionalIE(IDSubscriberProfileIDforRFP, CriticalityIgnore, func(m *InitialContextSetupRequest) **SubscriberProfileIDforRFP { return &m.SubscriberProfileIDforRFP }),
+	apimpl.OptionalIE(IDCSFallbackIndicator, CriticalityReject, func(m *InitialContextSetupRequest) **CSFallbackIndicator { return &m.CSFallbackIndicator }),
+	apimpl.OptionalIE(IDSRVCCOperationPossible, CriticalityIgnore, func(m *InitialContextSetupRequest) **SRVCCOperationPossible { return &m.SRVCCOperationPossible }),
+	apimpl.OptionalIE(IDCSGMembershipStatus, CriticalityIgnore, func(m *InitialContextSetupRequest) **CSGMembershipStatus { return &m.CSGMembershipStatus }),
+	apimpl.OptionalIE(IDRegisteredLAI, CriticalityIgnore, func(m *InitialContextSetupRequest) **LAI { return &m.RegisteredLAI }),
 	{
 		ID: IDGUMMEI, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *InitialContextSetupRequest, r *per.Reader, enc per.Encoding) error {
@@ -128,6 +164,39 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 			return m.MMEUES1APID2, true
 		},
 	},
+	apimpl.OptionalIE(IDManagementBasedMDTAllowed, CriticalityIgnore, func(m *InitialContextSetupRequest) **ManagementBasedMDTAllowed { return &m.ManagementBasedMDTAllowed }),
+	apimpl.ListIE(IDManagementBasedMDTPLMNList, CriticalityIgnore, func(m *InitialContextSetupRequest) *MDTPLMNList { return &m.ManagementBasedMDTPLMNList }),
+	apimpl.ConditionalIE(IDAdditionalCSFallbackIndicator, CriticalityIgnore, initialContextSetupCSFBHighPriority, func(m *InitialContextSetupRequest) **AdditionalCSFallbackIndicator {
+		return &m.AdditionalCSFallbackIndicator
+	}),
+	apimpl.OptionalIE(IDMaskedIMEISV, CriticalityIgnore, func(m *InitialContextSetupRequest) **MaskedIMEISV { return &m.MaskedIMEISV }),
+	apimpl.OptionalIE(IDExpectedUEBehaviour, CriticalityIgnore, func(m *InitialContextSetupRequest) **ExpectedUEBehaviour { return &m.ExpectedUEBehaviour }),
+	apimpl.OptionalIE(IDProSeAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **ProSeAuthorized { return &m.ProSeAuthorized }),
+	apimpl.OptionalIE(IDUEUserPlaneCIoTSupportIndicator, CriticalityIgnore, func(m *InitialContextSetupRequest) **UEUserPlaneCIoTSupportIndicator {
+		return &m.UEUserPlaneCIoTSupportIndicator
+	}),
+	apimpl.OptionalIE(IDV2XServicesAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **V2XServicesAuthorized { return &m.V2XServicesAuthorized }),
+	apimpl.OptionalIE(IDUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *InitialContextSetupRequest) **UESidelinkAggregateMaximumBitrate {
+		return &m.UESidelinkAggregateMaximumBitrate
+	}),
+	apimpl.OptionalIE(IDEnhancedCoverageRestricted, CriticalityIgnore, func(m *InitialContextSetupRequest) **EnhancedCoverageRestricted { return &m.EnhancedCoverageRestricted }),
+	apimpl.OptionalIE(IDNRUESecurityCapabilities, CriticalityIgnore, func(m *InitialContextSetupRequest) **NRUESecurityCapabilities { return &m.NRUESecurityCapabilities }),
+	apimpl.OptionalIE(IDCEModeBRestricted, CriticalityIgnore, func(m *InitialContextSetupRequest) **CEModeBRestricted { return &m.CEModeBRestricted }),
+	apimpl.OptionalIE(IDAerialUEsubscriptionInformation, CriticalityIgnore, func(m *InitialContextSetupRequest) **AerialUEsubscriptionInformation {
+		return &m.AerialUEsubscriptionInformation
+	}),
+	apimpl.OptionalIE(IDPendingDataIndication, CriticalityIgnore, func(m *InitialContextSetupRequest) **PendingDataIndication { return &m.PendingDataIndication }),
+	apimpl.OptionalIE(IDSubscriptionBasedUEDifferentiationInfo, CriticalityIgnore, func(m *InitialContextSetupRequest) **SubscriptionBasedUEDifferentiationInfo {
+		return &m.SubscriptionBasedUEDifferentiationInfo
+	}),
+	apimpl.OptionalIE(IDAdditionalRRMPriorityIndex, CriticalityIgnore, func(m *InitialContextSetupRequest) **AdditionalRRMPriorityIndex { return &m.AdditionalRRMPriorityIndex }),
+	apimpl.OptionalIE(IDIABAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **IABAuthorized { return &m.IABAuthorized }),
+	apimpl.OptionalIE(IDNRV2XServicesAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **NRV2XServicesAuthorized { return &m.NRV2XServicesAuthorized }),
+	apimpl.OptionalIE(IDNRUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *InitialContextSetupRequest) **NRUESidelinkAggregateMaximumBitrate {
+		return &m.NRUESidelinkAggregateMaximumBitrate
+	}),
+	apimpl.OptionalIE(IDPC5QoSParameters, CriticalityIgnore, func(m *InitialContextSetupRequest) **PC5QoSParameters { return &m.PC5QoSParameters }),
+	apimpl.OptionalIE(IDUERadioCapabilityID, CriticalityReject, func(m *InitialContextSetupRequest) **UERadioCapabilityID { return &m.UERadioCapabilityID }),
 	{
 		ID: IDCoarseUELocation, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *InitialContextSetupRequest, r *per.Reader, enc per.Encoding) error {
@@ -240,7 +309,7 @@ var initialContextSetupResponseIEs = []ieSpec[InitialContextSetupResponse]{
 				return nil, false
 			}
 
-			return containerList(maxnoofERABs, IDERABSetupItemCtxtSURes, CriticalityIgnore, m.ERABSetup), true
+			return containerList(maxnoofERABs, IDERABSetupItemCtxtSURes, CriticalityIgnore, &m.ERABSetup), true
 		},
 	},
 	{
@@ -257,7 +326,7 @@ var initialContextSetupResponseIEs = []ieSpec[InitialContextSetupResponse]{
 				return nil, false
 			}
 
-			return containerList(maxnoofERABs, IDERABItem, CriticalityIgnore, m.ERABFailedToSetup), true
+			return containerList(maxnoofERABs, IDERABItem, CriticalityIgnore, &m.ERABFailedToSetup), true
 		},
 	},
 	{
@@ -434,4 +503,8 @@ func ParseInitialContextSetupFailure(value []byte) (*InitialContextSetupFailure,
 
 func DecodeInitialContextSetupFailure(value []byte) (*InitialContextSetupFailure, error) {
 	return decodeMessageBody[InitialContextSetupFailure](ProcInitialContextSetup, initialContextSetupFailureIEs, value)
+}
+
+func initialContextSetupCSFBHighPriority(m *InitialContextSetupRequest) bool {
+	return m.CSFallbackIndicator != nil && *m.CSFallbackIndicator == CSFallbackIndicatorCSFallbackHighPriority
 }

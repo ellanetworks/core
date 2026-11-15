@@ -93,6 +93,12 @@ var procedureNames = map[ProcedureCode]string{
 	ProcMTCommunicationHandling:               "MTCommunicationHandling",
 	ProcRANPagingRequest:                      "RANPagingRequest",
 	ProcBroadcastSessionTransport:             "BroadcastSessionTransport",
+	ProcNGRemoval:                             "NGRemoval",
+	ProcInventoryRequest:                      "InventoryRequest",
+	ProcInventoryReport:                       "InventoryReport",
+	ProcCommandRequest:                        "CommandRequest",
+	ProcAIOTSessionRelease:                    "AIOTSessionRelease",
+	ProcAIOTSessionReleaseRequest:             "AIOTSessionReleaseRequest",
 }
 
 // ProcedureCodeName returns the TS 38.413 name of p, and whether it is known.

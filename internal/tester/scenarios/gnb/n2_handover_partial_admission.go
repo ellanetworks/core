@@ -135,6 +135,10 @@ func runN2HandoverPartialAdmission(_ context.Context, env scenarios.Env, _ any) 
 
 	refusal := ngaplib.CauseRadioNetworkRadioResourcesNotAvailable.Cause()
 
+	if err := targetGNB.InheritSelectedPLMN(partialTargetRANID, sourceGNB, ranUENGAPID); err != nil {
+		return fmt.Errorf("carry the selected PLMN to the target gNB: %w", err)
+	}
+
 	if err := targetGNB.SendHandoverRequestAcknowledge(&gnb.HandoverRequestAcknowledgeOpts{
 		AMFUENGAPID: int64(req.AMFUENGAPID),
 		RANUENGAPID: partialTargetRANID,

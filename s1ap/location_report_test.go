@@ -47,7 +47,7 @@ func TestLocationReportRoundTrip(t *testing.T) {
 		t.Fatalf("location: cgi=%+v tai=%+v", out.EUTRANCGI, out.TAI)
 	}
 
-	if deref(out.RequestType) != deref(in.RequestType) {
+	if !deref(out.RequestType).Equal(deref(in.RequestType)) {
 		t.Fatalf("request type = %+v, want %+v", out.RequestType, in.RequestType)
 	}
 }

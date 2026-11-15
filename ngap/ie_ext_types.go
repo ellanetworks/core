@@ -6,6 +6,7 @@ package ngap
 import (
 	"github.com/ellanetworks/core/per"
 	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 const (
@@ -1361,17 +1362,17 @@ const (
 )
 
 type AreaScopeOfMDTNR struct {
-	CellBased         *CellBasedMDTNR    `per:",choice:0"`
-	TABased           *TABasedMDT        `per:",choice:1"`
-	PLMNWide          *per.Null          `per:",choice:2"`
-	TAIBased          *TAIBasedMDT       `per:",choice:3"`
-	PNINPNBasedMDT    *PNINPNBasedMDT    `per:",choice:4,extie:IDPNINPNBasedMDT,crit:ignore"`
-	SNPNCellBasedMDT  *SNPNCellBasedMDT  `per:",choice:4,extie:IDSNPNCellBasedMDT,crit:ignore"`
-	SNPNTAIBasedMDT   *SNPNTAIBasedMDT   `per:",choice:4,extie:IDSNPNTAIBasedMDT,crit:ignore"`
-	SNPNBasedMDT      *SNPNBasedMDT      `per:",choice:4,extie:IDSNPNBasedMDT,crit:ignore"`
-	GeographyBasedMDT *GeographyBasedMDT `per:",choice:4,extie:IDGeographyBasedMDT,crit:ignore"`
-	ChoiceExtension   *SingleContainer   `per:",choice:4,extie"`
-	choiceCriticality ap.WireCriticality `per:",choicecrit"`
+	CellBased         *CellBasedMDTNR        `per:",choice:0"`
+	TABased           *TABasedMDT            `per:",choice:1"`
+	PLMNWide          *per.Null              `per:",choice:2"`
+	TAIBased          *TAIBasedMDT           `per:",choice:3"`
+	PNINPNBasedMDT    *PNINPNBasedMDT        `per:",choice:4,extie:IDPNINPNBasedMDT,crit:ignore"`
+	SNPNCellBasedMDT  *SNPNCellBasedMDT      `per:",choice:4,extie:IDSNPNCellBasedMDT,crit:ignore"`
+	SNPNTAIBasedMDT   *SNPNTAIBasedMDT       `per:",choice:4,extie:IDSNPNTAIBasedMDT,crit:ignore"`
+	SNPNBasedMDT      *SNPNBasedMDT          `per:",choice:4,extie:IDSNPNBasedMDT,crit:ignore"`
+	GeographyBasedMDT *GeographyBasedMDT     `per:",choice:4,extie:IDGeographyBasedMDT,crit:ignore"`
+	ChoiceExtension   *SingleContainer       `per:",choice:4,extie"`
+	choiceCriticality apimpl.WireCriticality `per:",choicecrit"`
 }
 
 type MDTModeNr struct {
@@ -4257,7 +4258,7 @@ type IntersystemSONInformation struct {
 	IntersystemSONInformationRequest *IntersystemSONInformationRequest `per:",choice:1,extie:IDIntersystemSONInformationRequest,crit:ignore"`
 	IntersystemSONInformationReply   *IntersystemSONInformationReply   `per:",choice:1,extie:IDIntersystemSONInformationReply,crit:ignore"`
 	ChoiceExtension                  *SingleContainer                  `per:",choice:1,extie"`
-	choiceCriticality                ap.WireCriticality                `per:",choicecrit"`
+	choiceCriticality                apimpl.WireCriticality            `per:",choicecrit"`
 }
 
 type UEIdentityIndexValueIndexLength10 uint16
@@ -5069,7 +5070,7 @@ type IntersystemSONInformationReport struct {
 	EnergySavingIndication          *IntersystemCellStateIndication  `per:",choice:2,extie:IDEnergySavingIndication,crit:ignore"`
 	IntersystemResourceStatusUpdate *IntersystemResourceStatusReport `per:",choice:2,extie:IDIntersystemResourceStatusUpdate,crit:ignore"`
 	ChoiceExtension                 *SingleContainer                 `per:",choice:2,extie"`
-	choiceCriticality               ap.WireCriticality               `per:",choicecrit"`
+	choiceCriticality               apimpl.WireCriticality           `per:",choicecrit"`
 }
 
 type IntersystemSONInformationRequest struct {
@@ -5574,7 +5575,7 @@ type InterSystemHandoverReportType struct {
 	IntersystemUnnecessaryHO                   *IntersystemUnnecessaryHO                   `per:",choice:1"`
 	IntersystemMobilityFailureforVoiceFallback *IntersystemMobilityFailureforVoiceFallback `per:",choice:2,extie:IDIntersystemMobilityFailureforVoiceFallback,crit:ignore"`
 	ChoiceExtension                            *SingleContainer                            `per:",choice:2,extie"`
-	choiceCriticality                          ap.WireCriticality                          `per:",choicecrit"`
+	choiceCriticality                          apimpl.WireCriticality                      `per:",choicecrit"`
 }
 
 type UERLFReportContainer struct {

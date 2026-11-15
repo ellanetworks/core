@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // Golden UE CONTEXT RELEASE PDUs.
@@ -247,7 +247,7 @@ func TestUEContextReleaseCommandChoiceExtension(t *testing.T) {
 	value := container(t, ieField{
 		ID:          IDUENGAPIDs,
 		Criticality: CriticalityReject,
-		Value:       ap.RawValue(choiceExtensionValue(t, ueNGAPIDsAlternatives, ueNGAPIDsChoiceExtensions, IDUENGAPIDs)),
+		Value:       apimpl.RawValue(choiceExtensionValue(t, ueNGAPIDsAlternatives, ueNGAPIDsChoiceExtensions, IDUENGAPIDs)),
 	})
 
 	_, err := ParseUEContextReleaseCommand(value)
@@ -264,9 +264,9 @@ func TestUEContextReleaseCommandChoiceExtension(t *testing.T) {
 		t.Errorf("cause = %s, want abstract-syntax-error-reject", ase.Cause)
 	}
 
-	if len(ase.IEs) != 1 || ase.IEs[0].IEID != IDUENGAPIDs ||
-		ase.IEs[0].TypeOfError != TypeOfErrorNotUnderstood {
-		t.Errorf("diagnostics = %+v, want one not-understood entry for UE-NGAP-IDs", ase.IEs)
+	if len(ase.IEs) != 2 || ase.IEs[1].IEID != IDUENGAPIDs ||
+		ase.IEs[1].TypeOfError != TypeOfErrorNotUnderstood {
+		t.Errorf("diagnostics = %+v, want the unknown choice-Extensions IE and then UE-NGAP-IDs", ase.IEs)
 	}
 }
 
@@ -302,7 +302,7 @@ func TestUEContextReleaseRequestGWContextReleaseIndicationExtensionRejects(t *te
 		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: Ptr(AMFUENGAPID(1))},
 		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: Ptr(RANUENGAPID(2))},
 		ieField{ID: IDCause, Criticality: CriticalityIgnore, Value: &cause},
-		ieField{ID: IDGWContextReleaseIndication, Criticality: CriticalityReject, Value: ap.RawValue(extensionEnum(t, int64(len(enumGWContextReleaseIndication.Root)), 0))},
+		ieField{ID: IDGWContextReleaseIndication, Criticality: CriticalityReject, Value: apimpl.RawValue(extensionEnum(t, int64(len(enumGWContextReleaseIndication.Root)), 0))},
 	))
 
 	var ase *AbstractSyntaxError

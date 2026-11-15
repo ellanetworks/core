@@ -5,6 +5,7 @@ package ngap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 type UEContextModificationRequest struct {
@@ -66,9 +67,9 @@ var uEContextModificationRequestIEs = []ieSpec[UEContextModificationRequest]{
 		},
 		Encode: func(m *UEContextModificationRequest) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
-	optionalExtension(IDRANPagingPriority, CriticalityIgnore, func(m *UEContextModificationRequest) **RANPagingPriority { return &m.RANPagingPriority }),
-	optionalExtension(IDSecurityKey, CriticalityReject, func(m *UEContextModificationRequest) **SecurityKey { return &m.SecurityKey }),
-	optionalExtension(IDIndexToRFSP, CriticalityIgnore, func(m *UEContextModificationRequest) **IndexToRFSP { return &m.IndexToRFSP }),
+	apimpl.OptionalIE(IDRANPagingPriority, CriticalityIgnore, func(m *UEContextModificationRequest) **RANPagingPriority { return &m.RANPagingPriority }),
+	apimpl.OptionalIE(IDSecurityKey, CriticalityReject, func(m *UEContextModificationRequest) **SecurityKey { return &m.SecurityKey }),
+	apimpl.OptionalIE(IDIndexToRFSP, CriticalityIgnore, func(m *UEContextModificationRequest) **IndexToRFSP { return &m.IndexToRFSP }),
 	{
 		ID: IDUEAggregateMaximumBitRate, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *UEContextModificationRequest, r *per.Reader, enc per.Encoding) error {
@@ -90,11 +91,11 @@ var uEContextModificationRequestIEs = []ieSpec[UEContextModificationRequest]{
 			return m.UEAggregateMaximumBitRate, true
 		},
 	},
-	optionalExtension(IDUESecurityCapabilities, CriticalityReject, func(m *UEContextModificationRequest) **UESecurityCapabilities { return &m.UESecurityCapabilities }),
-	optionalExtension(IDCoreNetworkAssistanceInformationForInactive, CriticalityIgnore, func(m *UEContextModificationRequest) **CoreNetworkAssistanceInformationForInactive {
+	apimpl.OptionalIE(IDUESecurityCapabilities, CriticalityReject, func(m *UEContextModificationRequest) **UESecurityCapabilities { return &m.UESecurityCapabilities }),
+	apimpl.OptionalIE(IDCoreNetworkAssistanceInformationForInactive, CriticalityIgnore, func(m *UEContextModificationRequest) **CoreNetworkAssistanceInformationForInactive {
 		return &m.CoreNetworkAssistanceInformationForInactive
 	}),
-	optionalExtension(IDEmergencyFallbackIndicator, CriticalityReject, func(m *UEContextModificationRequest) **EmergencyFallbackIndicator {
+	apimpl.OptionalIE(IDEmergencyFallbackIndicator, CriticalityReject, func(m *UEContextModificationRequest) **EmergencyFallbackIndicator {
 		return &m.EmergencyFallbackIndicator
 	}),
 	{
@@ -118,57 +119,57 @@ var uEContextModificationRequestIEs = []ieSpec[UEContextModificationRequest]{
 			return m.NewAMFUENGAPID, true
 		},
 	},
-	optionalExtension(IDRRCInactiveTransitionReportRequest, CriticalityIgnore, func(m *UEContextModificationRequest) **RRCInactiveTransitionReportRequest {
+	apimpl.OptionalIE(IDRRCInactiveTransitionReportRequest, CriticalityIgnore, func(m *UEContextModificationRequest) **RRCInactiveTransitionReportRequest {
 		return &m.RRCInactiveTransitionReportRequest
 	}),
-	optionalExtension(IDNewGUAMI, CriticalityReject, func(m *UEContextModificationRequest) **GUAMI { return &m.NewGUAMI }),
-	optionalExtension(IDCNAssistedRANTuning, CriticalityIgnore, func(m *UEContextModificationRequest) **CNAssistedRANTuning { return &m.CNAssistedRANTuning }),
-	optionalExtension(IDSRVCCOperationPossible, CriticalityIgnore, func(m *UEContextModificationRequest) **SRVCCOperationPossible { return &m.SRVCCOperationPossible }),
-	optionalExtension(IDIABAuthorized, CriticalityIgnore, func(m *UEContextModificationRequest) **IABAuthorized { return &m.IABAuthorized }),
-	optionalExtension(IDNRV2XServicesAuthorized, CriticalityIgnore, func(m *UEContextModificationRequest) **NRV2XServicesAuthorized { return &m.NRV2XServicesAuthorized }),
-	optionalExtension(IDLTEV2XServicesAuthorized, CriticalityIgnore, func(m *UEContextModificationRequest) **LTEV2XServicesAuthorized { return &m.LTEV2XServicesAuthorized }),
-	optionalExtension(IDNRUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *UEContextModificationRequest) **NRUESidelinkAggregateMaximumBitrate {
+	apimpl.OptionalIE(IDNewGUAMI, CriticalityReject, func(m *UEContextModificationRequest) **GUAMI { return &m.NewGUAMI }),
+	apimpl.OptionalIE(IDCNAssistedRANTuning, CriticalityIgnore, func(m *UEContextModificationRequest) **CNAssistedRANTuning { return &m.CNAssistedRANTuning }),
+	apimpl.OptionalIE(IDSRVCCOperationPossible, CriticalityIgnore, func(m *UEContextModificationRequest) **SRVCCOperationPossible { return &m.SRVCCOperationPossible }),
+	apimpl.OptionalIE(IDIABAuthorized, CriticalityIgnore, func(m *UEContextModificationRequest) **IABAuthorized { return &m.IABAuthorized }),
+	apimpl.OptionalIE(IDNRV2XServicesAuthorized, CriticalityIgnore, func(m *UEContextModificationRequest) **NRV2XServicesAuthorized { return &m.NRV2XServicesAuthorized }),
+	apimpl.OptionalIE(IDLTEV2XServicesAuthorized, CriticalityIgnore, func(m *UEContextModificationRequest) **LTEV2XServicesAuthorized { return &m.LTEV2XServicesAuthorized }),
+	apimpl.OptionalIE(IDNRUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *UEContextModificationRequest) **NRUESidelinkAggregateMaximumBitrate {
 		return &m.NRUESidelinkAggregateMaximumBitrate
 	}),
-	optionalExtension(IDLTEUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *UEContextModificationRequest) **LTEUESidelinkAggregateMaximumBitrate {
+	apimpl.OptionalIE(IDLTEUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *UEContextModificationRequest) **LTEUESidelinkAggregateMaximumBitrate {
 		return &m.LTEUESidelinkAggregateMaximumBitrate
 	}),
-	optionalExtension(IDPC5QoSParameters, CriticalityIgnore, func(m *UEContextModificationRequest) **PC5QoSParameters { return &m.PC5QoSParameters }),
-	optionalExtension(IDUERadioCapabilityID, CriticalityReject, func(m *UEContextModificationRequest) **UERadioCapabilityID { return &m.UERadioCapabilityID }),
-	optionalExtension(IDRGLevelWirelineAccessCharacteristics, CriticalityIgnore, func(m *UEContextModificationRequest) **RGLevelWirelineAccessCharacteristics {
+	apimpl.OptionalIE(IDPC5QoSParameters, CriticalityIgnore, func(m *UEContextModificationRequest) **PC5QoSParameters { return &m.PC5QoSParameters }),
+	apimpl.OptionalIE(IDUERadioCapabilityID, CriticalityReject, func(m *UEContextModificationRequest) **UERadioCapabilityID { return &m.UERadioCapabilityID }),
+	apimpl.OptionalIE(IDRGLevelWirelineAccessCharacteristics, CriticalityIgnore, func(m *UEContextModificationRequest) **RGLevelWirelineAccessCharacteristics {
 		return &m.RGLevelWirelineAccessCharacteristics
 	}),
-	optionalExtension(IDTimeSyncAssistanceInfo, CriticalityIgnore, func(m *UEContextModificationRequest) **TimeSyncAssistanceInfo { return &m.TimeSyncAssistanceInfo }),
-	optionalExtension(IDQMCConfigInfo, CriticalityIgnore, func(m *UEContextModificationRequest) **QMCConfigInfo { return &m.QMCConfigInfo }),
-	optionalExtension(IDQMCDeactivation, CriticalityIgnore, func(m *UEContextModificationRequest) **QMCDeactivation { return &m.QMCDeactivation }),
-	listExtension(IDUESliceMaximumBitRateList, CriticalityIgnore, func(m *UEContextModificationRequest) *UESliceMaximumBitRateList { return &m.UESliceMaximumBitRateList }),
-	listExtension(IDManagementBasedMDTPLMNModificationList, CriticalityIgnore, func(m *UEContextModificationRequest) *MDTPLMNModificationList {
+	apimpl.OptionalIE(IDTimeSyncAssistanceInfo, CriticalityIgnore, func(m *UEContextModificationRequest) **TimeSyncAssistanceInfo { return &m.TimeSyncAssistanceInfo }),
+	apimpl.OptionalIE(IDQMCConfigInfo, CriticalityIgnore, func(m *UEContextModificationRequest) **QMCConfigInfo { return &m.QMCConfigInfo }),
+	apimpl.OptionalIE(IDQMCDeactivation, CriticalityIgnore, func(m *UEContextModificationRequest) **QMCDeactivation { return &m.QMCDeactivation }),
+	apimpl.ListIE(IDUESliceMaximumBitRateList, CriticalityIgnore, func(m *UEContextModificationRequest) *UESliceMaximumBitRateList { return &m.UESliceMaximumBitRateList }),
+	apimpl.ListIE(IDManagementBasedMDTPLMNModificationList, CriticalityIgnore, func(m *UEContextModificationRequest) *MDTPLMNModificationList {
 		return &m.ManagementBasedMDTPLMNModificationList
 	}),
-	optionalExtension(IDFiveGProSeAuthorized, CriticalityIgnore, func(m *UEContextModificationRequest) **FiveGProSeAuthorized { return &m.FiveGProSeAuthorized }),
-	optionalExtension(IDFiveGProSeUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *UEContextModificationRequest) **NRUESidelinkAggregateMaximumBitrate {
+	apimpl.OptionalIE(IDFiveGProSeAuthorized, CriticalityIgnore, func(m *UEContextModificationRequest) **FiveGProSeAuthorized { return &m.FiveGProSeAuthorized }),
+	apimpl.OptionalIE(IDFiveGProSeUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *UEContextModificationRequest) **NRUESidelinkAggregateMaximumBitrate {
 		return &m.FiveGProSeUEPC5AggregateMaximumBitRate
 	}),
-	optionalExtension(IDFiveGProSePC5QoSParameters, CriticalityIgnore, func(m *UEContextModificationRequest) **FiveGProSePC5QoSParameters {
+	apimpl.OptionalIE(IDFiveGProSePC5QoSParameters, CriticalityIgnore, func(m *UEContextModificationRequest) **FiveGProSePC5QoSParameters {
 		return &m.FiveGProSePC5QoSParameters
 	}),
-	optionalExtension(IDNetworkControlledRepeaterAuthorized, CriticalityIgnore, func(m *UEContextModificationRequest) **NetworkControlledRepeaterAuthorized {
+	apimpl.OptionalIE(IDNetworkControlledRepeaterAuthorized, CriticalityIgnore, func(m *UEContextModificationRequest) **NetworkControlledRepeaterAuthorized {
 		return &m.NetworkControlledRepeaterAuthorized
 	}),
-	optionalExtension(IDAerialUEsubscriptionInformation, CriticalityIgnore, func(m *UEContextModificationRequest) **AerialUEsubscriptionInformation {
+	apimpl.OptionalIE(IDAerialUEsubscriptionInformation, CriticalityIgnore, func(m *UEContextModificationRequest) **AerialUEsubscriptionInformation {
 		return &m.AerialUEsubscriptionInformation
 	}),
-	optionalExtension(IDNRA2XServicesAuthorized, CriticalityIgnore, func(m *UEContextModificationRequest) **NRA2XServicesAuthorized { return &m.NRA2XServicesAuthorized }),
-	optionalExtension(IDLTEA2XServicesAuthorized, CriticalityIgnore, func(m *UEContextModificationRequest) **LTEA2XServicesAuthorized { return &m.LTEA2XServicesAuthorized }),
-	optionalExtension(IDNRA2XUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *UEContextModificationRequest) **NRUESidelinkAggregateMaximumBitrate {
+	apimpl.OptionalIE(IDNRA2XServicesAuthorized, CriticalityIgnore, func(m *UEContextModificationRequest) **NRA2XServicesAuthorized { return &m.NRA2XServicesAuthorized }),
+	apimpl.OptionalIE(IDLTEA2XServicesAuthorized, CriticalityIgnore, func(m *UEContextModificationRequest) **LTEA2XServicesAuthorized { return &m.LTEA2XServicesAuthorized }),
+	apimpl.OptionalIE(IDNRA2XUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *UEContextModificationRequest) **NRUESidelinkAggregateMaximumBitrate {
 		return &m.NRA2XUEPC5AggregateMaximumBitRate
 	}),
-	optionalExtension(IDLTEA2XUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *UEContextModificationRequest) **LTEUESidelinkAggregateMaximumBitrate {
+	apimpl.OptionalIE(IDLTEA2XUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *UEContextModificationRequest) **LTEUESidelinkAggregateMaximumBitrate {
 		return &m.LTEA2XUEPC5AggregateMaximumBitRate
 	}),
-	optionalExtension(IDA2XPC5QoSParameters, CriticalityIgnore, func(m *UEContextModificationRequest) **A2XPC5QoSParameters { return &m.A2XPC5QoSParameters }),
-	optionalExtension(IDMobileIABAuthorized, CriticalityIgnore, func(m *UEContextModificationRequest) **MobileIABAuthorized { return &m.MobileIABAuthorized }),
-	optionalExtension(IDSLPositioningRangingServiceInfo, CriticalityIgnore, func(m *UEContextModificationRequest) **SLPositioningRangingServiceInfo {
+	apimpl.OptionalIE(IDA2XPC5QoSParameters, CriticalityIgnore, func(m *UEContextModificationRequest) **A2XPC5QoSParameters { return &m.A2XPC5QoSParameters }),
+	apimpl.OptionalIE(IDMobileIABAuthorized, CriticalityIgnore, func(m *UEContextModificationRequest) **MobileIABAuthorized { return &m.MobileIABAuthorized }),
+	apimpl.OptionalIE(IDSLPositioningRangingServiceInfo, CriticalityIgnore, func(m *UEContextModificationRequest) **SLPositioningRangingServiceInfo {
 		return &m.SLPositioningRangingServiceInfo
 	}),
 }
@@ -254,7 +255,7 @@ var uEContextModificationResponseIEs = []ieSpec[UEContextModificationResponse]{
 			return m.RANUENGAPID, true
 		},
 	},
-	optionalExtension(IDRRCState, CriticalityIgnore, func(m *UEContextModificationResponse) **RRCState { return &m.RRCState }),
+	apimpl.OptionalIE(IDRRCState, CriticalityIgnore, func(m *UEContextModificationResponse) **RRCState { return &m.RRCState }),
 	{
 		ID: IDUserLocationInformation, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *UEContextModificationResponse, r *per.Reader, enc per.Encoding) error {

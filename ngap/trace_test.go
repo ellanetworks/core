@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 const (
@@ -103,7 +103,7 @@ func TestTraceActivationTraceCollectionEntityURIExtension(t *testing.T) {
 	}
 
 	if err := encodeExtensionContainer(want, per.Aligned, []ieField{
-		{ID: IDTraceCollectionEntityURI, Criticality: CriticalityIgnore, Value: ap.RawValue(uri)},
+		{ID: IDTraceCollectionEntityURI, Criticality: CriticalityIgnore, Value: apimpl.RawValue(uri)},
 	}); err != nil {
 		t.Fatal(err)
 	}

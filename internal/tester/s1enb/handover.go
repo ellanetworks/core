@@ -177,7 +177,7 @@ func (e *ENB) WaitForMMEStatusTransfer(enbUEID int64, timeout time.Duration) (*s
 	return mst, nil
 }
 
-func (e *ENB) SendHandoverNotify(enbUEID, mmeUEID int64) error {
+func (e *ENB) buildHandoverNotify(enbUEID, mmeUEID int64) ([]byte, error) {
 	notify := &s1ap.HandoverNotify{
 		MMEUES1APID: s1ap.MMEUES1APID(mmeUEID),
 		ENBUES1APID: s1ap.ENBUES1APID(enbUEID),
@@ -185,7 +185,11 @@ func (e *ENB) SendHandoverNotify(enbUEID, mmeUEID int64) error {
 		TAI:         s1ap.Ptr(e.taiFor(enbUEID)),
 	}
 
-	b, err := notify.Marshal()
+	return notify.Marshal()
+}
+
+func (e *ENB) SendHandoverNotify(enbUEID, mmeUEID int64) error {
+	b, err := e.buildHandoverNotify(enbUEID, mmeUEID)
 	if err != nil {
 		return fmt.Errorf("s1enb: build Handover Notify: %w", err)
 	}

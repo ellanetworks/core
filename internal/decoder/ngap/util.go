@@ -46,7 +46,7 @@ func ieEnum(id ngap.ProtocolIEID) utils.EnumField {
 }
 
 // transportLayerAddressToString formats a NGAP TransportLayerAddress as a
-// human-readable string per 3GPP TS 38.414 Section 5.1:
+// human-readable string per 3GPP TS 38.414 Section 5.3:
 //   - 32 bits  → IPv4 dotted-decimal
 //   - 128 bits → IPv6 colon-notation
 //   - 160 bits → "IPv4+IPv6" dual-stack

@@ -16,6 +16,8 @@ type Reader struct {
 // NewReader returns a Reader over b without copying it.
 func NewReader(b []byte) *Reader { return &Reader{buf: b} }
 
+func (r *Reader) Reset(b []byte) { *r = Reader{buf: b} }
+
 // Bits returns the number of bits remaining.
 func (r *Reader) Bits() int {
 	return (len(r.buf)-r.pos)*8 - int(r.bit)
@@ -119,6 +121,15 @@ func (r *Reader) ReadOctets(n int) ([]byte, error) {
 }
 
 func (r *Reader) Offset() int { return r.pos*8 + int(r.bit) }
+
+func (r *Reader) Complete() error {
+	read := r.Offset()
+	if len(r.buf)*8-read < 8 || (read == 0 && len(r.buf) == 1) {
+		return nil
+	}
+
+	return ErrTrailing
+}
 
 func (r *Reader) Since(start int) ([]byte, int, error) {
 	end := r.Offset()

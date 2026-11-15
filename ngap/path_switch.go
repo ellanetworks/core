@@ -5,6 +5,7 @@ package ngap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 38.413 §9.2.3.8. The target NG-RAN node asks the AMF to switch the
@@ -110,9 +111,9 @@ var pathSwitchRequestIEs = []ieSpec[PathSwitchRequest]{
 			return m.PDUSessionResourceFailedToSetup, true
 		},
 	},
-	optionalExtension(IDRRCResumeCause, CriticalityIgnore, func(m *PathSwitchRequest) **RRCEstablishmentCause { return &m.RRCResumeCause }),
-	optionalExtension(IDRedCapIndication, CriticalityIgnore, func(m *PathSwitchRequest) **RedCapIndication { return &m.RedCapIndication }),
-	optionalExtension(IDERedCapIndication, CriticalityIgnore, func(m *PathSwitchRequest) **ERedCapIndication { return &m.ERedCapIndication }),
+	apimpl.OptionalIE(IDRRCResumeCause, CriticalityIgnore, func(m *PathSwitchRequest) **RRCEstablishmentCause { return &m.RRCResumeCause }),
+	apimpl.OptionalIE(IDRedCapIndication, CriticalityIgnore, func(m *PathSwitchRequest) **RedCapIndication { return &m.RedCapIndication }),
+	apimpl.OptionalIE(IDERedCapIndication, CriticalityIgnore, func(m *PathSwitchRequest) **ERedCapIndication { return &m.ERedCapIndication }),
 	{
 		ID: IDSourceAMFGUAMI, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *PathSwitchRequest, r *per.Reader, enc per.Encoding) error {
@@ -288,7 +289,7 @@ var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 		},
 		Encode: func(m *PathSwitchRequestAcknowledge) (per.Marshaler, bool) { return &m.SecurityContext, true },
 	},
-	optionalExtension(IDNewSecurityContextInd, CriticalityReject, func(m *PathSwitchRequestAcknowledge) **NewSecurityContextInd { return &m.NewSecurityContextInd }),
+	apimpl.OptionalIE(IDNewSecurityContextInd, CriticalityReject, func(m *PathSwitchRequestAcknowledge) **NewSecurityContextInd { return &m.NewSecurityContextInd }),
 	{
 		ID: IDPDUSessionResourceSwitchedList, Presence: presenceMandatory, Criticality: CriticalityIgnore,
 		Decode: func(m *PathSwitchRequestAcknowledge, r *per.Reader, enc per.Encoding) error {
@@ -328,10 +329,10 @@ var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 			return m.AllowedNSSAI, true
 		},
 	},
-	optionalExtension(IDCoreNetworkAssistanceInformationForInactive, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **CoreNetworkAssistanceInformationForInactive {
+	apimpl.OptionalIE(IDCoreNetworkAssistanceInformationForInactive, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **CoreNetworkAssistanceInformationForInactive {
 		return &m.CoreNetworkAssistanceInformationForInactive
 	}),
-	optionalExtension(IDRRCInactiveTransitionReportRequest, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **RRCInactiveTransitionReportRequest {
+	apimpl.OptionalIE(IDRRCInactiveTransitionReportRequest, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **RRCInactiveTransitionReportRequest {
 		return &m.RRCInactiveTransitionReportRequest
 	}),
 	{
@@ -355,54 +356,54 @@ var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 			return m.CriticalityDiagnostics, true
 		},
 	},
-	optionalExtension(IDRedirectionVoiceFallback, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **RedirectionVoiceFallback { return &m.RedirectionVoiceFallback }),
-	optionalExtension(IDCNAssistedRANTuning, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **CNAssistedRANTuning { return &m.CNAssistedRANTuning }),
-	optionalExtension(IDSRVCCOperationPossible, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **SRVCCOperationPossible { return &m.SRVCCOperationPossible }),
-	optionalExtension(IDEnhancedCoverageRestriction, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **EnhancedCoverageRestriction {
+	apimpl.OptionalIE(IDRedirectionVoiceFallback, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **RedirectionVoiceFallback { return &m.RedirectionVoiceFallback }),
+	apimpl.OptionalIE(IDCNAssistedRANTuning, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **CNAssistedRANTuning { return &m.CNAssistedRANTuning }),
+	apimpl.OptionalIE(IDSRVCCOperationPossible, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **SRVCCOperationPossible { return &m.SRVCCOperationPossible }),
+	apimpl.OptionalIE(IDEnhancedCoverageRestriction, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **EnhancedCoverageRestriction {
 		return &m.EnhancedCoverageRestriction
 	}),
-	optionalExtension(IDExtendedConnectedTime, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **ExtendedConnectedTime { return &m.ExtendedConnectedTime }),
-	optionalExtension(IDUEDifferentiationInfo, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **UEDifferentiationInfo { return &m.UEDifferentiationInfo }),
-	optionalExtension(IDNRV2XServicesAuthorized, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **NRV2XServicesAuthorized { return &m.NRV2XServicesAuthorized }),
-	optionalExtension(IDLTEV2XServicesAuthorized, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **LTEV2XServicesAuthorized { return &m.LTEV2XServicesAuthorized }),
-	optionalExtension(IDNRUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **NRUESidelinkAggregateMaximumBitrate {
+	apimpl.OptionalIE(IDExtendedConnectedTime, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **ExtendedConnectedTime { return &m.ExtendedConnectedTime }),
+	apimpl.OptionalIE(IDUEDifferentiationInfo, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **UEDifferentiationInfo { return &m.UEDifferentiationInfo }),
+	apimpl.OptionalIE(IDNRV2XServicesAuthorized, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **NRV2XServicesAuthorized { return &m.NRV2XServicesAuthorized }),
+	apimpl.OptionalIE(IDLTEV2XServicesAuthorized, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **LTEV2XServicesAuthorized { return &m.LTEV2XServicesAuthorized }),
+	apimpl.OptionalIE(IDNRUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **NRUESidelinkAggregateMaximumBitrate {
 		return &m.NRUESidelinkAggregateMaximumBitrate
 	}),
-	optionalExtension(IDLTEUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **LTEUESidelinkAggregateMaximumBitrate {
+	apimpl.OptionalIE(IDLTEUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **LTEUESidelinkAggregateMaximumBitrate {
 		return &m.LTEUESidelinkAggregateMaximumBitrate
 	}),
-	optionalExtension(IDPC5QoSParameters, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **PC5QoSParameters { return &m.PC5QoSParameters }),
-	optionalExtension(IDCEmodeBrestricted, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **CEmodeBrestricted { return &m.CEmodeBrestricted }),
-	optionalExtension(IDUEUPCIoTSupport, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **UEUPCIoTSupport { return &m.UEUPCIoTSupport }),
-	optionalExtension(IDUERadioCapabilityID, CriticalityReject, func(m *PathSwitchRequestAcknowledge) **UERadioCapabilityID { return &m.UERadioCapabilityID }),
-	listExtension(IDManagementBasedMDTPLMNList, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) *MDTPLMNList { return &m.ManagementBasedMDTPLMNList }),
-	optionalExtension(IDTimeSyncAssistanceInfo, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **TimeSyncAssistanceInfo { return &m.TimeSyncAssistanceInfo }),
-	optionalExtension(IDFiveGProSeAuthorized, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **FiveGProSeAuthorized { return &m.FiveGProSeAuthorized }),
-	optionalExtension(IDFiveGProSeUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **NRUESidelinkAggregateMaximumBitrate {
+	apimpl.OptionalIE(IDPC5QoSParameters, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **PC5QoSParameters { return &m.PC5QoSParameters }),
+	apimpl.OptionalIE(IDCEmodeBrestricted, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **CEmodeBrestricted { return &m.CEmodeBrestricted }),
+	apimpl.OptionalIE(IDUEUPCIoTSupport, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **UEUPCIoTSupport { return &m.UEUPCIoTSupport }),
+	apimpl.OptionalIE(IDUERadioCapabilityID, CriticalityReject, func(m *PathSwitchRequestAcknowledge) **UERadioCapabilityID { return &m.UERadioCapabilityID }),
+	apimpl.ListIE(IDManagementBasedMDTPLMNList, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) *MDTPLMNList { return &m.ManagementBasedMDTPLMNList }),
+	apimpl.OptionalIE(IDTimeSyncAssistanceInfo, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **TimeSyncAssistanceInfo { return &m.TimeSyncAssistanceInfo }),
+	apimpl.OptionalIE(IDFiveGProSeAuthorized, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **FiveGProSeAuthorized { return &m.FiveGProSeAuthorized }),
+	apimpl.OptionalIE(IDFiveGProSeUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **NRUESidelinkAggregateMaximumBitrate {
 		return &m.FiveGProSeUEPC5AggregateMaximumBitRate
 	}),
-	optionalExtension(IDFiveGProSePC5QoSParameters, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **FiveGProSePC5QoSParameters {
+	apimpl.OptionalIE(IDFiveGProSePC5QoSParameters, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **FiveGProSePC5QoSParameters {
 		return &m.FiveGProSePC5QoSParameters
 	}),
-	listExtension(IDManagementBasedMDTPLMNModificationList, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) *MDTPLMNModificationList {
+	apimpl.ListIE(IDManagementBasedMDTPLMNModificationList, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) *MDTPLMNModificationList {
 		return &m.ManagementBasedMDTPLMNModificationList
 	}),
-	optionalExtension(IDIABAuthorized, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **IABAuthorized { return &m.IABAuthorized }),
-	optionalExtension(IDAerialUEsubscriptionInformation, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **AerialUEsubscriptionInformation {
+	apimpl.OptionalIE(IDIABAuthorized, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **IABAuthorized { return &m.IABAuthorized }),
+	apimpl.OptionalIE(IDAerialUEsubscriptionInformation, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **AerialUEsubscriptionInformation {
 		return &m.AerialUEsubscriptionInformation
 	}),
-	optionalExtension(IDNRA2XServicesAuthorized, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **NRA2XServicesAuthorized { return &m.NRA2XServicesAuthorized }),
-	optionalExtension(IDLTEA2XServicesAuthorized, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **LTEA2XServicesAuthorized { return &m.LTEA2XServicesAuthorized }),
-	optionalExtension(IDNRA2XUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **NRUESidelinkAggregateMaximumBitrate {
+	apimpl.OptionalIE(IDNRA2XServicesAuthorized, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **NRA2XServicesAuthorized { return &m.NRA2XServicesAuthorized }),
+	apimpl.OptionalIE(IDLTEA2XServicesAuthorized, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **LTEA2XServicesAuthorized { return &m.LTEA2XServicesAuthorized }),
+	apimpl.OptionalIE(IDNRA2XUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **NRUESidelinkAggregateMaximumBitrate {
 		return &m.NRA2XUEPC5AggregateMaximumBitRate
 	}),
-	optionalExtension(IDLTEA2XUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **LTEUESidelinkAggregateMaximumBitrate {
+	apimpl.OptionalIE(IDLTEA2XUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **LTEUESidelinkAggregateMaximumBitrate {
 		return &m.LTEA2XUEPC5AggregateMaximumBitRate
 	}),
-	optionalExtension(IDA2XPC5QoSParameters, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **A2XPC5QoSParameters { return &m.A2XPC5QoSParameters }),
-	optionalExtension(IDMobileIABAuthorized, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **MobileIABAuthorized { return &m.MobileIABAuthorized }),
-	listExtension(IDPartiallyAllowedNSSAI, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) *PartiallyAllowedNSSAI { return &m.PartiallyAllowedNSSAI }),
-	optionalExtension(IDSLPositioningRangingServiceInfo, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **SLPositioningRangingServiceInfo {
+	apimpl.OptionalIE(IDA2XPC5QoSParameters, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **A2XPC5QoSParameters { return &m.A2XPC5QoSParameters }),
+	apimpl.OptionalIE(IDMobileIABAuthorized, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **MobileIABAuthorized { return &m.MobileIABAuthorized }),
+	apimpl.ListIE(IDPartiallyAllowedNSSAI, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) *PartiallyAllowedNSSAI { return &m.PartiallyAllowedNSSAI }),
+	apimpl.OptionalIE(IDSLPositioningRangingServiceInfo, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **SLPositioningRangingServiceInfo {
 		return &m.SLPositioningRangingServiceInfo
 	}),
 	{

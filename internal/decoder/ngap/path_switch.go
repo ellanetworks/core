@@ -220,6 +220,12 @@ func buildPathSwitchRequest(value []byte) NGAPMessageValue {
 		ies = append(ies, ie(ngap.IDSourceAMFGUAMI, ngap.CriticalityIgnore, guami(*m.SourceAMFGUAMI)))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDRRCResumeCause, ngap.CriticalityIgnore, m.RRCResumeCause},
+		{ngap.IDRedCapIndication, ngap.CriticalityIgnore, m.RedCapIndication},
+		{ngap.IDERedCapIndication, ngap.CriticalityIgnore, m.ERedCapIndication},
+	})
+
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }
 
@@ -284,6 +290,42 @@ func buildPathSwitchRequestAcknowledge(value []byte) NGAPMessageValue {
 	if m.AMFUENGAPID2 != nil {
 		ies = append(ies, ie(ngap.IDAMFUENGAPID2, ngap.CriticalityIgnore, int64(*m.AMFUENGAPID2)))
 	}
+
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDNewSecurityContextInd, ngap.CriticalityReject, m.NewSecurityContextInd},
+		{ngap.IDCoreNetworkAssistanceInformationForInactive, ngap.CriticalityIgnore, m.CoreNetworkAssistanceInformationForInactive},
+		{ngap.IDRRCInactiveTransitionReportRequest, ngap.CriticalityIgnore, m.RRCInactiveTransitionReportRequest},
+		{ngap.IDRedirectionVoiceFallback, ngap.CriticalityIgnore, m.RedirectionVoiceFallback},
+		{ngap.IDCNAssistedRANTuning, ngap.CriticalityIgnore, m.CNAssistedRANTuning},
+		{ngap.IDSRVCCOperationPossible, ngap.CriticalityIgnore, m.SRVCCOperationPossible},
+		{ngap.IDEnhancedCoverageRestriction, ngap.CriticalityIgnore, m.EnhancedCoverageRestriction},
+		{ngap.IDExtendedConnectedTime, ngap.CriticalityIgnore, m.ExtendedConnectedTime},
+		{ngap.IDUEDifferentiationInfo, ngap.CriticalityIgnore, m.UEDifferentiationInfo},
+		{ngap.IDNRV2XServicesAuthorized, ngap.CriticalityIgnore, m.NRV2XServicesAuthorized},
+		{ngap.IDLTEV2XServicesAuthorized, ngap.CriticalityIgnore, m.LTEV2XServicesAuthorized},
+		{ngap.IDNRUESidelinkAggregateMaximumBitrate, ngap.CriticalityIgnore, m.NRUESidelinkAggregateMaximumBitrate},
+		{ngap.IDLTEUESidelinkAggregateMaximumBitrate, ngap.CriticalityIgnore, m.LTEUESidelinkAggregateMaximumBitrate},
+		{ngap.IDPC5QoSParameters, ngap.CriticalityIgnore, m.PC5QoSParameters},
+		{ngap.IDCEmodeBrestricted, ngap.CriticalityIgnore, m.CEmodeBrestricted},
+		{ngap.IDUEUPCIoTSupport, ngap.CriticalityIgnore, m.UEUPCIoTSupport},
+		{ngap.IDUERadioCapabilityID, ngap.CriticalityReject, m.UERadioCapabilityID},
+		{ngap.IDManagementBasedMDTPLMNList, ngap.CriticalityIgnore, m.ManagementBasedMDTPLMNList},
+		{ngap.IDTimeSyncAssistanceInfo, ngap.CriticalityIgnore, m.TimeSyncAssistanceInfo},
+		{ngap.IDFiveGProSeAuthorized, ngap.CriticalityIgnore, m.FiveGProSeAuthorized},
+		{ngap.IDFiveGProSeUEPC5AggregateMaximumBitRate, ngap.CriticalityIgnore, m.FiveGProSeUEPC5AggregateMaximumBitRate},
+		{ngap.IDFiveGProSePC5QoSParameters, ngap.CriticalityIgnore, m.FiveGProSePC5QoSParameters},
+		{ngap.IDManagementBasedMDTPLMNModificationList, ngap.CriticalityIgnore, m.ManagementBasedMDTPLMNModificationList},
+		{ngap.IDIABAuthorized, ngap.CriticalityIgnore, m.IABAuthorized},
+		{ngap.IDAerialUEsubscriptionInformation, ngap.CriticalityIgnore, m.AerialUEsubscriptionInformation},
+		{ngap.IDNRA2XServicesAuthorized, ngap.CriticalityIgnore, m.NRA2XServicesAuthorized},
+		{ngap.IDLTEA2XServicesAuthorized, ngap.CriticalityIgnore, m.LTEA2XServicesAuthorized},
+		{ngap.IDNRA2XUEPC5AggregateMaximumBitRate, ngap.CriticalityIgnore, m.NRA2XUEPC5AggregateMaximumBitRate},
+		{ngap.IDLTEA2XUEPC5AggregateMaximumBitRate, ngap.CriticalityIgnore, m.LTEA2XUEPC5AggregateMaximumBitRate},
+		{ngap.IDA2XPC5QoSParameters, ngap.CriticalityIgnore, m.A2XPC5QoSParameters},
+		{ngap.IDMobileIABAuthorized, ngap.CriticalityIgnore, m.MobileIABAuthorized},
+		{ngap.IDPartiallyAllowedNSSAI, ngap.CriticalityIgnore, m.PartiallyAllowedNSSAI},
+		{ngap.IDSLPositioningRangingServiceInfo, ngap.CriticalityIgnore, m.SLPositioningRangingServiceInfo},
+	})
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }

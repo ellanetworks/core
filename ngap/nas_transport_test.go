@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/per"
 	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // Golden UPLINK NAS TRANSPORT PDUs
@@ -194,7 +195,7 @@ func TestUserLocationInformationN3IWFWithoutPortNumberIsTyped(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := encodeContainerField(want, ieField{ID: IDUserLocationInformationN3IWFwithoutPortNumber, Criticality: CriticalityIgnore, Value: ap.RawValue(inner)}); err != nil {
+	if err := encodeContainerField(want, ieField{ID: IDUserLocationInformationN3IWFwithoutPortNumber, Criticality: CriticalityIgnore, Value: apimpl.RawValue(inner)}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -219,7 +220,7 @@ func TestUserLocationInformationUnknownChoiceExtensionIsPreserved(t *testing.T) 
 			t.Fatal(err)
 		}
 
-		if err := encodeContainerField(w, ieField{ID: 9999, Criticality: crit, Value: ap.RawValue([]byte{0x00})}); err != nil {
+		if err := encodeContainerField(w, ieField{ID: 9999, Criticality: crit, Value: apimpl.RawValue([]byte{0x00})}); err != nil {
 			t.Fatal(err)
 		}
 
@@ -626,7 +627,7 @@ func initialUEMessageWireCases(t *testing.T) []wireCase {
 		{
 			name: "InitialUEMessageGUAMIAfterSelectedPLMNIdentity",
 			pdu: insertRawIEs(t, marshalT(t, goldInitialUEMessageFemto()), 4,
-				ieField{ID: IDSelectedPLMNIdentity, Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x00, 0xf1, 0x10})}),
+				ieField{ID: IDSelectedPLMNIdentity, Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0x00, 0xf1, 0x10})}),
 			parse: func(v []byte) (any, error) { return ParseInitialUEMessage(v) },
 			check: func(t *testing.T, a any) {
 				t.Helper()

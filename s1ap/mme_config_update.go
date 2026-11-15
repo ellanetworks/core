@@ -5,12 +5,14 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 type MMEConfigurationUpdate struct {
 	MMEName             *string
 	ServedGUMMEIs       ServedGUMMEIs
 	RelativeMMECapacity *uint8
+	ServedDCNs          *ServedDCNs
 
 	messageMeta
 }
@@ -74,6 +76,7 @@ var mMEConfigurationUpdateIEs = []ieSpec[MMEConfigurationUpdate]{
 			}), true
 		},
 	},
+	apimpl.OptionalIE(IDServedDCNs, CriticalityIgnore, func(m *MMEConfigurationUpdate) **ServedDCNs { return &m.ServedDCNs }),
 }
 
 func (m *MMEConfigurationUpdate) encodeBody(w *per.Writer, enc per.Encoding) error {

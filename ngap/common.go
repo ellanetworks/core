@@ -138,4 +138,10 @@ const (
 	ProcMTCommunicationHandling               ProcedureCode = 78
 	ProcRANPagingRequest                      ProcedureCode = 79
 	ProcBroadcastSessionTransport             ProcedureCode = 80
+	ProcNGRemoval                             ProcedureCode = 81
+	ProcInventoryRequest                      ProcedureCode = 82
+	ProcInventoryReport                       ProcedureCode = 83
+	ProcCommandRequest                        ProcedureCode = 84
+	ProcAIOTSessionRelease                    ProcedureCode = 85
+	ProcAIOTSessionReleaseRequest             ProcedureCode = 86
 )

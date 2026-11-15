@@ -107,7 +107,7 @@ func runS1HandoverIndirectForwarding(_ context.Context, env scenarios.Env, _ any
 	}
 
 	targetMMEUEID := int64(hoReq.MMEUES1APID)
-	targetENBUEID := target.AllocateENBUEID()
+	targetENBUEID := target.AllocateENBUEIDFor(ue)
 
 	_, targetForwardingTEID, err := target.SendHandoverRequestAcknowledge(targetENBUEID, targetMMEUEID, res.ERABID, true)
 	if err != nil {

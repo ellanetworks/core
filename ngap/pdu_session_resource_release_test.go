@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // Golden PDU SESSION RESOURCE RELEASE PDUs.
@@ -115,8 +115,8 @@ func TestPDUSessionResourceReleaseRoundTrips(t *testing.T) {
 // releases nothing, so it is not delivered (§10.3.5).
 func TestPDUSessionResourceReleaseCommandMissingList(t *testing.T) {
 	value := container(t,
-		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))},
-		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(RANUENGAPID(2))))},
+		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))},
+		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(RANUENGAPID(2))))},
 	)
 
 	_, err := ParsePDUSessionResourceReleaseCommand(value)
@@ -139,8 +139,8 @@ func TestPDUSessionResourceReleaseCommandMissingList(t *testing.T) {
 // it is still delivered and the absence reported (§10.3.5).
 func TestPDUSessionResourceReleaseResponseMissingList(t *testing.T) {
 	value := container(t,
-		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityIgnore, Value: ap.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))},
-		ieField{ID: IDRANUENGAPID, Criticality: CriticalityIgnore, Value: ap.RawValue(ieRaw(t, Ptr(RANUENGAPID(2))))},
+		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityIgnore, Value: apimpl.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))},
+		ieField{ID: IDRANUENGAPID, Criticality: CriticalityIgnore, Value: apimpl.RawValue(ieRaw(t, Ptr(RANUENGAPID(2))))},
 	)
 
 	msg, err := ParsePDUSessionResourceReleaseResponse(value)

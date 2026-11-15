@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/per"
 	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 func TestCauseRoundTrip(t *testing.T) {
@@ -62,7 +63,7 @@ func causeChoiceExtensionWire(t *testing.T, crit Criticality) []byte {
 		t.Fatal(err)
 	}
 
-	if err := encodeContainerField(w, ieField{ID: 9999, Criticality: crit, Value: ap.RawValue([]byte{0x2a})}); err != nil {
+	if err := encodeContainerField(w, ieField{ID: 9999, Criticality: crit, Value: apimpl.RawValue([]byte{0x2a})}); err != nil {
 		t.Fatal(err)
 	}
 

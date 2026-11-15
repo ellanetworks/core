@@ -36,11 +36,11 @@ func TestProtocolIEIDString(t *testing.T) {
 }
 
 // Criticality Diagnostics reports the procedure's real criticality (§9.3.1.3).
-// TS 38.413 splits the 81 procedures 41 reject / 40 ignore, so a hardcoded
+// TS 38.413 splits the 87 procedures 47 reject / 40 ignore, so a hardcoded
 // value would be wrong about half the time.
 func TestProcedureCriticalityTable(t *testing.T) {
-	if got := len(procedureInfos); got != 81 {
-		t.Errorf("procedureInfos has %d entries, want 81", got)
+	if got := len(procedureInfos); got != 87 {
+		t.Errorf("procedureInfos has %d entries, want 87", got)
 	}
 
 	var reject, ignore, outcomes int
@@ -60,12 +60,12 @@ func TestProcedureCriticalityTable(t *testing.T) {
 		}
 	}
 
-	if reject != 41 || ignore != 40 {
-		t.Errorf("criticality split = %d reject / %d ignore, want 41 / 40", reject, ignore)
+	if reject != 47 || ignore != 40 {
+		t.Errorf("criticality split = %d reject / %d ignore, want 47 / 40", reject, ignore)
 	}
 
-	if outcomes != 18 {
-		t.Errorf("%d procedures define an unsuccessful outcome, want 18", outcomes)
+	if outcomes != 21 {
+		t.Errorf("%d procedures define an unsuccessful outcome, want 21", outcomes)
 	}
 }
 

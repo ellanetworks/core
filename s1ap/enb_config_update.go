@@ -5,13 +5,18 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 36.413 §9.1.8.7.
 type ENBConfigurationUpdate struct {
-	ENBName          *string
-	SupportedTAs     SupportedTAs
-	DefaultPagingDRX *PagingDRX
+	ENBName                    *string
+	SupportedTAs               SupportedTAs
+	DefaultPagingDRX           *PagingDRX
+	CSGIdList                  CSGIdList
+	NBIoTDefaultPagingDRX      *NBIoTDefaultPagingDRX
+	ConnectedengNBToAddList    ConnectedengNBList
+	ConnectedengNBToRemoveList ConnectedengNBList
 
 	messageMeta
 }
@@ -52,6 +57,7 @@ var eNBConfigurationUpdateIEs = []ieSpec[ENBConfigurationUpdate]{
 			return &m.SupportedTAs, true
 		},
 	},
+	apimpl.ListIE(IDCSGIdList, CriticalityReject, func(m *ENBConfigurationUpdate) *CSGIdList { return &m.CSGIdList }),
 	{
 		ID: IDDefaultPagingDRX, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *ENBConfigurationUpdate, r *per.Reader, enc per.Encoding) error {
@@ -73,6 +79,9 @@ var eNBConfigurationUpdateIEs = []ieSpec[ENBConfigurationUpdate]{
 			return m.DefaultPagingDRX, true
 		},
 	},
+	apimpl.OptionalIE(IDNBIoTDefaultPagingDRX, CriticalityIgnore, func(m *ENBConfigurationUpdate) **NBIoTDefaultPagingDRX { return &m.NBIoTDefaultPagingDRX }),
+	apimpl.ListIE(IDConnectedengNBToAddList, CriticalityIgnore, func(m *ENBConfigurationUpdate) *ConnectedengNBList { return &m.ConnectedengNBToAddList }),
+	apimpl.ListIE(IDConnectedengNBToRemoveList, CriticalityIgnore, func(m *ENBConfigurationUpdate) *ConnectedengNBList { return &m.ConnectedengNBToRemoveList }),
 }
 
 func (m *ENBConfigurationUpdate) encodeBody(w *per.Writer, enc per.Encoding) error {

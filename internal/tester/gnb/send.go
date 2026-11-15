@@ -175,7 +175,7 @@ func (g *GnodeB) SendPDUSessionResourceReleaseResponse(opts *PDUSessionResourceR
 	return g.SendMessage(pdu, NGAPProcedurePDUSessionResourceReleaseResponse)
 }
 
-func (g *GnodeB) SendPathSwitchRequest(opts *PathSwitchRequestOpts) error {
+func (g *GnodeB) pathSwitchRequestPDU(opts *PathSwitchRequestOpts) ([]byte, error) {
 	opts.Mcc = g.MCC
 	opts.Mnc = g.MNC
 	opts.Tac = g.TAC
@@ -185,7 +185,11 @@ func (g *GnodeB) SendPathSwitchRequest(opts *PathSwitchRequestOpts) error {
 		opts.SelectedMcc, opts.SelectedMnc = g.explicitPLMN(opts.RANUENGAPID)
 	}
 
-	pdu, err := BuildPathSwitchRequest(opts)
+	return BuildPathSwitchRequest(opts)
+}
+
+func (g *GnodeB) SendPathSwitchRequest(opts *PathSwitchRequestOpts) error {
+	pdu, err := g.pathSwitchRequestPDU(opts)
 	if err != nil {
 		return fmt.Errorf("couldn't build PathSwitchRequest: %s", err.Error())
 	}
@@ -338,7 +342,7 @@ func (g *GnodeB) SendHandoverRequestAcknowledge(opts *HandoverRequestAcknowledge
 	return nil
 }
 
-func (g *GnodeB) SendHandoverNotify(opts *HandoverNotifyOpts) error {
+func (g *GnodeB) handoverNotifyPDU(opts *HandoverNotifyOpts) ([]byte, error) {
 	opts.Mcc = firstNonEmpty(opts.Mcc, g.MCC)
 	opts.Mnc = firstNonEmpty(opts.Mnc, g.MNC)
 	opts.Tac = firstNonEmpty(opts.Tac, g.TAC)
@@ -348,7 +352,11 @@ func (g *GnodeB) SendHandoverNotify(opts *HandoverNotifyOpts) error {
 		opts.SelectedMcc, opts.SelectedMnc = g.explicitPLMN(opts.RANUENGAPID)
 	}
 
-	pdu, err := BuildHandoverNotify(opts)
+	return BuildHandoverNotify(opts)
+}
+
+func (g *GnodeB) SendHandoverNotify(opts *HandoverNotifyOpts) error {
+	pdu, err := g.handoverNotifyPDU(opts)
 	if err != nil {
 		return fmt.Errorf("couldn't build HandoverNotify: %s", err.Error())
 	}

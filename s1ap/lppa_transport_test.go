@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 const (
@@ -161,7 +161,7 @@ func TestLPPaTransportUnknownIE(t *testing.T) {
 		{ID: IDENBUES1APID, Criticality: CriticalityReject, Value: ENBUES1APID(9)},
 		{ID: IDRoutingID, Criticality: CriticalityReject, Value: RoutingID(0)},
 		{ID: IDLPPaPDU, Criticality: CriticalityReject, Value: LPPaPDU{0x01}},
-		{ID: 999, Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0xaa})},
+		{ID: 999, Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0xaa})},
 	}
 
 	if err := encodeIEContainer(w, per.Aligned, fields); err != nil {

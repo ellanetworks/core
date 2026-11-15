@@ -125,6 +125,42 @@ func buildInitialContextSetupRequest(value []byte) (S1APMessageValue, string) {
 		ies = append(ies, ie(s1ap.IDMMEUES1APID2, s1ap.CriticalityIgnore, uint32(*m.MMEUES1APID2)))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDCoarseUELocation, s1ap.CriticalityIgnore, m.CoarseUELocation},
+		{s1ap.IDTimeRefDistribution, s1ap.CriticalityIgnore, m.TimeRefDistribution},
+	})
+
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDTraceActivation, s1ap.CriticalityIgnore, m.TraceActivation},
+		{s1ap.IDHandoverRestrictionList, s1ap.CriticalityIgnore, m.HandoverRestrictionList},
+		{s1ap.IDSubscriberProfileIDforRFP, s1ap.CriticalityIgnore, m.SubscriberProfileIDforRFP},
+		{s1ap.IDCSFallbackIndicator, s1ap.CriticalityReject, m.CSFallbackIndicator},
+		{s1ap.IDSRVCCOperationPossible, s1ap.CriticalityIgnore, m.SRVCCOperationPossible},
+		{s1ap.IDCSGMembershipStatus, s1ap.CriticalityIgnore, m.CSGMembershipStatus},
+		{s1ap.IDRegisteredLAI, s1ap.CriticalityIgnore, m.RegisteredLAI},
+		{s1ap.IDManagementBasedMDTAllowed, s1ap.CriticalityIgnore, m.ManagementBasedMDTAllowed},
+		{s1ap.IDManagementBasedMDTPLMNList, s1ap.CriticalityIgnore, m.ManagementBasedMDTPLMNList},
+		{s1ap.IDAdditionalCSFallbackIndicator, s1ap.CriticalityIgnore, m.AdditionalCSFallbackIndicator},
+		{s1ap.IDMaskedIMEISV, s1ap.CriticalityIgnore, m.MaskedIMEISV},
+		{s1ap.IDExpectedUEBehaviour, s1ap.CriticalityIgnore, m.ExpectedUEBehaviour},
+		{s1ap.IDProSeAuthorized, s1ap.CriticalityIgnore, m.ProSeAuthorized},
+		{s1ap.IDUEUserPlaneCIoTSupportIndicator, s1ap.CriticalityIgnore, m.UEUserPlaneCIoTSupportIndicator},
+		{s1ap.IDV2XServicesAuthorized, s1ap.CriticalityIgnore, m.V2XServicesAuthorized},
+		{s1ap.IDUESidelinkAggregateMaximumBitrate, s1ap.CriticalityIgnore, m.UESidelinkAggregateMaximumBitrate},
+		{s1ap.IDEnhancedCoverageRestricted, s1ap.CriticalityIgnore, m.EnhancedCoverageRestricted},
+		{s1ap.IDNRUESecurityCapabilities, s1ap.CriticalityIgnore, m.NRUESecurityCapabilities},
+		{s1ap.IDCEModeBRestricted, s1ap.CriticalityIgnore, m.CEModeBRestricted},
+		{s1ap.IDAerialUEsubscriptionInformation, s1ap.CriticalityIgnore, m.AerialUEsubscriptionInformation},
+		{s1ap.IDPendingDataIndication, s1ap.CriticalityIgnore, m.PendingDataIndication},
+		{s1ap.IDSubscriptionBasedUEDifferentiationInfo, s1ap.CriticalityIgnore, m.SubscriptionBasedUEDifferentiationInfo},
+		{s1ap.IDAdditionalRRMPriorityIndex, s1ap.CriticalityIgnore, m.AdditionalRRMPriorityIndex},
+		{s1ap.IDIABAuthorized, s1ap.CriticalityIgnore, m.IABAuthorized},
+		{s1ap.IDNRV2XServicesAuthorized, s1ap.CriticalityIgnore, m.NRV2XServicesAuthorized},
+		{s1ap.IDNRUESidelinkAggregateMaximumBitrate, s1ap.CriticalityIgnore, m.NRUESidelinkAggregateMaximumBitrate},
+		{s1ap.IDPC5QoSParameters, s1ap.CriticalityIgnore, m.PC5QoSParameters},
+		{s1ap.IDUERadioCapabilityID, s1ap.CriticalityReject, m.UERadioCapabilityID},
+	})
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, fmt.Sprintf("Initial Context Setup Request (MME-UE %d, eNB-UE %d, %d E-RAB)", m.MMEUES1APID, m.ENBUES1APID, len(m.ERABToBeSetup))

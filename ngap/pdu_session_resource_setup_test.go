@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // Golden PDU SESSION RESOURCE SETUP PDUs.
@@ -140,8 +140,8 @@ func TestPDUSessionResourceSetupRoundTrips(t *testing.T) {
 // sets up nothing, so it is not delivered (§10.3.5).
 func TestPDUSessionResourceSetupRequestMissingSessionList(t *testing.T) {
 	value := container(t,
-		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))},
-		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(RANUENGAPID(2))))},
+		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))},
+		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(RANUENGAPID(2))))},
 	)
 
 	_, err := ParsePDUSessionResourceSetupRequest(value)
@@ -354,8 +354,8 @@ func TestPDUSessionResourceSetupResponseTransferGolden(t *testing.T) {
 // the missing IE named in Criticality Diagnostics.
 func TestPDUSessionResourceSetupRequestTransferMissingTunnel(t *testing.T) {
 	value := container(t,
-		ieField{ID: IDPDUSessionType, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, Ptr(PDUSessionTypeIPv4)))},
-		ieField{ID: IDQosFlowSetupRequestList, Criticality: CriticalityReject, Value: ap.RawValue(ieRaw(t, QosFlowSetupRequestList{{
+		ieField{ID: IDPDUSessionType, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(PDUSessionTypeIPv4)))},
+		ieField{ID: IDQosFlowSetupRequestList, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, QosFlowSetupRequestList{{
 			QosFlowIdentifier: 1,
 			QosFlowLevelQosParameters: QosFlowLevelQosParameters{
 				QosCharacteristics: QosCharacteristics{

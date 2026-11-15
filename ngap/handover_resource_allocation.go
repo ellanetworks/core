@@ -5,6 +5,7 @@ package ngap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 38.413 §9.2.3.4. The AMF asks the target NG-RAN node to reserve resources.
@@ -124,7 +125,7 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 		},
 		Encode: func(m *HandoverRequest) (per.Marshaler, bool) { return &m.UEAggregateMaximumBitRate, true },
 	},
-	optionalExtension(IDCoreNetworkAssistanceInformationForInactive, CriticalityIgnore, func(m *HandoverRequest) **CoreNetworkAssistanceInformationForInactive {
+	apimpl.OptionalIE(IDCoreNetworkAssistanceInformationForInactive, CriticalityIgnore, func(m *HandoverRequest) **CoreNetworkAssistanceInformationForInactive {
 		return &m.CoreNetworkAssistanceInformationForInactive
 	}),
 	{
@@ -222,7 +223,7 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 			return m.TraceActivation, true
 		},
 	},
-	optionalExtension(IDMaskedIMEISV, CriticalityIgnore, func(m *HandoverRequest) **MaskedIMEISV { return &m.MaskedIMEISV }),
+	apimpl.OptionalIE(IDMaskedIMEISV, CriticalityIgnore, func(m *HandoverRequest) **MaskedIMEISV { return &m.MaskedIMEISV }),
 	{
 		ID: IDSourceToTargetTransparentContainer, Presence: presenceMandatory, Criticality: CriticalityReject,
 		Decode: func(m *HandoverRequest, r *per.Reader, enc per.Encoding) error {
@@ -257,8 +258,8 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 			return m.MobilityRestrictionList, true
 		},
 	},
-	optionalExtension(IDLocationReportingRequestType, CriticalityIgnore, func(m *HandoverRequest) **LocationReportingRequestType { return &m.LocationReportingRequestType }),
-	optionalExtension(IDRRCInactiveTransitionReportRequest, CriticalityIgnore, func(m *HandoverRequest) **RRCInactiveTransitionReportRequest {
+	apimpl.OptionalIE(IDLocationReportingRequestType, CriticalityIgnore, func(m *HandoverRequest) **LocationReportingRequestType { return &m.LocationReportingRequestType }),
+	apimpl.OptionalIE(IDRRCInactiveTransitionReportRequest, CriticalityIgnore, func(m *HandoverRequest) **RRCInactiveTransitionReportRequest {
 		return &m.RRCInactiveTransitionReportRequest
 	}),
 	{
@@ -268,47 +269,47 @@ var handoverRequestIEs = []ieSpec[HandoverRequest]{
 		},
 		Encode: func(m *HandoverRequest) (per.Marshaler, bool) { return &m.GUAMI, true },
 	},
-	optionalExtension(IDRedirectionVoiceFallback, CriticalityIgnore, func(m *HandoverRequest) **RedirectionVoiceFallback { return &m.RedirectionVoiceFallback }),
-	optionalExtension(IDCNAssistedRANTuning, CriticalityIgnore, func(m *HandoverRequest) **CNAssistedRANTuning { return &m.CNAssistedRANTuning }),
-	optionalExtension(IDSRVCCOperationPossible, CriticalityIgnore, func(m *HandoverRequest) **SRVCCOperationPossible { return &m.SRVCCOperationPossible }),
-	optionalExtension(IDIABAuthorized, CriticalityReject, func(m *HandoverRequest) **IABAuthorized { return &m.IABAuthorized }),
-	optionalExtension(IDEnhancedCoverageRestriction, CriticalityIgnore, func(m *HandoverRequest) **EnhancedCoverageRestriction { return &m.EnhancedCoverageRestriction }),
-	optionalExtension(IDUEDifferentiationInfo, CriticalityIgnore, func(m *HandoverRequest) **UEDifferentiationInfo { return &m.UEDifferentiationInfo }),
-	optionalExtension(IDNRV2XServicesAuthorized, CriticalityIgnore, func(m *HandoverRequest) **NRV2XServicesAuthorized { return &m.NRV2XServicesAuthorized }),
-	optionalExtension(IDLTEV2XServicesAuthorized, CriticalityIgnore, func(m *HandoverRequest) **LTEV2XServicesAuthorized { return &m.LTEV2XServicesAuthorized }),
-	optionalExtension(IDNRUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *HandoverRequest) **NRUESidelinkAggregateMaximumBitrate {
+	apimpl.OptionalIE(IDRedirectionVoiceFallback, CriticalityIgnore, func(m *HandoverRequest) **RedirectionVoiceFallback { return &m.RedirectionVoiceFallback }),
+	apimpl.OptionalIE(IDCNAssistedRANTuning, CriticalityIgnore, func(m *HandoverRequest) **CNAssistedRANTuning { return &m.CNAssistedRANTuning }),
+	apimpl.OptionalIE(IDSRVCCOperationPossible, CriticalityIgnore, func(m *HandoverRequest) **SRVCCOperationPossible { return &m.SRVCCOperationPossible }),
+	apimpl.OptionalIE(IDIABAuthorized, CriticalityReject, func(m *HandoverRequest) **IABAuthorized { return &m.IABAuthorized }),
+	apimpl.OptionalIE(IDEnhancedCoverageRestriction, CriticalityIgnore, func(m *HandoverRequest) **EnhancedCoverageRestriction { return &m.EnhancedCoverageRestriction }),
+	apimpl.OptionalIE(IDUEDifferentiationInfo, CriticalityIgnore, func(m *HandoverRequest) **UEDifferentiationInfo { return &m.UEDifferentiationInfo }),
+	apimpl.OptionalIE(IDNRV2XServicesAuthorized, CriticalityIgnore, func(m *HandoverRequest) **NRV2XServicesAuthorized { return &m.NRV2XServicesAuthorized }),
+	apimpl.OptionalIE(IDLTEV2XServicesAuthorized, CriticalityIgnore, func(m *HandoverRequest) **LTEV2XServicesAuthorized { return &m.LTEV2XServicesAuthorized }),
+	apimpl.OptionalIE(IDNRUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *HandoverRequest) **NRUESidelinkAggregateMaximumBitrate {
 		return &m.NRUESidelinkAggregateMaximumBitrate
 	}),
-	optionalExtension(IDLTEUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *HandoverRequest) **LTEUESidelinkAggregateMaximumBitrate {
+	apimpl.OptionalIE(IDLTEUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *HandoverRequest) **LTEUESidelinkAggregateMaximumBitrate {
 		return &m.LTEUESidelinkAggregateMaximumBitrate
 	}),
-	optionalExtension(IDPC5QoSParameters, CriticalityIgnore, func(m *HandoverRequest) **PC5QoSParameters { return &m.PC5QoSParameters }),
-	optionalExtension(IDCEmodeBrestricted, CriticalityIgnore, func(m *HandoverRequest) **CEmodeBrestricted { return &m.CEmodeBrestricted }),
-	optionalExtension(IDUEUPCIoTSupport, CriticalityIgnore, func(m *HandoverRequest) **UEUPCIoTSupport { return &m.UEUPCIoTSupport }),
-	listExtension(IDManagementBasedMDTPLMNList, CriticalityIgnore, func(m *HandoverRequest) *MDTPLMNList { return &m.ManagementBasedMDTPLMNList }),
-	optionalExtension(IDUERadioCapabilityID, CriticalityReject, func(m *HandoverRequest) **UERadioCapabilityID { return &m.UERadioCapabilityID }),
-	optionalExtension(IDExtendedConnectedTime, CriticalityIgnore, func(m *HandoverRequest) **ExtendedConnectedTime { return &m.ExtendedConnectedTime }),
-	optionalExtension(IDTimeSyncAssistanceInfo, CriticalityIgnore, func(m *HandoverRequest) **TimeSyncAssistanceInfo { return &m.TimeSyncAssistanceInfo }),
-	listExtension(IDUESliceMaximumBitRateList, CriticalityIgnore, func(m *HandoverRequest) *UESliceMaximumBitRateList { return &m.UESliceMaximumBitRateList }),
-	optionalExtension(IDFiveGProSeAuthorized, CriticalityIgnore, func(m *HandoverRequest) **FiveGProSeAuthorized { return &m.FiveGProSeAuthorized }),
-	optionalExtension(IDFiveGProSeUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *HandoverRequest) **NRUESidelinkAggregateMaximumBitrate {
+	apimpl.OptionalIE(IDPC5QoSParameters, CriticalityIgnore, func(m *HandoverRequest) **PC5QoSParameters { return &m.PC5QoSParameters }),
+	apimpl.OptionalIE(IDCEmodeBrestricted, CriticalityIgnore, func(m *HandoverRequest) **CEmodeBrestricted { return &m.CEmodeBrestricted }),
+	apimpl.OptionalIE(IDUEUPCIoTSupport, CriticalityIgnore, func(m *HandoverRequest) **UEUPCIoTSupport { return &m.UEUPCIoTSupport }),
+	apimpl.ListIE(IDManagementBasedMDTPLMNList, CriticalityIgnore, func(m *HandoverRequest) *MDTPLMNList { return &m.ManagementBasedMDTPLMNList }),
+	apimpl.OptionalIE(IDUERadioCapabilityID, CriticalityReject, func(m *HandoverRequest) **UERadioCapabilityID { return &m.UERadioCapabilityID }),
+	apimpl.OptionalIE(IDExtendedConnectedTime, CriticalityIgnore, func(m *HandoverRequest) **ExtendedConnectedTime { return &m.ExtendedConnectedTime }),
+	apimpl.OptionalIE(IDTimeSyncAssistanceInfo, CriticalityIgnore, func(m *HandoverRequest) **TimeSyncAssistanceInfo { return &m.TimeSyncAssistanceInfo }),
+	apimpl.ListIE(IDUESliceMaximumBitRateList, CriticalityIgnore, func(m *HandoverRequest) *UESliceMaximumBitRateList { return &m.UESliceMaximumBitRateList }),
+	apimpl.OptionalIE(IDFiveGProSeAuthorized, CriticalityIgnore, func(m *HandoverRequest) **FiveGProSeAuthorized { return &m.FiveGProSeAuthorized }),
+	apimpl.OptionalIE(IDFiveGProSeUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *HandoverRequest) **NRUESidelinkAggregateMaximumBitrate {
 		return &m.FiveGProSeUEPC5AggregateMaximumBitRate
 	}),
-	optionalExtension(IDFiveGProSePC5QoSParameters, CriticalityIgnore, func(m *HandoverRequest) **FiveGProSePC5QoSParameters { return &m.FiveGProSePC5QoSParameters }),
-	optionalExtension(IDAerialUEsubscriptionInformation, CriticalityIgnore, func(m *HandoverRequest) **AerialUEsubscriptionInformation { return &m.AerialUEsubscriptionInformation }),
-	optionalExtension(IDNRA2XServicesAuthorized, CriticalityIgnore, func(m *HandoverRequest) **NRA2XServicesAuthorized { return &m.NRA2XServicesAuthorized }),
-	optionalExtension(IDLTEA2XServicesAuthorized, CriticalityIgnore, func(m *HandoverRequest) **LTEA2XServicesAuthorized { return &m.LTEA2XServicesAuthorized }),
-	optionalExtension(IDNRA2XUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *HandoverRequest) **NRUESidelinkAggregateMaximumBitrate {
+	apimpl.OptionalIE(IDFiveGProSePC5QoSParameters, CriticalityIgnore, func(m *HandoverRequest) **FiveGProSePC5QoSParameters { return &m.FiveGProSePC5QoSParameters }),
+	apimpl.OptionalIE(IDAerialUEsubscriptionInformation, CriticalityIgnore, func(m *HandoverRequest) **AerialUEsubscriptionInformation { return &m.AerialUEsubscriptionInformation }),
+	apimpl.OptionalIE(IDNRA2XServicesAuthorized, CriticalityIgnore, func(m *HandoverRequest) **NRA2XServicesAuthorized { return &m.NRA2XServicesAuthorized }),
+	apimpl.OptionalIE(IDLTEA2XServicesAuthorized, CriticalityIgnore, func(m *HandoverRequest) **LTEA2XServicesAuthorized { return &m.LTEA2XServicesAuthorized }),
+	apimpl.OptionalIE(IDNRA2XUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *HandoverRequest) **NRUESidelinkAggregateMaximumBitrate {
 		return &m.NRA2XUEPC5AggregateMaximumBitRate
 	}),
-	optionalExtension(IDLTEA2XUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *HandoverRequest) **LTEUESidelinkAggregateMaximumBitrate {
+	apimpl.OptionalIE(IDLTEA2XUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *HandoverRequest) **LTEUESidelinkAggregateMaximumBitrate {
 		return &m.LTEA2XUEPC5AggregateMaximumBitRate
 	}),
-	optionalExtension(IDA2XPC5QoSParameters, CriticalityIgnore, func(m *HandoverRequest) **A2XPC5QoSParameters { return &m.A2XPC5QoSParameters }),
-	optionalExtension(IDMobileIABAuthorized, CriticalityIgnore, func(m *HandoverRequest) **MobileIABAuthorized { return &m.MobileIABAuthorized }),
-	optionalExtension(IDNoPDUSessionIndication, CriticalityIgnore, func(m *HandoverRequest) **NoPDUSessionIndication { return &m.NoPDUSessionIndication }),
-	listExtension(IDPartiallyAllowedNSSAI, CriticalityIgnore, func(m *HandoverRequest) *PartiallyAllowedNSSAI { return &m.PartiallyAllowedNSSAI }),
-	optionalExtension(IDSLPositioningRangingServiceInfo, CriticalityIgnore, func(m *HandoverRequest) **SLPositioningRangingServiceInfo { return &m.SLPositioningRangingServiceInfo }),
+	apimpl.OptionalIE(IDA2XPC5QoSParameters, CriticalityIgnore, func(m *HandoverRequest) **A2XPC5QoSParameters { return &m.A2XPC5QoSParameters }),
+	apimpl.OptionalIE(IDMobileIABAuthorized, CriticalityIgnore, func(m *HandoverRequest) **MobileIABAuthorized { return &m.MobileIABAuthorized }),
+	apimpl.OptionalIE(IDNoPDUSessionIndication, CriticalityIgnore, func(m *HandoverRequest) **NoPDUSessionIndication { return &m.NoPDUSessionIndication }),
+	apimpl.ListIE(IDPartiallyAllowedNSSAI, CriticalityIgnore, func(m *HandoverRequest) *PartiallyAllowedNSSAI { return &m.PartiallyAllowedNSSAI }),
+	apimpl.OptionalIE(IDSLPositioningRangingServiceInfo, CriticalityIgnore, func(m *HandoverRequest) **SLPositioningRangingServiceInfo { return &m.SLPositioningRangingServiceInfo }),
 	{
 		ID: IDAMFUENGAPID2, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *HandoverRequest, r *per.Reader, enc per.Encoding) error {
@@ -500,9 +501,9 @@ var handoverRequestAcknowledgeIEs = []ieSpec[HandoverRequestAcknowledge]{
 			return m.CriticalityDiagnostics, true
 		},
 	},
-	optionalExtension(IDNPNAccessInformation, CriticalityReject, func(m *HandoverRequestAcknowledge) **NPNAccessInformation { return &m.NPNAccessInformation }),
-	optionalExtension(IDRedCapIndication, CriticalityIgnore, func(m *HandoverRequestAcknowledge) **RedCapIndication { return &m.RedCapIndication }),
-	optionalExtension(IDERedCapIndication, CriticalityIgnore, func(m *HandoverRequestAcknowledge) **ERedCapIndication { return &m.ERedCapIndication }),
+	apimpl.OptionalIE(IDNPNAccessInformation, CriticalityReject, func(m *HandoverRequestAcknowledge) **NPNAccessInformation { return &m.NPNAccessInformation }),
+	apimpl.OptionalIE(IDRedCapIndication, CriticalityIgnore, func(m *HandoverRequestAcknowledge) **RedCapIndication { return &m.RedCapIndication }),
+	apimpl.OptionalIE(IDERedCapIndication, CriticalityIgnore, func(m *HandoverRequestAcknowledge) **ERedCapIndication { return &m.ERedCapIndication }),
 }
 
 func (m *HandoverRequestAcknowledge) encodeBody(w *per.Writer, enc per.Encoding) error {

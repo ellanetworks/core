@@ -1,0 +1,152 @@
+{
+  "summary": "Downlink NAS Transport (MME-UE 1, eNB-UE 2, NAS=ATTACH REQUEST)",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 11,
+    "label": "DownlinkNASTransport",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 1,
+    "label": "ignore",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 0,
+          "label": "MME-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 8,
+          "label": "eNB-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 2
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 26,
+          "label": "NAS-PDU",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "protocol": "NAS",
+          "raw_hex": "0741",
+          "decoded": {
+            "security_header": {
+              "protocol_discriminator": {
+                "type": "enum",
+                "value": 7,
+                "label": "EMM",
+                "unknown": false
+              },
+              "security_header_type": {
+                "type": "enum",
+                "value": 0,
+                "label": "plain",
+                "unknown": false
+              }
+            },
+            "emm_message": {
+              "emm_header": {
+                "message_type": {
+                  "type": "enum",
+                  "value": 65,
+                  "label": "ATTACH REQUEST",
+                  "unknown": false
+                }
+              },
+              "error": "nas: uint8 at octet 2: buffer truncated"
+            },
+            "encrypted": false
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 106,
+          "label": "SubscriberProfileIDforRFP",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 7
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 269,
+          "label": "NRUESecurityCapabilities",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "nr_encryption_algorithms": {
+            "hex": "c000",
+            "bits": 16
+          },
+          "nr_integrity_protection_algorithms": {
+            "hex": "c000",
+            "bits": 16
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 354,
+          "label": "CoarseUELocation",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "hex": "010203"
+        }
+      }
+    ]
+  }
+}

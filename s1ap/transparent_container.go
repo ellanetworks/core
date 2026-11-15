@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 const maxnoofCellsinUEHistoryInfo = 16
@@ -85,6 +86,7 @@ type ERABInformationListItem struct {
 	SourceNodeTransportLayerAddress *TransportLayerAddress `per:",extie:IDSourceNodeTransportLayerAddress,crit:ignore"`
 	iEExtensions                    extensionMeta          `per:",exttable"`
 	extensions                      per.ExtensionAdditions `per:",extraw"`
+	containerCrit                   `per:"-"`
 }
 
 type ERABInformationList []ERABInformationListItem
@@ -226,4 +228,8 @@ func (c *LastVisitedNGRANCellInformation) UnmarshalPER(r *per.Reader, enc per.En
 type LastVisitedGERANCellInformation struct {
 	Undefined *per.Null                 `per:",choice:0"`
 	Ext       *per.ExtensionAlternative `per:",extalt"`
+}
+
+func (l *ERABInformationList) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	return diagnoseItemList(d, IDERABInformationListItem, CriticalityIgnore, l)
 }

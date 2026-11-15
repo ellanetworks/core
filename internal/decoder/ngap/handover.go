@@ -607,6 +607,44 @@ func buildHandoverRequest(value []byte) NGAPMessageValue {
 		ies = append(ies, ie(ngap.IDTargetRANNodeID, ngap.CriticalityIgnore, buildGlobalRANNodeID(*m.TargetRANNodeID)))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDCoreNetworkAssistanceInformationForInactive, ngap.CriticalityIgnore, m.CoreNetworkAssistanceInformationForInactive},
+		{ngap.IDMaskedIMEISV, ngap.CriticalityIgnore, m.MaskedIMEISV},
+		{ngap.IDLocationReportingRequestType, ngap.CriticalityIgnore, m.LocationReportingRequestType},
+		{ngap.IDRRCInactiveTransitionReportRequest, ngap.CriticalityIgnore, m.RRCInactiveTransitionReportRequest},
+		{ngap.IDRedirectionVoiceFallback, ngap.CriticalityIgnore, m.RedirectionVoiceFallback},
+		{ngap.IDCNAssistedRANTuning, ngap.CriticalityIgnore, m.CNAssistedRANTuning},
+		{ngap.IDSRVCCOperationPossible, ngap.CriticalityIgnore, m.SRVCCOperationPossible},
+		{ngap.IDIABAuthorized, ngap.CriticalityReject, m.IABAuthorized},
+		{ngap.IDEnhancedCoverageRestriction, ngap.CriticalityIgnore, m.EnhancedCoverageRestriction},
+		{ngap.IDUEDifferentiationInfo, ngap.CriticalityIgnore, m.UEDifferentiationInfo},
+		{ngap.IDNRV2XServicesAuthorized, ngap.CriticalityIgnore, m.NRV2XServicesAuthorized},
+		{ngap.IDLTEV2XServicesAuthorized, ngap.CriticalityIgnore, m.LTEV2XServicesAuthorized},
+		{ngap.IDNRUESidelinkAggregateMaximumBitrate, ngap.CriticalityIgnore, m.NRUESidelinkAggregateMaximumBitrate},
+		{ngap.IDLTEUESidelinkAggregateMaximumBitrate, ngap.CriticalityIgnore, m.LTEUESidelinkAggregateMaximumBitrate},
+		{ngap.IDPC5QoSParameters, ngap.CriticalityIgnore, m.PC5QoSParameters},
+		{ngap.IDCEmodeBrestricted, ngap.CriticalityIgnore, m.CEmodeBrestricted},
+		{ngap.IDUEUPCIoTSupport, ngap.CriticalityIgnore, m.UEUPCIoTSupport},
+		{ngap.IDManagementBasedMDTPLMNList, ngap.CriticalityIgnore, m.ManagementBasedMDTPLMNList},
+		{ngap.IDUERadioCapabilityID, ngap.CriticalityReject, m.UERadioCapabilityID},
+		{ngap.IDExtendedConnectedTime, ngap.CriticalityIgnore, m.ExtendedConnectedTime},
+		{ngap.IDTimeSyncAssistanceInfo, ngap.CriticalityIgnore, m.TimeSyncAssistanceInfo},
+		{ngap.IDUESliceMaximumBitRateList, ngap.CriticalityIgnore, m.UESliceMaximumBitRateList},
+		{ngap.IDFiveGProSeAuthorized, ngap.CriticalityIgnore, m.FiveGProSeAuthorized},
+		{ngap.IDFiveGProSeUEPC5AggregateMaximumBitRate, ngap.CriticalityIgnore, m.FiveGProSeUEPC5AggregateMaximumBitRate},
+		{ngap.IDFiveGProSePC5QoSParameters, ngap.CriticalityIgnore, m.FiveGProSePC5QoSParameters},
+		{ngap.IDAerialUEsubscriptionInformation, ngap.CriticalityIgnore, m.AerialUEsubscriptionInformation},
+		{ngap.IDNRA2XServicesAuthorized, ngap.CriticalityIgnore, m.NRA2XServicesAuthorized},
+		{ngap.IDLTEA2XServicesAuthorized, ngap.CriticalityIgnore, m.LTEA2XServicesAuthorized},
+		{ngap.IDNRA2XUEPC5AggregateMaximumBitRate, ngap.CriticalityIgnore, m.NRA2XUEPC5AggregateMaximumBitRate},
+		{ngap.IDLTEA2XUEPC5AggregateMaximumBitRate, ngap.CriticalityIgnore, m.LTEA2XUEPC5AggregateMaximumBitRate},
+		{ngap.IDA2XPC5QoSParameters, ngap.CriticalityIgnore, m.A2XPC5QoSParameters},
+		{ngap.IDMobileIABAuthorized, ngap.CriticalityIgnore, m.MobileIABAuthorized},
+		{ngap.IDNoPDUSessionIndication, ngap.CriticalityIgnore, m.NoPDUSessionIndication},
+		{ngap.IDPartiallyAllowedNSSAI, ngap.CriticalityIgnore, m.PartiallyAllowedNSSAI},
+		{ngap.IDSLPositioningRangingServiceInfo, ngap.CriticalityIgnore, m.SLPositioningRangingServiceInfo},
+	})
+
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }
 
@@ -649,6 +687,12 @@ func buildHandoverRequestAcknowledge(value []byte) NGAPMessageValue {
 	if m.CriticalityDiagnostics != nil {
 		ies = append(ies, ie(ngap.IDCriticalityDiagnostics, ngap.CriticalityIgnore, criticalityDiagnostics(*m.CriticalityDiagnostics)))
 	}
+
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDNPNAccessInformation, ngap.CriticalityReject, m.NPNAccessInformation},
+		{ngap.IDRedCapIndication, ngap.CriticalityIgnore, m.RedCapIndication},
+		{ngap.IDERedCapIndication, ngap.CriticalityIgnore, m.ERedCapIndication},
+	})
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }

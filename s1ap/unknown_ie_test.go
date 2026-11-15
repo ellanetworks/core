@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // A ProtocolIE the message type does not model must survive Marshal/Parse
@@ -25,7 +25,7 @@ func TestUnknownIERoundTrip(t *testing.T) {
 		ENBUES1APID:       2,
 		UERadioCapability: []byte{0xaa, 0xbb},
 	}
-	in.Append(rawIE{ID: unknownID, Criticality: CriticalityNotify, Value: unknownVal})
+	in.appendUnknown(rawIE{ID: unknownID, Criticality: CriticalityNotify, Value: unknownVal})
 
 	pduBytes, err := in.Marshal()
 	if err != nil {
@@ -151,7 +151,7 @@ func TestUnmodeledIECriticality(t *testing.T) {
 		}
 
 		for _, u := range unknown {
-			m.Append(u)
+			m.appendUnknown(u)
 		}
 
 		raw, err := m.Marshal()
@@ -262,7 +262,7 @@ func TestUnknownIEKeepsItsWirePosition(t *testing.T) {
 	value := container(t,
 		ieField{ID: IDGlobalENBID, Criticality: CriticalityReject, Value: &src.GlobalENBID},
 		ieField{ID: IDSupportedTAs, Criticality: CriticalityReject, Value: src.SupportedTAs},
-		ieField{ID: unknownID, Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0xde, 0xad})},
+		ieField{ID: unknownID, Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0xde, 0xad})},
 		ieField{ID: IDDefaultPagingDRX, Criticality: CriticalityIgnore, Value: PagingDRXv128},
 	)
 
@@ -287,11 +287,11 @@ func TestUnknownIEKeepsItsWirePosition(t *testing.T) {
 func TestUnknownIEBeforeEveryTypedIEKeepsItsWirePosition(t *testing.T) {
 	src := goldS1SetupRequestForWire()
 	value := container(t,
-		ieField{ID: ProtocolIEID(300), Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x01})},
+		ieField{ID: ProtocolIEID(300), Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0x01})},
 		ieField{ID: IDGlobalENBID, Criticality: CriticalityReject, Value: &src.GlobalENBID},
 		ieField{ID: IDSupportedTAs, Criticality: CriticalityReject, Value: src.SupportedTAs},
 		ieField{ID: IDDefaultPagingDRX, Criticality: CriticalityIgnore, Value: PagingDRXv128},
-		ieField{ID: ProtocolIEID(9999), Criticality: CriticalityNotify, Value: ap.RawValue([]byte{0x02})},
+		ieField{ID: ProtocolIEID(9999), Criticality: CriticalityNotify, Value: apimpl.RawValue([]byte{0x02})},
 	)
 
 	req, err := ParseS1SetupRequest(value)

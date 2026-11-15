@@ -159,6 +159,12 @@ func buildS1SetupRequest(value []byte) (S1APMessageValue, string) {
 		summary = fmt.Sprintf("S1 Setup Request (%s)", *req.ENBName)
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDCSGIdList, s1ap.CriticalityReject, req.CSGIdList},
+		{s1ap.IDNBIoTDefaultPagingDRX, s1ap.CriticalityIgnore, req.NBIoTDefaultPagingDRX},
+		{s1ap.IDConnectedengNBList, s1ap.CriticalityIgnore, req.ConnectedengNBList},
+	})
+
 	ies = appendUnknownIEs(ies, req.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, summary
@@ -202,6 +208,12 @@ func buildS1SetupResponse(value []byte) (S1APMessageValue, string) {
 		r := *resp.UERetentionInformation
 		ies = append(ies, ie(s1ap.IDUERetentionInformation, s1ap.CriticalityIgnore, namedEnum(uint8(r), r.Name())))
 	}
+
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDMMERelaySupportIndicator, s1ap.CriticalityIgnore, resp.MMERelaySupportIndicator},
+		{s1ap.IDServedDCNs, s1ap.CriticalityIgnore, resp.ServedDCNs},
+		{s1ap.IDIABSupported, s1ap.CriticalityIgnore, resp.IABSupported},
+	})
 
 	ies = appendUnknownIEs(ies, resp.UnknownIEs())
 

@@ -55,7 +55,7 @@ func TestERABSetupRequestRoundTrips(t *testing.T) {
 		t.Fatalf("header mismatch: %+v", out)
 	}
 
-	if out.UEAggregateMaximumBitRate == nil || *out.UEAggregateMaximumBitRate != ambr {
+	if out.UEAggregateMaximumBitRate == nil || !out.UEAggregateMaximumBitRate.Equal(ambr) {
 		t.Fatalf("UE-AMBR mismatch: %+v", out.UEAggregateMaximumBitRate)
 	}
 

@@ -76,7 +76,7 @@ func (g *generator) emitChoice(name string, s *structType) error {
 
 	for _, a := range roots {
 		if a.tag.ExtIE && !raw {
-			return fmt.Errorf("field %s: choice-Extensions needs a bare extie field of type *ap.SingleContainer for unknown alternatives", a.name)
+			return fmt.Errorf("field %s: choice-Extensions needs a bare extie field of type *apimpl.SingleContainer for unknown alternatives", a.name)
 		}
 	}
 
@@ -124,9 +124,9 @@ func (g *generator) emitChoiceMarshal(recv, typeName string, roots, additions []
 
 		switch {
 		case a.rawSingle:
-			fmt.Fprintf(r, "\t\treturn ap.EncodeField(%s, w, enc, %s.Field())\n", g.cfg.Profile, expr)
+			fmt.Fprintf(r, "\t\treturn apimpl.EncodeField(%s, w, enc, %s.Field())\n", g.cfg.Profile, expr)
 		case a.tag.ExtIE:
-			fmt.Fprintf(r, "\t\treturn ap.EncodeField(%s, w, enc, ap.FieldValue[%s]{ID: %s, Criticality: %s, Value: %s})\n",
+			fmt.Fprintf(r, "\t\treturn apimpl.EncodeField(%s, w, enc, apimpl.FieldValue[%s]{ID: %s, Criticality: %s, Value: %s})\n",
 				g.cfg.Profile, g.cfg.IEID, a.tag.ExtIEID, g.choiceCritExpr(recv, g.cur, a.fieldInfo), expr)
 		default:
 			g.emitFieldMarshal(r, recv, a.fieldInfo, derefExpr(a, expr), 2)
@@ -225,7 +225,7 @@ func (g *generator) emitChoiceUnmarshal(recv, typeName string, roots, additions 
 
 func (g *generator) emitChoiceSingleDecode(r *bytes.Buffer, recv string, singles []choiceAlt) {
 	fmt.Fprintf(r, "\tcase %d:\n", singles[0].tag.ChoiceIdx)
-	fmt.Fprintf(r, "\t\tf, err := ap.DecodeSingleContainerValue[%s](%s, r, enc)\n", g.cfg.IEID, g.cfg.Profile)
+	fmt.Fprintf(r, "\t\tf, err := apimpl.DecodeSingleContainerValue[%s](%s, r, enc)\n", g.cfg.IEID, g.cfg.Profile)
 	fmt.Fprintf(r, "\t\tif err != nil {\n\t\t\treturn err\n\t\t}\n")
 	fmt.Fprintf(r, "\t\tswitch f.ID {\n")
 
@@ -245,12 +245,11 @@ func (g *generator) emitChoiceSingleDecode(r *bytes.Buffer, recv string, singles
 
 		fmt.Fprintf(r, "\t\tcase %s:\n", a.tag.ExtIEID)
 		fmt.Fprintf(r, "\t\t\tvar v %s\n", a.typeStr)
-		fmt.Fprintf(r, "\t\t\tif err := (&v).UnmarshalPER(per.NewReader([]byte(f.Value)), enc); err != nil {\n\t\t\t\treturn err\n\t\t\t}\n")
-		fmt.Fprintf(r, "\t\t\tif !ap.Comprehended[%s](&v) {\n\t\t\t\t%s = &f\n\t\t\t\tbreak\n\t\t\t}\n", g.cfg.IEID, rawExpr(recv, singles))
+		fmt.Fprintf(r, "\t\t\tif err := apimpl.DecodeValue([]byte(f.Value), &v); err != nil {\n\t\t\t\treturn err\n\t\t\t}\n")
 		fmt.Fprintf(r, "\t\t\t%s = &v\n", expr)
 
 		if g.cur.choiceCrit != "" {
-			fmt.Fprintf(r, "\t\t\t%s.%s = ap.Wire(f.Criticality, %s)\n", recv, g.cur.choiceCrit, critConst(a.tag.Criticality))
+			fmt.Fprintf(r, "\t\t\t%s.%s = apimpl.Wire(f.Criticality, %s)\n", recv, g.cur.choiceCrit, critConst(a.tag.Criticality))
 		}
 	}
 
@@ -279,7 +278,7 @@ func (g *generator) emitChoiceExtDecode(r *bytes.Buffer, recv string, additions 
 			expr := recv + "." + a.name
 			fmt.Fprintf(r, "\t\tcase %d:\n", a.extIdx)
 			fmt.Fprintf(r, "\t\t\tvar v %s\n", a.typeStr)
-			fmt.Fprintf(r, "\t\t\tif err := per.DecodeOpenType(r, enc, &v); err != nil {\n\t\t\t\treturn err\n\t\t\t}\n")
+			fmt.Fprintf(r, "\t\t\tif err := %s(r, enc, &v); err != nil {\n\t\t\t\treturn err\n\t\t\t}\n", g.openTypeDecoder())
 			fmt.Fprintf(r, "\t\t\t%s = &v\n", expr)
 		}
 
@@ -309,7 +308,7 @@ func (g *generator) emitChoiceExtDecode(r *bytes.Buffer, recv string, additions 
 		expr := recv + "." + a.name
 		fmt.Fprintf(r, "\t\tcase %d:\n", a.extIdx)
 		fmt.Fprintf(r, "\t\t\tvar v %s\n", a.typeStr)
-		fmt.Fprintf(r, "\t\t\tif err := per.DecodeOpenType(r, enc, &v); err != nil {\n\t\t\t\treturn err\n\t\t\t}\n")
+		fmt.Fprintf(r, "\t\t\tif err := %s(r, enc, &v); err != nil {\n\t\t\t\treturn err\n\t\t\t}\n", g.openTypeDecoder())
 		fmt.Fprintf(r, "\t\t\t%s = &v\n", expr)
 	}
 
@@ -325,14 +324,4 @@ func derefExpr(a choiceAlt, expr string) string {
 	}
 
 	return expr
-}
-
-func rawExpr(recv string, singles []choiceAlt) string {
-	for _, a := range singles {
-		if a.rawSingle {
-			return recv + "." + a.name
-		}
-	}
-
-	return ""
 }

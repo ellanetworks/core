@@ -5,6 +5,7 @@ package ngap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 38.413 §9.2.6.1.
@@ -101,10 +102,10 @@ var nGSetupRequestIEs = []ieSpec[NGSetupRequest]{
 			return m.UERetentionInformation, true
 		},
 	},
-	optionalExtension(IDNBIoTDefaultPagingDRX, CriticalityIgnore, func(m *NGSetupRequest) **NBIoTDefaultPagingDRX { return &m.NBIoTDefaultPagingDRX }),
-	optionalExtension(IDExtendedRANNodeName, CriticalityIgnore, func(m *NGSetupRequest) **ExtendedRANNodeName { return &m.ExtendedRANNodeName }),
-	optionalExtension(IDAIoTSupport, CriticalityReject, func(m *NGSetupRequest) **AIoTSupport { return &m.AIoTSupport }),
-	optionalExtension(IDAdditionalULI, CriticalityIgnore, func(m *NGSetupRequest) **AdditionalULI { return &m.AdditionalULI }),
+	apimpl.OptionalIE(IDNBIoTDefaultPagingDRX, CriticalityIgnore, func(m *NGSetupRequest) **NBIoTDefaultPagingDRX { return &m.NBIoTDefaultPagingDRX }),
+	apimpl.OptionalIE(IDExtendedRANNodeName, CriticalityIgnore, func(m *NGSetupRequest) **ExtendedRANNodeName { return &m.ExtendedRANNodeName }),
+	apimpl.OptionalIE(IDAIoTSupport, CriticalityReject, func(m *NGSetupRequest) **AIoTSupport { return &m.AIoTSupport }),
+	apimpl.OptionalIE(IDAdditionalULI, CriticalityIgnore, func(m *NGSetupRequest) **AdditionalULI { return &m.AdditionalULI }),
 }
 
 func (m *NGSetupRequest) encodeBody(w *per.Writer, enc per.Encoding) error {

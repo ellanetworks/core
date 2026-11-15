@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/eps"
+	"github.com/ellanetworks/core/per"
 	"github.com/ellanetworks/core/per/ap"
 	"github.com/ellanetworks/core/s1ap"
 )
@@ -310,5 +311,37 @@ func TestPathSwitchPartialFailureReleasesUnswitchedERAB(t *testing.T) {
 
 	if ack.ERABToBeReleased[0].ERABID != unknownERAB {
 		t.Fatalf("released E-RAB = %d, want %d", ack.ERABToBeReleased[0].ERABID, unknownERAB)
+	}
+}
+
+func TestPathSwitchCapabilityMatchIgnoresUnknownExtension(t *testing.T) {
+	m := newTestMME(t)
+	ue := pathSwitchUE(t, m)
+
+	wire := []byte{0x58, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x00, 0x03, 0xe7, 0x40, 0x01, 0x00}
+
+	var caps s1ap.UESecurityCapabilities
+	if err := caps.UnmarshalPER(per.NewReader(wire), per.Aligned); err != nil {
+		t.Fatalf("decode UE Security Capabilities: %v", err)
+	}
+
+	plain := s1ap.UESecurityCapabilities{EncryptionAlgorithms: s1ap.SecurityAlgorithms{Value: 0xc000}, IntegrityProtectionAlgorithms: s1ap.SecurityAlgorithms{Value: 0xc000}}
+	if caps.EncryptionAlgorithms != plain.EncryptionAlgorithms || caps.IntegrityProtectionAlgorithms != plain.IntegrityProtectionAlgorithms {
+		t.Fatalf("decoded algorithms = %+v, want %+v", caps, plain)
+	}
+
+	if caps.Equal(plain) {
+		t.Fatal("fixture carries no extension state")
+	}
+
+	req := samplePathSwitchRequest(ue)
+	req.UESecurityCapabilities = &caps
+
+	target := &captureConn{}
+	handlePathSwitchRequest(context.Background(), m, mme.NewRadioForTest(target), pathSwitchValue(t, req))
+
+	ack := parsePathSwitchAck(t, target.sent[0])
+	if ack.UESecurityCapabilities != nil {
+		t.Fatalf("ack replayed capabilities though the algorithms matched: %+v", ack.UESecurityCapabilities)
 	}
 }

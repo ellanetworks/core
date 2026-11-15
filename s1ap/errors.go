@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // Octets that are not a decodable PER encoding; nothing of the message is
@@ -70,21 +71,7 @@ func (e *AbstractSyntaxError) HasUnsuccessfulOutcome() bool {
 
 // Of the IE Criticality, §9.2.1.21 says "The value 'ignore' shall not be used".
 func reportableIEs(ies []CriticalityDiagnosticsIEItem) []CriticalityDiagnosticsIEItem {
-	out := make([]CriticalityDiagnosticsIEItem, 0, len(ies))
-
-	for _, ie := range ies {
-		if ie.IECriticality == CriticalityIgnore {
-			continue
-		}
-
-		out = append(out, ie)
-	}
-
-	if len(out) == 0 {
-		return nil
-	}
-
-	return out
+	return apimpl.Reportable(ies, func(ie CriticalityDiagnosticsIEItem) Criticality { return ie.IECriticality })
 }
 
 // An ERROR INDICATION for UE-associated signalling names the association it

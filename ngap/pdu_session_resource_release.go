@@ -5,6 +5,7 @@ package ngap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // PDUSessionResourceToReleaseItemRelCmd ::= SEQUENCE { pDUSessionID,
@@ -61,7 +62,7 @@ var pDUSessionResourceReleaseCommandIEs = []ieSpec[PDUSessionResourceReleaseComm
 		},
 		Encode: func(m *PDUSessionResourceReleaseCommand) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
-	optionalExtension(IDRANPagingPriority, CriticalityIgnore, func(m *PDUSessionResourceReleaseCommand) **RANPagingPriority { return &m.RANPagingPriority }),
+	apimpl.OptionalIE(IDRANPagingPriority, CriticalityIgnore, func(m *PDUSessionResourceReleaseCommand) **RANPagingPriority { return &m.RANPagingPriority }),
 	{
 		ID: IDNASPDU, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *PDUSessionResourceReleaseCommand, r *per.Reader, enc per.Encoding) error {

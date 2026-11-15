@@ -45,7 +45,7 @@ func TestERABReleaseCommandRoundTrips(t *testing.T) {
 		t.Fatalf("header mismatch: %+v", out)
 	}
 
-	if out.UEAggregateMaximumBitRate == nil || *out.UEAggregateMaximumBitRate != ambr {
+	if out.UEAggregateMaximumBitRate == nil || !out.UEAggregateMaximumBitRate.Equal(ambr) {
 		t.Fatalf("UE-AMBR mismatch: %+v", out.UEAggregateMaximumBitRate)
 	}
 
@@ -165,7 +165,7 @@ func TestERABReleaseIndicationRoundTrips(t *testing.T) {
 	}
 }
 
-func TestDecodeItemListRejectsWrongItemID(t *testing.T) {
+func TestWrongListItemIDNeverReachesTheTypedList(t *testing.T) {
 	m := &ERABReleaseIndication{MMEUES1APID: 1, ENBUES1APID: 2, ERABReleased: []ERABItem{{ERABID: 5, Cause: CauseRadioNetworkUnspecified.Cause()}}}
 
 	wire, err := m.Marshal()

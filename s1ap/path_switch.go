@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // ERABToBeSwitchedDLItem ::= SEQUENCE { e-RAB-ID, transportLayerAddress,
@@ -22,14 +23,22 @@ type ERABToBeSwitchedDLItem struct {
 
 // TS 36.413 §9.1.5.8.
 type PathSwitchRequest struct {
-	ENBUES1APID             ENBUES1APID
-	ERABToBeSwitchedDL      ERABToBeSwitchedDLList
-	SourceMMEUES1APID       MMEUES1APID
-	EUTRANCGI               *EUTRANCGI
-	TAI                     *TAI
-	UESecurityCapabilities  *UESecurityCapabilities
-	SourceMMEGUMMEI         *GUMMEI
-	TunnelInformationForBBF *TunnelInformation
+	ENBUES1APID              ENBUES1APID
+	ERABToBeSwitchedDL       ERABToBeSwitchedDLList
+	SourceMMEUES1APID        MMEUES1APID
+	EUTRANCGI                *EUTRANCGI
+	TAI                      *TAI
+	UESecurityCapabilities   *UESecurityCapabilities
+	SourceMMEGUMMEI          *GUMMEI
+	TunnelInformationForBBF  *TunnelInformation
+	CSGId                    *CSGId
+	CellAccessMode           *CellAccessMode
+	CSGMembershipStatus      *CSGMembershipStatus
+	LHNID                    *LHNID
+	RRCResumeCause           *RRCEstablishmentCause
+	NRUESecurityCapabilities *NRUESecurityCapabilities
+	PSCellInformation        *PSCellInformation
+	LTENTNTAIInformation     *LTENTNTAIInformation
 
 	messageMeta
 }
@@ -52,7 +61,7 @@ var pathSwitchRequestIEs = []ieSpec[PathSwitchRequest]{
 			return err
 		},
 		Encode: func(m *PathSwitchRequest) (per.Marshaler, bool) {
-			return containerList(maxnoofERABs, IDERABToBeSwitchedDLItem, CriticalityReject, m.ERABToBeSwitchedDL), true
+			return containerList(maxnoofERABs, IDERABToBeSwitchedDLItem, CriticalityReject, &m.ERABToBeSwitchedDL), true
 		},
 	},
 	{
@@ -125,6 +134,8 @@ var pathSwitchRequestIEs = []ieSpec[PathSwitchRequest]{
 			return m.UESecurityCapabilities, true
 		},
 	},
+	apimpl.OptionalIE(IDCSGId, CriticalityIgnore, func(m *PathSwitchRequest) **CSGId { return &m.CSGId }),
+	apimpl.OptionalIE(IDCellAccessMode, CriticalityIgnore, func(m *PathSwitchRequest) **CellAccessMode { return &m.CellAccessMode }),
 	{
 		ID: IDSourceMMEGUMMEI, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *PathSwitchRequest, r *per.Reader, enc per.Encoding) error {
@@ -146,6 +157,7 @@ var pathSwitchRequestIEs = []ieSpec[PathSwitchRequest]{
 			return m.SourceMMEGUMMEI, true
 		},
 	},
+	apimpl.OptionalIE(IDCSGMembershipStatus, CriticalityIgnore, func(m *PathSwitchRequest) **CSGMembershipStatus { return &m.CSGMembershipStatus }),
 	{
 		ID: IDTunnelInformationForBBF, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *PathSwitchRequest, r *per.Reader, enc per.Encoding) error {
@@ -153,6 +165,11 @@ var pathSwitchRequestIEs = []ieSpec[PathSwitchRequest]{
 		},
 		Encode: func(m *PathSwitchRequest) (per.Marshaler, bool) { return optionalIE(m.TunnelInformationForBBF) },
 	},
+	apimpl.OptionalIE(IDLHNID, CriticalityIgnore, func(m *PathSwitchRequest) **LHNID { return &m.LHNID }),
+	apimpl.OptionalIE(IDRRCResumeCause, CriticalityIgnore, func(m *PathSwitchRequest) **RRCEstablishmentCause { return &m.RRCResumeCause }),
+	apimpl.OptionalIE(IDNRUESecurityCapabilities, CriticalityIgnore, func(m *PathSwitchRequest) **NRUESecurityCapabilities { return &m.NRUESecurityCapabilities }),
+	apimpl.OptionalIE(IDPSCellInformation, CriticalityIgnore, func(m *PathSwitchRequest) **PSCellInformation { return &m.PSCellInformation }),
+	apimpl.OptionalIE(IDLTENTNTAIInformation, CriticalityIgnore, func(m *PathSwitchRequest) **LTENTNTAIInformation { return &m.LTENTNTAIInformation }),
 }
 
 func (m *PathSwitchRequest) encodeBody(w *per.Writer, enc per.Encoding) error {
@@ -194,8 +211,27 @@ type PathSwitchRequestAcknowledge struct {
 	UESecurityCapabilities    *UESecurityCapabilities
 	// E-RABs the MME failed to switch the UP path for, whose data radio bearers
 	// the eNB releases (§8.4.4.2).
-	ERABToBeReleased    []ERABItem
-	TimeRefDistribution *TimeRefDistribution
+	ERABToBeReleased                       []ERABItem
+	TimeRefDistribution                    *TimeRefDistribution
+	CriticalityDiagnostics                 *CriticalityDiagnostics
+	CSGMembershipStatus                    *CSGMembershipStatus
+	ProSeAuthorized                        *ProSeAuthorized
+	UEUserPlaneCIoTSupportIndicator        *UEUserPlaneCIoTSupportIndicator
+	V2XServicesAuthorized                  *V2XServicesAuthorized
+	UESidelinkAggregateMaximumBitrate      *UESidelinkAggregateMaximumBitrate
+	EnhancedCoverageRestricted             *EnhancedCoverageRestricted
+	NRUESecurityCapabilities               *NRUESecurityCapabilities
+	CEModeBRestricted                      *CEModeBRestricted
+	AerialUEsubscriptionInformation        *AerialUEsubscriptionInformation
+	PendingDataIndication                  *PendingDataIndication
+	SubscriptionBasedUEDifferentiationInfo *SubscriptionBasedUEDifferentiationInfo
+	HandoverRestrictionList                *HandoverRestrictionList
+	AdditionalRRMPriorityIndex             *AdditionalRRMPriorityIndex
+	NRV2XServicesAuthorized                *NRV2XServicesAuthorized
+	NRUESidelinkAggregateMaximumBitrate    *NRUESidelinkAggregateMaximumBitrate
+	PC5QoSParameters                       *PC5QoSParameters
+	UERadioCapabilityID                    *UERadioCapabilityID
+	ERABToBeUpdatedList                    ERABToBeUpdatedList
 
 	messageMeta
 }
@@ -278,7 +314,7 @@ var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 				return nil, false
 			}
 
-			return m.ERABToBeSwitchedUL, true
+			return &m.ERABToBeSwitchedUL, true
 		},
 	},
 	{
@@ -295,7 +331,7 @@ var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 				return nil, false
 			}
 
-			return containerList(maxnoofERABs, IDERABItem, CriticalityIgnore, m.ERABToBeReleased), true
+			return containerList(maxnoofERABs, IDERABItem, CriticalityIgnore, &m.ERABToBeReleased), true
 		},
 	},
 	{
@@ -305,6 +341,7 @@ var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 		},
 		Encode: func(m *PathSwitchRequestAcknowledge) (per.Marshaler, bool) { return &m.SecurityContext, true },
 	},
+	apimpl.OptionalIE(IDCriticalityDiagnostics, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **CriticalityDiagnostics { return &m.CriticalityDiagnostics }),
 	{
 		ID: IDMMEUES1APID2, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *PathSwitchRequestAcknowledge, r *per.Reader, enc per.Encoding) error {
@@ -326,6 +363,37 @@ var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 			return m.MMEUES1APID2, true
 		},
 	},
+	apimpl.OptionalIE(IDCSGMembershipStatus, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **CSGMembershipStatus { return &m.CSGMembershipStatus }),
+	apimpl.OptionalIE(IDProSeAuthorized, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **ProSeAuthorized { return &m.ProSeAuthorized }),
+	apimpl.OptionalIE(IDUEUserPlaneCIoTSupportIndicator, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **UEUserPlaneCIoTSupportIndicator {
+		return &m.UEUserPlaneCIoTSupportIndicator
+	}),
+	apimpl.OptionalIE(IDV2XServicesAuthorized, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **V2XServicesAuthorized { return &m.V2XServicesAuthorized }),
+	apimpl.OptionalIE(IDUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **UESidelinkAggregateMaximumBitrate {
+		return &m.UESidelinkAggregateMaximumBitrate
+	}),
+	apimpl.OptionalIE(IDEnhancedCoverageRestricted, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **EnhancedCoverageRestricted {
+		return &m.EnhancedCoverageRestricted
+	}),
+	apimpl.OptionalIE(IDNRUESecurityCapabilities, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **NRUESecurityCapabilities { return &m.NRUESecurityCapabilities }),
+	apimpl.OptionalIE(IDCEModeBRestricted, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **CEModeBRestricted { return &m.CEModeBRestricted }),
+	apimpl.OptionalIE(IDAerialUEsubscriptionInformation, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **AerialUEsubscriptionInformation {
+		return &m.AerialUEsubscriptionInformation
+	}),
+	apimpl.OptionalIE(IDPendingDataIndication, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **PendingDataIndication { return &m.PendingDataIndication }),
+	apimpl.OptionalIE(IDSubscriptionBasedUEDifferentiationInfo, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **SubscriptionBasedUEDifferentiationInfo {
+		return &m.SubscriptionBasedUEDifferentiationInfo
+	}),
+	apimpl.OptionalIE(IDHandoverRestrictionList, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **HandoverRestrictionList { return &m.HandoverRestrictionList }),
+	apimpl.OptionalIE(IDAdditionalRRMPriorityIndex, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **AdditionalRRMPriorityIndex {
+		return &m.AdditionalRRMPriorityIndex
+	}),
+	apimpl.OptionalIE(IDNRV2XServicesAuthorized, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **NRV2XServicesAuthorized { return &m.NRV2XServicesAuthorized }),
+	apimpl.OptionalIE(IDNRUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **NRUESidelinkAggregateMaximumBitrate {
+		return &m.NRUESidelinkAggregateMaximumBitrate
+	}),
+	apimpl.OptionalIE(IDPC5QoSParameters, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) **PC5QoSParameters { return &m.PC5QoSParameters }),
+	apimpl.OptionalIE(IDUERadioCapabilityID, CriticalityReject, func(m *PathSwitchRequestAcknowledge) **UERadioCapabilityID { return &m.UERadioCapabilityID }),
 	{
 		ID: IDUESecurityCapabilities, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *PathSwitchRequestAcknowledge, r *per.Reader, enc per.Encoding) error {
@@ -351,6 +419,7 @@ var pathSwitchRequestAcknowledgeIEs = []ieSpec[PathSwitchRequestAcknowledge]{
 			return m.UESecurityCapabilities, true
 		},
 	},
+	apimpl.ListIE(IDERABToBeUpdatedList, CriticalityIgnore, func(m *PathSwitchRequestAcknowledge) *ERABToBeUpdatedList { return &m.ERABToBeUpdatedList }),
 	{
 		ID: IDTimeRefDistribution, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *PathSwitchRequestAcknowledge, r *per.Reader, enc per.Encoding) error {

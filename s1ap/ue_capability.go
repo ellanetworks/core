@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 36.413 §9.1.10.
@@ -14,7 +15,11 @@ type UECapabilityInfoIndication struct {
 	UERadioCapability UERadioCapability
 	// One opaque OCTET STRING, where NGAP's counterpart is a SEQUENCE of
 	// separate NR and E-UTRA capabilities (§9.2.1.98).
-	UERadioCapabilityForPaging UERadioCapabilityForPaging
+	UERadioCapabilityForPaging              UERadioCapabilityForPaging
+	UEApplicationLayerMeasurementCapability *UEApplicationLayerMeasurementCapability
+	LTEMIndication                          *LTEMIndication
+	UERadioCapabilityNRFormat               *UERadioCapability
+	UERadioCapabilityForPagingNRFormat      *UERadioCapabilityForPaging
 
 	messageMeta
 }
@@ -68,6 +73,14 @@ var uECapabilityInfoIndicationIEs = []ieSpec[UECapabilityInfoIndication]{
 			return m.UERadioCapabilityForPaging, true
 		},
 	},
+	apimpl.OptionalIE(IDUEApplicationLayerMeasurementCapability, CriticalityIgnore, func(m *UECapabilityInfoIndication) **UEApplicationLayerMeasurementCapability {
+		return &m.UEApplicationLayerMeasurementCapability
+	}),
+	apimpl.OptionalIE(IDLTEMIndication, CriticalityIgnore, func(m *UECapabilityInfoIndication) **LTEMIndication { return &m.LTEMIndication }),
+	apimpl.OptionalIE(IDUERadioCapabilityNRFormat, CriticalityIgnore, func(m *UECapabilityInfoIndication) **UERadioCapability { return &m.UERadioCapabilityNRFormat }),
+	apimpl.OptionalIE(IDUERadioCapabilityForPagingNRFormat, CriticalityIgnore, func(m *UECapabilityInfoIndication) **UERadioCapabilityForPaging {
+		return &m.UERadioCapabilityForPagingNRFormat
+	}),
 }
 
 func (m *UECapabilityInfoIndication) encodeBody(w *per.Writer, enc per.Encoding) error {

@@ -183,6 +183,10 @@ func runN2HandoverCancel(_ context.Context, env scenarios.Env, _ any) error {
 
 	targetRanUENGAPID := int64(300)
 
+	if err := pair.Target.InheritSelectedPLMN(targetRanUENGAPID, pair.Source, pair.RANUENGAPID); err != nil {
+		return fmt.Errorf("carry the selected PLMN to the target gNB: %w", err)
+	}
+
 	if err := pair.Target.SendHandoverRequestAcknowledge(&gnb.HandoverRequestAcknowledgeOpts{
 		AMFUENGAPID: int64(req.AMFUENGAPID),
 		RANUENGAPID: targetRanUENGAPID,

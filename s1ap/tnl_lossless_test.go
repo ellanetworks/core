@@ -11,6 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/per"
 	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 const idUnknownExtension ProtocolIEID = 999
@@ -87,11 +88,11 @@ func tnlQoS() ERABLevelQoSParameters {
 }
 
 func ignoreCrit() containerCrit {
-	return containerCrit{crit: ap.WireCriticality(CriticalityIgnore) + 1}
+	return apimpl.ListItemCriticality[ProtocolIEID](CriticalityIgnore)
 }
 
 func rejectCrit() containerCrit {
-	return containerCrit{crit: ap.WireCriticality(CriticalityReject) + 1}
+	return apimpl.ListItemCriticality[ProtocolIEID](CriticalityReject)
 }
 
 type tnlValue interface {
@@ -223,7 +224,7 @@ func TestTNLItemsLossless(t *testing.T) {
 
 		container := tnlExtensionContainer(
 			ieField{ID: IDTransportInformation, Criticality: CriticalityReject, Value: &TransportInformation{TransportLayerAddress: goldTLA(), ULGTPTEID: 4, extensions: add()}},
-			ieField{ID: idUnknownExtension, Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x5a})},
+			ieField{ID: idUnknownExtension, Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0x5a})},
 		)
 
 		if err := decodeExtensionContainer(per.NewReader(container), extIEsERABToBeModifiedItemBearerModReq, in, &in.iEExtensions); err != nil {
@@ -243,7 +244,7 @@ func TestTNLItemsLossless(t *testing.T) {
 		in := &ERABToBeSetupItemHOReq{ERABID: 9, TransportLayerAddress: goldTLA(), GTPTEID: 6, QoS: tnlQoS(), extensions: add()}
 
 		container := tnlExtensionContainer(
-			ieField{ID: idUnknownExtension, Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x5a})},
+			ieField{ID: idUnknownExtension, Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0x5a})},
 			ieField{ID: IDDataForwardingNotPossible, Criticality: CriticalityIgnore, Value: DataForwardingNotPossibleTrue},
 		)
 
@@ -284,7 +285,7 @@ func TestTNLItemsLossless(t *testing.T) {
 
 func TestTNLItemUnknownRejectExtensionNotComprehended(t *testing.T) {
 	w := per.NewWriter()
-	if err := encodeExtensionContainer(w, []ieField{{ID: idUnknownExtension, Criticality: CriticalityReject, Value: ap.RawValue([]byte{0x00})}}); err != nil {
+	if err := encodeExtensionContainer(w, []ieField{{ID: idUnknownExtension, Criticality: CriticalityReject, Value: apimpl.RawValue([]byte{0x00})}}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -675,7 +676,7 @@ func tableCrits[M any](table []ieSpec[M]) []Criticality {
 func TestTNLItemKeepsManyUnknownExtensions(t *testing.T) {
 	fields := make([]ieField, 0, 3*paddingIEs)
 	for i := range 3 * paddingIEs {
-		fields = append(fields, ieField{ID: idUnknownExtension + ProtocolIEID(i), Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{byte(i) | 1})})
+		fields = append(fields, ieField{ID: idUnknownExtension + ProtocolIEID(i), Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{byte(i) | 1})})
 	}
 
 	in := &ERABToBeSetupItemCtxtSUReq{ERABID: 5, QoS: goldQoS(), TransportLayerAddress: goldTLA(), GTPTEID: 1, BearerType: Ptr(BearerTypeNonIP)}

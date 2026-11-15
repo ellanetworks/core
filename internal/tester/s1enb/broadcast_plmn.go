@@ -50,12 +50,25 @@ func (ue *UE) SelectPLMN(mcc, mnc string) error {
 	return nil
 }
 
+func (ue *UE) servingPLMN() (s1ap.PLMNIdentity, bool) {
+	switch {
+	case ue == nil:
+		return s1ap.PLMNIdentity{}, false
+	case ue.selectedPLMN != nil:
+		return *ue.selectedPLMN, true
+	case ue.enb != nil:
+		return ue.enb.plmn, true
+	default:
+		return s1ap.PLMNIdentity{}, false
+	}
+}
+
 func (e *ENB) AllocateENBUEIDFor(ue *UE) int64 {
 	id := e.AllocateENBUEID()
 
-	if ue != nil && ue.selectedPLMN != nil {
+	if plmn, ok := ue.servingPLMN(); ok && slices.Contains(e.bplmns, plmn) {
 		e.mu.Lock()
-		e.selected[id] = *ue.selectedPLMN
+		e.selected[id] = plmn
 		e.mu.Unlock()
 	}
 

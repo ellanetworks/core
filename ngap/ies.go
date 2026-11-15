@@ -6,6 +6,7 @@ package ngap
 import (
 	"github.com/ellanetworks/core/per"
 	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // Container size bounds (TS 38.413, NGAP-Constants).
@@ -14,7 +15,7 @@ const (
 	maxProtocolExtensions = 65535
 )
 
-var profile = &ap.Profile{
+var profile = &apimpl.Profile{
 	Name:                  "ngap",
 	MaxProtocolIEs:        maxProtocolIEs,
 	MaxProtocolExtensions: maxProtocolExtensions,
@@ -23,7 +24,7 @@ var profile = &ap.Profile{
 	IEName:                func(id uint16) string { return ProtocolIEID(id).String() },
 }
 
-type ieField = ap.FieldValue[ProtocolIEID]
+type ieField = apimpl.FieldValue[ProtocolIEID]
 
 type SingleContainer = ap.SingleContainer[ProtocolIEID]
 
@@ -46,9 +47,17 @@ func restOctets(r *per.Reader) []byte {
 //
 //nolint:unparam
 func decodeIEContainer(r *per.Reader, enc per.Encoding) ([]rawIE, error) {
-	return ap.DecodeIEContainer[ProtocolIEID](profile, r, enc)
+	return apimpl.DecodeIEContainer[ProtocolIEID](profile, r, enc)
 }
 
 func perIEDecode(b []byte, u per.Unmarshaler) error {
-	return u.UnmarshalPER(per.NewReader(b), per.Aligned)
+	return apimpl.DecodeValue(b, u)
+}
+
+func encodeExtensionContainer(w *per.Writer, enc per.Encoding, fields []ieField) error {
+	return apimpl.EncodeExtensionContainer(profile, w, enc, fields)
+}
+
+func decodeExtensionContainer[M any](r *per.Reader, enc per.Encoding, table []ieSpec[M], m *M, meta *extensionMeta) error {
+	return apimpl.DecodeExtensionContainer(profile, r, enc, table, m, meta)
 }

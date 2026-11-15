@@ -58,5 +58,9 @@ func buildPDUSessionResourceReleaseCommand(value []byte) NGAPMessageValue {
 		ies = append(ies, ie(ngap.IDPDUSessionResourceToReleaseListRelCmd, ngap.CriticalityReject, out))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDRANPagingPriority, ngap.CriticalityIgnore, m.RANPagingPriority},
+	})
+
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }

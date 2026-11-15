@@ -5,21 +5,36 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 36.413 §9.1.7.1.
 type InitialUEMessage struct {
-	ENBUES1APID                   ENBUES1APID
-	NASPDU                        NASPDU
-	TAI                           TAI
-	EUTRANCGI                     *EUTRANCGI
-	RRCEstablishmentCause         *RRCEstablishmentCause
-	STMSI                         *STMSI  // present when the UE re-establishes with an S-TMSI
-	GUMMEI                        *GUMMEI // the eNB-selected MME, present when the eNB does not run NNSF
-	GWTransportLayerAddress       *TransportLayerAddress
-	TunnelInformationForBBF       *TunnelInformation
-	SIPTOLGWTransportLayerAddress *TransportLayerAddress
-	CoarseUELocationRequested     *CoarseUELocationRequested
+	ENBUES1APID                             ENBUES1APID
+	NASPDU                                  NASPDU
+	TAI                                     TAI
+	EUTRANCGI                               *EUTRANCGI
+	RRCEstablishmentCause                   *RRCEstablishmentCause
+	STMSI                                   *STMSI  // present when the UE re-establishes with an S-TMSI
+	GUMMEI                                  *GUMMEI // the eNB-selected MME, present when the eNB does not run NNSF
+	GWTransportLayerAddress                 *TransportLayerAddress
+	TunnelInformationForBBF                 *TunnelInformation
+	SIPTOLGWTransportLayerAddress           *TransportLayerAddress
+	CoarseUELocationRequested               *CoarseUELocationRequested
+	CSGId                                   *CSGId
+	CellAccessMode                          *CellAccessMode
+	RelayNodeIndicator                      *RelayNodeIndicator
+	GUMMEIType                              *GUMMEIType
+	LHNID                                   *LHNID
+	MMEGroupID                              *MMEGroupID
+	UEUsageType                             *UEUsageType
+	CEmodeBSupportIndicator                 *CEmodeBSupportIndicator
+	DCNID                                   *DCNID
+	CoverageLevel                           *CoverageLevel
+	UEApplicationLayerMeasurementCapability *UEApplicationLayerMeasurementCapability
+	EDTSession                              *EDTSession
+	IABNodeIndication                       *IABNodeIndication
+	LTENTNTAIInformation                    *LTENTNTAIInformation
 
 	messageMeta
 }
@@ -119,6 +134,7 @@ var initialUEMessageIEs = []ieSpec[InitialUEMessage]{
 			return m.STMSI, true
 		},
 	},
+	apimpl.OptionalIE(IDCSGId, CriticalityReject, func(m *InitialUEMessage) **CSGId { return &m.CSGId }),
 	{
 		ID: IDGUMMEI, Presence: presenceOptional, Criticality: CriticalityReject,
 		Decode: func(m *InitialUEMessage, r *per.Reader, enc per.Encoding) error {
@@ -144,6 +160,7 @@ var initialUEMessageIEs = []ieSpec[InitialUEMessage]{
 			return m.GUMMEI, true
 		},
 	},
+	apimpl.OptionalIE(IDCellAccessMode, CriticalityReject, func(m *InitialUEMessage) **CellAccessMode { return &m.CellAccessMode }),
 	{
 		ID: IDGWTransportLayerAddress, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *InitialUEMessage, r *per.Reader, enc per.Encoding) error {
@@ -151,6 +168,8 @@ var initialUEMessageIEs = []ieSpec[InitialUEMessage]{
 		},
 		Encode: func(m *InitialUEMessage) (per.Marshaler, bool) { return optionalIE(m.GWTransportLayerAddress) },
 	},
+	apimpl.OptionalIE(IDRelayNodeIndicator, CriticalityReject, func(m *InitialUEMessage) **RelayNodeIndicator { return &m.RelayNodeIndicator }),
+	apimpl.OptionalIE(IDGUMMEIType, CriticalityIgnore, func(m *InitialUEMessage) **GUMMEIType { return &m.GUMMEIType }),
 	{
 		ID: IDTunnelInformationForBBF, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *InitialUEMessage, r *per.Reader, enc per.Encoding) error {
@@ -165,6 +184,18 @@ var initialUEMessageIEs = []ieSpec[InitialUEMessage]{
 		},
 		Encode: func(m *InitialUEMessage) (per.Marshaler, bool) { return optionalIE(m.SIPTOLGWTransportLayerAddress) },
 	},
+	apimpl.OptionalIE(IDLHNID, CriticalityIgnore, func(m *InitialUEMessage) **LHNID { return &m.LHNID }),
+	apimpl.OptionalIE(IDMMEGroupID, CriticalityIgnore, func(m *InitialUEMessage) **MMEGroupID { return &m.MMEGroupID }),
+	apimpl.OptionalIE(IDUEUsageType, CriticalityIgnore, func(m *InitialUEMessage) **UEUsageType { return &m.UEUsageType }),
+	apimpl.OptionalIE(IDCEmodeBSupportIndicator, CriticalityIgnore, func(m *InitialUEMessage) **CEmodeBSupportIndicator { return &m.CEmodeBSupportIndicator }),
+	apimpl.OptionalIE(IDDCNID, CriticalityIgnore, func(m *InitialUEMessage) **DCNID { return &m.DCNID }),
+	apimpl.OptionalIE(IDCoverageLevel, CriticalityIgnore, func(m *InitialUEMessage) **CoverageLevel { return &m.CoverageLevel }),
+	apimpl.OptionalIE(IDUEApplicationLayerMeasurementCapability, CriticalityIgnore, func(m *InitialUEMessage) **UEApplicationLayerMeasurementCapability {
+		return &m.UEApplicationLayerMeasurementCapability
+	}),
+	apimpl.OptionalIE(IDEDTSession, CriticalityIgnore, func(m *InitialUEMessage) **EDTSession { return &m.EDTSession }),
+	apimpl.OptionalIE(IDIABNodeIndication, CriticalityReject, func(m *InitialUEMessage) **IABNodeIndication { return &m.IABNodeIndication }),
+	apimpl.OptionalIE(IDLTENTNTAIInformation, CriticalityIgnore, func(m *InitialUEMessage) **LTENTNTAIInformation { return &m.LTENTNTAIInformation }),
 	{
 		ID: IDCoarseUELocationRequested, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *InitialUEMessage, r *per.Reader, enc per.Encoding) error {
@@ -211,6 +242,9 @@ type UplinkNASTransport struct {
 	TAI                           *TAI
 	GWTransportLayerAddress       *TransportLayerAddress
 	SIPTOLGWTransportLayerAddress *TransportLayerAddress
+	LHNID                         *LHNID
+	PSCellInformation             *PSCellInformation
+	LTENTNTAIInformation          *LTENTNTAIInformation
 
 	messageMeta
 }
@@ -303,6 +337,9 @@ var uplinkNASTransportIEs = []ieSpec[UplinkNASTransport]{
 		},
 		Encode: func(m *UplinkNASTransport) (per.Marshaler, bool) { return optionalIE(m.SIPTOLGWTransportLayerAddress) },
 	},
+	apimpl.OptionalIE(IDLHNID, CriticalityIgnore, func(m *UplinkNASTransport) **LHNID { return &m.LHNID }),
+	apimpl.OptionalIE(IDPSCellInformation, CriticalityIgnore, func(m *UplinkNASTransport) **PSCellInformation { return &m.PSCellInformation }),
+	apimpl.OptionalIE(IDLTENTNTAIInformation, CriticalityIgnore, func(m *UplinkNASTransport) **LTENTNTAIInformation { return &m.LTENTNTAIInformation }),
 }
 
 func (m *UplinkNASTransport) encodeBody(w *per.Writer, enc per.Encoding) error {
@@ -335,10 +372,25 @@ func DecodeUplinkNASTransport(value []byte) (*UplinkNASTransport, error) {
 
 // TS 36.413 §9.1.7.2.
 type DownlinkNASTransport struct {
-	MMEUES1APID      MMEUES1APID
-	ENBUES1APID      ENBUES1APID
-	NASPDU           NASPDU
-	CoarseUELocation *CoarseUELocation
+	MMEUES1APID                            MMEUES1APID
+	ENBUES1APID                            ENBUES1APID
+	NASPDU                                 NASPDU
+	CoarseUELocation                       *CoarseUELocation
+	HandoverRestrictionList                *HandoverRestrictionList
+	SubscriberProfileIDforRFP              *SubscriberProfileIDforRFP
+	SRVCCOperationPossible                 *SRVCCOperationPossible
+	UERadioCapability                      *UERadioCapability
+	DLNASPDUDeliveryAckRequest             *DLNASPDUDeliveryAckRequest
+	EnhancedCoverageRestricted             *EnhancedCoverageRestricted
+	NRUESecurityCapabilities               *NRUESecurityCapabilities
+	CEModeBRestricted                      *CEModeBRestricted
+	UECapabilityInfoRequest                *UECapabilityInfoRequest
+	EndIndication                          *EndIndication
+	PendingDataIndication                  *PendingDataIndication
+	SubscriptionBasedUEDifferentiationInfo *SubscriptionBasedUEDifferentiationInfo
+	AdditionalRRMPriorityIndex             *AdditionalRRMPriorityIndex
+	UERadioCapabilityID                    *UERadioCapabilityID
+	MaskedIMEISV                           *MaskedIMEISV
 
 	messageMeta
 }
@@ -371,6 +423,23 @@ var downlinkNASTransportIEs = []ieSpec[DownlinkNASTransport]{
 			return &m.NASPDU, true
 		},
 	},
+	apimpl.OptionalIE(IDHandoverRestrictionList, CriticalityIgnore, func(m *DownlinkNASTransport) **HandoverRestrictionList { return &m.HandoverRestrictionList }),
+	apimpl.OptionalIE(IDSubscriberProfileIDforRFP, CriticalityIgnore, func(m *DownlinkNASTransport) **SubscriberProfileIDforRFP { return &m.SubscriberProfileIDforRFP }),
+	apimpl.OptionalIE(IDSRVCCOperationPossible, CriticalityIgnore, func(m *DownlinkNASTransport) **SRVCCOperationPossible { return &m.SRVCCOperationPossible }),
+	apimpl.OptionalIE(IDUERadioCapability, CriticalityIgnore, func(m *DownlinkNASTransport) **UERadioCapability { return &m.UERadioCapability }),
+	apimpl.OptionalIE(IDDLNASPDUDeliveryAckRequest, CriticalityIgnore, func(m *DownlinkNASTransport) **DLNASPDUDeliveryAckRequest { return &m.DLNASPDUDeliveryAckRequest }),
+	apimpl.OptionalIE(IDEnhancedCoverageRestricted, CriticalityIgnore, func(m *DownlinkNASTransport) **EnhancedCoverageRestricted { return &m.EnhancedCoverageRestricted }),
+	apimpl.OptionalIE(IDNRUESecurityCapabilities, CriticalityIgnore, func(m *DownlinkNASTransport) **NRUESecurityCapabilities { return &m.NRUESecurityCapabilities }),
+	apimpl.OptionalIE(IDCEModeBRestricted, CriticalityIgnore, func(m *DownlinkNASTransport) **CEModeBRestricted { return &m.CEModeBRestricted }),
+	apimpl.OptionalIE(IDUECapabilityInfoRequest, CriticalityIgnore, func(m *DownlinkNASTransport) **UECapabilityInfoRequest { return &m.UECapabilityInfoRequest }),
+	apimpl.OptionalIE(IDEndIndication, CriticalityIgnore, func(m *DownlinkNASTransport) **EndIndication { return &m.EndIndication }),
+	apimpl.OptionalIE(IDPendingDataIndication, CriticalityIgnore, func(m *DownlinkNASTransport) **PendingDataIndication { return &m.PendingDataIndication }),
+	apimpl.OptionalIE(IDSubscriptionBasedUEDifferentiationInfo, CriticalityIgnore, func(m *DownlinkNASTransport) **SubscriptionBasedUEDifferentiationInfo {
+		return &m.SubscriptionBasedUEDifferentiationInfo
+	}),
+	apimpl.OptionalIE(IDAdditionalRRMPriorityIndex, CriticalityIgnore, func(m *DownlinkNASTransport) **AdditionalRRMPriorityIndex { return &m.AdditionalRRMPriorityIndex }),
+	apimpl.OptionalIE(IDUERadioCapabilityID, CriticalityReject, func(m *DownlinkNASTransport) **UERadioCapabilityID { return &m.UERadioCapabilityID }),
+	apimpl.OptionalIE(IDMaskedIMEISV, CriticalityIgnore, func(m *DownlinkNASTransport) **MaskedIMEISV { return &m.MaskedIMEISV }),
 	{
 		ID: IDCoarseUELocation, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *DownlinkNASTransport, r *per.Reader, enc per.Encoding) error {

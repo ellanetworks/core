@@ -80,6 +80,10 @@ func runXnPathSwitchFailure(_ context.Context, env scenarios.Env, _ any) error {
 		DLTEID:       xnFailureTEID,
 	}
 
+	if err := targetGNB.InheritSelectedPLMN(xnFailureRANID, sourceGNB, ranUENGAPID); err != nil {
+		return fmt.Errorf("carry the selected PLMN to the target gNB: %w", err)
+	}
+
 	if err := targetGNB.SendPathSwitchRequest(&gnb.PathSwitchRequestOpts{
 		RANUENGAPID:            xnFailureRANID,
 		SourceAMFUENGAPID:      unknownAMFUENGAPID,

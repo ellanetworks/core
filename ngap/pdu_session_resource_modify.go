@@ -5,6 +5,7 @@ package ngap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // PDUSessionResourceModifyItemModReq ::= SEQUENCE { pDUSessionID, nAS-PDU
@@ -77,7 +78,7 @@ var pDUSessionResourceModifyRequestIEs = []ieSpec[PDUSessionResourceModifyReques
 		},
 		Encode: func(m *PDUSessionResourceModifyRequest) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
-	optionalExtension(IDRANPagingPriority, CriticalityIgnore, func(m *PDUSessionResourceModifyRequest) **RANPagingPriority { return &m.RANPagingPriority }),
+	apimpl.OptionalIE(IDRANPagingPriority, CriticalityIgnore, func(m *PDUSessionResourceModifyRequest) **RANPagingPriority { return &m.RANPagingPriority }),
 	{
 		ID: IDPDUSessionResourceModifyListModReq, Presence: presenceMandatory, Criticality: CriticalityReject,
 		Decode: func(m *PDUSessionResourceModifyRequest, r *per.Reader, enc per.Encoding) error {
@@ -393,26 +394,26 @@ var pDUSessionResourceModifyRequestTransferIEs = []ieSpec[PDUSessionResourceModi
 			return m.AdditionalULNGUUPTNLInformation, true
 		},
 	},
-	listExtension(IDCommonNetworkInstance, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) *CommonNetworkInstance {
+	apimpl.ListIE(IDCommonNetworkInstance, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) *CommonNetworkInstance {
 		return &m.CommonNetworkInstance
 	}),
-	listExtension(IDAdditionalRedundantULNGUUPTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) *UPTransportLayerInformationList {
+	apimpl.ListIE(IDAdditionalRedundantULNGUUPTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) *UPTransportLayerInformationList {
 		return &m.AdditionalRedundantULNGUUPTNLInformation
 	}),
-	listExtension(IDRedundantCommonNetworkInstance, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) *CommonNetworkInstance {
+	apimpl.ListIE(IDRedundantCommonNetworkInstance, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) *CommonNetworkInstance {
 		return &m.RedundantCommonNetworkInstance
 	}),
-	optionalExtension(IDRedundantULNGUUPTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) **UPTransportLayerInformation {
+	apimpl.OptionalIE(IDRedundantULNGUUPTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) **UPTransportLayerInformation {
 		return &m.RedundantULNGUUPTNLInformation
 	}),
-	optionalExtension(IDSecurityIndication, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) **SecurityIndication { return &m.SecurityIndication }),
-	listExtension(IDMBSSessionSetuporModifyRequestList, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) *MBSSessionSetuporModifyRequestList {
+	apimpl.OptionalIE(IDSecurityIndication, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) **SecurityIndication { return &m.SecurityIndication }),
+	apimpl.ListIE(IDMBSSessionSetuporModifyRequestList, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) *MBSSessionSetuporModifyRequestList {
 		return &m.MBSSessionSetuporModifyRequestList
 	}),
-	listExtension(IDMBSSessionToReleaseList, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) *MBSSessionToReleaseList {
+	apimpl.ListIE(IDMBSSessionToReleaseList, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) *MBSSessionToReleaseList {
 		return &m.MBSSessionToReleaseList
 	}),
-	optionalExtension(IDUserPlaneFailureIndication, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) **UserPlaneFailureIndication {
+	apimpl.OptionalIE(IDUserPlaneFailureIndication, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) **UserPlaneFailureIndication {
 		return &m.UserPlaneFailureIndication
 	}),
 }

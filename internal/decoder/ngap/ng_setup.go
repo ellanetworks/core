@@ -146,6 +146,13 @@ func buildNGSetupRequest(value []byte) NGAPMessageValue {
 			buildUERetention(*req.UERetentionInformation)))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDNBIoTDefaultPagingDRX, ngap.CriticalityIgnore, req.NBIoTDefaultPagingDRX},
+		{ngap.IDExtendedRANNodeName, ngap.CriticalityIgnore, req.ExtendedRANNodeName},
+		{ngap.IDAIoTSupport, ngap.CriticalityReject, req.AIoTSupport},
+		{ngap.IDAdditionalULI, ngap.CriticalityIgnore, req.AdditionalULI},
+	})
+
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(req.UnknownIEs())...)}
 }
 
@@ -244,6 +251,13 @@ func buildNGSetupResponse(value []byte) NGAPMessageValue {
 	if resp.ExtendedAMFName != nil {
 		ies = append(ies, ie(ngap.IDExtendedAMFName, ngap.CriticalityIgnore, extendedAMFName(*resp.ExtendedAMFName)))
 	}
+
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDIABSupported, ngap.CriticalityIgnore, resp.IABSupported},
+		{ngap.IDMobileIABSupported, ngap.CriticalityIgnore, resp.MobileIABSupported},
+		{ngap.IDAIOTFIdentifier, ngap.CriticalityReject, resp.AIOTFIdentifier},
+		{ngap.IDAIOTFName, ngap.CriticalityReject, resp.AIOTFName},
+	})
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(resp.UnknownIEs())...)}
 }

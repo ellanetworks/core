@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/per"
 	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 const (
@@ -441,9 +442,9 @@ type SONInformation struct {
 }
 
 type SONInformationExtension struct {
-	SONInformationReport *SONInformationReport `per:",choice:0,extie:IDSONInformationReport,crit:ignore"`
-	ChoiceExtension      *SingleContainer      `per:",choice:0,extie"`
-	choiceCriticality    ap.WireCriticality    `per:",choicecrit"`
+	SONInformationReport *SONInformationReport  `per:",choice:0,extie:IDSONInformationReport,crit:ignore"`
+	ChoiceExtension      *SingleContainer       `per:",choice:0,extie"`
+	choiceCriticality    apimpl.WireCriticality `per:",choicecrit"`
 }
 
 type SONInformationReport struct {

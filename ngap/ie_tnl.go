@@ -5,7 +5,7 @@ package ngap
 
 import (
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 38.413, NGAP-Constants.
@@ -17,7 +17,7 @@ type CPTransportLayerInformation struct {
 	EndpointIPAddress        *TransportLayerAddress    `per:",choice:0"`
 	EndpointIPAddressAndPort *EndpointIPAddressAndPort `per:",choice:1,extie:IDEndpointIPAddressAndPort,crit:reject"`
 	ChoiceExtension          *SingleContainer          `per:",choice:1,extie"`
-	choiceCriticality        ap.WireCriticality        `per:",choicecrit"`
+	choiceCriticality        apimpl.WireCriticality    `per:",choicecrit"`
 }
 
 type EndpointIPAddressAndPort struct {

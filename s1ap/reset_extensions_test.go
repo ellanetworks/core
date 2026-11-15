@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 type handItem struct {
@@ -79,7 +79,7 @@ func encodeHandList(t *testing.T, w *per.Writer, crit Criticality, items []handI
 
 	mustNil(t, per.EncodeLength(w, per.Aligned, 1, maxnoofIndividualS1ConnectionsToReset, true, int64(len(items)), func(int64) error {
 		for _, it := range items {
-			if err := encodeContainerField(w, per.Aligned, ieField{ID: IDUEAssociatedLogicalS1ConnectionItem, Criticality: crit, Value: ap.RawValue(encodeHandItem(t, it))}); err != nil {
+			if err := encodeContainerField(w, per.Aligned, ieField{ID: IDUEAssociatedLogicalS1ConnectionItem, Criticality: crit, Value: apimpl.RawValue(encodeHandItem(t, it))}); err != nil {
 				return err
 			}
 		}
@@ -102,8 +102,8 @@ func handReset(t *testing.T, items []handItem) []byte {
 	body := per.NewWriter()
 	body.WriteBit(false)
 	mustNil(t, encodeIEContainer(body, per.Aligned, []ieField{
-		{ID: IDCause, Criticality: CriticalityIgnore, Value: ap.RawValue(cause)},
-		{ID: IDResetType, Criticality: CriticalityReject, Value: ap.RawValue(rt.Bytes())},
+		{ID: IDCause, Criticality: CriticalityIgnore, Value: apimpl.RawValue(cause)},
+		{ID: IDResetType, Criticality: CriticalityReject, Value: apimpl.RawValue(rt.Bytes())},
 	}))
 
 	b, err := Marshal(&InitiatingMessage{ProcedureCode: ProcReset, Criticality: CriticalityReject, Value: body.Bytes()})
@@ -121,7 +121,7 @@ func handResetAck(t *testing.T, items []handItem) []byte {
 	body := per.NewWriter()
 	body.WriteBit(false)
 	mustNil(t, encodeIEContainer(body, per.Aligned, []ieField{
-		{ID: IDUEAssociatedLogicalS1ConnectionListResAck, Criticality: CriticalityIgnore, Value: ap.RawValue(list.Bytes())},
+		{ID: IDUEAssociatedLogicalS1ConnectionListResAck, Criticality: CriticalityIgnore, Value: apimpl.RawValue(list.Bytes())},
 	}))
 
 	b, err := Marshal(&SuccessfulOutcome{ProcedureCode: ProcReset, Criticality: CriticalityReject, Value: body.Bytes()})

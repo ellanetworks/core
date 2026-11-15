@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // A CHOICE selecting its choice-Extensions alternative, carrying one entry.
@@ -28,7 +28,7 @@ func choiceExtensionValueCrit(t *testing.T, alternatives, index int, id Protocol
 	}
 
 	if err := encodeContainerField(w, ieField{
-		ID: id, Criticality: crit, Value: ap.RawValue([]byte{0x00}),
+		ID: id, Criticality: crit, Value: apimpl.RawValue([]byte{0x00}),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestChoiceExtensionOnRejectIEIsAbstractSyntaxError(t *testing.T) {
 	value := container(t, ieField{
 		ID:          IDGlobalRANNodeID,
 		Criticality: CriticalityReject,
-		Value:       ap.RawValue(choiceExtensionValue(t, globalRANNodeIDAlternatives, globalRANNodeIDChoiceExtensions, IDGlobalRANNodeID)),
+		Value:       apimpl.RawValue(choiceExtensionValue(t, globalRANNodeIDAlternatives, globalRANNodeIDChoiceExtensions, IDGlobalRANNodeID)),
 	})
 
 	_, err := ParseNGSetupRequest(value)
@@ -61,9 +61,9 @@ func TestChoiceExtensionOnRejectIEIsAbstractSyntaxError(t *testing.T) {
 		t.Errorf("cause = %s, want abstract-syntax-error-reject", ase.Cause)
 	}
 
-	if len(ase.IEs) != 1 || ase.IEs[0].IEID != IDGlobalRANNodeID ||
-		ase.IEs[0].TypeOfError != TypeOfErrorNotUnderstood {
-		t.Errorf("diagnostics = %+v, want one not-understood entry for GlobalRANNodeID", ase.IEs)
+	if len(ase.IEs) != 2 || ase.IEs[1].IEID != IDGlobalRANNodeID ||
+		ase.IEs[1].TypeOfError != TypeOfErrorNotUnderstood {
+		t.Errorf("diagnostics = %+v, want the unknown choice-Extensions IE and then GlobalRANNodeID, which no alternative is left to comprehend", ase.IEs)
 	}
 }
 
@@ -73,7 +73,7 @@ func TestChoiceExtensionInsideIgnoreIEIsJudgedOnItsOwnCriticality(t *testing.T) 
 			ieField{
 				ID:          IDCause,
 				Criticality: CriticalityIgnore,
-				Value:       ap.RawValue(choiceExtensionValueCrit(t, causeAlternatives, causeChoiceExtensions, 9999, crit)),
+				Value:       apimpl.RawValue(choiceExtensionValueCrit(t, causeAlternatives, causeChoiceExtensions, 9999, crit)),
 			},
 			ieField{ID: IDResetType, Criticality: CriticalityReject, Value: &ResetType{NGInterface: Ptr(ResetAllResetAll)}},
 		)
@@ -93,8 +93,17 @@ func TestChoiceExtensionInsideIgnoreIEIsJudgedOnItsOwnCriticality(t *testing.T) 
 			t.Fatalf("parse: %v, want the message delivered", err)
 		}
 
-		if msg.Cause == nil || msg.Cause.ChoiceExtension == nil || msg.Cause.ChoiceExtension.ID != 9999 {
-			t.Errorf("Cause = %+v, want the unknown choice-Extensions kept", msg.Cause)
+		if msg.Cause != nil {
+			t.Errorf("Cause = %+v, want an ignore IE with no comprehended alternative treated as not received", msg.Cause)
+		}
+
+		decoded, err := DecodeNGReset(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if decoded.Cause == nil || decoded.Cause.ChoiceExtension == nil || decoded.Cause.ChoiceExtension.ID != 9999 {
+			t.Errorf("decoded Cause = %+v, want the unknown choice-Extensions kept", decoded.Cause)
 		}
 
 		if msg.ResetType.NGInterface == nil {
@@ -133,8 +142,8 @@ func TestChoiceExtensionInsideIgnoreIEIsJudgedOnItsOwnCriticality(t *testing.T) 
 // produce two entries, not just the first.
 func TestAllNotComprehendedRejectIEsAreReported(t *testing.T) {
 	value := container(t,
-		ieField{ID: ProtocolIEID(40001), Criticality: CriticalityReject, Value: ap.RawValue([]byte{0x00})},
-		ieField{ID: ProtocolIEID(40002), Criticality: CriticalityReject, Value: ap.RawValue([]byte{0x00})},
+		ieField{ID: ProtocolIEID(40001), Criticality: CriticalityReject, Value: apimpl.RawValue([]byte{0x00})},
+		ieField{ID: ProtocolIEID(40002), Criticality: CriticalityReject, Value: apimpl.RawValue([]byte{0x00})},
 	)
 
 	_, err := ParseNGSetupRequest(value)

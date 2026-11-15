@@ -5,6 +5,7 @@ package ngap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // PDUSessionResourceSetupItemCxtReq ::= SEQUENCE { pDUSessionID, nAS-PDU
@@ -150,7 +151,7 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 		},
 		Encode: func(m *InitialContextSetupRequest) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
-	optionalExtension(IDOldAMF, CriticalityReject, func(m *InitialContextSetupRequest) **Name { return &m.OldAMF }),
+	apimpl.OptionalIE(IDOldAMF, CriticalityReject, func(m *InitialContextSetupRequest) **Name { return &m.OldAMF }),
 	{
 		ID: IDUEAggregateMaximumBitRate, Presence: presenceConditional, Criticality: CriticalityReject,
 		Condition: func(m *InitialContextSetupRequest) bool { return m.PDUSessionResourceSetup != nil },
@@ -173,7 +174,7 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 			return m.UEAggregateMaximumBitRate, true
 		},
 	},
-	optionalExtension(IDCoreNetworkAssistanceInformationForInactive, CriticalityIgnore, func(m *InitialContextSetupRequest) **CoreNetworkAssistanceInformationForInactive {
+	apimpl.OptionalIE(IDCoreNetworkAssistanceInformationForInactive, CriticalityIgnore, func(m *InitialContextSetupRequest) **CoreNetworkAssistanceInformationForInactive {
 		return &m.CoreNetworkAssistanceInformationForInactive
 	}),
 	{
@@ -246,7 +247,7 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 			return m.TraceActivation, true
 		},
 	},
-	optionalExtension(IDMobilityRestrictionList, CriticalityIgnore, func(m *InitialContextSetupRequest) **MobilityRestrictionList { return &m.MobilityRestrictionList }),
+	apimpl.OptionalIE(IDMobilityRestrictionList, CriticalityIgnore, func(m *InitialContextSetupRequest) **MobilityRestrictionList { return &m.MobilityRestrictionList }),
 	{
 		ID: IDUERadioCapability, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *InitialContextSetupRequest, r *per.Reader, enc per.Encoding) error {
@@ -260,8 +261,8 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 			return m.UERadioCapability, true
 		},
 	},
-	optionalExtension(IDIndexToRFSP, CriticalityIgnore, func(m *InitialContextSetupRequest) **IndexToRFSP { return &m.IndexToRFSP }),
-	optionalExtension(IDMaskedIMEISV, CriticalityIgnore, func(m *InitialContextSetupRequest) **MaskedIMEISV { return &m.MaskedIMEISV }),
+	apimpl.OptionalIE(IDIndexToRFSP, CriticalityIgnore, func(m *InitialContextSetupRequest) **IndexToRFSP { return &m.IndexToRFSP }),
+	apimpl.OptionalIE(IDMaskedIMEISV, CriticalityIgnore, func(m *InitialContextSetupRequest) **MaskedIMEISV { return &m.MaskedIMEISV }),
 	{
 		ID: IDNASPDU, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *InitialContextSetupRequest, r *per.Reader, enc per.Encoding) error {
@@ -283,8 +284,8 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 			return m.NASPDU, true
 		},
 	},
-	optionalExtension(IDEmergencyFallbackIndicator, CriticalityReject, func(m *InitialContextSetupRequest) **EmergencyFallbackIndicator { return &m.EmergencyFallbackIndicator }),
-	optionalExtension(IDRRCInactiveTransitionReportRequest, CriticalityIgnore, func(m *InitialContextSetupRequest) **RRCInactiveTransitionReportRequest {
+	apimpl.OptionalIE(IDEmergencyFallbackIndicator, CriticalityReject, func(m *InitialContextSetupRequest) **EmergencyFallbackIndicator { return &m.EmergencyFallbackIndicator }),
+	apimpl.OptionalIE(IDRRCInactiveTransitionReportRequest, CriticalityIgnore, func(m *InitialContextSetupRequest) **RRCInactiveTransitionReportRequest {
 		return &m.RRCInactiveTransitionReportRequest
 	}),
 	{
@@ -308,64 +309,64 @@ var initialContextSetupRequestIEs = []ieSpec[InitialContextSetupRequest]{
 			return m.UERadioCapabilityForPaging, true
 		},
 	},
-	optionalExtension(IDRedirectionVoiceFallback, CriticalityIgnore, func(m *InitialContextSetupRequest) **RedirectionVoiceFallback { return &m.RedirectionVoiceFallback }),
-	optionalExtension(IDLocationReportingRequestType, CriticalityIgnore, func(m *InitialContextSetupRequest) **LocationReportingRequestType {
+	apimpl.OptionalIE(IDRedirectionVoiceFallback, CriticalityIgnore, func(m *InitialContextSetupRequest) **RedirectionVoiceFallback { return &m.RedirectionVoiceFallback }),
+	apimpl.OptionalIE(IDLocationReportingRequestType, CriticalityIgnore, func(m *InitialContextSetupRequest) **LocationReportingRequestType {
 		return &m.LocationReportingRequestType
 	}),
-	optionalExtension(IDCNAssistedRANTuning, CriticalityIgnore, func(m *InitialContextSetupRequest) **CNAssistedRANTuning { return &m.CNAssistedRANTuning }),
-	optionalExtension(IDSRVCCOperationPossible, CriticalityIgnore, func(m *InitialContextSetupRequest) **SRVCCOperationPossible { return &m.SRVCCOperationPossible }),
-	optionalExtension(IDIABAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **IABAuthorized { return &m.IABAuthorized }),
-	optionalExtension(IDEnhancedCoverageRestriction, CriticalityIgnore, func(m *InitialContextSetupRequest) **EnhancedCoverageRestriction {
+	apimpl.OptionalIE(IDCNAssistedRANTuning, CriticalityIgnore, func(m *InitialContextSetupRequest) **CNAssistedRANTuning { return &m.CNAssistedRANTuning }),
+	apimpl.OptionalIE(IDSRVCCOperationPossible, CriticalityIgnore, func(m *InitialContextSetupRequest) **SRVCCOperationPossible { return &m.SRVCCOperationPossible }),
+	apimpl.OptionalIE(IDIABAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **IABAuthorized { return &m.IABAuthorized }),
+	apimpl.OptionalIE(IDEnhancedCoverageRestriction, CriticalityIgnore, func(m *InitialContextSetupRequest) **EnhancedCoverageRestriction {
 		return &m.EnhancedCoverageRestriction
 	}),
-	optionalExtension(IDExtendedConnectedTime, CriticalityIgnore, func(m *InitialContextSetupRequest) **ExtendedConnectedTime { return &m.ExtendedConnectedTime }),
-	optionalExtension(IDUEDifferentiationInfo, CriticalityIgnore, func(m *InitialContextSetupRequest) **UEDifferentiationInfo { return &m.UEDifferentiationInfo }),
-	optionalExtension(IDNRV2XServicesAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **NRV2XServicesAuthorized { return &m.NRV2XServicesAuthorized }),
-	optionalExtension(IDLTEV2XServicesAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **LTEV2XServicesAuthorized { return &m.LTEV2XServicesAuthorized }),
-	optionalExtension(IDNRUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *InitialContextSetupRequest) **NRUESidelinkAggregateMaximumBitrate {
+	apimpl.OptionalIE(IDExtendedConnectedTime, CriticalityIgnore, func(m *InitialContextSetupRequest) **ExtendedConnectedTime { return &m.ExtendedConnectedTime }),
+	apimpl.OptionalIE(IDUEDifferentiationInfo, CriticalityIgnore, func(m *InitialContextSetupRequest) **UEDifferentiationInfo { return &m.UEDifferentiationInfo }),
+	apimpl.OptionalIE(IDNRV2XServicesAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **NRV2XServicesAuthorized { return &m.NRV2XServicesAuthorized }),
+	apimpl.OptionalIE(IDLTEV2XServicesAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **LTEV2XServicesAuthorized { return &m.LTEV2XServicesAuthorized }),
+	apimpl.OptionalIE(IDNRUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *InitialContextSetupRequest) **NRUESidelinkAggregateMaximumBitrate {
 		return &m.NRUESidelinkAggregateMaximumBitrate
 	}),
-	optionalExtension(IDLTEUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *InitialContextSetupRequest) **LTEUESidelinkAggregateMaximumBitrate {
+	apimpl.OptionalIE(IDLTEUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *InitialContextSetupRequest) **LTEUESidelinkAggregateMaximumBitrate {
 		return &m.LTEUESidelinkAggregateMaximumBitrate
 	}),
-	optionalExtension(IDPC5QoSParameters, CriticalityIgnore, func(m *InitialContextSetupRequest) **PC5QoSParameters { return &m.PC5QoSParameters }),
-	optionalExtension(IDCEmodeBrestricted, CriticalityIgnore, func(m *InitialContextSetupRequest) **CEmodeBrestricted { return &m.CEmodeBrestricted }),
-	optionalExtension(IDUEUPCIoTSupport, CriticalityIgnore, func(m *InitialContextSetupRequest) **UEUPCIoTSupport { return &m.UEUPCIoTSupport }),
-	optionalExtension(IDRGLevelWirelineAccessCharacteristics, CriticalityIgnore, func(m *InitialContextSetupRequest) **RGLevelWirelineAccessCharacteristics {
+	apimpl.OptionalIE(IDPC5QoSParameters, CriticalityIgnore, func(m *InitialContextSetupRequest) **PC5QoSParameters { return &m.PC5QoSParameters }),
+	apimpl.OptionalIE(IDCEmodeBrestricted, CriticalityIgnore, func(m *InitialContextSetupRequest) **CEmodeBrestricted { return &m.CEmodeBrestricted }),
+	apimpl.OptionalIE(IDUEUPCIoTSupport, CriticalityIgnore, func(m *InitialContextSetupRequest) **UEUPCIoTSupport { return &m.UEUPCIoTSupport }),
+	apimpl.OptionalIE(IDRGLevelWirelineAccessCharacteristics, CriticalityIgnore, func(m *InitialContextSetupRequest) **RGLevelWirelineAccessCharacteristics {
 		return &m.RGLevelWirelineAccessCharacteristics
 	}),
-	listExtension(IDManagementBasedMDTPLMNList, CriticalityIgnore, func(m *InitialContextSetupRequest) *MDTPLMNList { return &m.ManagementBasedMDTPLMNList }),
-	optionalExtension(IDUERadioCapabilityID, CriticalityReject, func(m *InitialContextSetupRequest) **UERadioCapabilityID { return &m.UERadioCapabilityID }),
-	optionalExtension(IDTimeSyncAssistanceInfo, CriticalityIgnore, func(m *InitialContextSetupRequest) **TimeSyncAssistanceInfo { return &m.TimeSyncAssistanceInfo }),
-	optionalExtension(IDQMCConfigInfo, CriticalityIgnore, func(m *InitialContextSetupRequest) **QMCConfigInfo { return &m.QMCConfigInfo }),
-	optionalExtension(IDTargetNSSAIInformation, CriticalityIgnore, func(m *InitialContextSetupRequest) **TargetNSSAIInformation { return &m.TargetNSSAIInformation }),
-	listExtension(IDUESliceMaximumBitRateList, CriticalityIgnore, func(m *InitialContextSetupRequest) *UESliceMaximumBitRateList { return &m.UESliceMaximumBitRateList }),
-	optionalExtension(IDFiveGProSeAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **FiveGProSeAuthorized { return &m.FiveGProSeAuthorized }),
-	optionalExtension(IDFiveGProSeUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *InitialContextSetupRequest) **NRUESidelinkAggregateMaximumBitrate {
+	apimpl.ListIE(IDManagementBasedMDTPLMNList, CriticalityIgnore, func(m *InitialContextSetupRequest) *MDTPLMNList { return &m.ManagementBasedMDTPLMNList }),
+	apimpl.OptionalIE(IDUERadioCapabilityID, CriticalityReject, func(m *InitialContextSetupRequest) **UERadioCapabilityID { return &m.UERadioCapabilityID }),
+	apimpl.OptionalIE(IDTimeSyncAssistanceInfo, CriticalityIgnore, func(m *InitialContextSetupRequest) **TimeSyncAssistanceInfo { return &m.TimeSyncAssistanceInfo }),
+	apimpl.OptionalIE(IDQMCConfigInfo, CriticalityIgnore, func(m *InitialContextSetupRequest) **QMCConfigInfo { return &m.QMCConfigInfo }),
+	apimpl.OptionalIE(IDTargetNSSAIInformation, CriticalityIgnore, func(m *InitialContextSetupRequest) **TargetNSSAIInformation { return &m.TargetNSSAIInformation }),
+	apimpl.ListIE(IDUESliceMaximumBitRateList, CriticalityIgnore, func(m *InitialContextSetupRequest) *UESliceMaximumBitRateList { return &m.UESliceMaximumBitRateList }),
+	apimpl.OptionalIE(IDFiveGProSeAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **FiveGProSeAuthorized { return &m.FiveGProSeAuthorized }),
+	apimpl.OptionalIE(IDFiveGProSeUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *InitialContextSetupRequest) **NRUESidelinkAggregateMaximumBitrate {
 		return &m.FiveGProSeUEPC5AggregateMaximumBitRate
 	}),
-	optionalExtension(IDFiveGProSePC5QoSParameters, CriticalityIgnore, func(m *InitialContextSetupRequest) **FiveGProSePC5QoSParameters { return &m.FiveGProSePC5QoSParameters }),
-	optionalExtension(IDNetworkControlledRepeaterAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **NetworkControlledRepeaterAuthorized {
+	apimpl.OptionalIE(IDFiveGProSePC5QoSParameters, CriticalityIgnore, func(m *InitialContextSetupRequest) **FiveGProSePC5QoSParameters { return &m.FiveGProSePC5QoSParameters }),
+	apimpl.OptionalIE(IDNetworkControlledRepeaterAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **NetworkControlledRepeaterAuthorized {
 		return &m.NetworkControlledRepeaterAuthorized
 	}),
-	optionalExtension(IDAerialUEsubscriptionInformation, CriticalityIgnore, func(m *InitialContextSetupRequest) **AerialUEsubscriptionInformation {
+	apimpl.OptionalIE(IDAerialUEsubscriptionInformation, CriticalityIgnore, func(m *InitialContextSetupRequest) **AerialUEsubscriptionInformation {
 		return &m.AerialUEsubscriptionInformation
 	}),
-	optionalExtension(IDNRA2XServicesAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **NRA2XServicesAuthorized { return &m.NRA2XServicesAuthorized }),
-	optionalExtension(IDLTEA2XServicesAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **LTEA2XServicesAuthorized { return &m.LTEA2XServicesAuthorized }),
-	optionalExtension(IDNRA2XUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *InitialContextSetupRequest) **NRUESidelinkAggregateMaximumBitrate {
+	apimpl.OptionalIE(IDNRA2XServicesAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **NRA2XServicesAuthorized { return &m.NRA2XServicesAuthorized }),
+	apimpl.OptionalIE(IDLTEA2XServicesAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **LTEA2XServicesAuthorized { return &m.LTEA2XServicesAuthorized }),
+	apimpl.OptionalIE(IDNRA2XUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *InitialContextSetupRequest) **NRUESidelinkAggregateMaximumBitrate {
 		return &m.NRA2XUEPC5AggregateMaximumBitRate
 	}),
-	optionalExtension(IDLTEA2XUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *InitialContextSetupRequest) **LTEUESidelinkAggregateMaximumBitrate {
+	apimpl.OptionalIE(IDLTEA2XUEPC5AggregateMaximumBitRate, CriticalityIgnore, func(m *InitialContextSetupRequest) **LTEUESidelinkAggregateMaximumBitrate {
 		return &m.LTEA2XUEPC5AggregateMaximumBitRate
 	}),
-	optionalExtension(IDA2XPC5QoSParameters, CriticalityIgnore, func(m *InitialContextSetupRequest) **A2XPC5QoSParameters { return &m.A2XPC5QoSParameters }),
-	optionalExtension(IDMobileIABAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **MobileIABAuthorized { return &m.MobileIABAuthorized }),
-	listExtension(IDPartiallyAllowedNSSAI, CriticalityIgnore, func(m *InitialContextSetupRequest) *PartiallyAllowedNSSAI { return &m.PartiallyAllowedNSSAI }),
-	optionalExtension(IDSLPositioningRangingServiceInfo, CriticalityIgnore, func(m *InitialContextSetupRequest) **SLPositioningRangingServiceInfo {
+	apimpl.OptionalIE(IDA2XPC5QoSParameters, CriticalityIgnore, func(m *InitialContextSetupRequest) **A2XPC5QoSParameters { return &m.A2XPC5QoSParameters }),
+	apimpl.OptionalIE(IDMobileIABAuthorized, CriticalityIgnore, func(m *InitialContextSetupRequest) **MobileIABAuthorized { return &m.MobileIABAuthorized }),
+	apimpl.ListIE(IDPartiallyAllowedNSSAI, CriticalityIgnore, func(m *InitialContextSetupRequest) *PartiallyAllowedNSSAI { return &m.PartiallyAllowedNSSAI }),
+	apimpl.OptionalIE(IDSLPositioningRangingServiceInfo, CriticalityIgnore, func(m *InitialContextSetupRequest) **SLPositioningRangingServiceInfo {
 		return &m.SLPositioningRangingServiceInfo
 	}),
-	optionalExtension(IDExtendedOldAMF, CriticalityIgnore, func(m *InitialContextSetupRequest) **ExtendedAMFName { return &m.ExtendedOldAMF }),
+	apimpl.OptionalIE(IDExtendedOldAMF, CriticalityIgnore, func(m *InitialContextSetupRequest) **ExtendedAMFName { return &m.ExtendedOldAMF }),
 	{
 		ID: IDAMFUENGAPID2, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *InitialContextSetupRequest, r *per.Reader, enc per.Encoding) error {

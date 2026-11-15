@@ -10,7 +10,11 @@ import (
 	"go/types"
 )
 
-const apImportPath = "github.com/ellanetworks/core/per/ap"
+const (
+	apImportPath   = "github.com/ellanetworks/core/per/ap/apimpl"
+	apPublicPath   = "github.com/ellanetworks/core/per/ap"
+	apInternalPath = "github.com/ellanetworks/core/per/ap/internal/impl"
+)
 
 type enumInfo struct {
 	varName    string
@@ -140,7 +144,7 @@ func (g *generator) emitEnum(name string, e enumInfo) {
 	if g.apMode() && e.extensible {
 		g.usesAP = true
 
-		fmt.Fprintf(r, "func (%s %s) Diagnose(*ap.Diagnosis[%s]) bool {\n\treturn !%s.Known(%s)\n}\n\n", recv, name, g.cfg.IEID, e.varName, recv)
+		fmt.Fprintf(r, "func (%s %s) Diagnose(*apimpl.Diagnosis[%s]) bool {\n\treturn !%s.Known(%s)\n}\n\n", recv, name, g.cfg.IEID, e.varName, recv)
 	}
 }
 
@@ -172,7 +176,7 @@ func (g *generator) emitListDiagnose(name string) {
 	r := &g.buf
 	recv := g.receiver(name)
 
-	fmt.Fprintf(r, "func (%s %s) Diagnose(d *ap.Diagnosis[%s]) bool {\n", recv, name, g.cfg.IEID)
+	fmt.Fprintf(r, "func (%s %s) Diagnose(d *apimpl.Diagnosis[%s]) bool {\n", recv, name, g.cfg.IEID)
 	fmt.Fprintf(r, "\tnotComprehended := false\n")
 	fmt.Fprintf(r, "\tfor i := range %s {\n\t\tif %s[i].Diagnose(d) {\n\t\t\tnotComprehended = true\n\t\t}\n\t}\n", recv, recv)
 	fmt.Fprintf(r, "\treturn notComprehended\n}\n\n")
@@ -284,7 +288,7 @@ func (g *generator) emitDiagnose(name string, st *structType) {
 	r := &g.buf
 	recv := g.receiver(name)
 
-	fmt.Fprintf(r, "func (%s *%s) Diagnose(d *ap.Diagnosis[%s]) bool {\n", recv, name, g.cfg.IEID)
+	fmt.Fprintf(r, "func (%s *%s) Diagnose(d *apimpl.Diagnosis[%s]) bool {\n", recv, name, g.cfg.IEID)
 
 	if isChoiceType(st) {
 		g.emitChoiceDiagnose(r, recv, st)
@@ -298,7 +302,7 @@ func (g *generator) emitDiagnose(name string, st *structType) {
 		expr := recv + "." + fi.name
 
 		if fi.genTable {
-			fmt.Fprintf(r, "\tap.DiagnoseExtensions(d, %s, %s, %s)\n", fi.extTable, recv, expr)
+			fmt.Fprintf(r, "\tapimpl.DiagnoseExtensions(d, %s, %s, &%s)\n", fi.extTable, recv, expr)
 
 			continue
 		}
@@ -331,6 +335,14 @@ func (g *generator) emitDiagnose(name string, st *structType) {
 }
 
 func (g *generator) emitChoiceDiagnose(r *bytes.Buffer, recv string, st *structType) {
+	raw := ""
+
+	for _, fi := range st.fields {
+		if fi.rawSingle {
+			raw = recv + "." + fi.name
+		}
+	}
+
 	fmt.Fprintf(r, "\tswitch {\n")
 
 	for _, fi := range st.fields {
@@ -340,9 +352,9 @@ func (g *generator) emitChoiceDiagnose(r *bytes.Buffer, recv string, st *structT
 
 		switch {
 		case fi.rawSingle:
-			fmt.Fprintf(r, "\t\td.Unknown(%s.ID, %s.Criticality)\n", expr, expr)
+			fmt.Fprintf(r, "\t\treturn apimpl.DiagnoseUnknownChoiceExtension(d, %s)\n", expr)
 		case fi.tag.ExtIE:
-			fmt.Fprintf(r, "\t\td.IE(%s, %s, %s)\n", fi.tag.ExtIEID, g.choiceCritExpr(recv, st, fi), expr)
+			fmt.Fprintf(r, "\t\treturn apimpl.DiagnoseChoiceExtension(d, %s, %s, &%s, &%s)\n", fi.tag.ExtIEID, g.choiceCritExpr(recv, st, fi), expr, raw)
 		case g.fieldDiagnosable(g.diagTypes, fi) == diagValue:
 			fmt.Fprintf(r, "\t\treturn %s.Diagnose(d)\n", expr)
 		}
@@ -367,22 +379,22 @@ func (g *generator) choiceCritExpr(recv string, st *structType, fi fieldInfo) st
 func critConst(c string) string {
 	switch c {
 	case "reject":
-		return "ap.CriticalityReject"
+		return "apimpl.CriticalityReject"
 	case "notify":
-		return "ap.CriticalityNotify"
+		return "apimpl.CriticalityNotify"
 	default:
-		return "ap.CriticalityIgnore"
+		return "apimpl.CriticalityIgnore"
 	}
 }
 
 func presenceConst(p string) string {
 	switch p {
 	case "mandatory":
-		return "ap.PresenceMandatory"
+		return "apimpl.PresenceMandatory"
 	case "conditional":
-		return "ap.PresenceConditional"
+		return "apimpl.PresenceConditional"
 	default:
-		return "ap.PresenceOptional"
+		return "apimpl.PresenceOptional"
 	}
 }
 
@@ -393,12 +405,12 @@ func (g *generator) emitExtTable(name string, st *structType) {
 	table := extTableName(name)
 
 	if len(st.extIEs) == 0 {
-		fmt.Fprintf(r, "var %s []ap.IESpec[%s, %s]\n\n", table, g.cfg.IEID, name)
+		fmt.Fprintf(r, "var %s []apimpl.IESpec[%s, %s]\n\n", table, g.cfg.IEID, name)
 
 		return
 	}
 
-	fmt.Fprintf(r, "var %s = []ap.IESpec[%s, %s]{\n", table, g.cfg.IEID, name)
+	fmt.Fprintf(r, "var %s = []apimpl.IESpec[%s, %s]{\n", table, g.cfg.IEID, name)
 
 	for _, fi := range st.extIEs {
 		expr := "x." + fi.name
@@ -433,6 +445,7 @@ func (g *generator) emitExtTable(name string, st *structType) {
 			fmt.Fprintf(r, "\t\t\t\treturn nil\n\t\t\t}), true\n")
 		}
 
+		fmt.Fprintf(r, "\t\t},\n\t\tClear: func(x *%s) {\n\t\t\t%s = nil\n", name, expr)
 		fmt.Fprintf(r, "\t\t},\n\t},\n")
 	}
 
@@ -456,4 +469,12 @@ func (g *generator) receiver(typeName string) string {
 	}
 
 	return recv
+}
+
+func (g *generator) openTypeDecoder() string {
+	if g.apMode() {
+		return "per.DecodeCompleteOpenType"
+	}
+
+	return "per.DecodeOpenType"
 }

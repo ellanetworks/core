@@ -5,13 +5,34 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 type UEContextModificationRequest struct {
-	MMEUES1APID               MMEUES1APID
-	ENBUES1APID               ENBUES1APID
-	UEAggregateMaximumBitRate *UEAggregateMaximumBitRate
-	TimeRefDistribution       *TimeRefDistribution
+	MMEUES1APID                         MMEUES1APID
+	ENBUES1APID                         ENBUES1APID
+	UEAggregateMaximumBitRate           *UEAggregateMaximumBitRate
+	TimeRefDistribution                 *TimeRefDistribution
+	SecurityKey                         *SecurityKey
+	SubscriberProfileIDforRFP           *SubscriberProfileIDforRFP
+	CSFallbackIndicator                 *CSFallbackIndicator
+	UESecurityCapabilities              *UESecurityCapabilities
+	CSGMembershipStatus                 *CSGMembershipStatus
+	RegisteredLAI                       *LAI
+	AdditionalCSFallbackIndicator       *AdditionalCSFallbackIndicator
+	ProSeAuthorized                     *ProSeAuthorized
+	SRVCCOperationPossible              *SRVCCOperationPossible
+	SRVCCOperationNotPossible           *SRVCCOperationNotPossible
+	V2XServicesAuthorized               *V2XServicesAuthorized
+	UESidelinkAggregateMaximumBitrate   *UESidelinkAggregateMaximumBitrate
+	NRUESecurityCapabilities            *NRUESecurityCapabilities
+	AerialUEsubscriptionInformation     *AerialUEsubscriptionInformation
+	AdditionalRRMPriorityIndex          *AdditionalRRMPriorityIndex
+	IABAuthorized                       *IABAuthorized
+	NRV2XServicesAuthorized             *NRV2XServicesAuthorized
+	NRUESidelinkAggregateMaximumBitrate *NRUESidelinkAggregateMaximumBitrate
+	PC5QoSParameters                    *PC5QoSParameters
+	UERadioCapabilityID                 *UERadioCapabilityID
 
 	messageMeta
 }
@@ -31,6 +52,8 @@ var uEContextModificationRequestIEs = []ieSpec[UEContextModificationRequest]{
 		},
 		Encode: func(m *UEContextModificationRequest) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
+	apimpl.OptionalIE(IDSecurityKey, CriticalityReject, func(m *UEContextModificationRequest) **SecurityKey { return &m.SecurityKey }),
+	apimpl.OptionalIE(IDSubscriberProfileIDforRFP, CriticalityIgnore, func(m *UEContextModificationRequest) **SubscriberProfileIDforRFP { return &m.SubscriberProfileIDforRFP }),
 	{
 		ID: IDUEAggregateMaximumBitrate, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *UEContextModificationRequest, r *per.Reader, enc per.Encoding) error {
@@ -52,6 +75,34 @@ var uEContextModificationRequestIEs = []ieSpec[UEContextModificationRequest]{
 			return m.UEAggregateMaximumBitRate, true
 		},
 	},
+	apimpl.OptionalIE(IDCSFallbackIndicator, CriticalityReject, func(m *UEContextModificationRequest) **CSFallbackIndicator { return &m.CSFallbackIndicator }),
+	apimpl.OptionalIE(IDUESecurityCapabilities, CriticalityReject, func(m *UEContextModificationRequest) **UESecurityCapabilities { return &m.UESecurityCapabilities }),
+	apimpl.OptionalIE(IDCSGMembershipStatus, CriticalityIgnore, func(m *UEContextModificationRequest) **CSGMembershipStatus { return &m.CSGMembershipStatus }),
+	apimpl.OptionalIE(IDRegisteredLAI, CriticalityIgnore, func(m *UEContextModificationRequest) **LAI { return &m.RegisteredLAI }),
+	apimpl.ConditionalIE(IDAdditionalCSFallbackIndicator, CriticalityIgnore, ueContextModificationCSFBHighPriority, func(m *UEContextModificationRequest) **AdditionalCSFallbackIndicator {
+		return &m.AdditionalCSFallbackIndicator
+	}),
+	apimpl.OptionalIE(IDProSeAuthorized, CriticalityIgnore, func(m *UEContextModificationRequest) **ProSeAuthorized { return &m.ProSeAuthorized }),
+	apimpl.OptionalIE(IDSRVCCOperationPossible, CriticalityIgnore, func(m *UEContextModificationRequest) **SRVCCOperationPossible { return &m.SRVCCOperationPossible }),
+	apimpl.OptionalIE(IDSRVCCOperationNotPossible, CriticalityIgnore, func(m *UEContextModificationRequest) **SRVCCOperationNotPossible { return &m.SRVCCOperationNotPossible }),
+	apimpl.OptionalIE(IDV2XServicesAuthorized, CriticalityIgnore, func(m *UEContextModificationRequest) **V2XServicesAuthorized { return &m.V2XServicesAuthorized }),
+	apimpl.OptionalIE(IDUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *UEContextModificationRequest) **UESidelinkAggregateMaximumBitrate {
+		return &m.UESidelinkAggregateMaximumBitrate
+	}),
+	apimpl.OptionalIE(IDNRUESecurityCapabilities, CriticalityIgnore, func(m *UEContextModificationRequest) **NRUESecurityCapabilities { return &m.NRUESecurityCapabilities }),
+	apimpl.OptionalIE(IDAerialUEsubscriptionInformation, CriticalityIgnore, func(m *UEContextModificationRequest) **AerialUEsubscriptionInformation {
+		return &m.AerialUEsubscriptionInformation
+	}),
+	apimpl.OptionalIE(IDAdditionalRRMPriorityIndex, CriticalityIgnore, func(m *UEContextModificationRequest) **AdditionalRRMPriorityIndex {
+		return &m.AdditionalRRMPriorityIndex
+	}),
+	apimpl.OptionalIE(IDIABAuthorized, CriticalityIgnore, func(m *UEContextModificationRequest) **IABAuthorized { return &m.IABAuthorized }),
+	apimpl.OptionalIE(IDNRV2XServicesAuthorized, CriticalityIgnore, func(m *UEContextModificationRequest) **NRV2XServicesAuthorized { return &m.NRV2XServicesAuthorized }),
+	apimpl.OptionalIE(IDNRUESidelinkAggregateMaximumBitrate, CriticalityIgnore, func(m *UEContextModificationRequest) **NRUESidelinkAggregateMaximumBitrate {
+		return &m.NRUESidelinkAggregateMaximumBitrate
+	}),
+	apimpl.OptionalIE(IDPC5QoSParameters, CriticalityIgnore, func(m *UEContextModificationRequest) **PC5QoSParameters { return &m.PC5QoSParameters }),
+	apimpl.OptionalIE(IDUERadioCapabilityID, CriticalityReject, func(m *UEContextModificationRequest) **UERadioCapabilityID { return &m.UERadioCapabilityID }),
 	{
 		ID: IDTimeRefDistribution, Presence: presenceOptional, Criticality: CriticalityIgnore,
 		Decode: func(m *UEContextModificationRequest, r *per.Reader, enc per.Encoding) error {
@@ -313,4 +364,8 @@ func ParseUEContextModificationFailure(value []byte) (*UEContextModificationFail
 
 func DecodeUEContextModificationFailure(value []byte) (*UEContextModificationFailure, error) {
 	return decodeMessageBody[UEContextModificationFailure](ProcUEContextModification, uEContextModificationFailureIEs, value)
+}
+
+func ueContextModificationCSFBHighPriority(m *UEContextModificationRequest) bool {
+	return m.CSFallbackIndicator != nil && *m.CSFallbackIndicator == CSFallbackIndicatorCSFallbackHighPriority
 }

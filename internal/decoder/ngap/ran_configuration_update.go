@@ -66,6 +66,13 @@ func buildRANConfigurationUpdate(value []byte) NGAPMessageValue {
 		ies = append(ies, ie(ngap.IDNGRANTNLAssociationToRemoveList, ngap.CriticalityReject, remove))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDNBIoTDefaultPagingDRX, ngap.CriticalityIgnore, m.NBIoTDefaultPagingDRX},
+		{ngap.IDExtendedRANNodeName, ngap.CriticalityIgnore, m.ExtendedRANNodeName},
+		{ngap.IDAdditionalULI, ngap.CriticalityIgnore, m.AdditionalULI},
+		{ngap.IDAIoTSupport, ngap.CriticalityReject, m.AIoTSupport},
+	})
+
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }
 
@@ -120,6 +127,11 @@ func buildUplinkRANConfigurationTransfer(value []byte) NGAPMessageValue {
 			SONConfigurationTransfer{Hex: hex.EncodeToString(m.SONConfigurationTransfer)}))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDENDCSONConfigurationTransferUL, ngap.CriticalityIgnore, m.ENDCSONConfigurationTransferUL},
+		{ngap.IDIntersystemSONConfigurationTransferUL, ngap.CriticalityIgnore, m.IntersystemSONConfigurationTransferUL},
+	})
+
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }
 
@@ -135,6 +147,11 @@ func buildDownlinkRANConfigurationTransfer(value []byte) NGAPMessageValue {
 		ies = append(ies, ie(ngap.IDSONConfigurationTransferDL, ngap.CriticalityIgnore,
 			SONConfigurationTransfer{Hex: hex.EncodeToString(m.SONConfigurationTransfer)}))
 	}
+
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDENDCSONConfigurationTransferDL, ngap.CriticalityIgnore, m.ENDCSONConfigurationTransferDL},
+		{ngap.IDIntersystemSONConfigurationTransferDL, ngap.CriticalityIgnore, m.IntersystemSONConfigurationTransferDL},
+	})
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }

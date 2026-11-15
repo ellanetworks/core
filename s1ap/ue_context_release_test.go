@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 func TestUEContextReleaseRoundTrips(t *testing.T) {
@@ -142,7 +142,7 @@ func TestUEContextReleaseCommandExtensionAlternative(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	value := container(t, ieField{ID: IDUES1APIDs, Criticality: CriticalityReject, Value: ap.RawValue(perBytes(w))})
+	value := container(t, ieField{ID: IDUES1APIDs, Criticality: CriticalityReject, Value: apimpl.RawValue(perBytes(w))})
 
 	_, err := ParseUEContextReleaseCommand(value)
 	if err == nil {
@@ -190,7 +190,7 @@ func TestUEContextReleaseRequestGWContextReleaseIndicationExtensionRejects(t *te
 		ieField{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: Ptr(MMEUES1APID(1))},
 		ieField{ID: IDENBUES1APID, Criticality: CriticalityReject, Value: Ptr(ENBUES1APID(2))},
 		ieField{ID: IDCause, Criticality: CriticalityIgnore, Value: &cause},
-		ieField{ID: IDGWContextReleaseIndication, Criticality: CriticalityReject, Value: ap.RawValue(extensionEnum(t, int64(len(enumGWContextReleaseIndication.Root)), 0))},
+		ieField{ID: IDGWContextReleaseIndication, Criticality: CriticalityReject, Value: apimpl.RawValue(extensionEnum(t, int64(len(enumGWContextReleaseIndication.Root)), 0))},
 	))
 
 	var ase *AbstractSyntaxError

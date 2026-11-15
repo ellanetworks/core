@@ -166,39 +166,9 @@ type ConcurrentWarningMessageIndicator uint8
 
 const ConcurrentWarningMessageIndicatorTrue ConcurrentWarningMessageIndicator = 0
 
-func (c ConcurrentWarningMessageIndicator) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return per.EncodeEnumerated(w, enc, 1, false, int64(c))
-}
-
-func (c *ConcurrentWarningMessageIndicator) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := per.DecodeEnumerated(r, enc, 1, false)
-	if err != nil {
-		return err
-	}
-
-	*c = ConcurrentWarningMessageIndicator(v)
-
-	return nil
-}
-
 type KillAllWarningMessages uint8
 
 const KillAllWarningMessagesTrue KillAllWarningMessages = 0
-
-func (k KillAllWarningMessages) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return per.EncodeEnumerated(w, enc, 1, false, int64(k))
-}
-
-func (k *KillAllWarningMessages) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := per.DecodeEnumerated(r, enc, 1, false)
-	if err != nil {
-		return err
-	}
-
-	*k = KillAllWarningMessages(v)
-
-	return nil
-}
 
 type CellIDBroadcastItem struct {
 	extensions   per.ExtensionAdditions `per:",extraw"`

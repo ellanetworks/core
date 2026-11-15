@@ -258,7 +258,8 @@ func pathSwitchSecurityCapabilities(ctx context.Context, ue *mme.UeContext, rece
 
 	stored := mme.S1apSecurityCapabilities(uecap)
 
-	if received == nil || received.Equal(stored) {
+	if received == nil || (received.EncryptionAlgorithms == stored.EncryptionAlgorithms &&
+		received.IntegrityProtectionAlgorithms == stored.IntegrityProtectionAlgorithms) {
 		return nil
 	}
 

@@ -219,3 +219,260 @@ var enumPatternPeriod = per.Enum[PatternPeriod]{
 	Root:       []string{"ms1280", "ms2560", "ms5120", "ms10240"},
 	Extensible: true,
 }
+
+var enumConcurrentWarningMessageIndicator = per.Enum[ConcurrentWarningMessageIndicator]{
+	Root: []string{"true"},
+}
+
+var enumKillAllWarningMessages = per.Enum[KillAllWarningMessages]{
+	Root: []string{"true"},
+}
+
+var enumAdditionalCSFallbackIndicator = per.Enum[AdditionalCSFallbackIndicator]{
+	Root:       []string{"no-restriction", "restriction"},
+	Extensible: true,
+}
+
+var enumAerialUEsubscriptionInformation = per.Enum[AerialUEsubscriptionInformation]{
+	Root:       []string{"allowed", "not-allowed"},
+	Extensible: true,
+}
+
+var enumCEModeBRestricted = per.Enum[CEModeBRestricted]{
+	Root:       []string{"restricted", "not-restricted"},
+	Extensible: true,
+}
+
+var enumCEmodeBSupportIndicator = per.Enum[CEmodeBSupportIndicator]{
+	Root:       []string{"supported"},
+	Extensible: true,
+}
+
+var enumCSFallbackIndicator = per.Enum[CSFallbackIndicator]{
+	Root:      []string{"cs-fallback-required"},
+	Extension: []string{"cs-fallback-high-priority"},
+}
+
+var enumCSGMembershipStatus = per.Enum[CSGMembershipStatus]{
+	Root: []string{"member", "not-member"},
+}
+
+var enumCellAccessMode = per.Enum[CellAccessMode]{
+	Root:       []string{"hybrid"},
+	Extensible: true,
+}
+
+var enumCoverageLevel = per.Enum[CoverageLevel]{
+	Root:       []string{"extendedcoverage"},
+	Extensible: true,
+}
+
+var enumDLNASPDUDeliveryAckRequest = per.Enum[DLNASPDUDeliveryAckRequest]{
+	Root:       []string{"requested"},
+	Extensible: true,
+}
+
+var enumEDTSession = per.Enum[EDTSession]{
+	Root:       []string{"true"},
+	Extensible: true,
+}
+
+var enumEndIndication = per.Enum[EndIndication]{
+	Root:       []string{"no-further-data", "further-data-exists"},
+	Extensible: true,
+}
+
+var enumEnhancedCoverageRestricted = per.Enum[EnhancedCoverageRestricted]{
+	Root:       []string{"restricted"},
+	Extensible: true,
+}
+
+var enumIABAuthorized = per.Enum[IABAuthorized]{
+	Root:       []string{"authorized", "not-authorized"},
+	Extensible: true,
+}
+
+var enumIABNodeIndication = per.Enum[IABNodeIndication]{
+	Root:       []string{"true"},
+	Extensible: true,
+}
+
+var enumIABSupported = per.Enum[IABSupported]{
+	Root:       []string{"true"},
+	Extensible: true,
+}
+
+var enumLTEMIndication = per.Enum[LTEMIndication]{
+	Root:       []string{"lte-m"},
+	Extensible: true,
+}
+
+var enumMMERelaySupportIndicator = per.Enum[MMERelaySupportIndicator]{
+	Root:       []string{"true"},
+	Extensible: true,
+}
+
+var enumManagementBasedMDTAllowed = per.Enum[ManagementBasedMDTAllowed]{
+	Root:       []string{"allowed"},
+	Extensible: true,
+}
+
+var enumNBIoTDefaultPagingDRX = per.Enum[NBIoTDefaultPagingDRX]{
+	Root:       []string{"v128", "v256", "v512", "v1024"},
+	Extensible: true,
+}
+
+var enumNBIoTPagingDRX = per.Enum[NBIoTPagingDRX]{
+	Root:       []string{"v32", "v64", "v128", "v256", "v512", "v1024"},
+	Extensible: true,
+}
+
+var enumNotifySourceeNB = per.Enum[NotifySourceeNB]{
+	Root:       []string{"notifySource"},
+	Extensible: true,
+}
+
+var enumPSServiceNotAvailable = per.Enum[PSServiceNotAvailable]{
+	Root:       []string{"ps-service-not-available"},
+	Extensible: true,
+}
+
+var enumPagingCause = per.Enum[PagingCause]{
+	Root:       []string{"voice"},
+	Extensible: true,
+}
+
+var enumPendingDataIndication = per.Enum[PendingDataIndication]{
+	Root:       []string{"true"},
+	Extensible: true,
+}
+
+var enumRelayNodeIndicator = per.Enum[RelayNodeIndicator]{
+	Root:       []string{"true"},
+	Extensible: true,
+}
+
+var enumSRVCCHOIndication = per.Enum[SRVCCHOIndication]{
+	Root:       []string{"pSandCS", "cSonly"},
+	Extensible: true,
+}
+
+var enumSRVCCOperationNotPossible = per.Enum[SRVCCOperationNotPossible]{
+	Root:       []string{"notPossible"},
+	Extensible: true,
+}
+
+var enumSRVCCOperationPossible = per.Enum[SRVCCOperationPossible]{
+	Root:       []string{"possible"},
+	Extensible: true,
+}
+
+var enumSecondaryRATDataUsageRequest = per.Enum[SecondaryRATDataUsageRequest]{
+	Root:       []string{"requested"},
+	Extensible: true,
+}
+
+var enumSubscriptionBasedUEDifferentiationInfoPeriodicCommunicationIndicator = per.Enum[SubscriptionBasedUEDifferentiationInfoPeriodicCommunicationIndicator]{
+	Root:       []string{"periodically", "ondemand"},
+	Extensible: true,
+}
+
+var enumSubscriptionBasedUEDifferentiationInfoStationaryIndication = per.Enum[SubscriptionBasedUEDifferentiationInfoStationaryIndication]{
+	Root:       []string{"stationary", "mobile"},
+	Extensible: true,
+}
+
+var enumSubscriptionBasedUEDifferentiationInfoTrafficProfile = per.Enum[SubscriptionBasedUEDifferentiationInfoTrafficProfile]{
+	Root:       []string{"single-packet", "dual-packets", "multiple-packets"},
+	Extensible: true,
+}
+
+var enumSubscriptionBasedUEDifferentiationInfoBatteryIndication = per.Enum[SubscriptionBasedUEDifferentiationInfoBatteryIndication]{
+	Root:       []string{"battery-powered", "battery-powered-not-rechargeable-or-replaceable", "not-battery-powered"},
+	Extensible: true,
+}
+
+var enumUECapabilityInfoRequest = per.Enum[UECapabilityInfoRequest]{
+	Root:       []string{"requested"},
+	Extensible: true,
+}
+
+var enumUEUserPlaneCIoTSupportIndicator = per.Enum[UEUserPlaneCIoTSupportIndicator]{
+	Root:       []string{"supported"},
+	Extensible: true,
+}
+
+var enumExpectedHOInterval = per.Enum[ExpectedHOInterval]{
+	Root:       []string{"sec15", "sec30", "sec60", "sec90", "sec120", "sec180", "long-time"},
+	Extensible: true,
+}
+
+var enumNBIoTPagingeDRXCycle = per.Enum[NBIoTPagingeDRXCycle]{
+	Root:       []string{"hf2", "hf4", "hf6", "hf8", "hf10", "hf12", "hf14", "hf16", "hf32", "hf64", "hf128", "hf256", "hf512", "hf1024"},
+	Extensible: true,
+}
+
+var enumNBIoTPagingTimeWindow = per.Enum[NBIoTPagingTimeWindow]{
+	Root:       []string{"s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11", "s12", "s13", "s14", "s15", "s16"},
+	Extensible: true,
+}
+
+var enumVehicleUE = per.Enum[VehicleUE]{
+	Root:       []string{"authorized", "not-authorized"},
+	Extensible: true,
+}
+
+var enumPedestrianUE = per.Enum[PedestrianUE]{
+	Root:       []string{"authorized", "not-authorized"},
+	Extensible: true,
+}
+
+var enumPagingeDRXCycle = per.Enum[PagingeDRXCycle]{
+	Root:       []string{"hfhalf", "hf1", "hf2", "hf4", "hf6", "hf8", "hf10", "hf12", "hf14", "hf16", "hf32", "hf64", "hf128", "hf256"},
+	Extensible: true,
+}
+
+var enumPagingTimeWindow = per.Enum[PagingTimeWindow]{
+	Root:       []string{"s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11", "s12", "s13", "s14", "s15", "s16"},
+	Extensible: true,
+}
+
+var enumProSeDirectDiscovery = per.Enum[ProSeDirectDiscovery]{
+	Root:       []string{"authorized", "not-authorized"},
+	Extensible: true,
+}
+
+var enumProSeDirectCommunication = per.Enum[ProSeDirectCommunication]{
+	Root:       []string{"authorized", "not-authorized"},
+	Extensible: true,
+}
+
+var enumProSeUEtoNetworkRelaying = per.Enum[ProSeUEtoNetworkRelaying]{
+	Root:       []string{"authorized", "not-authorized"},
+	Extensible: true,
+}
+
+var enumPagingProbabilityInformation = per.Enum[PagingProbabilityInformation]{
+	Root:       []string{"p00", "p05", "p10", "p15", "p20", "p25", "p30", "p35", "p40", "p45", "p50", "p55", "p60", "p65", "p70", "p75", "p80", "p85", "p90", "p95", "p100"},
+	Extensible: true,
+}
+
+var enumNextPagingAreaScope = per.Enum[NextPagingAreaScope]{
+	Root:       []string{"same", "changed"},
+	Extensible: true,
+}
+
+var enumSourceOfUEActivityBehaviourInformation = per.Enum[SourceOfUEActivityBehaviourInformation]{
+	Root:       []string{"subscription-information", "statistics"},
+	Extensible: true,
+}
+
+var enumSecondaryRATType = per.Enum[SecondaryRATType]{
+	Root:      []string{"nR"},
+	Extension: []string{"unlicensed"},
+}
+
+var enumRangeType = per.Enum[RangeType]{
+	Root:       []string{"m50", "m80", "m180", "m200", "m350", "m400", "m500", "m700", "m1000"},
+	Extensible: true,
+}

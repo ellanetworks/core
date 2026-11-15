@@ -74,7 +74,7 @@ func buildPDUSessionResourceSetupResponse(value []byte) NGAPMessageValue {
 		for _, item := range m.PDUSessionResourceSetup {
 			entry := PDUSessionResourceSetupSURes{PDUSessionID: int64(item.PDUSessionID)}
 
-			transfer, err := ngap.ParsePDUSessionResourceSetupResponseTransfer(item.Transfer)
+			transfer, err := ngap.DecodePDUSessionResourceSetupResponseTransfer(item.Transfer)
 			if err != nil {
 				entry.Error = fmt.Sprintf("failed to decode response transfer: %v", err)
 			} else {
@@ -93,7 +93,7 @@ func buildPDUSessionResourceSetupResponse(value []byte) NGAPMessageValue {
 		for _, item := range m.PDUSessionResourceFailed {
 			entry := PDUSessionResourceFailedToSetupSURes{PDUSessionID: int64(item.PDUSessionID)}
 
-			transfer, err := ngap.ParsePDUSessionResourceSetupUnsuccessfulTransfer(item.Transfer)
+			transfer, err := ngap.DecodePDUSessionResourceSetupUnsuccessfulTransfer(item.Transfer)
 			if err != nil {
 				entry.Error = fmt.Sprintf("failed to decode unsuccessful transfer: %v", err)
 			} else {
@@ -159,9 +159,13 @@ func libSetupResponseTransfer(t *ngap.PDUSessionResourceSetupResponseTransfer) *
 	return out
 }
 
-// libGTPTunnel renders the only UPTransportLayerInformation alternative the
-// library models; the CHOICE is closed by choice-Extensions (TS 38.413 §9.3.2.1).
+// libGTPTunnel renders the GTP tunnel alternative of UPTransportLayerInformation;
+// any other alternative is rendered as the CHOICE itself (TS 38.413 §9.3.2.1).
 func libGTPTunnel(u ngap.UPTransportLayerInformation) GTPTunnel {
+	if u.GTPTunnel == nil {
+		return GTPTunnel{alternative: render(u)}
+	}
+
 	return GTPTunnel{
 		GTPTEID:               uint32(u.GTPTunnel.GTPTEID),
 		TransportLayerAddress: transportLayerAddressToString(u.GTPTunnel.TransportLayerAddress),

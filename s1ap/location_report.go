@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // EventType ::= ENUMERATED { direct, change-of-serve-cell, stop-change-of-serve-cell,
@@ -36,11 +37,13 @@ type RequestType struct {
 
 // TS 36.413 §9.1.12.3.
 type LocationReport struct {
-	MMEUES1APID MMEUES1APID
-	ENBUES1APID ENBUES1APID
-	EUTRANCGI   *EUTRANCGI
-	TAI         *TAI
-	RequestType *RequestType
+	MMEUES1APID          MMEUES1APID
+	ENBUES1APID          ENBUES1APID
+	EUTRANCGI            *EUTRANCGI
+	TAI                  *TAI
+	RequestType          *RequestType
+	PSCellInformation    *PSCellInformation
+	LTENTNTAIInformation *LTENTNTAIInformation
 
 	messageMeta
 }
@@ -123,6 +126,8 @@ var locationReportIEs = []ieSpec[LocationReport]{
 			return m.RequestType, true
 		},
 	},
+	apimpl.OptionalIE(IDPSCellInformation, CriticalityIgnore, func(m *LocationReport) **PSCellInformation { return &m.PSCellInformation }),
+	apimpl.OptionalIE(IDLTENTNTAIInformation, CriticalityIgnore, func(m *LocationReport) **LTENTNTAIInformation { return &m.LTENTNTAIInformation }),
 }
 
 func (m *LocationReport) encodeBody(w *per.Writer, enc per.Encoding) error {

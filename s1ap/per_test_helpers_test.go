@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/per"
 	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 func unmarshalPERValue[T any](b []byte) (T, error) {
@@ -49,7 +50,7 @@ func deref[T any](p *T) T {
 
 //nolint:unparam
 func encodeIEContainer(w *per.Writer, enc per.Encoding, fields []ieField) error {
-	return ap.EncodeIEContainer(profile, w, enc, fields)
+	return apimpl.EncodeIEContainer(profile, w, enc, fields)
 }
 
 func typeOfError(d DiagnosticIE) TypeOfError {
@@ -72,9 +73,9 @@ func firstIndex(p *RawPDU, id ProtocolIEID) int {
 }
 
 func encodeExtensionContainer(w *per.Writer, fields []ieField) error {
-	return ap.EncodeExtensionContainer(profile, w, per.Aligned, fields)
+	return apimpl.EncodeExtensionContainer(profile, w, per.Aligned, fields)
 }
 
 func decodeExtensionContainer[M any](r *per.Reader, table []ieSpec[M], m *M, meta *extensionMeta) error {
-	return ap.DecodeExtensionContainer(profile, r, per.Aligned, table, m, meta)
+	return apimpl.DecodeExtensionContainer(profile, r, per.Aligned, table, m, meta)
 }

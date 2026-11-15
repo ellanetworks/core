@@ -13,6 +13,7 @@ import (
 
 	"github.com/ellanetworks/core/per"
 	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 const goldenSourceeNBContainer = "60018001004e40024500004e4001060002f839abcdef10ff100002f83900001011800fff800d0c0002f839000000010080001e"
@@ -197,7 +198,7 @@ func handSourceeNBContainer(t *testing.T, extCrit Criticality) []byte {
 		handAdditions(t, item)
 		item.AlignToByte()
 
-		return encodeContainerField(w, enc, ieField{ID: IDERABInformationListItem, Criticality: CriticalityIgnore, Value: ap.RawValue(item.Bytes())})
+		return encodeContainerField(w, enc, ieField{ID: IDERABInformationListItem, Criticality: CriticalityIgnore, Value: apimpl.RawValue(item.Bytes())})
 	}))
 	mustNil(t, (&EUTRANCGI{PLMNIdentity: containerPLMN(), CellID: 0xabcdef1}).MarshalPER(w, enc))
 
@@ -288,7 +289,7 @@ func TestSourceeNBToTargeteNBTransparentContainerExtensionValue(t *testing.T) {
 		mustNil(t, per.EncodeEnumerated(item, per.Aligned, int64(len(enumDLForwarding.Root)), true, 1))
 		item.AlignToByte()
 
-		return encodeContainerField(w, per.Aligned, ieField{ID: IDERABInformationListItem, Criticality: CriticalityIgnore, Value: ap.RawValue(item.Bytes())})
+		return encodeContainerField(w, per.Aligned, ieField{ID: IDERABInformationListItem, Criticality: CriticalityIgnore, Value: apimpl.RawValue(item.Bytes())})
 	}))
 	w.AlignToByte()
 

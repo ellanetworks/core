@@ -579,6 +579,10 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		corpus[name] = b
 	}
 
+	for name, b := range extensionIEsCorpus(t) {
+		corpus[name] = b
+	}
+
 	return corpus
 }
 

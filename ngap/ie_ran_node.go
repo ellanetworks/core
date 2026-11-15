@@ -7,18 +7,18 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/per"
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 type GlobalRANNodeID struct {
-	GlobalGNBID       *GlobalGNBID       `per:",choice:0"`
-	GlobalNgENBID     *GlobalNgENBID     `per:",choice:1"`
-	GlobalN3IWFID     *GlobalN3IWFID     `per:",choice:2"`
-	GlobalTNGFID      *GlobalTNGFID      `per:",choice:3,extie:IDGlobalTNGFID,crit:reject"`
-	GlobalTWIFID      *GlobalTWIFID      `per:",choice:3,extie:IDGlobalTWIFID,crit:reject"`
-	GlobalWAGFID      *GlobalWAGFID      `per:",choice:3,extie:IDGlobalWAGFID,crit:reject"`
-	ChoiceExtension   *SingleContainer   `per:",choice:3,extie"`
-	choiceCriticality ap.WireCriticality `per:",choicecrit"`
+	GlobalGNBID       *GlobalGNBID           `per:",choice:0"`
+	GlobalNgENBID     *GlobalNgENBID         `per:",choice:1"`
+	GlobalN3IWFID     *GlobalN3IWFID         `per:",choice:2"`
+	GlobalTNGFID      *GlobalTNGFID          `per:",choice:3,extie:IDGlobalTNGFID,crit:reject"`
+	GlobalTWIFID      *GlobalTWIFID          `per:",choice:3,extie:IDGlobalTWIFID,crit:reject"`
+	GlobalWAGFID      *GlobalWAGFID          `per:",choice:3,extie:IDGlobalWAGFID,crit:reject"`
+	ChoiceExtension   *SingleContainer       `per:",choice:3,extie"`
+	choiceCriticality apimpl.WireCriticality `per:",choicecrit"`
 }
 
 type GlobalGNBID struct {

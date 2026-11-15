@@ -5,6 +5,7 @@ package ngap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // UE-NGAP-IDs ::= CHOICE { uE-NGAP-ID-pair, aMF-UE-NGAP-ID, choice-Extensions }.
@@ -196,7 +197,7 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 			return m.UserLocationInformation, true
 		},
 	},
-	optionalExtension(IDInfoOnRecommendedCellsAndRANNodesForPaging, CriticalityIgnore, func(m *UEContextReleaseComplete) **InfoOnRecommendedCellsAndRANNodesForPaging {
+	apimpl.OptionalIE(IDInfoOnRecommendedCellsAndRANNodesForPaging, CriticalityIgnore, func(m *UEContextReleaseComplete) **InfoOnRecommendedCellsAndRANNodesForPaging {
 		return &m.InfoOnRecommendedCellsAndRANNodesForPaging
 	}),
 	{
@@ -233,7 +234,7 @@ var uEContextReleaseCompleteIEs = []ieSpec[UEContextReleaseComplete]{
 			return m.CriticalityDiagnostics, true
 		},
 	},
-	optionalExtension(IDPagingAssisDataforCEcapabUE, CriticalityIgnore, func(m *UEContextReleaseComplete) **PagingAssisDataforCEcapabUE { return &m.PagingAssisDataforCEcapabUE }),
+	apimpl.OptionalIE(IDPagingAssisDataforCEcapabUE, CriticalityIgnore, func(m *UEContextReleaseComplete) **PagingAssisDataforCEcapabUE { return &m.PagingAssisDataforCEcapabUE }),
 }
 
 func (m *UEContextReleaseComplete) encodeBody(w *per.Writer, enc per.Encoding) error {

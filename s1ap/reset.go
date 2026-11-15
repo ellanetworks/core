@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 // TS 36.413, S1AP-Constants.
@@ -139,7 +140,7 @@ var resetAcknowledgeIEs = []ieSpec[ResetAcknowledge]{
 				return nil, false
 			}
 
-			return containerList(maxnoofIndividualS1ConnectionsToReset, IDUEAssociatedLogicalS1ConnectionItem, CriticalityIgnore, m.ConnectionList), true
+			return containerList(maxnoofIndividualS1ConnectionsToReset, IDUEAssociatedLogicalS1ConnectionItem, CriticalityIgnore, &m.ConnectionList), true
 		},
 	},
 	{
@@ -190,4 +191,8 @@ func ParseResetAcknowledge(value []byte) (*ResetAcknowledge, error) {
 
 func DecodeResetAcknowledge(value []byte) (*ResetAcknowledge, error) {
 	return decodeMessageBody[ResetAcknowledge](ProcReset, resetAcknowledgeIEs, value)
+}
+
+func (l *UEAssociatedLogicalS1ConnectionListRes) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	return diagnoseItemList(d, IDUEAssociatedLogicalS1ConnectionItem, CriticalityReject, l)
 }

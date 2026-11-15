@@ -8,7 +8,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 type totalCase struct {
@@ -92,8 +92,8 @@ func TestDecodeIsTotalAndLossless(t *testing.T) {
 	falsely := CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage
 	f := uplinkNASFields()
 
-	unknownIgnore := ieField{ID: 40000, Criticality: CriticalityIgnore, Value: ap.RawValue([]byte{0x01})}
-	unknownReject := ieField{ID: 40001, Criticality: CriticalityReject, Value: ap.RawValue([]byte{0x02})}
+	unknownIgnore := ieField{ID: 40000, Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0x01})}
+	unknownReject := ieField{ID: 40001, Criticality: CriticalityReject, Value: apimpl.RawValue([]byte{0x02})}
 
 	item := ERABToBeSetupItemBearerSUReq{ERABID: 1, QoS: goldQoS(), TransportLayerAddress: goldTLA(), GTPTEID: 1, NASPDU: NASPDU{0x01}}
 	item.iEExtensions.Append(rawIE{ID: 9999, Criticality: CriticalityReject, Value: []byte{0x5a}})

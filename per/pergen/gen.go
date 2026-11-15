@@ -398,5 +398,5 @@ func (g *generator) isMessage(named *types.Named) bool {
 
 	n, ok := types.Unalias(v.Type()).(*types.Named)
 
-	return ok && n.Origin().Obj().Pkg() != nil && n.Origin().Obj().Pkg().Path() == apImportPath && n.Origin().Obj().Name() == "Message"
+	return ok && n.Origin().Obj().Pkg() != nil && n.Origin().Obj().Pkg().Path() == apInternalPath && n.Origin().Obj().Name() == "Message"
 }

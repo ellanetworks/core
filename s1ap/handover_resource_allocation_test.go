@@ -55,7 +55,7 @@ func TestHandoverRequestRoundTrip(t *testing.T) {
 		t.Fatalf("mme=%#x secctx=%+v", out.MMEUES1APID, out.SecurityContext)
 	}
 
-	if out.UEAMBR != in.UEAMBR || out.UESecurityCapabilities != in.UESecurityCapabilities {
+	if !out.UEAMBR.Equal(in.UEAMBR) || out.UESecurityCapabilities != in.UESecurityCapabilities {
 		t.Fatalf("ambr=%+v caps=%+v", out.UEAMBR, out.UESecurityCapabilities)
 	}
 
@@ -203,7 +203,7 @@ func TestHandoverRequestAcknowledgeFailedListItemID(t *testing.T) {
 	b, err := (&HandoverRequestAcknowledge{
 		MMEUES1APID:       Ptr(MMEUES1APID(1)),
 		ENBUES1APID:       Ptr(ENBUES1APID(2)),
-		ERABAdmitted:      []ERABAdmittedItem{{ERABID: 0}},
+		ERABAdmitted:      []ERABAdmittedItem{{ERABID: 0, TransportLayerAddress: goldTLA()}},
 		ERABFailedToSetup: []ERABItem{{ERABID: 4, Cause: CauseRadioNetworkUnspecified.Cause()}},
 		TargetToSource:    TransparentContainer{0x00},
 	}).Marshal()
@@ -213,7 +213,7 @@ func TestHandoverRequestAcknowledgeFailedListItemID(t *testing.T) {
 
 	// The outer id-E-RABFailedToSetupListHOReqAck (19) container holds one
 	// single container keyed 0x0015 = 21.
-	const want = "200100310000050000400200010008400200020012400c000014400700100000000000001340080000154003080000007b00020100"
+	const want = "2001003500000500004002000100084002000200124010000014400b0001f00a00000100000000001340080000154003080000007b00020100"
 
 	if got := hex.EncodeToString(b); got != want {
 		t.Fatalf("encoded\n got %s\nwant %s", got, want)

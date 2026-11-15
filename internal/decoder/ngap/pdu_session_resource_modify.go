@@ -67,6 +67,11 @@ type PDUSessionResourceModifyRequestTransferDecoded struct {
 	AdditionalRedundantULNGUUPTNLInformation []GTPTunnel                 `json:"additional_redundant_ul_ng_u_up_tnl_information,omitempty"`
 	RedundantULNGUUPTNLInformation           *GTPTunnel                  `json:"redundant_ul_ng_u_up_tnl_information,omitempty"`
 	UserPlaneFailureIndication               *UserPlaneFailureIndication `json:"user_plane_failure_indication,omitempty"`
+	SecurityIndication                       *SecurityIndication         `json:"security_indication,omitempty"`
+	CommonNetworkInstance                    any                         `json:"common_network_instance,omitempty"`
+	RedundantCommonNetworkInstance           any                         `json:"redundant_common_network_instance,omitempty"`
+	MBSSessionSetuporModifyRequestList       any                         `json:"mbs_session_setupor_modify_request_list,omitempty"`
+	MBSSessionToReleaseList                  any                         `json:"mbs_session_to_release_list,omitempty"`
 }
 
 // PDUSessionResourceModifyResponseTransferDecoded is what the RAN reports back
@@ -215,6 +220,12 @@ func libPDUSessionResourceModifyRequestTransfer(raw ngap.TransferContainer) (any
 			DLNGUUPTNLInformation: libGTPTunnel(u.DLNGUUPTNLInformation),
 		}
 	}
+
+	out.SecurityIndication = securityIndication(t.SecurityIndication)
+	out.CommonNetworkInstance = renderPresent(t.CommonNetworkInstance)
+	out.RedundantCommonNetworkInstance = renderPresent(t.RedundantCommonNetworkInstance)
+	out.MBSSessionSetuporModifyRequestList = renderPresent(t.MBSSessionSetuporModifyRequestList)
+	out.MBSSessionToReleaseList = renderPresent(t.MBSSessionToReleaseList)
 
 	return out, nil
 }
@@ -370,6 +381,10 @@ func buildPDUSessionResourceModifyRequest(value []byte) NGAPMessageValue {
 		ie(ngap.IDRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
 		ie(ngap.IDPDUSessionResourceModifyListModReq, ngap.CriticalityReject, sessions),
 	}
+
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDRANPagingPriority, ngap.CriticalityIgnore, m.RANPagingPriority},
+	})
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }

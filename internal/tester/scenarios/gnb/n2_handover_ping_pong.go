@@ -224,6 +224,10 @@ func n2PrepareHandoverLeg(opts *n2LegOpts) (n2LegEndpoints, error) {
 
 	opts.Target.WatchTEID(forwardingTEID)
 
+	if err := opts.Target.InheritSelectedPLMN(opts.NewRANUENGAPID, opts.Source, opts.RANUENGAPID); err != nil {
+		return n2LegEndpoints{}, fmt.Errorf("carry the selected PLMN to the target gNB: %w", err)
+	}
+
 	err = opts.Target.SendHandoverRequestAcknowledge(&gnb.HandoverRequestAcknowledgeOpts{
 		AMFUENGAPID: targetAMFUENGAPID,
 		RANUENGAPID: opts.NewRANUENGAPID,
