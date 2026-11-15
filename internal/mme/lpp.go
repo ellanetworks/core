@@ -53,6 +53,13 @@ func (m *MME) TransferLPPMsg(ctx context.Context, supi etsi.SUPI, correlationID,
 		correlationID = m.AllocateLCSCorrelationID()
 	}
 
+	if m.holdUntilReleased(ue, &MTRequest{}, func() { ue.SetLPPBuffered(correlationID, lppMsg) }) {
+		logger.From(ctx, logger.MmeLog).Info("LPP message held until the UE Context Release completes; the UE will be paged",
+			logger.SUPI(ue.Supi().String()))
+
+		return nil
+	}
+
 	if ueConn := ue.Conn(); ueConn != nil {
 		return sendLPP(ctx, ueConn, correlationID, lppMsg)
 	}

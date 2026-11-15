@@ -911,7 +911,8 @@ func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
 
 	ueConn.abortHandoverOnRemoval(ctx)
 
-	if ue := ueConn.ue.Load(); ue != nil {
+	ue := ueConn.ue.Load()
+	if ue != nil {
 		a.ReleaseNasConnection(ctx, ue, ueConn)
 	}
 
@@ -921,6 +922,8 @@ func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
 	a.mu.Unlock()
 
 	a.connIDs.FreeID(int64(ueConn.AmfUeNgapID))
+
+	a.pageHeldForRelease(ctx, ue, ueConn)
 
 	ueConn.Log(ctx).Debug("ran ue removed")
 
