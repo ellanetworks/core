@@ -27,6 +27,21 @@ Create a backup with [Backup and Restore](backup_and_restore.md#backup).
         sudo snap refresh ella-core
         ```
 
+    === "Binary"
+
+        1. Stop Ella Core.
+        2. In the directory where you extracted Ella Core, replace the binary with the target release (replace `amd64` with `arm64` on arm64 hosts):
+
+            ```bash
+            curl -L https://github.com/ellanetworks/core/releases/download/<target-version>/ella-core-<target-version>-linux-amd64.tar.gz | tar xz --strip-components=1 ella-core-<target-version>-linux-amd64/core
+            ```
+
+        3. Start Ella Core:
+
+            ```bash
+            sudo ./core --config core.yaml
+            ```
+
     === "Docker"
 
         In `docker-compose.yaml`, set the image tag to the target release:
@@ -115,6 +130,30 @@ Create a backup with [Backup and Restore](backup_and_restore.md#backup).
             ```
 
         3. Restore the backup with [Offline Restore](backup_and_restore.md#offline-restore-disaster-recovery).
+
+    === "Binary"
+
+        Run these steps in the directory where you extracted Ella Core.
+
+        1. Stop Ella Core.
+        2. Replace the binary with the previous release:
+
+            ```bash
+            curl -L https://github.com/ellanetworks/core/releases/download/<previous-version>/ella-core-<previous-version>-linux-amd64.tar.gz | tar xz --strip-components=1 ella-core-<previous-version>-linux-amd64/core
+            ```
+
+        3. Delete the database and copy the backup as `restore.bundle`:
+
+            ```bash
+            sudo rm -rf ella.db ella.db-wal ella.db-shm raft cluster-tls
+            sudo cp backup.tar.gz restore.bundle
+            ```
+
+        4. Start Ella Core:
+
+            ```bash
+            sudo ./core --config core.yaml
+            ```
 
     === "Docker"
 
