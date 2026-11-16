@@ -1,0 +1,130 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ella-core-1
+  labels:
+    app.kubernetes.io/name: ella-core
+data:
+  config.yaml: |
+    logging:
+      system:
+        level: "info"
+        output: "stdout"
+      audit:
+        output: "stdout"
+    db:
+      path: /core/data/ella.db
+    interfaces:
+      n2:
+        name: "n3"
+      n3:
+        name: "n3"
+      n6:
+        name: "eth0"
+      api:
+        address: "0.0.0.0"
+        port: 5002
+    datapath:
+      attach-mode: "tcx"
+    cluster:
+      bind-address: "0.0.0.0:7000"
+      advertise-address: "ella-core-1-0.ella-core-cluster.ella.svc.cluster.local:7000"
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ella-core-1
+  labels:
+    app.kubernetes.io/name: ella-core
+spec:
+  replicas: 1
+  serviceName: ella-core-cluster
+  selector:
+    matchLabels:
+      app: ella-core
+      ella-core/node: "1"
+  template:
+    metadata:
+      labels:
+        app: ella-core
+        app.kubernetes.io/name: ella-core
+        ella-core/node: "1"
+      annotations:
+        k8s.v1.cni.cncf.io/networks: |
+          [
+            {"name": "core-ran", "interface": "n3", "ips": ["192.168.252.3/24"]}
+          ]
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: ella-core
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - name: core
+        image: ghcr.io/ellanetworks/ella-core:v1.22.0
+        command: ["core"]
+        args: ["--config", "/config/config.yaml"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          seccompProfile:
+            type: RuntimeDefault
+          capabilities:
+            drop: ["ALL"]
+            add: ["NET_ADMIN", "NET_RAW", "NET_BIND_SERVICE", "BPF", "PERFMON", "SYS_RESOURCE"]
+        resources:
+          requests:
+            cpu: "1"
+            memory: 1Gi
+          limits:
+            cpu: "4"
+            memory: 8Gi
+        startupProbe:
+          httpGet:
+            path: /api/v1/livez
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 3
+          failureThreshold: 150
+        readinessProbe:
+          httpGet:
+            path: /api/v1/readyz
+            port: http
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /api/v1/livez
+            port: http
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 6
+        lifecycle:
+          preStop:
+            sleep:
+              seconds: 5
+        volumeMounts:
+        - name: config-volume
+          mountPath: /config
+        - name: data
+          mountPath: /core/data
+        ports:
+        - name: http
+          containerPort: 5002
+        - name: cluster
+          containerPort: 7000
+      volumes:
+      - name: config-volume
+        configMap:
+          name: ella-core-1
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 1Gi

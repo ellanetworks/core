@@ -2,6 +2,8 @@ apiVersion: "k8s.cni.cncf.io/v1"
 kind: NetworkAttachmentDefinition
 metadata:
   name: core-ran
+  labels:
+    app.kubernetes.io/name: ella-core
 spec:
   config: '{
     "cniVersion": "0.3.1",

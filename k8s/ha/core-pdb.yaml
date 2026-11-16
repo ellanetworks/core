@@ -1,0 +1,11 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ella-core
+  labels:
+    app.kubernetes.io/name: ella-core
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: ella-core
