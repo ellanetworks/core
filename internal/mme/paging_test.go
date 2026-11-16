@@ -40,8 +40,8 @@ func TestBuildPaging(t *testing.T) {
 		t.Fatalf("paging UE Radio Capability for Paging = %x, want %x", paging.UERadioCapabilityForPaging, ue.RadioCapabilityForPaging)
 	}
 
-	if uint32(paging.STMSI.MTMSI) != ue.Tmsi().Uint32() {
-		t.Fatalf("S-TMSI M-TMSI = %#x, want %#x", paging.STMSI.MTMSI, ue.Tmsi().Uint32())
+	if uint32(paging.UEPagingID.STMSI.MTMSI) != ue.Tmsi().Uint32() {
+		t.Fatalf("S-TMSI M-TMSI = %#x, want %#x", paging.UEPagingID.STMSI.MTMSI, ue.Tmsi().Uint32())
 	}
 
 	if paging.UEIdentityIndexValue == nil || *paging.UEIdentityIndexValue != ueIdentityIndex(ue.imsiOrEmpty()) {
@@ -56,8 +56,8 @@ func TestBuildPaging(t *testing.T) {
 		t.Fatalf("TAI list length = %d, want 1", len(paging.TAIList))
 	}
 
-	if uint16(paging.TAIList[0].TAC) != 1 {
-		t.Fatalf("paging TAI TAC = %d, want 1 (served)", uint16(paging.TAIList[0].TAC))
+	if uint16(paging.TAIList[0].TAI.TAC) != 1 {
+		t.Fatalf("paging TAI TAC = %d, want 1 (served)", uint16(paging.TAIList[0].TAI.TAC))
 	}
 
 	b, err := paging.Marshal()
@@ -88,8 +88,8 @@ func TestBuildPagingOldMTMSISentinel(t *testing.T) {
 		t.Fatalf("buildPaging: %v", err)
 	}
 
-	if paging.STMSI.MTMSI != 0 {
-		t.Fatalf("paged on M-TMSI %#x, want 0 (the old M-TMSI the UE still listens on)", paging.STMSI.MTMSI)
+	if paging.UEPagingID.STMSI.MTMSI != 0 {
+		t.Fatalf("paged on M-TMSI %#x, want 0 (the old M-TMSI the UE still listens on)", paging.UEPagingID.STMSI.MTMSI)
 	}
 
 	ue.SetOldTmsiForTest(0xFFFFFFFF)
@@ -99,8 +99,8 @@ func TestBuildPagingOldMTMSISentinel(t *testing.T) {
 		t.Fatalf("buildPaging: %v", err)
 	}
 
-	if paging.STMSI.MTMSI != 0x1234 {
-		t.Fatalf("paged on M-TMSI %#x, want 0x1234 (the current M-TMSI)", paging.STMSI.MTMSI)
+	if paging.UEPagingID.STMSI.MTMSI != 0x1234 {
+		t.Fatalf("paged on M-TMSI %#x, want 0x1234 (the current M-TMSI)", paging.UEPagingID.STMSI.MTMSI)
 	}
 }
 

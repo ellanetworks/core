@@ -22,20 +22,20 @@ import (
 
 // causeUnknownPLMN is NGAP Cause Misc "unknown-PLMN-or-SNPN" (TS 38.413),
 // returned in NG Setup Failure when the gNB broadcasts no PLMN this AMF serves.
-var causeUnknownPLMN = ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscUnknownPLMNOrSNPN}
+var causeUnknownPLMN = ngap.CauseMiscUnknownPLMNOrSNPN.Cause()
 
 // causeNoServedTAC is NGAP Cause Misc "unspecified", returned when the gNB
 // broadcasts a served PLMN but no TAC this AMF serves.
-var causeNoServedTAC = ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscUnspecified}
+var causeNoServedTAC = ngap.CauseMiscUnspecified.Cause()
 
 // causeUnspecified is the same Cause Misc "unspecified" on the wire, named for
 // the other reason the AMF sends it: a failure on its own side, where the
 // gNB's configuration is not at fault and nothing more specific fits. Kept
 // distinct from causeNoServedTAC so a reader can tell which rejection a call
 // site means.
-var causeUnspecified = ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscUnspecified}
+var causeUnspecified = ngap.CauseMiscUnspecified.Cause()
 
-var causeSemanticError = ngap.Cause{Group: ngap.CauseGroupProtocol, Value: ngap.CauseProtocolSemanticError}
+var causeSemanticError = ngap.CauseProtocolSemanticError.Cause()
 
 // HandleNGSetupRequest answers a gNB's NG Setup Request with an NG Setup
 // Response when the gNB broadcasts a TAI this AMF serves, otherwise an NG Setup
@@ -161,7 +161,7 @@ func ngSetupOutcomeFor(req *ngap.NGSetupRequest, operatorInfo *amf.OperatorInfo,
 		}
 
 		reason = "gNB broadcasts no PLMN served by this AMF (Unknown PLMN)"
-		if cause == causeNoServedTAC {
+		if cause.Equal(causeNoServedTAC) {
 			reason = "gNB broadcasts a served PLMN but no TAC served by this AMF"
 		}
 

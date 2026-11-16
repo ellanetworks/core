@@ -10,19 +10,20 @@ import (
 	"net/netip"
 
 	libngap "github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 // BuildPDUSessionResourceModifyConfirmTransfer encodes the UL NG-U tunnel and
 // confirmed QoS flows for a PDU Session Resource Modify Confirm (TS 38.413 §8.2.5.2).
 func BuildPDUSessionResourceModifyConfirmTransfer(teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, qfis []int64) ([]byte, error) {
-	tla, err := encodeTransportLayerAddress(n3IPv4, n3IPv6)
+	tla, err := ap.TransportLayerAddressFromAddrs(n3IPv4, n3IPv6)
 	if err != nil {
 		return nil, fmt.Errorf("encode transport layer address failed: %s", err)
 	}
 
 	transfer := libngap.PDUSessionResourceModifyConfirmTransfer{
 		ULNGUUPTNLInformation: libngap.UPTransportLayerInformation{
-			GTPTunnel: libngap.GTPTunnel{TransportLayerAddress: tla, GTPTEID: libngap.GTPTEID(teid)},
+			GTPTunnel: &libngap.GTPTunnel{TransportLayerAddress: tla, GTPTEID: libngap.GTPTEID(teid)},
 		},
 	}
 

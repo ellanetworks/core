@@ -262,16 +262,16 @@ func TestUplinkNASTransportMissingIEs(t *testing.T) {
 	}
 
 	if _, err := ParseUplinkNASTransport(container(t,
-		ieField{id: IDMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(42)},
-		ieField{id: IDENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(7)},
+		ieField{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: MMEUES1APID(42)},
+		ieField{ID: IDENBUES1APID, Criticality: CriticalityReject, Value: ENBUES1APID(7)},
 	)); err == nil {
 		t.Error("decoded a message with no NAS-PDU, want it rejected")
 	}
 
 	msg, err := ParseUplinkNASTransport(container(t,
-		ieField{id: IDMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(42)},
-		ieField{id: IDENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(7)},
-		ieField{id: IDNASPDU, crit: CriticalityReject, val: NASPDU{0x07}},
+		ieField{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: MMEUES1APID(42)},
+		ieField{ID: IDENBUES1APID, Criticality: CriticalityReject, Value: ENBUES1APID(7)},
+		ieField{ID: IDNASPDU, Criticality: CriticalityReject, Value: NASPDU{0x07}},
 	))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -284,7 +284,7 @@ func TestUplinkNASTransportMissingIEs(t *testing.T) {
 	var missing int
 
 	for _, ie := range msg.Diagnostics().IEs {
-		if ie.TypeOfError == TypeOfErrorMissing && (ie.ID == IDEUTRANCGI || ie.ID == IDTAI) {
+		if typeOfError(ie) == TypeOfErrorMissing && (ie.ID == IDEUTRANCGI || ie.ID == IDTAI) {
 			missing++
 		}
 	}
@@ -363,8 +363,8 @@ func TestDownlinkNASTransportMissingIEs(t *testing.T) {
 	}
 
 	if _, err := ParseDownlinkNASTransport(container(t,
-		ieField{id: IDMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(42)},
-		ieField{id: IDENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(7)},
+		ieField{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: MMEUES1APID(42)},
+		ieField{ID: IDENBUES1APID, Criticality: CriticalityReject, Value: ENBUES1APID(7)},
 	)); err == nil {
 		t.Error("decoded a message with no NAS-PDU, want it rejected")
 	}

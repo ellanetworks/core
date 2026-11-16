@@ -76,5 +76,5 @@ func runS1ENBSCTPBasics(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("parse UE Context Release Command: %w", err)
 	}
 
-	return e.SendUEContextReleaseComplete(int64(cmd.UES1APIDs.MMEUES1APID), int64(cmd.UES1APIDs.ENBUES1APID))
+	return e.SendUEContextReleaseComplete(ueS1APIDs(cmd.UES1APIDs))
 }

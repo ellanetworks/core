@@ -18,7 +18,7 @@ type TraceActivation struct {
 }
 
 var interfacesToTraceNames = []struct {
-	bit  uint8
+	bit  ngap.InterfacesToTrace
 	name string
 }{
 	{ngap.InterfaceToTraceNGC, "NG-C"},
@@ -55,16 +55,8 @@ func traceActivation(ta ngap.TraceActivation) TraceActivation {
 		NGRANTraceID:                   hex.EncodeToString(ta.NGRANTraceID[:]),
 		InterfacesToTrace:              interfaces,
 		TraceDepth:                     depth,
-		TraceCollectionEntityIPAddress: tceAddressText(ta.TraceCollectionEntityIPAddress),
+		TraceCollectionEntityIPAddress: transportLayerAddressText(ta.TraceCollectionEntityIPAddress),
 	}
-}
-
-func tceAddressText(addr ngap.TransportLayerAddress) string {
-	if text := transportLayerAddressToString(addr); text != "" {
-		return text
-	}
-
-	return hex.EncodeToString(addr)
 }
 
 func buildTraceStart(value []byte) NGAPMessageValue {

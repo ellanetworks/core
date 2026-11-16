@@ -24,7 +24,7 @@ func TestHandleParseError_EmitsErrorIndication(t *testing.T) {
 
 	ind := parseOutboundErrorIndication(t, cc.sent[0])
 
-	if ind.Cause == nil || ind.Cause.Group != s1ap.CauseGroupProtocol {
+	if ind.Cause == nil || ind.Cause.Protocol == nil {
 		t.Errorf("cause = %+v, want protocol group", ind.Cause)
 	}
 

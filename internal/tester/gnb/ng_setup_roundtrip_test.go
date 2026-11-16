@@ -123,10 +123,7 @@ func (s *stubDB) AMFPointer() int { return 1 }
 // TS 38.413 §10.3 forbids replying to one, which would loop.
 func TestErrorIndicationGNBToAMF(t *testing.T) {
 	ind := &ngap.ErrorIndication{
-		Cause: ngap.Ptr(ngap.Cause{
-			Group: ngap.CauseGroupProtocol,
-			Value: ngap.CauseProtocolAbstractSyntaxErrorReject,
-		}),
+		Cause: ngap.Ptr(ngap.CauseProtocolAbstractSyntaxErrorReject.Cause()),
 	}
 
 	raw, err := ind.Marshal()
@@ -168,7 +165,7 @@ func TestErrorIndicationGNBToAMF(t *testing.T) {
 // the released UE-NGAP-IDs (TS 38.413 §8.7.4).
 func TestNGResetGNBToAMF(t *testing.T) {
 	raw, err := gnb.BuildNGReset(&gnb.NGResetOpts{
-		Cause:    ngap.Ptr(ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscOMIntervention}),
+		Cause:    ngap.Ptr(ngap.CauseMiscOMIntervention.Cause()),
 		ResetAll: true,
 	})
 	if err != nil {
@@ -197,7 +194,7 @@ func TestNGResetGNBToAMF(t *testing.T) {
 		t.Fatalf("AMF could not parse the NG Reset: %v", err)
 	}
 
-	if !req.ResetType.All {
+	if req.ResetType.NGInterface == nil {
 		t.Fatalf("AMF read ResetType %+v, want a whole-interface reset", req.ResetType)
 	}
 

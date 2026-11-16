@@ -15,7 +15,7 @@ import (
 // authentication (e.g. an unknown IMSI, TS 24.301 §5.5.1.2.5), returning the EMM
 // cause it carries.
 func (e *ENB) AttachExpectReject(ue *UE, timeout time.Duration) (uint8, error) {
-	enbUEID := e.AllocateENBUEID()
+	enbUEID := e.AllocateENBUEIDFor(ue)
 
 	attachReq, err := ue.buildAttachRequest()
 	if err != nil {
@@ -43,7 +43,7 @@ func (e *ENB) AttachExpectReject(ue *UE, timeout time.Duration) (uint8, error) {
 // AUTHENTICATION REJECT, the MME's response when RES does not match (TS 24.301
 // §5.4.2.5). ue must hold credentials that do not match the provisioned subscriber.
 func (e *ENB) AttachExpectAuthReject(ue *UE, timeout time.Duration) error {
-	enbUEID := e.AllocateENBUEID()
+	enbUEID := e.AllocateENBUEIDFor(ue)
 
 	attachReq, err := ue.buildAttachRequest()
 	if err != nil {

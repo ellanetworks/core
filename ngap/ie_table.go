@@ -5,289 +5,124 @@ package ngap
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
-
-// A peer chooses how many IEs to send, and both survive the decode that found
-// them.
-const (
-	maxDiagnosticIEs = 64
-	maxPreservedIEs  = 32
-)
-
-// 16-bit id + 2-bit criticality + an open type of at least one length and one
-// content octet.
-const minIEFieldBits = 34
 
 // One row of a message's TS 38.413 §9.2/§9.3 IE table.
-type ieSpec[M any] struct {
-	id       ProtocolIEID
-	presence presence
-	crit     Criticality
+type ieSpec[M any] = apimpl.IESpec[ProtocolIEID, M]
 
-	// Set if and only if presence is presenceConditional.
-	condition func(m *M) bool
+const (
+	presenceOptional    = apimpl.PresenceOptional
+	presenceConditional = apimpl.PresenceConditional
+	presenceMandatory   = apimpl.PresenceMandatory
+)
 
-	decode func(m *M, raw []byte, enc per.Encoding) error
-	// encode reports false when the row's field is unset.
-	encode func(m *M) (per.Marshaler, bool)
+type messageMeta struct {
+	apimpl.Message[ProtocolIEID]
 }
 
-// TS 38.413 §9.1.1 Presence.
-func (s ieSpec[M]) required(m *M) bool {
-	switch s.presence {
-	case presenceMandatory:
-		return true
-	case presenceConditional:
-		return s.condition != nil && s.condition(m)
-	case presenceOptional:
-		return false
-	default:
-		return false
-	}
-}
-
-// §10.3.5: only reject criticality stops an absent IE from being delivered,
-// which is what lets a required reject IE be a value type.
-func (s ieSpec[M]) deliverable() bool { return s.crit != CriticalityReject }
+type extensionMeta = apimpl.Preserved[ProtocolIEID]
 
 func (u *messageMeta) meta() *messageMeta { return u }
+
+func (u *messageMeta) appendUnknown(f RawIE) { apimpl.MessagePreserved(&u.Message).Append(f) }
+
+func (u *messageMeta) setExtensionAdditions(a per.ExtensionAdditions) {
+	*apimpl.MessageAdditions(&u.Message) = a
+}
+
+func (u messageMeta) Diagnostics() Diagnostics { return Diagnostics{u.Message.Diagnostics()} }
 
 type message interface {
 	meta() *messageMeta
 }
 
-// An unset required IE is an error: TS 38.413 §9.1.1 obliges the sender even
-// where §10.3.5 lets a receiver carry on without it.
 func encodeMessageBody[M any, PM interface {
 	*M
 	message
 }](w *per.Writer, enc per.Encoding, procedure ProcedureCode, table []ieSpec[M], m PM,
 ) error {
-	w.WriteBit(false)
-
-	fields := make([]ieField, 0, len(table))
-
-	for _, spec := range table {
-		val, ok := spec.encode((*M)(m))
-		required := spec.required((*M)(m))
-
-		if !ok {
-			if required {
-				return fmt.Errorf("ngap: %s: required IE %s is not set", procedure, spec.id)
-			}
-
-			continue
-		}
-
-		// §9.1.1: a conditional IE is carried only while its condition holds.
-		if spec.presence == presenceConditional && !required {
-			return fmt.Errorf("ngap: %s: conditional IE %s is set but its condition does not hold", procedure, spec.id)
-		}
-
-		fields = append(fields, ieField{id: spec.id, crit: spec.crit, val: val})
-	}
-
-	for _, e := range m.meta().unknownIEs {
-		fields = append(fields, e.field())
-	}
-
-	return encodeIEContainer(w, enc, fields)
+	return apimpl.EncodeMessageBody(profile, w, enc, procedure, table, (*M)(m), &m.meta().Message)
 }
 
-// Applies the abstract syntax error handling of TS 38.413 §10.3.4.2, §10.3.5 and
-// §10.3.6. Returns no message when the procedure must be rejected.
-func parseMessageBody[M any, PM interface {
+func decodeMessageBody[M any, PM interface {
 	*M
 	message
-}](procedure ProcedureCode, trigger TriggeringMessage, table []ieSpec[M], value []byte,
+}](procedure ProcedureCode, table []ieSpec[M], value []byte,
 ) (PM, error) {
-	r := per.NewReader(value)
-	enc := per.Aligned
-
-	extPresent, err := r.ReadBit()
-	if err != nil {
-		return nil, &TransferSyntaxError{Procedure: procedure, Err: fmt.Errorf("preamble: %w", err)}
-	}
-
-	fields, err := decodeIEContainer(r, enc)
-	if err != nil {
-		return nil, &TransferSyntaxError{Procedure: procedure, Err: err}
-	}
-
-	if extPresent {
-		if err := skipSequenceExtensionsPER(r, enc, false, true); err != nil {
-			return nil, &TransferSyntaxError{Procedure: procedure, Err: err}
-		}
-	}
-
-	reject := func(cause int, ies []CriticalityDiagnosticsIEItem) error {
-		return &AbstractSyntaxError{
-			Procedure: procedure,
-			Trigger:   trigger,
-			Cause:     Cause{Group: CauseGroupProtocol, Value: cause},
-			IEs:       ies,
-			decoded:   modeledIEs(table, fields),
-		}
-	}
-
 	m := PM(new(M))
-	meta := m.meta()
-	seen := make(map[ProtocolIEID]bool, len(table))
-	lastIdx := -1
 
-	// Collected for one report naming them all (§10.3.4.2), truncated at the
-	// maxnoofErrors the list is bounded by so the report stays encodable.
-	var notUnderstood []CriticalityDiagnosticsIEItem
-
-	reportNotUnderstood := func(id ProtocolIEID, crit Criticality) {
-		if len(notUnderstood) >= maxnoofErrors {
-			return
-		}
-
-		notUnderstood = append(notUnderstood, CriticalityDiagnosticsIEItem{
-			IECriticality: crit,
-			IEID:          id,
-			TypeOfError:   TypeOfErrorNotUnderstood,
-		})
-	}
-
-	for _, f := range fields {
-		idx, spec, ok := lookupIESpec(table, f.id)
-		if !ok {
-			// §10.3.4.2: reject stops the procedure, the rest are carried
-			// past. §10.3.1 has the receiver read on either way, so the scan
-			// continues and reports every offender together.
-			if f.crit == CriticalityReject {
-				reportNotUnderstood(f.id, f.crit)
-
-				continue
-			}
-
-			meta.diagnostics.record(f.id, f.crit, TypeOfErrorNotUnderstood)
-			meta.preserve(f)
-
-			continue
-		}
-
-		// §10.3.6: out of the order §9.2/§9.3 defines, or carried twice. Unknown
-		// ids do not advance the cursor.
-		if idx <= lastIdx {
-			// Abandoning the scan must not drop what it already collected.
-			return nil, reject(CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage, notUnderstood)
-		}
-
-		lastIdx = idx
-
-		if err := spec.decode((*M)(m), f.value, enc); err != nil {
-			// §10.3.1 cases 1, 2 and 6 are handled on criticality, not by
-			// abandoning the message.
-			if errors.Is(err, errNotComprehended) {
-				// §10.3.2 handles the item on its own criticality, which for an
-				// unmodeled extension is the extension's, not this IE's.
-				id, crit := f.id, f.crit
-
-				var item *notComprehendedIE
-				if errors.As(err, &item) {
-					id, crit = item.ID, item.Crit
-				}
-
-				if crit == CriticalityReject {
-					reportNotUnderstood(id, crit)
-
-					continue
-				}
-
-				meta.diagnostics.record(id, crit, TypeOfErrorNotUnderstood)
-
-				continue
-			}
-
-			return nil, &TransferSyntaxError{
-				Procedure: procedure,
-				Err:       fmt.Errorf("IE %s: %w", f.id, err),
-			}
-		}
-
-		seen[f.id] = true
-	}
-
-	if len(notUnderstood) > 0 {
-		return nil, reject(CauseProtocolAbstractSyntaxErrorReject, notUnderstood)
-	}
-
-	// §10.3.5: absence is judged per IE, by the criticality §9.2/§9.3 assigns it.
-	var missingReject []CriticalityDiagnosticsIEItem
-
-	for i := range table {
-		spec := table[i]
-		required := spec.required((*M)(m))
-
-		if seen[spec.id] {
-			// §10.3.6: a conditional IE carried when its condition is false.
-			if spec.presence == presenceConditional && !required {
-				return nil, reject(CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage, nil)
-			}
-
-			continue
-		}
-
-		if !required {
-			continue
-		}
-
-		if spec.deliverable() {
-			meta.diagnostics.record(spec.id, spec.crit, TypeOfErrorMissing)
-
-			continue
-		}
-
-		missingReject = append(missingReject, CriticalityDiagnosticsIEItem{
-			IECriticality: spec.crit,
-			IEID:          spec.id,
-			TypeOfError:   TypeOfErrorMissing,
-		})
-	}
-
-	if len(missingReject) > 0 {
-		return nil, reject(CauseProtocolAbstractSyntaxErrorReject, missingReject)
+	if err := apimpl.DecodeMessageBody(profile, procedure, table, value, (*M)(m), &m.meta().Message); err != nil {
+		return nil, err
 	}
 
 	return m, nil
 }
 
-func lookupIESpec[M any](table []ieSpec[M], id ProtocolIEID) (int, ieSpec[M], bool) {
-	for i := range table {
-		if table[i].id == id {
-			return i, table[i], true
-		}
+func parseMessageBody[M any, PM interface {
+	*M
+	message
+}](procedure ProcedureCode, trigger TriggeringMessage, table []ieSpec[M], value []byte,
+) (PM, error) {
+	m := PM(new(M))
+
+	if err := apimpl.ParseMessageBody(profile, procedure, table, value, (*M)(m), &m.meta().Message); err != nil {
+		return nil, newAbstractSyntaxError(procedure, trigger, err)
 	}
 
-	return -1, ieSpec[M]{}, false
+	return m, nil
 }
 
-// First occurrence only, bounded by the table length so the peer does not
-// choose the size.
-func modeledIEs[M any](table []ieSpec[M], fields []rawIE) []RawIE {
-	var out []RawIE
-
-	seen := make(map[ProtocolIEID]bool, len(table))
-
-	for _, f := range fields {
-		if seen[f.id] {
-			continue
-		}
-
-		if _, _, ok := lookupIESpec(table, f.id); !ok {
-			continue
-		}
-
-		seen[f.id] = true
-
-		out = append(out, RawIE{ID: f.id, Criticality: f.crit, Value: f.value})
+func newAbstractSyntaxError(procedure ProcedureCode, trigger TriggeringMessage, err error) error {
+	var e *ap.AbstractSyntaxError[ProtocolIEID]
+	if !errors.As(err, &e) {
+		return err
 	}
 
-	return out
+	cause := CauseProtocolAbstractSyntaxErrorReject
+	if e.FalselyConstructed {
+		cause = CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage
+	}
+
+	return &AbstractSyntaxError{
+		Procedure: procedure,
+		Trigger:   trigger,
+		Cause:     cause.Cause(),
+		IEs:       criticalityDiagnosticsItems(e.IEs),
+		decoded:   e.Decoded,
+	}
+}
+
+func criticalityDiagnosticsItems(ds []DiagnosticIE) []CriticalityDiagnosticsIEItem {
+	return apimpl.DiagnosticItems(ds, maxnoofErrors, func(d DiagnosticIE, missing bool) CriticalityDiagnosticsIEItem {
+		kind := TypeOfErrorNotUnderstood
+		if missing {
+			kind = TypeOfErrorMissing
+		}
+
+		return CriticalityDiagnosticsIEItem{IECriticality: d.Criticality, IEID: d.ID, TypeOfError: kind}
+	})
+}
+
+func decodeTransfer[T any, PT interface {
+	*T
+	per.Unmarshaler
+}](b []byte,
+) (PT, error) {
+	return apimpl.DecodeTransfer[ProtocolIEID, ProcedureCode, T, PT](profile, "", b)
+}
+
+func parseTransfer[T any, PT interface {
+	*T
+	per.Unmarshaler
+}](b []byte,
+) (PT, error) {
+	return apimpl.ParseTransfer[ProtocolIEID, ProcedureCode, T, PT](profile, "", b)
+}
+
+func diagnosticsOf(v any) Diagnostics {
+	return Diagnostics{apimpl.DiagnosticsOf[ProtocolIEID](v)}
 }

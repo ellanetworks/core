@@ -492,8 +492,11 @@ func TestTrackingAreaUpdateRecovery(t *testing.T) {
 	}
 
 	cmd := parseUEContextReleaseCommandPDU(t, cc.sent[1])
-	if cmd.UES1APIDs.ENBUES1APID != 7 {
-		t.Fatalf("release command names eNB-UE-S1AP-ID %d, want the rejected connection's 7", cmd.UES1APIDs.ENBUES1APID)
+	mmeID, _ := cmd.UES1APIDs.MMEID()
+	enbID, _ := cmd.UES1APIDs.ENBID()
+
+	if enbID != 7 {
+		t.Fatalf("release command names eNB-UE-S1AP-ID %d, want the rejected connection's 7", enbID)
 	}
 
 	if m.ConnCountForTest() != 1 {
@@ -501,8 +504,8 @@ func TestTrackingAreaUpdateRecovery(t *testing.T) {
 	}
 
 	complete := &s1ap.UEContextReleaseComplete{
-		MMEUES1APID: s1ap.Ptr(cmd.UES1APIDs.MMEUES1APID),
-		ENBUES1APID: s1ap.Ptr(cmd.UES1APIDs.ENBUES1APID),
+		MMEUES1APID: s1ap.Ptr(mmeID),
+		ENBUES1APID: s1ap.Ptr(enbID),
 	}
 
 	b, err := complete.Marshal()

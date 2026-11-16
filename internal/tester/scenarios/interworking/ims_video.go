@@ -39,7 +39,7 @@ var (
 	imsVideoFlowReleaseCause = s1enb.CauseRadioConnectionWithUELost
 	imsVideoMediaKinds       = []string{sdp.Audio, sdp.Video}
 	imsVideoTransport        = scenarios.IMSTransports[0]
-	imsVideoRefusal          = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkRadioResourcesNotAvailable}
+	imsVideoRefusal          = ngap.CauseRadioNetworkRadioResourcesNotAvailable.Cause()
 )
 
 func init() {

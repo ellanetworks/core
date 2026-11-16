@@ -15,7 +15,7 @@ import (
 // deregisterToEPS is the NGAP cause carried by the UE Context Release Command of a UE
 // that left 5GS other than by handover: the release follows the AMF dropping the UE's
 // 5GS registration (TS 38.413 §9.3.1.2, NAS cause "Deregister").
-var deregisterToEPS = ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASDeregister}
+var deregisterToEPS = ngap.CauseNASDeregister.Cause()
 
 // releaseToEPS gives a UE up to EPS. Its 5GS registration, PDU sessions and key-chain
 // procedures go; its 5G-GUTI and 5G security context stay, so a return to 5GS reuses them

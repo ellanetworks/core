@@ -77,25 +77,30 @@ func SNSSAIToNGAP(snssai models.Snssai) (ngap.SNSSAI, error) {
 func RANNodeIDToModels(id ngap.GlobalRANNodeID) (models.GlobalRanNodeID, error) {
 	h := id.Hex()
 
-	plmn, err := PLMNToModels(id.PLMNIdentity)
+	ngapPLMN, ok := id.PLMNIdentity()
+	if !ok {
+		return models.GlobalRanNodeID{}, fmt.Errorf("empty Global RAN Node ID")
+	}
+
+	plmn, err := PLMNToModels(ngapPLMN)
 	if err != nil {
 		return models.GlobalRanNodeID{}, fmt.Errorf("could not decode the Global RAN Node ID PLMN: %w", err)
 	}
 
-	switch id.Kind {
-	case ngap.RANNodeIDGNB:
-		return models.GlobalRanNodeID{PlmnID: &plmn, GNbID: &models.GNbID{BitLength: int32(id.Bits), GNBValue: h}}, nil
-	case ngap.RANNodeIDMacroNgENB:
+	switch {
+	case id.GlobalGNBID != nil && id.GlobalGNBID.GNBID.GNBID != nil:
+		return models.GlobalRanNodeID{PlmnID: &plmn, GNbID: &models.GNbID{BitLength: int32(id.GlobalGNBID.GNBID.GNBID.Bits), GNBValue: h}}, nil
+	case id.GlobalNgENBID != nil && id.GlobalNgENBID.NgENBID.MacroNgENBID != nil:
 		return models.GlobalRanNodeID{PlmnID: &plmn, NgeNbID: "MacroNGeNB-" + h}, nil
-	case ngap.RANNodeIDShortMacroNgENB:
+	case id.GlobalNgENBID != nil && id.GlobalNgENBID.NgENBID.ShortMacroNgENBID != nil:
 		return models.GlobalRanNodeID{PlmnID: &plmn, NgeNbID: "SMacroNGeNB-" + h}, nil
-	case ngap.RANNodeIDLongMacroNgENB:
+	case id.GlobalNgENBID != nil && id.GlobalNgENBID.NgENBID.LongMacroNgENBID != nil:
 		return models.GlobalRanNodeID{PlmnID: &plmn, NgeNbID: "LMacroNGeNB-" + h}, nil
-	case ngap.RANNodeIDN3IWF:
+	case id.GlobalN3IWFID != nil && id.GlobalN3IWFID.N3IWFID.N3IWFID != nil:
 		return models.GlobalRanNodeID{PlmnID: &plmn, N3IwfID: h}, nil
 	}
 
-	return models.GlobalRanNodeID{}, fmt.Errorf("unknown Global RAN Node ID kind %d", id.Kind)
+	return models.GlobalRanNodeID{}, fmt.Errorf("unsupported Global RAN Node ID alternative")
 }
 
 // GUAMIToNGAP splits a 24-bit AMF identifier into the three bit strings a
@@ -193,33 +198,34 @@ const ngapSecurityAlgorithms = 7
 // selects from on EPS fallback and inter-RAT handover, and narrowing it there
 // would force the null algorithms.
 func SecurityCapabilitiesToNGAP(sc *fgs.UESecurityCapability) ngap.UESecurityCapabilities {
-	var out ngap.UESecurityCapabilities
+	var nrEA, nrIA, eutraEA, eutraIA uint16
 
-	if sc == nil {
-		return out
-	}
-
-	for n := uint8(1); n <= ngapSecurityAlgorithms; n++ {
+	for n := uint8(1); sc != nil && n <= ngapSecurityAlgorithms; n++ {
 		bit := uint16(1) << (16 - n)
 
 		if sc.SupportsEA(n) {
-			out.NREncryptionAlgorithms |= bit
+			nrEA |= bit
 		}
 
 		if sc.SupportsIA(n) {
-			out.NRIntegrityProtectionAlgorithms |= bit
+			nrIA |= bit
 		}
 
 		if sc.SupportsEEA(n) {
-			out.EUTRAEncryptionAlgorithms |= bit
+			eutraEA |= bit
 		}
 
 		if sc.SupportsEIA(n) {
-			out.EUTRAIntegrityProtectionAlgorithms |= bit
+			eutraIA |= bit
 		}
 	}
 
-	return out
+	return ngap.UESecurityCapabilities{
+		NREncryptionAlgorithms:             ngap.SecurityAlgorithmsFrom(nrEA),
+		NRIntegrityProtectionAlgorithms:    ngap.SecurityAlgorithmsFrom(nrIA),
+		EUTRAEncryptionAlgorithms:          ngap.SecurityAlgorithmsFrom(eutraEA),
+		EUTRAIntegrityProtectionAlgorithms: ngap.SecurityAlgorithmsFrom(eutraIA),
+	}
 }
 
 // RadioCapabilityForPagingToNGAP converts the UE's stored paging capability,

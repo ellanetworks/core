@@ -17,6 +17,8 @@ type InitialUEMessageOpts struct {
 	Guti5g                []byte
 	Mcc                   string
 	Mnc                   string
+	SelectedMcc           string
+	SelectedMnc           string
 	Tac                   string
 	GnbID                 string
 	RRCEstablishmentCause ngap.RRCEstablishmentCause
@@ -48,7 +50,7 @@ func BuildInitialUEMessage(opts *InitialUEMessageOpts) ([]byte, error) {
 		return nil, fmt.Errorf("RAN UE NGAP ID is required to build InitialUEMessage")
 	}
 
-	uli, err := userLocation(opts.Mcc, opts.Mnc, opts.GnbID, opts.Tac)
+	uli, err := userLocation(opts.Mcc, opts.Mnc, opts.SelectedMcc, opts.SelectedMnc, opts.GnbID, opts.Tac)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +125,5 @@ func GNBNodeID(mcc, mnc, gnbID string) (ngap.GlobalRANNodeID, error) {
 		v = v<<8 | uint64(o)
 	}
 
-	return ngap.GlobalRANNodeID{
-		Kind: ngap.RANNodeIDGNB, PLMNIdentity: plmn, Value: uint32(v), Bits: gnbIDBits,
-	}, nil
+	return ngap.NewGlobalGNBID(plmn, uint32(v), gnbIDBits), nil
 }

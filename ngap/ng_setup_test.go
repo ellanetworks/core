@@ -36,13 +36,8 @@ func goldPLMN() PLMNIdentity { return PLMNIdentity{0x02, 0xf8, 0x39} }
 
 func goldRequest() *NGSetupRequest {
 	return &NGSetupRequest{
-		GlobalRANNodeID: GlobalRANNodeID{
-			Kind:         RANNodeIDGNB,
-			PLMNIdentity: goldPLMN(),
-			Value:        0x000102,
-			Bits:         24,
-		},
-		RANNodeName: Ptr("ella-gnb"),
+		GlobalRANNodeID: NewGlobalGNBID(goldPLMN(), 0x000102, 24),
+		RANNodeName:     Ptr("ella-gnb"),
 		SupportedTAList: SupportedTAList{{
 			TAC: 0x000001,
 			BroadcastPLMNList: BroadcastPLMNList{{
@@ -78,7 +73,7 @@ func goldResponse() *NGSetupResponse {
 
 func goldFailure() *NGSetupFailure {
 	return &NGSetupFailure{
-		Cause:      Ptr(Cause{Group: CauseGroupMisc, Value: CauseMiscUnknownPLMNOrSNPN}),
+		Cause:      Ptr(CauseMiscUnknownPLMNOrSNPN.Cause()),
 		TimeToWait: Ptr(TimeToWaitV10s),
 	}
 }
@@ -101,7 +96,7 @@ func TestNGSetupRequestGoldenDecode(t *testing.T) {
 
 	want := goldRequest()
 
-	if req.GlobalRANNodeID != want.GlobalRANNodeID {
+	if !req.GlobalRANNodeID.Equal(want.GlobalRANNodeID) {
 		t.Errorf("GlobalRANNodeID = %+v, want %+v", req.GlobalRANNodeID, want.GlobalRANNodeID)
 	}
 
@@ -177,7 +172,7 @@ func TestNGSetupRequestRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.GlobalRANNodeID != in.GlobalRANNodeID ||
+	if !out.GlobalRANNodeID.Equal(in.GlobalRANNodeID) ||
 		deref(out.RANNodeName) != deref(in.RANNodeName) ||
 		deref(out.DefaultPagingDRX) != deref(in.DefaultPagingDRX) ||
 		len(out.SupportedTAList) != 1 ||
@@ -198,16 +193,16 @@ func encodePartialNGSetup(t *testing.T, globalRANNodeID, supportedTAList, paging
 	src := goldRequest()
 
 	if globalRANNodeID {
-		fields = append(fields, ieField{id: IDGlobalRANNodeID, crit: CriticalityReject, val: &src.GlobalRANNodeID})
+		fields = append(fields, ieField{ID: IDGlobalRANNodeID, Criticality: CriticalityReject, Value: &src.GlobalRANNodeID})
 	}
 
 	if supportedTAList {
-		fields = append(fields, ieField{id: IDSupportedTAList, crit: CriticalityReject, val: src.SupportedTAList})
+		fields = append(fields, ieField{ID: IDSupportedTAList, Criticality: CriticalityReject, Value: src.SupportedTAList})
 	}
 
 	if pagingDRX {
 		d := PagingDRXv128
-		fields = append(fields, ieField{id: IDDefaultPagingDRX, crit: CriticalityIgnore, val: d})
+		fields = append(fields, ieField{ID: IDDefaultPagingDRX, Criticality: CriticalityIgnore, Value: d})
 	}
 
 	if err := encodeIEContainer(w, per.Aligned, fields); err != nil {
@@ -263,8 +258,8 @@ func TestParseNGSetupRequestMissingMandatoryIE(t *testing.T) {
 				t.Errorf("procedure = %d, want ProcNGSetup", ase.Procedure)
 			}
 
-			want := Cause{Group: CauseGroupProtocol, Value: CauseProtocolAbstractSyntaxErrorReject}
-			if ase.Cause != want {
+			want := CauseProtocolAbstractSyntaxErrorReject.Cause()
+			if !ase.Cause.Equal(want) {
 				t.Errorf("cause = %v, want %v", ase.Cause, want)
 			}
 

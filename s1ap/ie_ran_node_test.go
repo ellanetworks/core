@@ -4,51 +4,49 @@
 package s1ap
 
 import (
-	"errors"
+	"bytes"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 func TestENBIDAllKinds(t *testing.T) {
 	cases := []ENBID{
-		{Kind: ENBIDMacro, Value: 0xabcde & 0xfffff},       // 20 bits
-		{Kind: ENBIDHome, Value: 0x54f6401},                // 28 bits
-		{Kind: ENBIDShortMacro, Value: 0x3abcd & 0x3ffff},  // 18 bits, extension
-		{Kind: ENBIDLongMacro, Value: 0x1abcde & 0x1fffff}, // 21 bits, extension
+		{MacroENBID: Ptr(MacroENBID(0xabcde & 0xfffff))},
+		{HomeENBID: Ptr(HomeENBID(0x54f6401))},
+		{ShortMacroENBID: Ptr(ShortMacroENBID(0x3abcd & 0x3ffff))},
+		{LongMacroENBID: Ptr(LongMacroENBID(0x1abcde & 0x1fffff))},
 	}
 	for _, in := range cases {
 		w := per.NewWriter()
 
 		if err := in.MarshalPER(w, per.Aligned); err != nil {
-			t.Fatalf("%+v: encode: %v", in, err)
+			t.Fatalf("%v: encode: %v", in, err)
 		}
 
 		got, err := unmarshalPERValue[ENBID](perBytes(w))
 		if err != nil {
-			t.Fatalf("%+v: decode: %v", in, err)
+			t.Fatalf("%v: decode: %v", in, err)
 		}
 
-		if got != in {
-			t.Fatalf("decoded %+v, want %+v", got, in)
+		if !got.Equal(in) {
+			t.Fatalf("decoded %v, want %v", got, in)
 		}
 	}
 }
 
 // ENB-ID ::= CHOICE { macroENB-ID, homeENB-ID, ..., short-macroENB-ID,
-// long-macroENB-ID } defines exactly two extension additions. A later one has
-// no width the decoder can know, so it is reported as not comprehended and
-// handled on the IE's criticality (TS 36.413 §10.3.1) instead of being read as
-// a short-macroENB-ID.
-func TestENBIDRejectsUndefinedExtensionAlternative(t *testing.T) {
+// long-macroENB-ID } defines exactly two extension additions. A later one is
+// kept verbatim and reported as not comprehended (TS 36.413 §10.3.1).
+func TestENBIDKeepsUndefinedExtensionAlternative(t *testing.T) {
 	tests := []struct {
 		name string
 		in   []byte
-		kind ENBIDKind
-		want uint32
+		want ENBID
 	}{
-		{"short-macroENB-ID", []byte{0x80, 0x03, 0xde, 0xad, 0xbe}, ENBIDShortMacro, 0x37ab6},
-		{"long-macroENB-ID", []byte{0x81, 0x03, 0xde, 0xad, 0xbe}, ENBIDLongMacro, 0x1bd5b7},
+		{"short-macroENB-ID", []byte{0x80, 0x03, 0xde, 0xad, 0xbe}, ENBID{ShortMacroENBID: Ptr(ShortMacroENBID(0x37ab6))}},
+		{"long-macroENB-ID", []byte{0x81, 0x03, 0xde, 0xad, 0xbe}, ENBID{LongMacroENBID: Ptr(LongMacroENBID(0x1bd5b7))}},
 	}
 
 	for _, tt := range tests {
@@ -58,18 +56,30 @@ func TestENBIDRejectsUndefinedExtensionAlternative(t *testing.T) {
 				t.Fatalf("decode: %v", err)
 			}
 
-			if e.Kind != tt.kind || e.Value != tt.want {
-				t.Fatalf("got kind %d value %#x, want kind %d value %#x", e.Kind, e.Value, tt.kind, tt.want)
+			if !e.Equal(tt.want) {
+				t.Fatalf("got %v, want %v", e, tt.want)
 			}
 		})
 	}
 
 	t.Run("undefined extension alternative", func(t *testing.T) {
-		var e ENBID
+		in := []byte{0x82, 0x03, 0xde, 0xad, 0xbe}
 
-		err := (&e).UnmarshalPER(per.NewReader([]byte{0x82, 0x03, 0xde, 0xad, 0xbe}), per.Aligned)
-		if !errors.Is(err, errNotComprehended) {
-			t.Fatalf("err = %v, want errNotComprehended", err)
+		var e ENBID
+		if err := (&e).UnmarshalPER(per.NewReader(in), per.Aligned); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+
+		if e.Ext == nil || e.Ext.Index != 2 || e.Ext.Value != "\xde\xad\xbe" {
+			t.Fatalf("Ext = %+v", e.Ext)
+		}
+
+		if !e.Diagnose(&ap.Diagnosis[ProtocolIEID]{}) {
+			t.Fatal("an undefined ENB-ID alternative must not be comprehended")
+		}
+
+		if out := ieRaw(t, &e); !bytes.Equal(out, in) {
+			t.Fatalf("re-encoded % x, want % x", out, in)
 		}
 	})
 }

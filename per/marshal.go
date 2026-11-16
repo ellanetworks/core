@@ -39,7 +39,7 @@ func Marshal(m Marshaler, enc ...Encoding) ([]byte, error) {
 }
 
 // Unmarshal decodes b into u; enc defaults to [Aligned]. Bits left unread are
-// not an error, since a top-level encoding is padded to an octet boundary.
+// an error unless they are the padding of X.691 §11.1.
 func Unmarshal(b []byte, u Unmarshaler, enc ...Encoding) error {
 	e := Aligned
 	if len(enc) > 0 {
@@ -48,5 +48,9 @@ func Unmarshal(b []byte, u Unmarshaler, enc ...Encoding) error {
 
 	r := NewReader(b)
 
-	return u.UnmarshalPER(r, e)
+	if err := u.UnmarshalPER(r, e); err != nil {
+		return err
+	}
+
+	return r.Complete()
 }

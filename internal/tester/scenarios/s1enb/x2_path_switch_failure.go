@@ -40,7 +40,7 @@ func runX2PathSwitchFailure(_ context.Context, env scenarios.Env, _ any) error {
 
 	defer closePair()
 
-	targetENBUEID := pair.Target.AllocateENBUEID()
+	targetENBUEID := pair.Target.AllocateENBUEIDFor(pair.UE)
 	unknownMMEUEID := pair.Attached.MMEUES1APID + x2UnknownMMEUEGap
 
 	if _, err := pair.Target.SendPathSwitchRequest(targetENBUEID, unknownMMEUEID, pair.Attached.ERABID, pair.UE.S1APSecurityCapabilities()); err != nil {
@@ -64,7 +64,7 @@ func runX2PathSwitchFailure(_ context.Context, env scenarios.Env, _ any) error {
 		return errors.New("the Path Switch Request Failure carries no cause")
 	}
 
-	if fail.Cause.Group != s1ap.CauseGroupRadioNetwork || fail.Cause.Value != s1ap.CauseRadioNetworkUnknownMMEUES1APID {
+	if !fail.Cause.Equal(s1ap.CauseRadioNetworkUnknownMMEUES1APID.Cause()) {
 		return fmt.Errorf("the failure cause = %+v, want a radio-network unknown-MME-UE-S1AP-ID", *fail.Cause)
 	}
 

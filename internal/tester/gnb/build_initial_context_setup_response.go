@@ -8,6 +8,7 @@ import (
 	"net/netip"
 
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 type InitialContextSetupResponseOpts struct {
@@ -49,7 +50,7 @@ func BuildInitialContextSetupResponse(opts *InitialContextSetupResponseOpts) ([]
 // naming the downlink tunnel this simulator has set up and the QoS flow it
 // accepted (TS 38.413 §9.3.4.2).
 func GetPDUSessionResourceSetupResponseTransfer(ip netip.Addr, teid uint32, qosID int64, flows ...uint8) (ngap.TransferContainer, error) {
-	addr, err := transportLayerAddress(ip)
+	addr, err := ap.TransportLayerAddressFrom(ip)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +58,7 @@ func GetPDUSessionResourceSetupResponseTransfer(ip netip.Addr, teid uint32, qosI
 	transfer := &ngap.PDUSessionResourceSetupResponseTransfer{
 		DLQosFlowPerTNLInformation: ngap.QosFlowPerTNLInformation{
 			UPTransportLayerInformation: ngap.UPTransportLayerInformation{
-				GTPTunnel: ngap.GTPTunnel{TransportLayerAddress: addr, GTPTEID: ngap.GTPTEID(teid)},
+				GTPTunnel: &ngap.GTPTunnel{TransportLayerAddress: addr, GTPTEID: ngap.GTPTEID(teid)},
 			},
 			AssociatedQosFlowList: ngap.AssociatedQosFlowList{
 				{QosFlowIdentifier: ngap.QosFlowIdentifier(qosID)},

@@ -14,10 +14,10 @@ import (
 
 // causeReleaseUnspecified stands in for an omitted Cause IE (TS 38.413 §9.3.1.2,
 // CauseRadioNetwork "unspecified").
-var causeReleaseUnspecified = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified}
+var causeReleaseUnspecified = ngap.CauseRadioNetworkUnspecified.Cause()
 
 func keepsConnectionForPendingDownlink(cause ngap.Cause, ueConn *amf.UeConn) bool {
-	if cause.Group != ngap.CauseGroupRadioNetwork || cause.Value != ngap.CauseRadioNetworkUserInactivity {
+	if cause.RadioNetwork == nil || *cause.RadioNetwork != ngap.CauseRadioNetworkUserInactivity {
 		return false
 	}
 

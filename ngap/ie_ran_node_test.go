@@ -4,22 +4,39 @@
 package ngap
 
 import (
-	"strings"
+	"bytes"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
+func testNgENBNodeID(t *testing.T, plmn PLMNIdentity, id uint32, bits int) GlobalRANNodeID {
+	t.Helper()
+
+	n, ok := NgENBIDOfBits(id, bits)
+	if !ok {
+		t.Fatalf("no ng-eNB identity is %d bits wide", bits)
+	}
+
+	return NewGlobalNgENBID(plmn, n)
+}
+
 func TestGlobalRANNodeIDRoundTrip(t *testing.T) {
+	tngf := TNGFIDValue{BitStringFromUint(0xdeadbeef, 32)}
+	wagf := WAGFIDValue{BitStringFrom([]byte{0xab, 0xcd, 0xe0}, 20)}
+
 	for _, g := range []GlobalRANNodeID{
-		{Kind: RANNodeIDGNB, PLMNIdentity: goldPLMN(), Value: 0x000102, Bits: 24},
-		// gNB-ID is SIZE(22..32), so both ends of the range must survive.
-		{Kind: RANNodeIDGNB, PLMNIdentity: goldPLMN(), Value: 0x3fffff, Bits: 22},
-		{Kind: RANNodeIDGNB, PLMNIdentity: goldPLMN(), Value: 0xffffffff, Bits: 32},
-		{Kind: RANNodeIDMacroNgENB, PLMNIdentity: goldPLMN(), Value: 0xabcde, Bits: 20},
-		{Kind: RANNodeIDShortMacroNgENB, PLMNIdentity: goldPLMN(), Value: 0x3ffff, Bits: 18},
-		{Kind: RANNodeIDLongMacroNgENB, PLMNIdentity: goldPLMN(), Value: 0x1abcde, Bits: 21},
-		{Kind: RANNodeIDN3IWF, PLMNIdentity: goldPLMN(), Value: 0xbeef, Bits: 16},
+		NewGlobalGNBID(goldPLMN(), 0x000102, 24),
+		NewGlobalGNBID(goldPLMN(), 0x3fffff, 22),
+		NewGlobalGNBID(goldPLMN(), 0xffffffff, 32),
+		testNgENBNodeID(t, goldPLMN(), 0xabcde, 20),
+		testNgENBNodeID(t, goldPLMN(), 0x3ffff, 18),
+		testNgENBNodeID(t, goldPLMN(), 0x1abcde, 21),
+		NewGlobalN3IWFID(goldPLMN(), 0xbeef),
+		{GlobalTNGFID: &GlobalTNGFID{PLMNIdentity: goldPLMN(), TNGFID: TNGFID{TNGFID: &tngf}}},
+		{GlobalWAGFID: &GlobalWAGFID{PLMNIdentity: goldPLMN(), WAGFID: WAGFID{WAGFID: &wagf}}},
 	} {
 		w := per.NewWriter()
 		if err := g.MarshalPER(w, per.Aligned); err != nil {
@@ -31,28 +48,66 @@ func TestGlobalRANNodeIDRoundTrip(t *testing.T) {
 			t.Fatalf("%+v: unmarshal: %v", g, err)
 		}
 
-		if got != g {
+		if !got.Equal(g) {
 			t.Errorf("round trip = %+v, want %+v", got, g)
+		}
+
+		w2 := per.NewWriter()
+		if err := got.MarshalPER(w2, per.Aligned); err != nil {
+			t.Fatal(err)
+		}
+
+		if !bytes.Equal(perBytes(w), perBytes(w2)) {
+			t.Errorf("re-encode = % x, want % x", perBytes(w2), perBytes(w))
 		}
 	}
 }
 
-// Each kind but the gNB has exactly one legal BIT STRING length. Encoding
-// rejects any other rather than padding or truncating to fit.
+func TestGlobalRANNodeIDTypedChoiceExtensionWireBytes(t *testing.T) {
+	v := TWIFIDValue{BitStringFromUint(0x01020304, 32)}
+	g := GlobalRANNodeID{GlobalTWIFID: &GlobalTWIFID{PLMNIdentity: goldPLMN(), TWIFID: TWIFID{TWIFID: &v}}}
+
+	w := per.NewWriter()
+	if err := g.MarshalPER(w, per.Aligned); err != nil {
+		t.Fatal(err)
+	}
+
+	inner, err := per.Marshal(g.GlobalTWIFID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := per.NewWriter()
+	if err := per.EncodeConstrainedWholeNumber(want, per.Aligned, 0, 3, 3); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := encodeContainerField(want, ieField{ID: IDGlobalTWIFID, Criticality: CriticalityReject, Value: apimpl.RawValue(inner)}); err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(perBytes(w), perBytes(want)) {
+		t.Errorf("GlobalTWIF-ID = % x, want % x", perBytes(w), perBytes(want))
+	}
+
+	if id, bits, ok := g.NodeID(); !ok || id != 0x01020304 || bits != 32 {
+		t.Errorf("NodeID() = %x/%d/%v", id, bits, ok)
+	}
+}
+
 func TestGlobalRANNodeIDRejectsWrongBitLength(t *testing.T) {
+	macro := MacroNgENBID(1 << 20)
+
 	for _, tc := range []struct {
 		name string
 		in   GlobalRANNodeID
 	}{
-		{"gNB below SIZE(22..32)", GlobalRANNodeID{Kind: RANNodeIDGNB, Bits: 21}},
-		{"gNB above SIZE(22..32)", GlobalRANNodeID{Kind: RANNodeIDGNB, Bits: 33}},
-		{"macroNgENB not 20", GlobalRANNodeID{Kind: RANNodeIDMacroNgENB, Bits: 21}},
-		{"shortMacroNgENB not 18", GlobalRANNodeID{Kind: RANNodeIDShortMacroNgENB, Bits: 20}},
-		{"longMacroNgENB not 21", GlobalRANNodeID{Kind: RANNodeIDLongMacroNgENB, Bits: 20}},
-		{"n3IWF not 16", GlobalRANNodeID{Kind: RANNodeIDN3IWF, Bits: 32}},
-		// An unset Bits is the zero value, not a request for the default.
-		{"unset bit length", GlobalRANNodeID{Kind: RANNodeIDMacroNgENB}},
-		{"unknown kind", GlobalRANNodeID{Kind: RANNodeIDKind(9), Bits: 20}},
+		{"gNB below SIZE(22..32)", NewGlobalGNBID(goldPLMN(), 0, 21)},
+		{"gNB above SIZE(22..32)", NewGlobalGNBID(goldPLMN(), 0, 33)},
+		{"gNB value wider than its bits", NewGlobalGNBID(goldPLMN(), 1<<22, 22)},
+		{"macroNgENB wider than 20 bits", NewGlobalNgENBID(goldPLMN(), NgENBID{MacroNgENBID: &macro})},
+		{"no alternative", GlobalRANNodeID{}},
+		{"empty gNB-ID", GlobalRANNodeID{GlobalGNBID: &GlobalGNBID{}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w := per.NewWriter()
@@ -63,28 +118,30 @@ func TestGlobalRANNodeIDRejectsWrongBitLength(t *testing.T) {
 	}
 }
 
-// TS 38.413 §9.3.1.5 closes GlobalRANNodeID and each nested node-id CHOICE
-// with a choice-Extensions alternative. Selecting one names an alternative
-// this version does not model, which must be an error and not a zero value.
-func TestGlobalRANNodeIDChoiceExtensionIsRejected(t *testing.T) {
+func TestGlobalRANNodeIDUnknownChoiceExtensionsArePreserved(t *testing.T) {
 	tests := []struct {
 		name  string
 		build func(*per.Writer) error
-		want  string
+		check func(*testing.T, GlobalRANNodeID)
 	}{
 		{
 			"outer GlobalRANNodeID choice-Extensions",
 			func(w *per.Writer) error {
-				return per.EncodeConstrainedWholeNumber(w, per.Aligned, 0,
-					globalRANNodeIDAlternatives-1, globalRANNodeIDChoiceExtensions)
+				return per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, 3, 3)
 			},
-			"unsupported GlobalRANNodeID alternative",
+			func(t *testing.T, g GlobalRANNodeID) {
+				t.Helper()
+
+				if g.ChoiceExtension == nil || g.ChoiceExtension.ID != 9999 {
+					t.Errorf("ChoiceExtension = %+v", g.ChoiceExtension)
+				}
+			},
 		},
 		{
 			"nested GNB-ID choice-Extensions",
 			func(w *per.Writer) error {
 				enc := per.Aligned
-				if err := per.EncodeConstrainedWholeNumber(w, enc, 0, globalRANNodeIDAlternatives-1, globalGNBID); err != nil {
+				if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 0); err != nil {
 					return err
 				}
 
@@ -95,15 +152,21 @@ func TestGlobalRANNodeIDChoiceExtensionIsRejected(t *testing.T) {
 					return err
 				}
 
-				return per.EncodeConstrainedWholeNumber(w, enc, 0, int64(nodeIDAlternatives[globalGNBID]-1), 1)
+				return per.EncodeConstrainedWholeNumber(w, enc, 0, 1, 1)
 			},
-			"unsupported GNB-ID alternative",
+			func(t *testing.T, g GlobalRANNodeID) {
+				t.Helper()
+
+				if g.GlobalGNBID == nil || g.GlobalGNBID.GNBID.ChoiceExtension == nil {
+					t.Errorf("GNB-ID choice-Extensions not kept: %+v", g.GlobalGNBID)
+				}
+			},
 		},
 		{
 			"nested NgENB-ID choice-Extensions",
 			func(w *per.Writer) error {
 				enc := per.Aligned
-				if err := per.EncodeConstrainedWholeNumber(w, enc, 0, globalRANNodeIDAlternatives-1, globalNgENBID); err != nil {
+				if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 1); err != nil {
 					return err
 				}
 
@@ -114,39 +177,129 @@ func TestGlobalRANNodeIDChoiceExtensionIsRejected(t *testing.T) {
 					return err
 				}
 
-				return per.EncodeConstrainedWholeNumber(w, enc, 0, int64(nodeIDAlternatives[globalNgENBID]-1), 3)
+				return per.EncodeConstrainedWholeNumber(w, enc, 0, 3, 3)
 			},
-			"unsupported NgENB-ID alternative",
+			func(t *testing.T, g GlobalRANNodeID) {
+				t.Helper()
+
+				if g.GlobalNgENBID == nil || g.GlobalNgENBID.NgENBID.ChoiceExtension == nil {
+					t.Errorf("NgENB-ID choice-Extensions not kept: %+v", g.GlobalNgENBID)
+				}
+			},
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		for _, crit := range []Criticality{CriticalityReject, CriticalityIgnore} {
+			t.Run(tt.name+"/"+crit.String(), func(t *testing.T) {
+				w := per.NewWriter()
+				if err := tt.build(w); err != nil {
+					t.Fatal(err)
+				}
+
+				if err := encodeContainerField(w, ieField{ID: 9999, Criticality: crit, Value: apimpl.RawValue([]byte{0x00})}); err != nil {
+					t.Fatal(err)
+				}
+
+				wire := perBytes(w)
+
+				got, err := unmarshalPERValue[GlobalRANNodeID](wire)
+				if err != nil {
+					t.Fatalf("decode: %v", err)
+				}
+
+				tt.check(t, got)
+
+				if _, _, ok := got.NodeID(); ok {
+					t.Error("NodeID() reported an identity for an unknown alternative")
+				}
+
+				d := ap.Diagnose[ProtocolIEID](&got)
+				if len(d.IEs) != 1 || d.IEs[0].ID != 9999 || d.IEs[0].Criticality != crit {
+					t.Errorf("diagnostics = %+v, want the unknown IE on criticality %v", d.IEs, crit)
+				}
+
+				w2 := per.NewWriter()
+				if err := got.MarshalPER(w2, per.Aligned); err != nil {
+					t.Fatal(err)
+				}
+
+				if !bytes.Equal(perBytes(w2), wire) {
+					t.Errorf("re-encode = % x, want % x", perBytes(w2), wire)
+				}
+			})
+		}
+	}
+}
+
+func TestTypedChoiceExtensionsKeepWireCriticality(t *testing.T) {
+	tngf := TNGFIDValue{BitStringFromUint(0xcafe0001, 32)}
+	gTNGF := GlobalTNGFID{PLMNIdentity: goldPLMN(), TNGFID: TNGFID{TNGFID: &tngf}}
+	tai := TAI{PLMNIdentity: goldPLMN(), TAC: 9}
+	uTWIF := UserLocationInformationTWIF{TWAPID: TWAPID{0x01}, IPAddress: tlaOf(10, 1, 1, 1), TAI: &tai}
+
+	for _, tc := range []struct {
+		name  string
+		index int64
+		ub    int64
+		id    ProtocolIEID
+		value per.Marshaler
+		new   func() interface {
+			per.Marshaler
+			per.Unmarshaler
+		}
+		typed func(any) bool
+	}{
+		{"GlobalTNGF-ID", 3, 3, IDGlobalTNGFID, &gTNGF, func() interface {
+			per.Marshaler
+			per.Unmarshaler
+		} {
+			return &GlobalRANNodeID{}
+		}, func(v any) bool {
+			return v.(*GlobalRANNodeID).GlobalTNGFID != nil && v.(*GlobalRANNodeID).GlobalTNGFID.Equal(gTNGF)
+		}},
+		{"UserLocationInformationTWIF", 3, 3, IDUserLocationInformationTWIF, &uTWIF, func() interface {
+			per.Marshaler
+			per.Unmarshaler
+		} {
+			return &UserLocationInformation{}
+		}, func(v any) bool {
+			return v.(*UserLocationInformation).TWIF != nil && v.(*UserLocationInformation).TWIF.Equal(uTWIF)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			inner, err := per.Marshal(tc.value)
+			if err != nil {
+				t.Fatal(err)
+			}
+
 			w := per.NewWriter()
-			if err := tt.build(w); err != nil {
+			if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, tc.ub, tc.index); err != nil {
 				t.Fatal(err)
 			}
 
-			// The alternative's own ProtocolIE-SingleContainer payload.
-			if err := encodeContainerField(w, per.Aligned, ieField{
-				id:   IDGlobalRANNodeID,
-				crit: CriticalityReject,
-				raw:  []byte{0x00},
-			}); err != nil {
+			if err := encodeContainerField(w, ieField{ID: tc.id, Criticality: CriticalityNotify, Value: apimpl.RawValue(inner)}); err != nil {
 				t.Fatal(err)
 			}
 
-			got, err := unmarshalPERValue[GlobalRANNodeID](perBytes(w))
-			if err == nil {
-				t.Fatalf("decoded as %+v, want an error", got)
+			wire := perBytes(w)
+
+			v := tc.new()
+			if err := v.UnmarshalPER(per.NewReader(wire), per.Aligned); err != nil {
+				t.Fatal(err)
 			}
 
-			if !strings.Contains(err.Error(), tt.want) {
-				t.Errorf("error = %q, want it to contain %q", err, tt.want)
+			if !tc.typed(v) {
+				t.Fatalf("decoded %+v, want the typed alternative", v)
 			}
 
-			if got != (GlobalRANNodeID{}) {
-				t.Errorf("value = %+v, want it left untouched", got)
+			re := per.NewWriter()
+			if err := v.MarshalPER(re, per.Aligned); err != nil {
+				t.Fatal(err)
+			}
+
+			if !bytes.Equal(perBytes(re), wire) {
+				t.Errorf("re-encode = % x, want % x", perBytes(re), wire)
 			}
 		})
 	}

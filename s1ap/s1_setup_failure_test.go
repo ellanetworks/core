@@ -9,7 +9,7 @@ func TestS1SetupFailureRoundTrip(t *testing.T) {
 	ttw := TimeToWaitV10s
 
 	in := &S1SetupFailure{
-		Cause:      Ptr(Cause{Group: CauseGroupMisc, Value: 4}), // misc / unspecified
+		Cause:      Ptr(CauseMiscUnspecified.Cause()), // misc / unspecified
 		TimeToWait: &ttw,
 	}
 
@@ -37,7 +37,7 @@ func TestS1SetupFailureRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if deref(out.Cause) != deref(in.Cause) {
+	if !deref(out.Cause).Equal(deref(in.Cause)) {
 		t.Fatalf("cause = %+v, want %+v", out.Cause, in.Cause)
 	}
 
@@ -47,7 +47,7 @@ func TestS1SetupFailureRoundTrip(t *testing.T) {
 }
 
 func TestS1SetupFailureCauseOnly(t *testing.T) {
-	in := &S1SetupFailure{Cause: Ptr(Cause{Group: CauseGroupProtocol, Value: 1})}
+	in := &S1SetupFailure{Cause: Ptr(CauseProtocolAbstractSyntaxErrorReject.Cause())}
 
 	b, err := in.Marshal()
 	if err != nil {
@@ -64,7 +64,7 @@ func TestS1SetupFailureCauseOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if deref(out.Cause) != deref(in.Cause) || out.TimeToWait != nil || out.CriticalityDiagnostics != nil {
+	if !deref(out.Cause).Equal(deref(in.Cause)) || out.TimeToWait != nil || out.CriticalityDiagnostics != nil {
 		t.Fatalf("got %+v", out)
 	}
 }

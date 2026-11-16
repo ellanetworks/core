@@ -127,13 +127,13 @@ func validateUEContextReleaseCommand(fr gnb.SCTPFrame, want ngaplib.Cause) error
 		return fmt.Errorf("cause is absent")
 	}
 
-	if *cmd.Cause != want {
+	if !cmd.Cause.Equal(want) {
 		return fmt.Errorf("unexpected Cause: got %+v, want %+v", *cmd.Cause, want)
 	}
 
 	// The AMF addresses a UE it has a RAN UE NGAP ID for by the pair
 	// (TS 38.413 §9.2.2.5).
-	if !cmd.UENGAPIDs.Pair {
+	if cmd.UENGAPIDs.UENGAPIDPair == nil {
 		return fmt.Errorf("UE-NGAP-IDs carries no RAN UE NGAP ID")
 	}
 

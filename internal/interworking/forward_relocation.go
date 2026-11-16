@@ -108,10 +108,7 @@ var (
 )
 
 func RefuseN26Relocation() error {
-	return fmt.Errorf("%w: %w", ErrN26NotAllowed, TargetRefusal{Cause: s1ap.Cause{
-		Group: s1ap.CauseGroupRadioNetwork,
-		Value: s1ap.CauseRadioNetworkHOTargetNotAllowed,
-	}})
+	return fmt.Errorf("%w: %w", ErrN26NotAllowed, TargetRefusal{Cause: s1ap.CauseRadioNetworkHOTargetNotAllowed.Cause()})
 }
 
 type EPSPeer interface {

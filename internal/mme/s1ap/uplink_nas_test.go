@@ -43,7 +43,7 @@ func TestUplinkNASTransportUnknownUE(t *testing.T) {
 		t.Fatalf("expected the received AP-ID pair (999, 7), got (%v, %v)", ind.MMEUES1APID, ind.ENBUES1APID)
 	}
 
-	if ind.Cause == nil || *ind.Cause != causeUnknownMMEUES1APID {
+	if ind.Cause == nil || !ind.Cause.Equal(causeUnknownMMEUES1APID) {
 		t.Fatalf("expected cause unknown-mme-ue-s1ap-id, got %v", ind.Cause)
 	}
 }

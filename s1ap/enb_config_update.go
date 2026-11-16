@@ -5,33 +5,38 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 36.413 §9.1.8.7.
 type ENBConfigurationUpdate struct {
-	ENBName          *string
-	SupportedTAs     SupportedTAs
-	DefaultPagingDRX *PagingDRX
+	ENBName                    *string
+	SupportedTAs               SupportedTAs
+	DefaultPagingDRX           *PagingDRX
+	CSGIdList                  CSGIdList
+	NBIoTDefaultPagingDRX      *NBIoTDefaultPagingDRX
+	ConnectedengNBToAddList    ConnectedengNBList
+	ConnectedengNBToRemoveList ConnectedengNBList
 
 	messageMeta
 }
 
 var eNBConfigurationUpdateIEs = []ieSpec[ENBConfigurationUpdate]{
 	{
-		id: IDENBname, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *ENBConfigurationUpdate, raw []byte, enc per.Encoding) error {
+		ID: IDENBname, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *ENBConfigurationUpdate, r *per.Reader, enc per.Encoding) error {
 			var (
 				err error
 				n   Name
 			)
-			if err = perIEDecode(raw, &n); err == nil {
+			if err = decodeIE(r, &n); err == nil {
 				name := string(n)
 				m.ENBName = &name
 			}
 
 			return err
 		},
-		encode: func(m *ENBConfigurationUpdate) (per.Marshaler, bool) {
+		Encode: func(m *ENBConfigurationUpdate) (per.Marshaler, bool) {
 			if m.ENBName == nil {
 				return nil, false
 			}
@@ -40,11 +45,11 @@ var eNBConfigurationUpdateIEs = []ieSpec[ENBConfigurationUpdate]{
 		},
 	},
 	{
-		id: IDSupportedTAs, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *ENBConfigurationUpdate, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.SupportedTAs)
+		ID: IDSupportedTAs, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *ENBConfigurationUpdate, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.SupportedTAs)
 		},
-		encode: func(m *ENBConfigurationUpdate) (per.Marshaler, bool) {
+		Encode: func(m *ENBConfigurationUpdate) (per.Marshaler, bool) {
 			if len(m.SupportedTAs) == 0 {
 				return nil, false
 			}
@@ -52,12 +57,13 @@ var eNBConfigurationUpdateIEs = []ieSpec[ENBConfigurationUpdate]{
 			return &m.SupportedTAs, true
 		},
 	},
+	apimpl.ListIE(IDCSGIdList, CriticalityReject, func(m *ENBConfigurationUpdate) *CSGIdList { return &m.CSGIdList }),
 	{
-		id: IDDefaultPagingDRX, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *ENBConfigurationUpdate, raw []byte, enc per.Encoding) error {
+		ID: IDDefaultPagingDRX, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *ENBConfigurationUpdate, r *per.Reader, enc per.Encoding) error {
 			var drx PagingDRX
 
-			if err := perIEDecode(raw, &drx); err != nil {
+			if err := decodeIE(r, &drx); err != nil {
 				return err
 			}
 
@@ -65,7 +71,7 @@ var eNBConfigurationUpdateIEs = []ieSpec[ENBConfigurationUpdate]{
 
 			return nil
 		},
-		encode: func(m *ENBConfigurationUpdate) (per.Marshaler, bool) {
+		Encode: func(m *ENBConfigurationUpdate) (per.Marshaler, bool) {
 			if m.DefaultPagingDRX == nil {
 				return nil, false
 			}
@@ -73,6 +79,9 @@ var eNBConfigurationUpdateIEs = []ieSpec[ENBConfigurationUpdate]{
 			return m.DefaultPagingDRX, true
 		},
 	},
+	apimpl.OptionalIE(IDNBIoTDefaultPagingDRX, CriticalityIgnore, func(m *ENBConfigurationUpdate) **NBIoTDefaultPagingDRX { return &m.NBIoTDefaultPagingDRX }),
+	apimpl.ListIE(IDConnectedengNBToAddList, CriticalityIgnore, func(m *ENBConfigurationUpdate) *ConnectedengNBList { return &m.ConnectedengNBToAddList }),
+	apimpl.ListIE(IDConnectedengNBToRemoveList, CriticalityIgnore, func(m *ENBConfigurationUpdate) *ConnectedengNBList { return &m.ConnectedengNBToRemoveList }),
 }
 
 func (m *ENBConfigurationUpdate) encodeBody(w *per.Writer, enc per.Encoding) error {
@@ -99,6 +108,10 @@ func ParseENBConfigurationUpdate(value []byte) (*ENBConfigurationUpdate, error) 
 	return parseMessageBody[ENBConfigurationUpdate](ProcENBConfigurationUpdate, TriggeringInitiatingMessage, eNBConfigurationUpdateIEs, value)
 }
 
+func DecodeENBConfigurationUpdate(value []byte) (*ENBConfigurationUpdate, error) {
+	return decodeMessageBody[ENBConfigurationUpdate](ProcENBConfigurationUpdate, eNBConfigurationUpdateIEs, value)
+}
+
 // TS 36.413 §9.1.8.8.
 type ENBConfigurationUpdateAcknowledge struct {
 	CriticalityDiagnostics *CriticalityDiagnostics
@@ -108,11 +121,11 @@ type ENBConfigurationUpdateAcknowledge struct {
 
 var eNBConfigurationUpdateAcknowledgeIEs = []ieSpec[ENBConfigurationUpdateAcknowledge]{
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *ENBConfigurationUpdateAcknowledge, raw []byte, enc per.Encoding) error {
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *ENBConfigurationUpdateAcknowledge, r *per.Reader, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
-			if err := perIEDecode(raw, &cd); err != nil {
+			if err := decodeIE(r, &cd); err != nil {
 				return err
 			}
 
@@ -120,7 +133,7 @@ var eNBConfigurationUpdateAcknowledgeIEs = []ieSpec[ENBConfigurationUpdateAcknow
 
 			return nil
 		},
-		encode: func(m *ENBConfigurationUpdateAcknowledge) (per.Marshaler, bool) {
+		Encode: func(m *ENBConfigurationUpdateAcknowledge) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -154,6 +167,10 @@ func ParseENBConfigurationUpdateAcknowledge(value []byte) (*ENBConfigurationUpda
 	return parseMessageBody[ENBConfigurationUpdateAcknowledge](ProcENBConfigurationUpdate, TriggeringSuccessfulOutcome, eNBConfigurationUpdateAcknowledgeIEs, value)
 }
 
+func DecodeENBConfigurationUpdateAcknowledge(value []byte) (*ENBConfigurationUpdateAcknowledge, error) {
+	return decodeMessageBody[ENBConfigurationUpdateAcknowledge](ProcENBConfigurationUpdate, eNBConfigurationUpdateAcknowledgeIEs, value)
+}
+
 // TS 36.413 §9.1.8.9.
 type ENBConfigurationUpdateFailure struct {
 	Cause                  *Cause
@@ -165,11 +182,11 @@ type ENBConfigurationUpdateFailure struct {
 
 var eNBConfigurationUpdateFailureIEs = []ieSpec[ENBConfigurationUpdateFailure]{
 	{
-		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *ENBConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
+		ID: IDCause, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *ENBConfigurationUpdateFailure, r *per.Reader, enc per.Encoding) error {
 			var v Cause
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -177,7 +194,7 @@ var eNBConfigurationUpdateFailureIEs = []ieSpec[ENBConfigurationUpdateFailure]{
 
 			return nil
 		},
-		encode: func(m *ENBConfigurationUpdateFailure) (per.Marshaler, bool) {
+		Encode: func(m *ENBConfigurationUpdateFailure) (per.Marshaler, bool) {
 			if m.Cause == nil {
 				return nil, false
 			}
@@ -186,11 +203,11 @@ var eNBConfigurationUpdateFailureIEs = []ieSpec[ENBConfigurationUpdateFailure]{
 		},
 	},
 	{
-		id: IDTimeToWait, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *ENBConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
+		ID: IDTimeToWait, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *ENBConfigurationUpdateFailure, r *per.Reader, enc per.Encoding) error {
 			var ttw TimeToWait
 
-			if err := perIEDecode(raw, &ttw); err != nil {
+			if err := decodeIE(r, &ttw); err != nil {
 				return err
 			}
 
@@ -198,7 +215,7 @@ var eNBConfigurationUpdateFailureIEs = []ieSpec[ENBConfigurationUpdateFailure]{
 
 			return nil
 		},
-		encode: func(m *ENBConfigurationUpdateFailure) (per.Marshaler, bool) {
+		Encode: func(m *ENBConfigurationUpdateFailure) (per.Marshaler, bool) {
 			if m.TimeToWait == nil {
 				return nil, false
 			}
@@ -207,11 +224,11 @@ var eNBConfigurationUpdateFailureIEs = []ieSpec[ENBConfigurationUpdateFailure]{
 		},
 	},
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *ENBConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *ENBConfigurationUpdateFailure, r *per.Reader, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
-			if err := perIEDecode(raw, &cd); err != nil {
+			if err := decodeIE(r, &cd); err != nil {
 				return err
 			}
 
@@ -219,7 +236,7 @@ var eNBConfigurationUpdateFailureIEs = []ieSpec[ENBConfigurationUpdateFailure]{
 
 			return nil
 		},
-		encode: func(m *ENBConfigurationUpdateFailure) (per.Marshaler, bool) {
+		Encode: func(m *ENBConfigurationUpdateFailure) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -251,4 +268,8 @@ func (m *ENBConfigurationUpdateFailure) Marshal() ([]byte, error) {
 
 func ParseENBConfigurationUpdateFailure(value []byte) (*ENBConfigurationUpdateFailure, error) {
 	return parseMessageBody[ENBConfigurationUpdateFailure](ProcENBConfigurationUpdate, TriggeringUnsuccessfulOutcome, eNBConfigurationUpdateFailureIEs, value)
+}
+
+func DecodeENBConfigurationUpdateFailure(value []byte) (*ENBConfigurationUpdateFailure, error) {
+	return decodeMessageBody[ENBConfigurationUpdateFailure](ProcENBConfigurationUpdate, eNBConfigurationUpdateFailureIEs, value)
 }

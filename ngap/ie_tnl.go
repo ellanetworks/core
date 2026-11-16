@@ -4,54 +4,172 @@
 package ngap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 38.413, NGAP-Constants.
 const maxnoofTNLAssociations = 32
 
-// CPTransportLayerInformation alternatives (TS 38.413 §9.3.2.6). The CHOICE is
-// closed by a choice-Extensions alternative rather than an extension marker, so
-// the index is constrained across both.
-const (
-	cpTransportLayerInformationEndpointIPAddress = iota
-	cpTransportLayerInformationChoiceExtensions
-
-	cpTransportLayerInformationAlternatives = 2
-)
-
 // CPTransportLayerInformation ::= CHOICE { endpointIPAddress
 // TransportLayerAddress, choice-Extensions } (TS 38.413 §9.3.2.6).
-//
-// Only endpointIPAddress is modeled: the sole choice-Extensions alternative is
-// EndpointIPAddressAndPort, which Ella Core neither sends nor acts on.
 type CPTransportLayerInformation struct {
-	EndpointIPAddress TransportLayerAddress
+	EndpointIPAddress        *TransportLayerAddress    `per:",choice:0"`
+	EndpointIPAddressAndPort *EndpointIPAddressAndPort `per:",choice:1,extie:IDEndpointIPAddressAndPort,crit:reject"`
+	ChoiceExtension          *SingleContainer          `per:",choice:1,extie"`
+	choiceCriticality        apimpl.WireCriticality    `per:",choicecrit"`
 }
 
-func (c CPTransportLayerInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, cpTransportLayerInformationAlternatives-1,
-		cpTransportLayerInformationEndpointIPAddress); err != nil {
+type EndpointIPAddressAndPort struct {
+	EndpointIPAddress TransportLayerAddress
+	PortNumber        PortNumber
+	iEExtensions      extensionMeta `per:",exttable"`
+}
+
+type TNLAssociationUsage uint8
+
+const (
+	TNLAssociationUsageUE TNLAssociationUsage = iota
+	TNLAssociationUsageNonUE
+	TNLAssociationUsageBoth
+)
+
+type TNLAddressWeightFactor uint8
+
+func (f TNLAddressWeightFactor) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeConstrainedWholeNumber(w, enc, 0, 255, int64(f))
+}
+
+func (f *TNLAddressWeightFactor) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 255)
+	if err != nil {
 		return err
 	}
 
-	return c.EndpointIPAddress.MarshalPER(w, enc)
+	*f = TNLAddressWeightFactor(v)
+
+	return nil
 }
 
-func (c *CPTransportLayerInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, cpTransportLayerInformationAlternatives-1)
+type AMFTNLAssociationSetupItem struct {
+	AMFTNLAssociationAddress CPTransportLayerInformation
+	iEExtensions             extensionMeta          `per:",exttable"`
+	extensions               per.ExtensionAdditions `per:",extraw"`
+}
+
+type AMFTNLAssociationSetupList []AMFTNLAssociationSetupItem
+
+func (l AMFTNLAssociationSetupList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofTNLAssociations, []AMFTNLAssociationSetupItem(l))
+}
+
+func (l *AMFTNLAssociationSetupList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[AMFTNLAssociationSetupItem](r, enc, 1, maxnoofTNLAssociations)
 	if err != nil {
-		return fmt.Errorf("ngap: CPTransportLayerInformation choice: %w", err)
+		return err
 	}
 
-	if idx != cpTransportLayerInformationEndpointIPAddress {
-		// A zero address must not read as one the peer selected.
-		return fmt.Errorf("%w: CPTransportLayerInformation alternative %d", errNotComprehended, idx)
+	*l = items
+
+	return nil
+}
+
+type TNLAssociationItem struct {
+	TNLAssociationAddress CPTransportLayerInformation
+	Cause                 Cause
+	iEExtensions          extensionMeta          `per:",exttable"`
+	extensions            per.ExtensionAdditions `per:",extraw"`
+}
+
+type TNLAssociationList []TNLAssociationItem
+
+func (l TNLAssociationList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofTNLAssociations, []TNLAssociationItem(l))
+}
+
+func (l *TNLAssociationList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[TNLAssociationItem](r, enc, 1, maxnoofTNLAssociations)
+	if err != nil {
+		return err
 	}
 
-	return c.EndpointIPAddress.UnmarshalPER(r, enc)
+	*l = items
+
+	return nil
+}
+
+type AMFTNLAssociationToAddItem struct {
+	AMFTNLAssociationAddress CPTransportLayerInformation
+	TNLAssociationUsage      *TNLAssociationUsage `per:",optional"`
+	TNLAddressWeightFactor   TNLAddressWeightFactor
+	iEExtensions             extensionMeta          `per:",exttable"`
+	extensions               per.ExtensionAdditions `per:",extraw"`
+}
+
+type AMFTNLAssociationToAddList []AMFTNLAssociationToAddItem
+
+func (l AMFTNLAssociationToAddList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofTNLAssociations, []AMFTNLAssociationToAddItem(l))
+}
+
+func (l *AMFTNLAssociationToAddList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[AMFTNLAssociationToAddItem](r, enc, 1, maxnoofTNLAssociations)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+type AMFTNLAssociationToRemoveItem struct {
+	AMFTNLAssociationAddress                 CPTransportLayerInformation
+	TNLAssociationTransportLayerAddressNGRAN *CPTransportLayerInformation `per:",extie:IDTNLAssociationTransportLayerAddressNGRAN,crit:reject"`
+	iEExtensions                             extensionMeta                `per:",exttable"`
+	extensions                               per.ExtensionAdditions       `per:",extraw"`
+}
+
+type AMFTNLAssociationToRemoveList []AMFTNLAssociationToRemoveItem
+
+func (l AMFTNLAssociationToRemoveList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofTNLAssociations, []AMFTNLAssociationToRemoveItem(l))
+}
+
+func (l *AMFTNLAssociationToRemoveList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[AMFTNLAssociationToRemoveItem](r, enc, 1, maxnoofTNLAssociations)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+type AMFTNLAssociationToUpdateItem struct {
+	AMFTNLAssociationAddress CPTransportLayerInformation
+	TNLAssociationUsage      *TNLAssociationUsage    `per:",optional"`
+	TNLAddressWeightFactor   *TNLAddressWeightFactor `per:",optional"`
+	iEExtensions             extensionMeta           `per:",exttable"`
+	extensions               per.ExtensionAdditions  `per:",extraw"`
+}
+
+type AMFTNLAssociationToUpdateList []AMFTNLAssociationToUpdateItem
+
+func (l AMFTNLAssociationToUpdateList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofTNLAssociations, []AMFTNLAssociationToUpdateItem(l))
+}
+
+func (l *AMFTNLAssociationToUpdateList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[AMFTNLAssociationToUpdateItem](r, enc, 1, maxnoofTNLAssociations)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
 }
 
 // NGRANTNLAssociationToRemoveItem ::= SEQUENCE {
@@ -63,7 +181,7 @@ func (c *CPTransportLayerInformation) UnmarshalPER(r *per.Reader, enc per.Encodi
 type NGRANTNLAssociationToRemoveItem struct {
 	TNLAssociationTransportLayerAddress    CPTransportLayerInformation
 	TNLAssociationTransportLayerAddressAMF *CPTransportLayerInformation `per:",optional"`
-	_                                      ieExtensions                 `per:",skip"`
+	iEExtensions                           extensionMeta                `per:",exttable"`
 }
 
 // NGRANTNLAssociationToRemoveList ::= SEQUENCE

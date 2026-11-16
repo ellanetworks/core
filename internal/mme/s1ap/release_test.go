@@ -65,7 +65,7 @@ func TestUEContextReleaseRequestFromENB(t *testing.T) {
 
 	req := &s1ap.UEContextReleaseRequest{
 		MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: 7,
-		Cause: s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}),
+		Cause: s1ap.Ptr(s1ap.CauseRadioNetworkUnspecified.Cause()),
 	}
 
 	b, _ := req.Marshal()
@@ -108,7 +108,7 @@ func TestUEContextReleaseRequestFromENB(t *testing.T) {
 	}
 
 	ind := parseOutboundErrorIndication(t, cc.sent[1])
-	if ind.Cause == nil || *ind.Cause != causeUnknownMMEUES1APID {
+	if ind.Cause == nil || !ind.Cause.Equal(causeUnknownMMEUES1APID) {
 		t.Fatalf("expected cause unknown-mme-ue-s1ap-id, got %v", ind.Cause)
 	}
 }
@@ -119,7 +119,7 @@ func TestUEContextReleaseRequestFromForeignENB(t *testing.T) {
 
 	req := &s1ap.UEContextReleaseRequest{
 		MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: ue.Conn().ENBUES1APID(),
-		Cause: s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}),
+		Cause: s1ap.Ptr(s1ap.CauseRadioNetworkUnspecified.Cause()),
 	}
 
 	b, _ := req.Marshal()
@@ -141,7 +141,7 @@ func TestUEContextReleaseRequestFromForeignENB(t *testing.T) {
 	}
 
 	ind := parseOutboundErrorIndication(t, foreign.sent[0])
-	if ind.Cause == nil || *ind.Cause != causeUnknownMMEUES1APID {
+	if ind.Cause == nil || !ind.Cause.Equal(causeUnknownMMEUES1APID) {
 		t.Fatalf("expected cause unknown-mme-ue-s1ap-id, got %v", ind.Cause)
 	}
 }

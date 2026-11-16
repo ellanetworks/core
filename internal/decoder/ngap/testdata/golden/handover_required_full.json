@@ -175,7 +175,117 @@
           "label": "reject",
           "unknown": false
         },
-        "value": "0102"
+        "value": {
+          "hex": "70018000400105010040000501002000450000f11000000001000630320000f1100000101100001e012c04020101100102180103",
+          "source_ngran_node_to_target_ngran_node": {
+            "rrc_container": "80",
+            "pdu_session_resource_information_list": [
+              {
+                "pdu_session_id": 1,
+                "qos_flow_information_list": [
+                  {
+                    "qos_flow_identifier": 1,
+                    "dl_forwarding": {
+                      "type": "enum",
+                      "value": 0,
+                      "label": "dl-forwarding-proposed",
+                      "unknown": false
+                    }
+                  },
+                  {
+                    "qos_flow_identifier": 2
+                  }
+                ],
+                "drbs_to_qos_flows_mapping_list": [
+                  {
+                    "drb_id": 1,
+                    "associated_qos_flow_list": [
+                      {
+                        "qos_flow_identifier": 1,
+                        "qos_flow_mapping_indication": {
+                          "type": "enum",
+                          "value": 0,
+                          "label": "ul",
+                          "unknown": false
+                        }
+                      },
+                      {
+                        "qos_flow_identifier": 2
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "erab_information_list": [
+              {
+                "erab_id": 5,
+                "dl_forwarding": {
+                  "type": "enum",
+                  "value": 0,
+                  "label": "dl-forwarding-proposed",
+                  "unknown": false
+                }
+              }
+            ],
+            "target_cell_id": {
+              "nr_ran_cgi": {
+                "plmn_id": {
+                  "mcc": "001",
+                  "mnc": "01"
+                },
+                "nr_cell_identity": "000000010"
+              }
+            },
+            "index_to_rfsp": 7,
+            "ue_history_information": [
+              {
+                "ng_ran_cell": {
+                  "global_cell_id": {
+                    "eutra_cgi": {
+                      "plmn_id": {
+                        "mcc": "001",
+                        "mnc": "01"
+                      },
+                      "eutra_cell_identity": "0000101"
+                    }
+                  },
+                  "cell_size": {
+                    "type": "enum",
+                    "value": 2,
+                    "label": "medium",
+                    "unknown": false
+                  },
+                  "time_ue_stayed_in_cell": 30,
+                  "time_ue_stayed_in_cell_enhanced_granularity": 300,
+                  "ho_cause_value": {
+                    "group": {
+                      "type": "enum",
+                      "value": 0,
+                      "label": "radioNetwork",
+                      "unknown": false
+                    },
+                    "value": {
+                      "type": "enum",
+                      "value": 16,
+                      "label": "handover-desirable-for-radio-reason",
+                      "unknown": false
+                    }
+                  }
+                }
+              },
+              {
+                "e_utran_cell": "01"
+              },
+              {
+                "utran_cell": "02"
+              },
+              {
+                "geran_cell": "03"
+              }
+            ]
+          }
+        }
       }
     ]
   }

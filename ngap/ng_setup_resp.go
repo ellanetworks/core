@@ -5,6 +5,7 @@ package ngap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 38.413 §9.2.6.2.
@@ -15,6 +16,11 @@ type NGSetupResponse struct {
 	PLMNSupportList        PLMNSupportList
 	CriticalityDiagnostics *CriticalityDiagnostics
 	UERetentionInformation *UERetentionInformation
+	ExtendedAMFName        *ExtendedAMFName
+	IABSupported           *IABSupported
+	MobileIABSupported     *MobileIABSupported
+	AIOTFIdentifier        *AIOTFIdentifier
+	AIOTFName              *AIOTFName
 
 	messageMeta
 }
@@ -24,31 +30,31 @@ var relativeAMFCapacityBounds = per.Bounds{LB: 0, HasLB: true, UB: 255, HasUB: t
 
 var nGSetupResponseIEs = []ieSpec[NGSetupResponse]{
 	{
-		id: IDAMFName, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *NGSetupResponse, raw []byte, enc per.Encoding) error {
+		ID: IDAMFName, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *NGSetupResponse, r *per.Reader, enc per.Encoding) error {
 			var (
 				err error
 				n   Name
 			)
-			if err = perIEDecode(raw, &n); err == nil {
+			if err = decodeIE(r, &n); err == nil {
 				m.AMFName = string(n)
 			}
 
 			return err
 		},
-		encode: func(m *NGSetupResponse) (per.Marshaler, bool) { return Name(m.AMFName), true },
+		Encode: func(m *NGSetupResponse) (per.Marshaler, bool) { return Name(m.AMFName), true },
 	},
 	{
-		id: IDServedGUAMIList, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *NGSetupResponse, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ServedGUAMIList)
+		ID: IDServedGUAMIList, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *NGSetupResponse, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.ServedGUAMIList)
 		},
-		encode: func(m *NGSetupResponse) (per.Marshaler, bool) { return m.ServedGUAMIList, true },
+		Encode: func(m *NGSetupResponse) (per.Marshaler, bool) { return m.ServedGUAMIList, true },
 	},
 	{
-		id: IDRelativeAMFCapacity, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *NGSetupResponse, raw []byte, enc per.Encoding) error {
-			v, err := per.DecodeInteger(per.NewReader(raw), enc, relativeAMFCapacityBounds)
+		ID: IDRelativeAMFCapacity, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *NGSetupResponse, r *per.Reader, enc per.Encoding) error {
+			v, err := per.DecodeInteger(r, enc, relativeAMFCapacityBounds)
 			if err != nil {
 				return err
 			}
@@ -58,7 +64,7 @@ var nGSetupResponseIEs = []ieSpec[NGSetupResponse]{
 
 			return nil
 		},
-		encode: func(m *NGSetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *NGSetupResponse) (per.Marshaler, bool) {
 			if m.RelativeAMFCapacity == nil {
 				return nil, false
 			}
@@ -69,18 +75,18 @@ var nGSetupResponseIEs = []ieSpec[NGSetupResponse]{
 		},
 	},
 	{
-		id: IDPLMNSupportList, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *NGSetupResponse, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.PLMNSupportList)
+		ID: IDPLMNSupportList, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *NGSetupResponse, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.PLMNSupportList)
 		},
-		encode: func(m *NGSetupResponse) (per.Marshaler, bool) { return m.PLMNSupportList, true },
+		Encode: func(m *NGSetupResponse) (per.Marshaler, bool) { return m.PLMNSupportList, true },
 	},
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *NGSetupResponse, raw []byte, enc per.Encoding) error {
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *NGSetupResponse, r *per.Reader, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
-			if err := perIEDecode(raw, &cd); err != nil {
+			if err := decodeIE(r, &cd); err != nil {
 				return err
 			}
 
@@ -88,7 +94,7 @@ var nGSetupResponseIEs = []ieSpec[NGSetupResponse]{
 
 			return nil
 		},
-		encode: func(m *NGSetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *NGSetupResponse) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -97,11 +103,11 @@ var nGSetupResponseIEs = []ieSpec[NGSetupResponse]{
 		},
 	},
 	{
-		id: IDUERetentionInformation, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *NGSetupResponse, raw []byte, enc per.Encoding) error {
+		ID: IDUERetentionInformation, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *NGSetupResponse, r *per.Reader, enc per.Encoding) error {
 			var v UERetentionInformation
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -109,7 +115,7 @@ var nGSetupResponseIEs = []ieSpec[NGSetupResponse]{
 
 			return nil
 		},
-		encode: func(m *NGSetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *NGSetupResponse) (per.Marshaler, bool) {
 			if m.UERetentionInformation == nil {
 				return nil, false
 			}
@@ -117,6 +123,31 @@ var nGSetupResponseIEs = []ieSpec[NGSetupResponse]{
 			return m.UERetentionInformation, true
 		},
 	},
+	apimpl.OptionalIE(IDIABSupported, CriticalityIgnore, func(m *NGSetupResponse) **IABSupported { return &m.IABSupported }),
+	{
+		ID: IDExtendedAMFName, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *NGSetupResponse, r *per.Reader, enc per.Encoding) error {
+			var v ExtendedAMFName
+
+			if err := decodeIE(r, &v); err != nil {
+				return err
+			}
+
+			m.ExtendedAMFName = &v
+
+			return nil
+		},
+		Encode: func(m *NGSetupResponse) (per.Marshaler, bool) {
+			if m.ExtendedAMFName == nil {
+				return nil, false
+			}
+
+			return m.ExtendedAMFName, true
+		},
+	},
+	apimpl.OptionalIE(IDMobileIABSupported, CriticalityIgnore, func(m *NGSetupResponse) **MobileIABSupported { return &m.MobileIABSupported }),
+	apimpl.OptionalIE(IDAIOTFIdentifier, CriticalityReject, func(m *NGSetupResponse) **AIOTFIdentifier { return &m.AIOTFIdentifier }),
+	apimpl.OptionalIE(IDAIOTFName, CriticalityReject, func(m *NGSetupResponse) **AIOTFName { return &m.AIOTFName }),
 }
 
 func (m *NGSetupResponse) encodeBody(w *per.Writer, enc per.Encoding) error {
@@ -141,4 +172,8 @@ func (m *NGSetupResponse) Marshal() ([]byte, error) {
 
 func ParseNGSetupResponse(value []byte) (*NGSetupResponse, error) {
 	return parseMessageBody[NGSetupResponse](ProcNGSetup, TriggeringSuccessfulOutcome, nGSetupResponseIEs, value)
+}
+
+func DecodeNGSetupResponse(value []byte) (*NGSetupResponse, error) {
+	return decodeMessageBody[NGSetupResponse](ProcNGSetup, nGSetupResponseIEs, value)
 }

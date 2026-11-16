@@ -3,6 +3,8 @@
 
 package ngap
 
+import "github.com/ellanetworks/core/per"
+
 // maxnoofServedGUAMIs bounds ServedGUAMIList (TS 38.413, NGAP-Constants).
 const maxnoofServedGUAMIs = 256
 
@@ -26,21 +28,30 @@ type AMFPointer uint8
 // GUAMI ::= SEQUENCE { pLMNIdentity, aMFRegionID, aMFSetID, aMFPointer,
 // iE-Extensions OPTIONAL } (extensible) — TS 38.413 §9.3.3.3.
 type GUAMI struct {
-	_            [0]struct{} `per:"extseq"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 	PLMNIdentity PLMNIdentity
 	AMFRegionID  AMFRegionID
 	AMFSetID     AMFSetID
 	AMFPointer   AMFPointer
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta `per:",exttable"`
 }
+
+type GUAMIType uint8
+
+const (
+	GUAMITypeNative GUAMIType = iota
+	GUAMITypeMapped
+)
 
 // ServedGUAMIItem ::= SEQUENCE { gUAMI, backupAMFName OPTIONAL, iE-Extensions
 // OPTIONAL } (extensible).
 type ServedGUAMIItem struct {
-	_             [0]struct{} `per:"extseq"`
-	GUAMI         GUAMI
-	BackupAMFName *Name        `per:",optional"`
-	_             ieExtensions `per:",skip"`
+	GUAMI                 GUAMI
+	BackupAMFName         *Name                  `per:",optional"`
+	GUAMIType             *GUAMIType             `per:",extie:IDGUAMIType,crit:ignore"`
+	ExtendedBackupAMFName *ExtendedAMFName       `per:",extie:IDExtendedBackupAMFName,crit:ignore"`
+	iEExtensions          extensionMeta          `per:",exttable"`
+	extensions            per.ExtensionAdditions `per:",extraw"`
 }
 
 // ServedGUAMIList ::= SEQUENCE (SIZE(1..maxnoofServedGUAMIs)) OF

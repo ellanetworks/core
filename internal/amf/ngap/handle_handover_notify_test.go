@@ -33,8 +33,8 @@ func TestHandoverNotify_UnknownRanUeNgapID(t *testing.T) {
 		t.Fatal("expected Cause in ErrorIndication, got nil")
 	}
 
-	wantRadioNetworkCause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownLocalUENGAPID}
-	if errInd.Cause == nil || *errInd.Cause != wantRadioNetworkCause {
+	wantRadioNetworkCause := ngap.CauseRadioNetworkUnknownLocalUENGAPID.Cause()
+	if errInd.Cause == nil || !errInd.Cause.Equal(wantRadioNetworkCause) {
 		t.Errorf("cause = %v, want unknown-local-UE-NGAP-ID", errInd.Cause)
 	}
 
@@ -125,16 +125,21 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 
 	cmd := sourceNGAPSender.SentUEContextReleaseCommands[0]
 
-	if cmd.UENGAPIDs.AMFUENGAPID != 100 {
-		t.Errorf("expected AmfUeNgapID=100 (source), got %d", cmd.UENGAPIDs.AMFUENGAPID)
+	pair := cmd.UENGAPIDs.UENGAPIDPair
+	if pair == nil {
+		t.Fatalf("expected the UE-NGAP-ID pair, got %+v", cmd.UENGAPIDs)
 	}
 
-	if cmd.UENGAPIDs.RANUENGAPID != 10 {
-		t.Errorf("expected RanUeNgapID=10 (source), got %d", cmd.UENGAPIDs.RANUENGAPID)
+	if pair.AMFUENGAPID != 100 {
+		t.Errorf("expected AmfUeNgapID=100 (source), got %d", pair.AMFUENGAPID)
 	}
 
-	wantCause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkSuccessfulHandover}
-	if cmd.Cause == nil || *cmd.Cause != wantCause {
+	if pair.RANUENGAPID != 10 {
+		t.Errorf("expected RanUeNgapID=10 (source), got %d", pair.RANUENGAPID)
+	}
+
+	wantCause := ngap.CauseRadioNetworkSuccessfulHandover.Cause()
+	if cmd.Cause == nil || !cmd.Cause.Equal(wantCause) {
 		t.Errorf("cause = %v, want successful-handover", cmd.Cause)
 	}
 

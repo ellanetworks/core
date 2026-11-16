@@ -1,0 +1,119 @@
+{
+  "summary": "PDUSessionResourceSetup, AMF-UE=1, RAN-UE=2",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 29,
+    "label": "PDUSessionResourceSetup",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 10,
+          "label": "AMF-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 85,
+          "label": "RAN-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 2
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 83,
+          "label": "RANPagingPriority",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 74,
+          "label": "PDUSessionResourceSetupListSUReq",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "pdu_session_id": 1,
+            "snssai": {
+              "sst": 1
+            },
+            "pdu_session_resource_setup_request_transfer": {
+              "ul_ng_u_up_tnl_information": {
+                "gtp_tunnel": {
+                  "gtp_teid": 17,
+                  "transport_layer_address": "10.0.0.1"
+                }
+              },
+              "qos_flow_setup_request_list": [
+                {
+                  "qos_id": 1,
+                  "five_qi": 9,
+                  "pri_arp": 8
+                }
+              ],
+              "pdu_s_type": {
+                "type": "enum",
+                "value": 0,
+                "label": "ipv4",
+                "unknown": false
+              },
+              "redundant_pdu_session_information": {
+                "rsn": {
+                  "type": "enum",
+                  "value": 1,
+                  "label": "v2",
+                  "unknown": false
+                }
+              },
+              "common_network_instance": {
+                "hex": "696e"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

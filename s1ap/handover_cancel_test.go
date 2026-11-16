@@ -8,7 +8,7 @@ import (
 )
 
 func TestHandoverCancelRoundTrip(t *testing.T) {
-	in := &HandoverCancel{MMEUES1APID: 7, ENBUES1APID: 2, Cause: Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 5})}
+	in := &HandoverCancel{MMEUES1APID: 7, ENBUES1APID: 2, Cause: Ptr(CauseRadioNetworkPartialHandover.Cause())}
 
 	b, err := in.Marshal()
 	if err != nil {
@@ -30,7 +30,7 @@ func TestHandoverCancelRoundTrip(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if out.MMEUES1APID != in.MMEUES1APID || out.ENBUES1APID != in.ENBUES1APID || deref(out.Cause) != deref(in.Cause) {
+	if out.MMEUES1APID != in.MMEUES1APID || out.ENBUES1APID != in.ENBUES1APID || !deref(out.Cause).Equal(deref(in.Cause)) {
 		t.Fatalf("cancel = %+v, want %+v", out, in)
 	}
 

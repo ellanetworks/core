@@ -56,7 +56,7 @@ func runS1Reset(_ context.Context, env scenarios.Env, _ any) error {
 	// and does not race the attach.
 	time.Sleep(2 * time.Second)
 
-	cause := s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 0}
+	cause := s1ap.CauseMiscControlProcessingOverload.Cause()
 	if err := e.SendReset(cause, true, nil); err != nil {
 		return fmt.Errorf("send Reset: %w", err)
 	}

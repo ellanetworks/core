@@ -47,7 +47,7 @@ func TestDecodeNGAPMessage_AMFStatusIndication(t *testing.T) {
 		t.Errorf("Criticality = %v, want reject", item0.Criticality)
 	}
 
-	unavailableGuamiList, ok := item0.Value.([]Guami)
+	unavailableGuamiList, ok := item0.Value.([]UnavailableGUAMI)
 	if !ok {
 		t.Fatalf("expected UnavailableGUAMIList type, got %T", item0.Value)
 	}

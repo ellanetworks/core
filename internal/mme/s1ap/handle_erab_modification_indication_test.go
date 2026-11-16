@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/per/ap"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -32,7 +33,7 @@ func erabModValue(t *testing.T, req *s1ap.ERABModificationIndication) []byte {
 func modifiedItem(addr [4]byte, teid uint32) s1ap.ERABToBeModifiedItemBearerModInd {
 	return s1ap.ERABToBeModifiedItemBearerModInd{
 		ERABID:                s1ap.ERABID(mme.DefaultERABID),
-		TransportLayerAddress: s1ap.TransportLayerAddress(addr[:]),
+		TransportLayerAddress: ap.TransportLayerAddressFromOctets(addr[:]),
 		DLGTPTEID:             s1ap.GTPTEID(teid),
 	}
 }

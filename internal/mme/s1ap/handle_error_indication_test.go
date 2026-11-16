@@ -16,7 +16,7 @@ func TestErrorIndicationReleasesReferencedUE(t *testing.T) {
 	ue, cc := securedUE(t, m)
 
 	id := ue.Conn().MMEUES1APID
-	cause := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}
+	cause := s1ap.CauseRadioNetworkUnspecified.Cause()
 
 	b, err := (&s1ap.ErrorIndication{MMEUES1APID: &id, Cause: &cause}).Marshal()
 	if err != nil {
@@ -36,7 +36,7 @@ func TestErrorIndicationWithoutUEIsNoop(t *testing.T) {
 	m := newTestMME(t)
 
 	b, err := (&s1ap.ErrorIndication{
-		Cause: s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 0}),
+		Cause: s1ap.Ptr(s1ap.CauseMiscControlProcessingOverload.Cause()),
 	}).Marshal()
 	if err != nil {
 		t.Fatal(err)
@@ -56,7 +56,7 @@ func TestErrorIndicationFromAnotherENBDoesNotRelease(t *testing.T) {
 	ue, cc := securedUE(t, m)
 
 	id := ue.Conn().MMEUES1APID
-	cause := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}
+	cause := s1ap.CauseRadioNetworkUnspecified.Cause()
 
 	b, err := (&s1ap.ErrorIndication{MMEUES1APID: &id, Cause: &cause}).Marshal()
 	if err != nil {

@@ -29,8 +29,8 @@ func TestHandleUplinkNASTransport_UnknownUeConn_SendsErrorIndication(t *testing.
 
 	cause := sender.SentErrorIndications[0].Cause
 
-	want := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownLocalUENGAPID}
-	if cause == nil || *cause != want {
+	want := ngap.CauseRadioNetworkUnknownLocalUENGAPID.Cause()
+	if cause == nil || !cause.Equal(want) {
 		t.Errorf("cause = %v, want unknown-local-UE-NGAP-ID", cause)
 	}
 }
@@ -140,14 +140,10 @@ func TestHandleUplinkNASTransport_LocationUpdatedBeforeNAS(t *testing.T) {
 	ueConn.AMFForTest().AttachUeConn(t.Context(), amfUe, ueConn)
 
 	HandleUplinkNASTransport(context.Background(), amfInstance, ran, &ngap.UplinkNASTransport{
-		AMFUENGAPID: 10,
-		RANUENGAPID: 1,
-		NASPDU:      ngap.NASPDU{0xCC},
-		UserLocationInformation: &ngap.UserLocationInformation{
-			Kind: ngap.UserLocationNR, PLMNIdentity: ngap.PLMNIdentity{0x00, 0xf1, 0x10},
-			CellIdentity: 0x123456789,
-			TAI:          ngap.TAI{PLMNIdentity: ngap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1},
-		},
+		AMFUENGAPID:             10,
+		RANUENGAPID:             1,
+		NASPDU:                  ngap.NASPDU{0xCC},
+		UserLocationInformation: &ngap.UserLocationInformation{NR: &ngap.UserLocationInformationNR{NRCGI: ngap.NRCGI{PLMNIdentity: ngap.PLMNIdentity{0x00, 0xf1, 0x10}, NRCellIdentity: ngap.NRCellIdentity(0x123456789)}, TAI: ngap.TAI{PLMNIdentity: ngap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}}},
 	})
 
 	if len(fakeNAS.Calls) != 1 {

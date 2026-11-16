@@ -314,7 +314,7 @@ func decodeKMStringLen(
 		return "", err
 	}
 
-	return expandChars(t, chars, b), nil
+	return expandChars(t, chars, b)
 }
 
 func decodeFixedChars(r *Reader, enc Encoding, t charStringType, n int, b int, octetAlign bool) (string, error) {
@@ -332,18 +332,25 @@ func decodeFixedChars(r *Reader, enc Encoding, t charStringType, n int, b int, o
 		chars = append(chars, uint32(v))
 	}
 
-	return expandChars(t, chars, b), nil
+	return expandChars(t, chars, b)
 }
 
 // expandChars converts compacted numeric values back to a string (§30.5.4).
-func expandChars(t charStringType, chars []uint32, b int) string {
+func expandChars(t charStringType, chars []uint32, b int) (string, error) {
+	var sb strings.Builder
+
 	if !needsCompaction(t, b) {
-		var sb strings.Builder
+		info := charSet(t)
+
 		for _, v := range chars {
+			if uint64(v) > info.ub || uint64(v) < info.lb {
+				return "", fmt.Errorf("%w: character %q outside the permitted alphabet", ErrOverflow, rune(v))
+			}
+
 			sb.WriteRune(rune(v))
 		}
 
-		return sb.String()
+		return sb.String(), nil
 	}
 
 	table := buildCharTable(t)
@@ -353,10 +360,14 @@ func expandChars(t charStringType, chars []uint32, b int) string {
 		reverse[v] = r
 	}
 
-	var sb strings.Builder
 	for _, v := range chars {
-		sb.WriteRune(reverse[v])
+		r, ok := reverse[v]
+		if !ok {
+			return "", fmt.Errorf("%w: character index %d outside the permitted alphabet", ErrOverflow, v)
+		}
+
+		sb.WriteRune(r)
 	}
 
-	return sb.String()
+	return sb.String(), nil
 }

@@ -63,7 +63,7 @@ func BuildQoSFlowsModifyRequestTransfer(addOrModify []QoSFlow, release []uint8) 
 	for _, qfi := range release {
 		transfer.QosFlowToRelease = append(transfer.QosFlowToRelease, libngap.QosFlowWithCauseItem{
 			QosFlowIdentifier: libngap.QosFlowIdentifier(qfi),
-			Cause:             libngap.Cause{Group: libngap.CauseGroupNAS, Value: libngap.CauseNASNormalRelease},
+			Cause:             libngap.CauseNASNormalRelease.Cause(),
 		})
 	}
 
@@ -120,11 +120,11 @@ func ParseModifyUnsuccessful(n2 []byte) (QoSFlowsOutcome, error) {
 }
 
 func handoverTriggered(c libngap.Cause) bool {
-	if c.Group != libngap.CauseGroupRadioNetwork || c.Extended {
+	if c.RadioNetwork == nil {
 		return false
 	}
 
-	switch c.Value {
+	switch *c.RadioNetwork {
 	case libngap.CauseRadioNetworkNGIntraSystemHandoverTriggered, libngap.CauseRadioNetworkNGInterSystemHandoverTriggered, libngap.CauseRadioNetworkXnHandoverTriggered:
 		return true
 	default:
@@ -133,7 +133,7 @@ func handoverTriggered(c libngap.Cause) bool {
 }
 
 func epsFallbackTriggered(c libngap.Cause) bool {
-	return c.Group == libngap.CauseGroupRadioNetwork && c.Value == libngap.CauseRadioNetworkIMSVoiceEPSFallbackTriggered && !c.Extended
+	return c.RadioNetwork != nil && *c.RadioNetwork == libngap.CauseRadioNetworkIMSVoiceEPSFallbackTriggered
 }
 
 type AdmittedQoSFlows struct {

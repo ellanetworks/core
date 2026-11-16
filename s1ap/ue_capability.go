@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 36.413 §9.1.10.
@@ -14,32 +15,44 @@ type UECapabilityInfoIndication struct {
 	UERadioCapability UERadioCapability
 	// One opaque OCTET STRING, where NGAP's counterpart is a SEQUENCE of
 	// separate NR and E-UTRA capabilities (§9.2.1.98).
-	UERadioCapabilityForPaging UERadioCapabilityForPaging
+	UERadioCapabilityForPaging              UERadioCapabilityForPaging
+	UEApplicationLayerMeasurementCapability *UEApplicationLayerMeasurementCapability
+	LTEMIndication                          *LTEMIndication
+	UERadioCapabilityNRFormat               *UERadioCapability
+	UERadioCapabilityForPagingNRFormat      *UERadioCapabilityForPaging
 
 	messageMeta
 }
 
 var uECapabilityInfoIndicationIEs = []ieSpec[UECapabilityInfoIndication]{
 	{
-		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *UECapabilityInfoIndication, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.MMEUES1APID)
+		ID: IDMMEUES1APID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *UECapabilityInfoIndication, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.MMEUES1APID)
 		},
-		encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+		Encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *UECapabilityInfoIndication, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ENBUES1APID)
+		ID: IDENBUES1APID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *UECapabilityInfoIndication, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.ENBUES1APID)
 		},
-		encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+		Encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: IDUERadioCapability, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *UECapabilityInfoIndication, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.UERadioCapability)
+		ID: IDUERadioCapability, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *UECapabilityInfoIndication, r *per.Reader, enc per.Encoding) error {
+			if err := decodeIE(r, &m.UERadioCapability); err != nil {
+				return err
+			}
+
+			if m.UERadioCapability == nil {
+				m.UERadioCapability = []byte{}
+			}
+
+			return nil
 		},
-		encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) {
+		Encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) {
 			if m.UERadioCapability == nil {
 				return nil, false
 			}
@@ -48,11 +61,11 @@ var uECapabilityInfoIndicationIEs = []ieSpec[UECapabilityInfoIndication]{
 		},
 	},
 	{
-		id: IDUERadioCapabilityForPaging, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *UECapabilityInfoIndication, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.UERadioCapabilityForPaging)
+		ID: IDUERadioCapabilityForPaging, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *UECapabilityInfoIndication, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.UERadioCapabilityForPaging)
 		},
-		encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) {
+		Encode: func(m *UECapabilityInfoIndication) (per.Marshaler, bool) {
 			if m.UERadioCapabilityForPaging == nil {
 				return nil, false
 			}
@@ -60,6 +73,14 @@ var uECapabilityInfoIndicationIEs = []ieSpec[UECapabilityInfoIndication]{
 			return m.UERadioCapabilityForPaging, true
 		},
 	},
+	apimpl.OptionalIE(IDUEApplicationLayerMeasurementCapability, CriticalityIgnore, func(m *UECapabilityInfoIndication) **UEApplicationLayerMeasurementCapability {
+		return &m.UEApplicationLayerMeasurementCapability
+	}),
+	apimpl.OptionalIE(IDLTEMIndication, CriticalityIgnore, func(m *UECapabilityInfoIndication) **LTEMIndication { return &m.LTEMIndication }),
+	apimpl.OptionalIE(IDUERadioCapabilityNRFormat, CriticalityIgnore, func(m *UECapabilityInfoIndication) **UERadioCapability { return &m.UERadioCapabilityNRFormat }),
+	apimpl.OptionalIE(IDUERadioCapabilityForPagingNRFormat, CriticalityIgnore, func(m *UECapabilityInfoIndication) **UERadioCapabilityForPaging {
+		return &m.UERadioCapabilityForPagingNRFormat
+	}),
 }
 
 func (m *UECapabilityInfoIndication) encodeBody(w *per.Writer, enc per.Encoding) error {
@@ -84,4 +105,8 @@ func (m *UECapabilityInfoIndication) Marshal() ([]byte, error) {
 
 func ParseUECapabilityInfoIndication(value []byte) (*UECapabilityInfoIndication, error) {
 	return parseMessageBody[UECapabilityInfoIndication](ProcUECapabilityInfoIndication, TriggeringInitiatingMessage, uECapabilityInfoIndicationIEs, value)
+}
+
+func DecodeUECapabilityInfoIndication(value []byte) (*UECapabilityInfoIndication, error) {
+	return decodeMessageBody[UECapabilityInfoIndication](ProcUECapabilityInfoIndication, uECapabilityInfoIndicationIEs, value)
 }

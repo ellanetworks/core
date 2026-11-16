@@ -5,17 +5,20 @@ package ngap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // PDUSessionResourceModifyItemModReq ::= SEQUENCE { pDUSessionID, nAS-PDU
 // OPTIONAL, pDUSessionResourceModifyRequestTransfer, iE-Extensions OPTIONAL }
 // (extensible).
 type PDUSessionResourceModifyItemModReq struct {
-	_            [0]struct{} `per:"extseq"`
-	PDUSessionID PDUSessionID
-	NASPDU       *NASPDU `per:",optional"`
-	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	PDUSessionID                          PDUSessionID
+	NASPDU                                *NASPDU `per:",optional"`
+	Transfer                              TransferContainer
+	SNSSAI                                *SNSSAI                      `per:",extie:IDSNSSAI,crit:reject"`
+	PduSessionExpectedUEActivityBehaviour *ExpectedUEActivityBehaviour `per:",extie:IDPduSessionExpectedUEActivityBehaviour,crit:ignore"`
+	iEExtensions                          extensionMeta                `per:",exttable"`
+	extensions                            per.ExtensionAdditions       `per:",extraw"`
 }
 
 // PDUSessionResourceModifyListModReq ::= SEQUENCE
@@ -26,10 +29,10 @@ type PDUSessionResourceModifyListModReq []PDUSessionResourceModifyItemModReq
 // pDUSessionResourceModifyResponseTransfer, iE-Extensions OPTIONAL }
 // (extensible).
 type PDUSessionResourceModifyItemModRes struct {
-	_            [0]struct{} `per:"extseq"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // PDUSessionResourceModifyListModRes ::= SEQUENCE
@@ -40,10 +43,10 @@ type PDUSessionResourceModifyListModRes []PDUSessionResourceModifyItemModRes
 // pDUSessionResourceModifyUnsuccessfulTransfer, iE-Extensions OPTIONAL }
 // (extensible).
 type PDUSessionResourceFailedToModifyItemModRes struct {
-	_            [0]struct{} `per:"extseq"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // PDUSessionResourceFailedToModifyListModRes ::= SEQUENCE
@@ -55,31 +58,33 @@ type PDUSessionResourceModifyRequest struct {
 	AMFUENGAPID              AMFUENGAPID
 	RANUENGAPID              RANUENGAPID
 	PDUSessionResourceModify PDUSessionResourceModifyListModReq
+	RANPagingPriority        *RANPagingPriority
 
 	messageMeta
 }
 
 var pDUSessionResourceModifyRequestIEs = []ieSpec[PDUSessionResourceModifyRequest]{
 	{
-		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceModifyRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.AMFUENGAPID)
+		ID: IDAMFUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceModifyRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.AMFUENGAPID)
 		},
-		encode: func(m *PDUSessionResourceModifyRequest) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
+		Encode: func(m *PDUSessionResourceModifyRequest) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceModifyRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.RANUENGAPID)
+		ID: IDRANUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceModifyRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.RANUENGAPID)
 		},
-		encode: func(m *PDUSessionResourceModifyRequest) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
+		Encode: func(m *PDUSessionResourceModifyRequest) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
+	apimpl.OptionalIE(IDRANPagingPriority, CriticalityIgnore, func(m *PDUSessionResourceModifyRequest) **RANPagingPriority { return &m.RANPagingPriority }),
 	{
-		id: IDPDUSessionResourceModifyListModReq, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceModifyRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.PDUSessionResourceModify)
+		ID: IDPDUSessionResourceModifyListModReq, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceModifyRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.PDUSessionResourceModify)
 		},
-		encode: func(m *PDUSessionResourceModifyRequest) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceModifyRequest) (per.Marshaler, bool) {
 			if m.PDUSessionResourceModify == nil {
 				return nil, false
 			}
@@ -113,6 +118,10 @@ func ParsePDUSessionResourceModifyRequest(value []byte) (*PDUSessionResourceModi
 	return parseMessageBody[PDUSessionResourceModifyRequest](ProcPDUSessionResourceModify, TriggeringInitiatingMessage, pDUSessionResourceModifyRequestIEs, value)
 }
 
+func DecodePDUSessionResourceModifyRequest(value []byte) (*PDUSessionResourceModifyRequest, error) {
+	return decodeMessageBody[PDUSessionResourceModifyRequest](ProcPDUSessionResourceModify, pDUSessionResourceModifyRequestIEs, value)
+}
+
 // TS 38.413 §9.2.1.6.
 type PDUSessionResourceModifyResponse struct {
 	AMFUENGAPID              *AMFUENGAPID
@@ -127,11 +136,11 @@ type PDUSessionResourceModifyResponse struct {
 
 var pDUSessionResourceModifyResponseIEs = []ieSpec[PDUSessionResourceModifyResponse]{
 	{
-		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *PDUSessionResourceModifyResponse, raw []byte, enc per.Encoding) error {
+		ID: IDAMFUENGAPID, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *PDUSessionResourceModifyResponse, r *per.Reader, enc per.Encoding) error {
 			var v AMFUENGAPID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -139,7 +148,7 @@ var pDUSessionResourceModifyResponseIEs = []ieSpec[PDUSessionResourceModifyRespo
 
 			return nil
 		},
-		encode: func(m *PDUSessionResourceModifyResponse) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceModifyResponse) (per.Marshaler, bool) {
 			if m.AMFUENGAPID == nil {
 				return nil, false
 			}
@@ -148,11 +157,11 @@ var pDUSessionResourceModifyResponseIEs = []ieSpec[PDUSessionResourceModifyRespo
 		},
 	},
 	{
-		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *PDUSessionResourceModifyResponse, raw []byte, enc per.Encoding) error {
+		ID: IDRANUENGAPID, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *PDUSessionResourceModifyResponse, r *per.Reader, enc per.Encoding) error {
 			var v RANUENGAPID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -160,7 +169,7 @@ var pDUSessionResourceModifyResponseIEs = []ieSpec[PDUSessionResourceModifyRespo
 
 			return nil
 		},
-		encode: func(m *PDUSessionResourceModifyResponse) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceModifyResponse) (per.Marshaler, bool) {
 			if m.RANUENGAPID == nil {
 				return nil, false
 			}
@@ -169,11 +178,11 @@ var pDUSessionResourceModifyResponseIEs = []ieSpec[PDUSessionResourceModifyRespo
 		},
 	},
 	{
-		id: IDPDUSessionResourceModifyListModRes, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *PDUSessionResourceModifyResponse, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.PDUSessionResourceModify)
+		ID: IDPDUSessionResourceModifyListModRes, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *PDUSessionResourceModifyResponse, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.PDUSessionResourceModify)
 		},
-		encode: func(m *PDUSessionResourceModifyResponse) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceModifyResponse) (per.Marshaler, bool) {
 			if m.PDUSessionResourceModify == nil {
 				return nil, false
 			}
@@ -182,11 +191,11 @@ var pDUSessionResourceModifyResponseIEs = []ieSpec[PDUSessionResourceModifyRespo
 		},
 	},
 	{
-		id: IDPDUSessionResourceFailedToModifyListModRes, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *PDUSessionResourceModifyResponse, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.PDUSessionResourceFailed)
+		ID: IDPDUSessionResourceFailedToModifyListModRes, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *PDUSessionResourceModifyResponse, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.PDUSessionResourceFailed)
 		},
-		encode: func(m *PDUSessionResourceModifyResponse) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceModifyResponse) (per.Marshaler, bool) {
 			if m.PDUSessionResourceFailed == nil {
 				return nil, false
 			}
@@ -195,11 +204,11 @@ var pDUSessionResourceModifyResponseIEs = []ieSpec[PDUSessionResourceModifyRespo
 		},
 	},
 	{
-		id: IDUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *PDUSessionResourceModifyResponse, raw []byte, enc per.Encoding) error {
+		ID: IDUserLocationInformation, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *PDUSessionResourceModifyResponse, r *per.Reader, enc per.Encoding) error {
 			var uli UserLocationInformation
 
-			if err := perIEDecode(raw, &uli); err != nil {
+			if err := decodeIE(r, &uli); err != nil {
 				return err
 			}
 
@@ -207,7 +216,7 @@ var pDUSessionResourceModifyResponseIEs = []ieSpec[PDUSessionResourceModifyRespo
 
 			return nil
 		},
-		encode: func(m *PDUSessionResourceModifyResponse) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceModifyResponse) (per.Marshaler, bool) {
 			if m.UserLocationInformation == nil {
 				return nil, false
 			}
@@ -216,11 +225,11 @@ var pDUSessionResourceModifyResponseIEs = []ieSpec[PDUSessionResourceModifyRespo
 		},
 	},
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *PDUSessionResourceModifyResponse, raw []byte, enc per.Encoding) error {
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *PDUSessionResourceModifyResponse, r *per.Reader, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
-			if err := perIEDecode(raw, &cd); err != nil {
+			if err := decodeIE(r, &cd); err != nil {
 				return err
 			}
 
@@ -228,7 +237,7 @@ var pDUSessionResourceModifyResponseIEs = []ieSpec[PDUSessionResourceModifyRespo
 
 			return nil
 		},
-		encode: func(m *PDUSessionResourceModifyResponse) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceModifyResponse) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -262,29 +271,41 @@ func ParsePDUSessionResourceModifyResponse(value []byte) (*PDUSessionResourceMod
 	return parseMessageBody[PDUSessionResourceModifyResponse](ProcPDUSessionResourceModify, TriggeringSuccessfulOutcome, pDUSessionResourceModifyResponseIEs, value)
 }
 
+func DecodePDUSessionResourceModifyResponse(value []byte) (*PDUSessionResourceModifyResponse, error) {
+	return decodeMessageBody[PDUSessionResourceModifyResponse](ProcPDUSessionResourceModify, pDUSessionResourceModifyResponseIEs, value)
+}
+
 // PDUSessionResourceModifyRequestTransfer ::= SEQUENCE { protocolIEs
 // ProtocolIE-Container } (extensible) — TS 38.413 §9.3.4.3. An IE container
 // like the setup request transfer. Every IE is optional: a modify carries only
 // what changes. SecurityIndication is ignore criticality here where the setup
 // request transfer marks it reject, so it is left to the unknown-IE path.
 type PDUSessionResourceModifyRequestTransfer struct {
-	PDUSessionAggregateMaximumBitRate *PDUSessionAggregateMaximumBitRate
-	ULNGUUPTNLModify                  ULNGUUPTNLModifyList
-	NetworkInstance                   *NetworkInstance
-	QosFlowAddOrModifyRequest         QosFlowAddOrModifyRequestList
-	QosFlowToRelease                  QosFlowListWithCause
-	AdditionalULNGUUPTNLInformation   UPTransportLayerInformationList
+	PDUSessionAggregateMaximumBitRate        *PDUSessionAggregateMaximumBitRate
+	ULNGUUPTNLModify                         ULNGUUPTNLModifyList
+	NetworkInstance                          *NetworkInstance
+	QosFlowAddOrModifyRequest                QosFlowAddOrModifyRequestList
+	QosFlowToRelease                         QosFlowListWithCause
+	AdditionalULNGUUPTNLInformation          UPTransportLayerInformationList
+	AdditionalRedundantULNGUUPTNLInformation UPTransportLayerInformationList
+	RedundantULNGUUPTNLInformation           *UPTransportLayerInformation
+	UserPlaneFailureIndication               *UserPlaneFailureIndication
+	CommonNetworkInstance                    CommonNetworkInstance
+	RedundantCommonNetworkInstance           CommonNetworkInstance
+	SecurityIndication                       *SecurityIndication
+	MBSSessionSetuporModifyRequestList       MBSSessionSetuporModifyRequestList
+	MBSSessionToReleaseList                  MBSSessionToReleaseList
 
 	messageMeta
 }
 
 var pDUSessionResourceModifyRequestTransferIEs = []ieSpec[PDUSessionResourceModifyRequestTransfer]{
 	{
-		id: IDPDUSessionAggregateMaximumBitRate, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceModifyRequestTransfer, raw []byte, enc per.Encoding) error {
+		ID: IDPDUSessionAggregateMaximumBitRate, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceModifyRequestTransfer, r *per.Reader, enc per.Encoding) error {
 			var v PDUSessionAggregateMaximumBitRate
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -292,7 +313,7 @@ var pDUSessionResourceModifyRequestTransferIEs = []ieSpec[PDUSessionResourceModi
 
 			return nil
 		},
-		encode: func(m *PDUSessionResourceModifyRequestTransfer) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceModifyRequestTransfer) (per.Marshaler, bool) {
 			if m.PDUSessionAggregateMaximumBitRate == nil {
 				return nil, false
 			}
@@ -301,11 +322,11 @@ var pDUSessionResourceModifyRequestTransferIEs = []ieSpec[PDUSessionResourceModi
 		},
 	},
 	{
-		id: IDULNGUUPTNLModifyList, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceModifyRequestTransfer, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ULNGUUPTNLModify)
+		ID: IDULNGUUPTNLModifyList, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceModifyRequestTransfer, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.ULNGUUPTNLModify)
 		},
-		encode: func(m *PDUSessionResourceModifyRequestTransfer) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceModifyRequestTransfer) (per.Marshaler, bool) {
 			if m.ULNGUUPTNLModify == nil {
 				return nil, false
 			}
@@ -314,11 +335,11 @@ var pDUSessionResourceModifyRequestTransferIEs = []ieSpec[PDUSessionResourceModi
 		},
 	},
 	{
-		id: IDNetworkInstance, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceModifyRequestTransfer, raw []byte, enc per.Encoding) error {
+		ID: IDNetworkInstance, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceModifyRequestTransfer, r *per.Reader, enc per.Encoding) error {
 			var v NetworkInstance
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -326,7 +347,7 @@ var pDUSessionResourceModifyRequestTransferIEs = []ieSpec[PDUSessionResourceModi
 
 			return nil
 		},
-		encode: func(m *PDUSessionResourceModifyRequestTransfer) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceModifyRequestTransfer) (per.Marshaler, bool) {
 			if m.NetworkInstance == nil {
 				return nil, false
 			}
@@ -335,11 +356,11 @@ var pDUSessionResourceModifyRequestTransferIEs = []ieSpec[PDUSessionResourceModi
 		},
 	},
 	{
-		id: IDQosFlowAddOrModifyRequestList, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceModifyRequestTransfer, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.QosFlowAddOrModifyRequest)
+		ID: IDQosFlowAddOrModifyRequestList, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceModifyRequestTransfer, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.QosFlowAddOrModifyRequest)
 		},
-		encode: func(m *PDUSessionResourceModifyRequestTransfer) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceModifyRequestTransfer) (per.Marshaler, bool) {
 			if m.QosFlowAddOrModifyRequest == nil {
 				return nil, false
 			}
@@ -348,11 +369,11 @@ var pDUSessionResourceModifyRequestTransferIEs = []ieSpec[PDUSessionResourceModi
 		},
 	},
 	{
-		id: IDQosFlowToReleaseList, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceModifyRequestTransfer, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.QosFlowToRelease)
+		ID: IDQosFlowToReleaseList, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceModifyRequestTransfer, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.QosFlowToRelease)
 		},
-		encode: func(m *PDUSessionResourceModifyRequestTransfer) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceModifyRequestTransfer) (per.Marshaler, bool) {
 			if m.QosFlowToRelease == nil {
 				return nil, false
 			}
@@ -361,11 +382,11 @@ var pDUSessionResourceModifyRequestTransferIEs = []ieSpec[PDUSessionResourceModi
 		},
 	},
 	{
-		id: IDAdditionalULNGUUPTNLInformation, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceModifyRequestTransfer, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.AdditionalULNGUUPTNLInformation)
+		ID: IDAdditionalULNGUUPTNLInformation, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceModifyRequestTransfer, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.AdditionalULNGUUPTNLInformation)
 		},
-		encode: func(m *PDUSessionResourceModifyRequestTransfer) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceModifyRequestTransfer) (per.Marshaler, bool) {
 			if m.AdditionalULNGUUPTNLInformation == nil {
 				return nil, false
 			}
@@ -373,6 +394,28 @@ var pDUSessionResourceModifyRequestTransferIEs = []ieSpec[PDUSessionResourceModi
 			return m.AdditionalULNGUUPTNLInformation, true
 		},
 	},
+	apimpl.ListIE(IDCommonNetworkInstance, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) *CommonNetworkInstance {
+		return &m.CommonNetworkInstance
+	}),
+	apimpl.ListIE(IDAdditionalRedundantULNGUUPTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) *UPTransportLayerInformationList {
+		return &m.AdditionalRedundantULNGUUPTNLInformation
+	}),
+	apimpl.ListIE(IDRedundantCommonNetworkInstance, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) *CommonNetworkInstance {
+		return &m.RedundantCommonNetworkInstance
+	}),
+	apimpl.OptionalIE(IDRedundantULNGUUPTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) **UPTransportLayerInformation {
+		return &m.RedundantULNGUUPTNLInformation
+	}),
+	apimpl.OptionalIE(IDSecurityIndication, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) **SecurityIndication { return &m.SecurityIndication }),
+	apimpl.ListIE(IDMBSSessionSetuporModifyRequestList, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) *MBSSessionSetuporModifyRequestList {
+		return &m.MBSSessionSetuporModifyRequestList
+	}),
+	apimpl.ListIE(IDMBSSessionToReleaseList, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) *MBSSessionToReleaseList {
+		return &m.MBSSessionToReleaseList
+	}),
+	apimpl.OptionalIE(IDUserPlaneFailureIndication, CriticalityIgnore, func(m *PDUSessionResourceModifyRequestTransfer) **UserPlaneFailureIndication {
+		return &m.UserPlaneFailureIndication
+	}),
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.
@@ -394,13 +437,22 @@ func ParsePDUSessionResourceModifyRequestTransfer(b TransferContainer) (*PDUSess
 	return parseMessageBody[PDUSessionResourceModifyRequestTransfer](ProcPDUSessionResourceModify, TriggeringInitiatingMessage, pDUSessionResourceModifyRequestTransferIEs, b)
 }
 
+func DecodePDUSessionResourceModifyRequestTransfer(b TransferContainer) (*PDUSessionResourceModifyRequestTransfer, error) {
+	return decodeMessageBody[PDUSessionResourceModifyRequestTransfer](ProcPDUSessionResourceModify, pDUSessionResourceModifyRequestTransferIEs, b)
+}
+
 // QosFlowAddOrModifyResponseItem ::= SEQUENCE { qosFlowIdentifier,
 // iE-Extensions OPTIONAL } (extensible), an inline type of the TS 38.413
 // §9.3.4.4 table.
 type QosFlowAddOrModifyResponseItem struct {
-	_                 [0]struct{} `per:"extseq"`
-	QosFlowIdentifier QosFlowIdentifier
-	_                 ieExtensions `per:",skip"`
+	QosFlowIdentifier                 QosFlowIdentifier
+	CurrentQoSParaSetIndex            *AlternativeQoSParaSetIndex        `per:",extie:IDCurrentQoSParaSetIndex,crit:ignore"`
+	TSCTrafficCharacteristicsFeedback *TSCTrafficCharacteristicsFeedback `per:",extie:IDTSCTrafficCharacteristicsFeedback,crit:ignore"`
+	UplinkTLContainer                 *TLContainer                       `per:",extie:IDUplinkTLContainer,crit:ignore"`
+	DLNGUUPTNLInformation             *UPTransportLayerInformation       `per:",extie:IDDLNGUUPTNLInformation,crit:ignore"`
+	ANPacketDelayBudgetUL             *ExtendedPacketDelayBudget         `per:",extie:IDANPacketDelayBudgetUL,crit:ignore"`
+	iEExtensions                      extensionMeta                      `per:",exttable"`
+	extensions                        per.ExtensionAdditions             `per:",extraw"`
 }
 
 // QosFlowAddOrModifyResponseList ::= SEQUENCE (SIZE(1..maxnoofQosFlows)) OF
@@ -414,13 +466,25 @@ type QosFlowAddOrModifyResponseList []QosFlowAddOrModifyResponseItem
 // (extensible) — TS 38.413 §9.3.4.4. Every field is optional: an NG-RAN node
 // that accepted a modification without changing a tunnel sends it empty.
 type PDUSessionResourceModifyResponseTransfer struct {
-	_                                    [0]struct{}                    `per:"extseq"`
-	DLNGUUPTNLInformation                *UPTransportLayerInformation   `per:",optional"`
-	ULNGUUPTNLInformation                *UPTransportLayerInformation   `per:",optional"`
-	QosFlowAddOrModifyResponse           QosFlowAddOrModifyResponseList `per:",optional"`
-	AdditionalDLQosFlowPerTNLInformation QosFlowPerTNLInformationList   `per:",optional"`
-	QosFlowFailedToAddOrModify           QosFlowListWithCause           `per:",optional"`
-	_                                    ieExtensions                   `per:",skip"`
+	DLNGUUPTNLInformation                            *UPTransportLayerInformation                     `per:",optional"`
+	ULNGUUPTNLInformation                            *UPTransportLayerInformation                     `per:",optional"`
+	QosFlowAddOrModifyResponse                       QosFlowAddOrModifyResponseList                   `per:",optional"`
+	AdditionalDLQosFlowPerTNLInformation             QosFlowPerTNLInformationList                     `per:",optional"`
+	QosFlowFailedToAddOrModify                       QosFlowListWithCause                             `per:",optional"`
+	AdditionalNGUUPTNLInformation                    UPTransportLayerInformationPairList              `per:",extie:IDAdditionalNGUUPTNLInformation,crit:ignore"`
+	RedundantDLNGUUPTNLInformation                   *UPTransportLayerInformation                     `per:",extie:IDRedundantDLNGUUPTNLInformation,crit:ignore"`
+	RedundantULNGUUPTNLInformation                   *UPTransportLayerInformation                     `per:",extie:IDRedundantULNGUUPTNLInformation,crit:ignore"`
+	AdditionalRedundantDLQosFlowPerTNLInformation    QosFlowPerTNLInformationList                     `per:",extie:IDAdditionalRedundantDLQosFlowPerTNLInformation,crit:ignore"`
+	AdditionalRedundantNGUUPTNLInformation           UPTransportLayerInformationPairList              `per:",extie:IDAdditionalRedundantNGUUPTNLInformation,crit:ignore"`
+	SecondaryRATUsageInformation                     *SecondaryRATUsageInformation                    `per:",extie:IDSecondaryRATUsageInformation,crit:ignore"`
+	MBSSupportIndicator                              *MBSSupportIndicator                             `per:",extie:IDMBSSupportIndicator,crit:ignore"`
+	MBSSessionSetuporModifyResponseList              MBSSessionSetupResponseList                      `per:",extie:IDMBSSessionSetuporModifyResponseList,crit:ignore"`
+	MBSSessionFailedtoSetuporModifyList              MBSSessionFailedtoSetupList                      `per:",extie:IDMBSSessionFailedtoSetuporModifyList,crit:ignore"`
+	ECNMarkingorCongestionInformationReportingStatus ECNMarkingorCongestionInformationReportingStatus `per:",extie:IDECNMarkingorCongestionInformationReportingStatus,crit:ignore"`
+	PDUSetbasedHandlingIndicator                     *PDUSetbasedHandlingIndicator                    `per:",extie:IDPDUSetbasedHandlingIndicator,crit:ignore"`
+	UserPlaneFailureIndicationReport                 *UserPlaneFailureIndicationReport                `per:",extie:IDUserPlaneFailureIndicationReport,crit:ignore"`
+	iEExtensions                                     extensionMeta                                    `per:",exttable"`
+	extensions                                       per.ExtensionAdditions                           `per:",extraw"`
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.
@@ -441,10 +505,10 @@ func (t *PDUSessionResourceModifyResponseTransfer) Marshal() (TransferContainer,
 // TS 38.413 §9.3.4.17. Carried in the Failed to Modify list of the modify
 // response.
 type PDUSessionResourceModifyUnsuccessfulTransfer struct {
-	_                      [0]struct{} `per:"extseq"`
+	extensions             per.ExtensionAdditions `per:",extraw"`
 	Cause                  Cause
 	CriticalityDiagnostics *CriticalityDiagnostics `per:",optional"`
-	_                      ieExtensions            `per:",skip"`
+	iEExtensions           extensionMeta           `per:",exttable"`
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.
@@ -463,23 +527,25 @@ func (t *PDUSessionResourceModifyUnsuccessfulTransfer) Marshal() (TransferContai
 // ParsePDUSessionResourceModifyUnsuccessfulTransfer decodes the transfer an
 // NG-RAN node returns for a session it could not modify.
 func ParsePDUSessionResourceModifyUnsuccessfulTransfer(b TransferContainer) (*PDUSessionResourceModifyUnsuccessfulTransfer, error) {
-	var t PDUSessionResourceModifyUnsuccessfulTransfer
+	return parseTransfer[PDUSessionResourceModifyUnsuccessfulTransfer](b)
+}
 
-	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
-		return nil, err
-	}
+func DecodePDUSessionResourceModifyUnsuccessfulTransfer(b TransferContainer) (*PDUSessionResourceModifyUnsuccessfulTransfer, error) {
+	return decodeTransfer[PDUSessionResourceModifyUnsuccessfulTransfer](b)
+}
 
-	return &t, nil
+func (t *PDUSessionResourceModifyUnsuccessfulTransfer) Diagnostics() Diagnostics {
+	return diagnosticsOf(t)
 }
 
 // ParsePDUSessionResourceModifyResponseTransfer decodes the transfer the NG-RAN
 // node returns for a modified session.
 func ParsePDUSessionResourceModifyResponseTransfer(b TransferContainer) (*PDUSessionResourceModifyResponseTransfer, error) {
-	var t PDUSessionResourceModifyResponseTransfer
-
-	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
-		return nil, err
-	}
-
-	return &t, nil
+	return parseTransfer[PDUSessionResourceModifyResponseTransfer](b)
 }
+
+func DecodePDUSessionResourceModifyResponseTransfer(b TransferContainer) (*PDUSessionResourceModifyResponseTransfer, error) {
+	return decodeTransfer[PDUSessionResourceModifyResponseTransfer](b)
+}
+
+func (t *PDUSessionResourceModifyResponseTransfer) Diagnostics() Diagnostics { return diagnosticsOf(t) }

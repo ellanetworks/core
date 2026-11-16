@@ -41,7 +41,7 @@ func TestNASNonDeliveryIndication_DoesNotReprocessNAS(t *testing.T) {
 		RANUENGAPID: 1,
 		AMFUENGAPID: 10,
 		NASPDU:      ngap.NASPDU{0xDE, 0xAD},
-		Cause:       ngap.Ptr(ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownLocalUENGAPID}),
+		Cause:       ngap.Ptr(ngap.CauseRadioNetworkUnknownLocalUENGAPID.Cause()),
 	})
 
 	if len(fakeNAS.Calls) != 0 {

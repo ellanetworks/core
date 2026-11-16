@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 const (
@@ -71,17 +72,18 @@ func assertUserLocation(t *testing.T, uli *ngap.UserLocationInformation) {
 		t.Fatal("no User Location Information")
 	}
 
-	if uli.Kind != ngap.UserLocationNR {
-		t.Errorf("location kind = %d, want NR", uli.Kind)
+	nr := uli.NR
+	if nr == nil {
+		t.Fatalf("location = %+v, want NR", uli)
 	}
 
 	wantPLMN := ngap.PLMNIdentity{0x00, 0xf1, 0x10} // 001/01
-	if uli.PLMNIdentity != wantPLMN || uli.TAI.PLMNIdentity != wantPLMN {
-		t.Errorf("PLMN = %x / TAI %x, want %x", uli.PLMNIdentity, uli.TAI.PLMNIdentity, wantPLMN)
+	if nr.NRCGI.PLMNIdentity != wantPLMN || nr.TAI.PLMNIdentity != wantPLMN {
+		t.Errorf("PLMN = %x / TAI %x, want %x", nr.NRCGI.PLMNIdentity, nr.TAI.PLMNIdentity, wantPLMN)
 	}
 
-	if uli.TAI.TAC != 1 {
-		t.Errorf("TAC = %d, want 1", uli.TAI.TAC)
+	if nr.TAI.TAC != 1 {
+		t.Errorf("TAC = %d, want 1", nr.TAI.TAC)
 	}
 
 	node, err := gnb.GNBNodeID(testMCC, testMNC, testGnbID)
@@ -94,8 +96,8 @@ func assertUserLocation(t *testing.T, uli *ngap.UserLocationInformation) {
 		t.Fatal(err)
 	}
 
-	if uli.CellIdentity != wantCell {
-		t.Errorf("cell identity = %#x, want %#x", uli.CellIdentity, wantCell)
+	if uint64(nr.NRCGI.NRCellIdentity) != wantCell {
+		t.Errorf("cell identity = %#x, want %#x", nr.NRCGI.NRCellIdentity, wantCell)
 	}
 }
 
@@ -191,8 +193,8 @@ func TestBuildPathSwitchRequestRoundTrips(t *testing.T) {
 		t.Errorf("TEID = %#x, want 0x11223344", transfer.DLNGUUPTNLInformation.GTPTunnel.GTPTEID)
 	}
 
-	if got := transfer.DLNGUUPTNLInformation.GTPTunnel.TransportLayerAddress; string(got) != string([]byte{10, 0, 0, 2}) {
-		t.Errorf("transport address = %x, want 0a000002", got)
+	if got := transfer.DLNGUUPTNLInformation.GTPTunnel.TransportLayerAddress; got != ap.TransportLayerAddressFromOctets([]byte{10, 0, 0, 2}) {
+		t.Errorf("transport address = %v, want 10.0.0.2", got)
 	}
 
 	if len(transfer.QosFlowAccepted) != 1 {

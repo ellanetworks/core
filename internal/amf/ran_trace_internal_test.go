@@ -127,7 +127,7 @@ func TestTraceStartCarriesSessionAndConnection(t *testing.T) {
 		t.Fatalf("interfaces %08b depth %d", ta.InterfacesToTrace, ta.TraceDepth)
 	}
 
-	if ip, _ := ta.TraceCollectionEntityIPAddress.IPs(); ip != netip.MustParseAddr("127.0.0.1") {
+	if ip := ta.TraceCollectionEntityIPAddress.IPv4(); ip != netip.MustParseAddr("127.0.0.1") {
 		t.Fatalf("TCE address %v", ip)
 	}
 
@@ -170,7 +170,7 @@ func TestTraceFailureResendsOnlyForTheConnectionID(t *testing.T) {
 	ue.TraceConnection(t.Context())
 
 	id, _ := conn.RANTraceID()
-	cause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHandoverCancelled}
+	cause := ngap.CauseRadioNetworkHandoverCancelled.Cause()
 
 	other := id
 	other[7]++

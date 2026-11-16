@@ -27,27 +27,27 @@ type UplinkRANStatusTransfer struct {
 
 var uplinkRANStatusTransferIEs = []ieSpec[UplinkRANStatusTransfer]{
 	{
-		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *UplinkRANStatusTransfer, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.AMFUENGAPID)
+		ID: IDAMFUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *UplinkRANStatusTransfer, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.AMFUENGAPID)
 		},
-		encode: func(m *UplinkRANStatusTransfer) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
+		Encode: func(m *UplinkRANStatusTransfer) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *UplinkRANStatusTransfer, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.RANUENGAPID)
+		ID: IDRANUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *UplinkRANStatusTransfer, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.RANUENGAPID)
 		},
-		encode: func(m *UplinkRANStatusTransfer) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
+		Encode: func(m *UplinkRANStatusTransfer) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
-		id: IDRANStatusTransferTransparentContainer, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *UplinkRANStatusTransfer, raw []byte, enc per.Encoding) error {
-			m.Container = StatusTransferContainer(raw)
+		ID: IDRANStatusTransferTransparentContainer, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *UplinkRANStatusTransfer, r *per.Reader, enc per.Encoding) error {
+			m.Container = StatusTransferContainer(restOctets(r))
 
 			return nil
 		},
-		encode: func(m *UplinkRANStatusTransfer) (per.Marshaler, bool) {
+		Encode: func(m *UplinkRANStatusTransfer) (per.Marshaler, bool) {
 			if m.Container == nil {
 				return nil, false
 			}
@@ -81,6 +81,10 @@ func ParseUplinkRANStatusTransfer(value []byte) (*UplinkRANStatusTransfer, error
 	return parseMessageBody[UplinkRANStatusTransfer](ProcUplinkRANStatusTransfer, TriggeringInitiatingMessage, uplinkRANStatusTransferIEs, value)
 }
 
+func DecodeUplinkRANStatusTransfer(value []byte) (*UplinkRANStatusTransfer, error) {
+	return decodeMessageBody[UplinkRANStatusTransfer](ProcUplinkRANStatusTransfer, uplinkRANStatusTransferIEs, value)
+}
+
 // TS 38.413 §9.2.3.14. TS 36.413 §9.1.5.14 names the same message MME Status
 // Transfer and carries the same three IEs with the same criticality.
 type DownlinkRANStatusTransfer struct {
@@ -93,27 +97,27 @@ type DownlinkRANStatusTransfer struct {
 
 var downlinkRANStatusTransferIEs = []ieSpec[DownlinkRANStatusTransfer]{
 	{
-		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *DownlinkRANStatusTransfer, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.AMFUENGAPID)
+		ID: IDAMFUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *DownlinkRANStatusTransfer, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.AMFUENGAPID)
 		},
-		encode: func(m *DownlinkRANStatusTransfer) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
+		Encode: func(m *DownlinkRANStatusTransfer) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *DownlinkRANStatusTransfer, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.RANUENGAPID)
+		ID: IDRANUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *DownlinkRANStatusTransfer, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.RANUENGAPID)
 		},
-		encode: func(m *DownlinkRANStatusTransfer) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
+		Encode: func(m *DownlinkRANStatusTransfer) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
-		id: IDRANStatusTransferTransparentContainer, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *DownlinkRANStatusTransfer, raw []byte, enc per.Encoding) error {
-			m.Container = StatusTransferContainer(raw)
+		ID: IDRANStatusTransferTransparentContainer, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *DownlinkRANStatusTransfer, r *per.Reader, enc per.Encoding) error {
+			m.Container = StatusTransferContainer(restOctets(r))
 
 			return nil
 		},
-		encode: func(m *DownlinkRANStatusTransfer) (per.Marshaler, bool) {
+		Encode: func(m *DownlinkRANStatusTransfer) (per.Marshaler, bool) {
 			if m.Container == nil {
 				return nil, false
 			}
@@ -145,4 +149,8 @@ func (m *DownlinkRANStatusTransfer) Marshal() ([]byte, error) {
 
 func ParseDownlinkRANStatusTransfer(value []byte) (*DownlinkRANStatusTransfer, error) {
 	return parseMessageBody[DownlinkRANStatusTransfer](ProcDownlinkRANStatusTransfer, TriggeringInitiatingMessage, downlinkRANStatusTransferIEs, value)
+}
+
+func DecodeDownlinkRANStatusTransfer(value []byte) (*DownlinkRANStatusTransfer, error) {
+	return decodeMessageBody[DownlinkRANStatusTransfer](ProcDownlinkRANStatusTransfer, downlinkRANStatusTransferIEs, value)
 }

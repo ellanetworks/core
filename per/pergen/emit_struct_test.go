@@ -1,0 +1,172 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
+package pergen
+
+import (
+	"bytes"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"strings"
+	"testing"
+)
+
+func TestEmitFieldUnmarshalTemporariesAreUnique(t *testing.T) {
+	t.Parallel()
+
+	kinds := []fieldInfo{
+		{kind: kindBool},
+		{kind: kindConstrainedInt, boundsExpr: "per.Bounds{}", typeStr: "int64"},
+		{kind: kindEnum, enumRoot: 2, typeStr: "int64"},
+		{kind: kindEnum, enumRoot: 2, enumExt: true, enumTotal: 3, typeStr: "int64"},
+		{kind: kindOctetString},
+		{kind: kindBitString},
+		{kind: kindString, charTypeExpr: "per.CharVisibleString"},
+		{kind: kindString, hasSizeLB: true, hasSizeUB: true, sizeLB: 1, sizeUB: 8},
+		{kind: kindString},
+		{kind: kindREAL},
+	}
+
+	for _, k := range kinds {
+		var (
+			g   generator
+			buf bytes.Buffer
+		)
+
+		for idx := range 2 {
+			fi := k
+			fi.fieldIdx = idx
+			g.emitFieldUnmarshal(&buf, "x.F"+string(rune('0'+idx)), fi, 0)
+		}
+
+		src := "package p\nfunc f() error {\n" + buf.String() + "return nil\n}\n"
+
+		file, err := parser.ParseFile(token.NewFileSet(), "", src, 0)
+		if err != nil {
+			t.Fatalf("kind %d: parse generated code: %v\n%s", k.kind, err, src)
+		}
+
+		declared := map[string]bool{}
+
+		ast.Inspect(file, func(n ast.Node) bool {
+			as, ok := n.(*ast.AssignStmt)
+			if !ok || as.Tok != token.DEFINE {
+				return true
+			}
+
+			for _, lhs := range as.Lhs {
+				id, ok := lhs.(*ast.Ident)
+				if !ok || id.Name == "err" || id.Name == "_" {
+					continue
+				}
+
+				if declared[id.Name] {
+					t.Errorf("kind %d: %s declared twice in one scope\n%s", k.kind, id.Name, src)
+				}
+
+				declared[id.Name] = true
+			}
+
+			return true
+		})
+	}
+}
+
+func TestEmitBoundedEnumerated(t *testing.T) {
+	t.Parallel()
+
+	var (
+		g   generator
+		buf bytes.Buffer
+	)
+
+	fi := fieldInfo{kind: kindEnum, enumRoot: 5, enumExt: true, enumTotal: 7, typeStr: "int64"}
+
+	g.emitFieldMarshal(&buf, "x", fi, "x.V", 0)
+	g.emitFieldUnmarshal(&buf, "x.V", fi, 0)
+
+	out := buf.String()
+
+	for _, want := range []string{
+		"v < 0 || v >= 7",
+		"per.EncodeEnumerated(w, enc, 5, true, int64(x.V))",
+		"per.DecodeEnumerated(r, enc, 5, true)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("generated code lacks %q:\n%s", want, out)
+		}
+	}
+
+	if strings.Contains(out, "RootEnumerated") {
+		t.Errorf("bounded ENUMERATED must not use the root-only helpers:\n%s", out)
+	}
+}
+
+func TestEmitExtRaw(t *testing.T) {
+	t.Parallel()
+
+	var g generator
+
+	g.emitMarshalExt("x", "T", nil, nil, nil, true, "ext")
+	g.emitUnmarshalExt("x", "T", nil, nil, nil, true, "ext")
+
+	out := g.buf.String()
+
+	for _, want := range []string{
+		"w.WriteBit(x.ext.Present())",
+		"if err := x.ext.MarshalPER(w, enc); err != nil",
+		"if err := x.ext.UnmarshalPER(r, enc); err != nil",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("generated code lacks %q:\n%s", want, out)
+		}
+	}
+
+	if strings.Contains(out, "SkipOpenType") {
+		t.Errorf("extraw must keep extension additions, not skip them:\n%s", out)
+	}
+
+	if _, err := parser.ParseFile(token.NewFileSet(), "", "package p\n"+out, 0); err != nil {
+		t.Fatalf("generated code does not parse: %v\n%s", err, out)
+	}
+}
+
+func TestExtRawRejectsModeledAdditions(t *testing.T) {
+	t.Parallel()
+
+	g := generator{}
+	st := &structType{name: "T", extRaw: "ext", fields: []fieldInfo{{name: "A", tag: FieldTag{Ext: true}}}}
+
+	if err := g.emitStruct("T", st); err == nil {
+		t.Fatal("extraw combined with an extension addition accepted")
+	}
+}
+
+func TestEmitExtTable(t *testing.T) {
+	t.Parallel()
+
+	var g generator
+
+	root := []fieldInfo{{name: "iEExtensions", extTable: "tExtIEs"}}
+
+	g.emitMarshalExt("x", "T", root, nil, []int{0}, true, "ext")
+	g.emitUnmarshalExt("x", "T", root, nil, []int{0}, true, "ext")
+
+	out := g.buf.String()
+
+	for _, want := range []string{
+		"ext := extensionFields(tExtIEs, x, &x.iEExtensions)",
+		"w.WriteBit(len(ext) > 0)",
+		"if err := encodeExtensionContainer(w, enc, ext); err != nil",
+		"if err := decodeExtensionContainer(r, enc, tExtIEs, x, &x.iEExtensions); err != nil",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("generated code lacks %q:\n%s", want, out)
+		}
+	}
+
+	if _, err := parser.ParseFile(token.NewFileSet(), "", "package p\n"+out, 0); err != nil {
+		t.Fatalf("generated code does not parse: %v\n%s", err, out)
+	}
+}

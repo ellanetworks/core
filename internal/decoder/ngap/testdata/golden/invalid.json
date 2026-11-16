@@ -13,6 +13,6 @@
     "unknown": false
   },
   "value": {
-    "error": "Could not decode raw ngap message: ngap: unsupported NGAP-PDU extension alternative"
+    "error": "Could not decode raw ngap message: ngap: transfer syntax error: ngap: unsupported NGAP-PDU extension alternative"
   }
 }

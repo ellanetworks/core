@@ -15,7 +15,7 @@ import (
 func testENBID(value uint32) s1ap.GlobalENBID {
 	return s1ap.GlobalENBID{
 		PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10},
-		ENBID:        s1ap.ENBID{Value: value},
+		ENBID:        s1ap.ENBID{MacroENBID: s1ap.Ptr(s1ap.MacroENBID(value))},
 	}
 }
 
@@ -185,7 +185,7 @@ func TestClaimENBID_KindIsPartOfTheIdentity(t *testing.T) {
 	macro := testENBID(8)
 
 	home := testENBID(8)
-	home.ENBID.Kind = s1ap.ENBIDHome
+	home.ENBID = s1ap.ENBID{HomeENBID: s1ap.Ptr(s1ap.HomeENBID(8))}
 
 	c1 := new(sctp.SCTPConn)
 	c2 := new(sctp.SCTPConn)

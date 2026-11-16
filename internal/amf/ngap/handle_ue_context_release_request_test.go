@@ -20,7 +20,7 @@ func TestHandleUEContextReleaseRequest_UnknownUENGAPIDs(t *testing.T) {
 	msg := &ngap.UEContextReleaseRequest{
 		AMFUENGAPID: 999999,
 		RANUENGAPID: 888888,
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUserInactivity},
+		Cause:       new(ngap.CauseRadioNetworkUserInactivity.Cause()),
 	}
 
 	HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
@@ -31,8 +31,8 @@ func TestHandleUEContextReleaseRequest_UnknownUENGAPIDs(t *testing.T) {
 
 	errInd := sender.SentErrorIndications[0]
 
-	wantRadioNetworkCause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownLocalUENGAPID}
-	if errInd.Cause == nil || *errInd.Cause != wantRadioNetworkCause {
+	wantRadioNetworkCause := ngap.CauseRadioNetworkUnknownLocalUENGAPID.Cause()
+	if errInd.Cause == nil || !errInd.Cause.Equal(wantRadioNetworkCause) {
 		t.Errorf("cause = %v, want unknown-local-UE-NGAP-ID", errInd.Cause)
 	}
 
@@ -55,7 +55,7 @@ func TestHandleUEContextReleaseRequest_UEFoundRegistered(t *testing.T) {
 	msg := &ngap.UEContextReleaseRequest{
 		AMFUENGAPID: 10,
 		RANUENGAPID: 1,
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUserInactivity},
+		Cause:       new(ngap.CauseRadioNetworkUserInactivity.Cause()),
 	}
 
 	HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
@@ -65,8 +65,8 @@ func TestHandleUEContextReleaseRequest_UEFoundRegistered(t *testing.T) {
 	}
 
 	cmd := sender.SentUEContextReleaseCommands[0]
-	if cmd.UENGAPIDs.AMFUENGAPID != 10 || cmd.UENGAPIDs.RANUENGAPID != 1 {
-		t.Errorf("UEContextReleaseCommand IDs = (%d, %d), want (10, 1)", cmd.UENGAPIDs.AMFUENGAPID, cmd.UENGAPIDs.RANUENGAPID)
+	if pair := cmd.UENGAPIDs.UENGAPIDPair; pair == nil || pair.AMFUENGAPID != 10 || pair.RANUENGAPID != 1 {
+		t.Errorf("UEContextReleaseCommand IDs = %+v, want (10, 1)", cmd.UENGAPIDs)
 	}
 
 	if ueConn.ReleaseAction() != amf.UeContextN2NormalRelease {
@@ -79,8 +79,8 @@ func TestSendUEContextReleaseCommand_Idempotent(t *testing.T) {
 	sender := ran.Conn.(*fakeNGAPSender)
 	ueConn := amf.NewUeConnForTest(ran, 1, 10)
 
-	ueConn.SendUEContextReleaseCommand(context.Background(), ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
-	ueConn.SendUEContextReleaseCommand(context.Background(), ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
+	ueConn.SendUEContextReleaseCommand(context.Background(), ngap.CauseNASNormalRelease.Cause())
+	ueConn.SendUEContextReleaseCommand(context.Background(), ngap.CauseNASNormalRelease.Cause())
 
 	if len(sender.SentUEContextReleaseCommands) != 1 {
 		t.Fatalf("expected a single UE Context Release Command, got %d", len(sender.SentUEContextReleaseCommands))
@@ -102,7 +102,7 @@ func TestHandleUEContextReleaseRequest_UserInactivityWithPendingMTTraffic(t *tes
 	msg := &ngap.UEContextReleaseRequest{
 		AMFUENGAPID: 10,
 		RANUENGAPID: 1,
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUserInactivity},
+		Cause:       new(ngap.CauseRadioNetworkUserInactivity.Cause()),
 	}
 
 	HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
@@ -128,7 +128,7 @@ func TestHandleUEContextReleaseRequest_OtherCauseReleasesDespitePendingMTTraffic
 	msg := &ngap.UEContextReleaseRequest{
 		AMFUENGAPID: 10,
 		RANUENGAPID: 1,
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkRadioConnectionWithUELost},
+		Cause:       new(ngap.CauseRadioNetworkRadioConnectionWithUELost.Cause()),
 	}
 
 	HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
@@ -157,7 +157,7 @@ func TestHandleUEContextReleaseRequest_UserInactivityDuringAnN2Setup(t *testing.
 	msg := &ngap.UEContextReleaseRequest{
 		AMFUENGAPID: 10,
 		RANUENGAPID: 1,
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUserInactivity},
+		Cause:       new(ngap.CauseRadioNetworkUserInactivity.Cause()),
 	}
 
 	HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
@@ -195,7 +195,7 @@ func TestHandleUEContextReleaseRequest_PagedRequestDoesNotFollowTheUEOntoANewCon
 	msg := &ngap.UEContextReleaseRequest{
 		AMFUENGAPID: 11,
 		RANUENGAPID: 2,
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUserInactivity},
+		Cause:       new(ngap.CauseRadioNetworkUserInactivity.Cause()),
 	}
 
 	HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
@@ -224,7 +224,7 @@ func TestHandleUEContextReleaseRequest_DeferredReleaseResumesWhenTheN2SetupEnds(
 	msg := &ngap.UEContextReleaseRequest{
 		AMFUENGAPID: 10,
 		RANUENGAPID: 1,
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUserInactivity},
+		Cause:       new(ngap.CauseRadioNetworkUserInactivity.Cause()),
 	}
 
 	HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
@@ -267,7 +267,7 @@ func TestHandleUEContextReleaseRequest_DeferredReleaseOfANonRegisteredUEStillRel
 	msg := &ngap.UEContextReleaseRequest{
 		AMFUENGAPID: 10,
 		RANUENGAPID: 1,
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUserInactivity},
+		Cause:       new(ngap.CauseRadioNetworkUserInactivity.Cause()),
 	}
 
 	HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)

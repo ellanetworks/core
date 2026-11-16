@@ -10,31 +10,34 @@ import (
 	"github.com/ellanetworks/core/per"
 )
 
-// sonTransfer builds a valid leading Target eNB-ID (TS 36.413 §9.2.3.26)
-// followed by opaque bytes.
-func sonTransfer(t *testing.T, target TargeteNBID, opaque []byte) SONConfigurationTransfer {
+func sonTransfer(t *testing.T, target TargeteNBID) SONConfigurationTransfer {
 	t.Helper()
 
-	w := per.NewWriter()
+	tla := tlaOf(192, 0, 2, 7)
 
-	w.WriteBit(false)
-	w.WriteBit(false)
-
-	if err := target.MarshalPER(w, per.Aligned); err != nil {
-		t.Fatalf("encode Target eNB-ID: %v", err)
+	son := SONConfigurationTransfer{
+		TargeteNBID: target,
+		SourceeNBID: SourceeNBID{
+			GlobalENBID: GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{MacroENBID: Ptr(MacroENBID(0x00abd))}},
+			SelectedTAI: TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 8},
+		},
+		SONInformation:         SONInformation{SONInformationRequest: Ptr(SONInformationRequestX2TNLConfigurationInfo)},
+		X2TNLConfigurationInfo: &X2TNLConfigurationInfo{ENBX2TransportLayerAddresses: ENBX2TLAs{tla}},
+		RequestedTNLInfo:       &RequestedTNLInfo{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}},
 	}
+	son.iEExtensions.Append(rawIE{ID: 40123, Criticality: CriticalityIgnore, Value: []byte{0xde, 0xad}})
 
-	return SONConfigurationTransfer(append(perBytes(w), opaque...))
+	return son
 }
 
-func enbConfigTransferWire(t *testing.T, son SONConfigurationTransfer) []byte {
+func enbConfigTransferWire(t *testing.T, son *SONConfigurationTransfer) []byte {
 	t.Helper()
 
 	w := per.NewWriter()
 
 	w.WriteBit(false)
 
-	if err := encodeIEContainer(w, per.Aligned, []ieField{{id: IDSONConfigurationTransferECT, crit: CriticalityIgnore, val: son}}); err != nil {
+	if err := encodeIEContainer(w, per.Aligned, []ieField{{ID: IDSONConfigurationTransferECT, Criticality: CriticalityIgnore, Value: son}}); err != nil {
 		t.Fatalf("encode IE container: %v", err)
 	}
 
@@ -43,14 +46,14 @@ func enbConfigTransferWire(t *testing.T, son SONConfigurationTransfer) []byte {
 
 func TestENBConfigurationTransfer_RelayRoundTrip(t *testing.T) {
 	target := TargeteNBID{
-		GlobalENBID: GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{Kind: ENBIDMacro, Value: 0x00abc}},
+		GlobalENBID: GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{MacroENBID: Ptr(MacroENBID(0x00abc))}},
 		SelectedTAI: TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 7},
 	}
-	opaque := []byte{0xde, 0xad, 0xbe, 0xef}
-	son := sonTransfer(t, target, opaque)
+	son := sonTransfer(t, target)
+	sonWire := ieRaw(t, &son)
 
 	// Decode the ENB CONFIGURATION TRANSFER as the MME receives it.
-	msg, err := ParseENBConfigurationTransfer(enbConfigTransferWire(t, son))
+	msg, err := ParseENBConfigurationTransfer(enbConfigTransferWire(t, &son))
 	if err != nil {
 		t.Fatalf("ParseENBConfigurationTransfer: %v", err)
 	}
@@ -59,17 +62,18 @@ func TestENBConfigurationTransfer_RelayRoundTrip(t *testing.T) {
 		t.Fatal("SON Configuration Transfer IE missing")
 	}
 
-	if !bytes.Equal(msg.SONConfigurationTransfer, son) {
-		t.Fatalf("SON value not preserved: got %x want %x", msg.SONConfigurationTransfer, son)
+	if got := ieRaw(t, msg.SONConfigurationTransfer); !bytes.Equal(got, sonWire) {
+		t.Fatalf("SON value not preserved: got %x want %x", got, sonWire)
+	}
+
+	if msg.SONConfigurationTransfer.X2TNLConfigurationInfo == nil || msg.SONConfigurationTransfer.RequestedTNLInfo == nil {
+		t.Fatalf("typed extensions lost: %+v", msg.SONConfigurationTransfer)
 	}
 
 	// Routing: the leading Target eNB-ID must decode to the destination eNB.
-	got, err := msg.SONConfigurationTransfer.TargetENBID()
-	if err != nil {
-		t.Fatalf("TargetENBID: %v", err)
-	}
+	got := msg.SONConfigurationTransfer.TargeteNBID
 
-	if got.GlobalENBID != target.GlobalENBID || got.SelectedTAI != target.SelectedTAI {
+	if !got.GlobalENBID.Equal(target.GlobalENBID) || got.SelectedTAI != target.SelectedTAI {
 		t.Fatalf("Target eNB-ID mismatch: got %+v want %+v", got, target)
 	}
 
@@ -91,8 +95,8 @@ func TestENBConfigurationTransfer_RelayRoundTrip(t *testing.T) {
 	}
 
 	relayed := relayedSON(t, im.Value)
-	if !bytes.Equal(relayed, son) {
-		t.Fatalf("relayed SON not verbatim: got %x want %x", relayed, son)
+	if !bytes.Equal(relayed, sonWire) {
+		t.Fatalf("relayed SON not verbatim: got %x want %x", relayed, sonWire)
 	}
 }
 
@@ -113,8 +117,8 @@ func relayedSON(t *testing.T, value []byte) []byte {
 	}
 
 	for _, f := range fields {
-		if f.id == IDSONConfigurationTransferMCT {
-			return f.value
+		if f.ID == IDSONConfigurationTransferMCT {
+			return f.Value
 		}
 	}
 
@@ -138,14 +142,19 @@ func TestENBConfigurationTransfer_NoSONIE(t *testing.T) {
 	}
 
 	if msg.SONConfigurationTransfer != nil {
-		t.Fatalf("expected nil SON Configuration Transfer, got %x", msg.SONConfigurationTransfer)
+		t.Fatalf("expected nil SON Configuration Transfer, got %+v", msg.SONConfigurationTransfer)
 	}
 }
 
 // §8.15.2/§8.16.2 relay the transfer verbatim, so the payload must survive
 // untouched in both directions.
 func TestConfigurationTransferRelaysVerbatimBothDirections(t *testing.T) {
-	transfer := SONConfigurationTransfer{0x01, 0x02, 0x03, 0x04}
+	target := TargeteNBID{
+		GlobalENBID: GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{HomeENBID: Ptr(HomeENBID(0x1234567))}},
+		SelectedTAI: TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 9},
+	}
+	son := sonTransfer(t, target)
+	transfer := &son
 
 	t.Run("eNB to MME", func(t *testing.T) {
 		b, err := (&ENBConfigurationTransfer{SONConfigurationTransfer: transfer}).Marshal()
@@ -168,8 +177,8 @@ func TestConfigurationTransferRelaysVerbatimBothDirections(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if !bytes.Equal(out.SONConfigurationTransfer, transfer) {
-			t.Errorf("transfer = %x, want %x", out.SONConfigurationTransfer, transfer)
+		if got, want := ieRaw(t, out.SONConfigurationTransfer), ieRaw(t, transfer); !bytes.Equal(got, want) {
+			t.Errorf("transfer = %x, want %x", got, want)
 		}
 	})
 
@@ -194,8 +203,8 @@ func TestConfigurationTransferRelaysVerbatimBothDirections(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if !bytes.Equal(out.SONConfigurationTransfer, transfer) {
-			t.Errorf("transfer = %x, want %x", out.SONConfigurationTransfer, transfer)
+		if got, want := ieRaw(t, out.SONConfigurationTransfer), ieRaw(t, transfer); !bytes.Equal(got, want) {
+			t.Errorf("transfer = %x, want %x", got, want)
 		}
 	})
 }

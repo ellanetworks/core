@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/lppa"
+	"github.com/ellanetworks/core/per/ap"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -61,6 +62,20 @@ func testDiagnostics() *s1ap.CriticalityDiagnostics {
 	}
 }
 
+func testSONConfigurationTransfer(target, source uint32) *s1ap.SONConfigurationTransfer {
+	return &s1ap.SONConfigurationTransfer{
+		TargeteNBID: s1ap.TargeteNBID{
+			GlobalENBID: s1ap.GlobalENBID{PLMNIdentity: testPLMN, ENBID: s1ap.ENBID{MacroENBID: s1ap.Ptr(s1ap.MacroENBID(target))}},
+			SelectedTAI: testTAI,
+		},
+		SourceeNBID: s1ap.SourceeNBID{
+			GlobalENBID: s1ap.GlobalENBID{PLMNIdentity: testPLMN, ENBID: s1ap.ENBID{MacroENBID: s1ap.Ptr(s1ap.MacroENBID(source))}},
+			SelectedTAI: testTAI,
+		},
+		SONInformation: s1ap.SONInformation{SONInformationRequest: s1ap.Ptr(s1ap.SONInformationRequestTimeSynchronisationInfo)},
+	}
+}
+
 // goldenCorpus is the PDU behind every fixture: wire captures where the message
 // occurs in normal operation, and codec-built messages elsewhere. The "_full"
 // entries carry every IE the message's table names, so a renderer that drops
@@ -99,17 +114,17 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 	})
 
 	corpus["enb_configuration_update_failure_full"] = mustMarshal(t, &s1ap.ENBConfigurationUpdateFailure{
-		Cause:                  &s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscUnspecified},
+		Cause:                  s1ap.Ptr(s1ap.CauseMiscUnspecified.Cause()),
 		TimeToWait:             s1ap.Ptr(s1ap.TimeToWaitV10s),
 		CriticalityDiagnostics: &s1ap.CriticalityDiagnostics{ProcedureCode: s1ap.Ptr(s1ap.ProcENBConfigurationUpdate)},
 	})
 
 	corpus["enb_configuration_transfer_full"] = mustMarshal(t, &s1ap.ENBConfigurationTransfer{
-		SONConfigurationTransfer: s1ap.SONConfigurationTransfer{0x01, 0x02, 0x03, 0x04},
+		SONConfigurationTransfer: testSONConfigurationTransfer(1, 2),
 	})
 
 	corpus["mme_configuration_transfer_full"] = mustMarshal(t, &s1ap.MMEConfigurationTransfer{
-		SONConfigurationTransfer: s1ap.SONConfigurationTransfer{0x05, 0x06, 0x07, 0x08},
+		SONConfigurationTransfer: testSONConfigurationTransfer(5, 6),
 	})
 
 	corpus["location_report_full"] = mustMarshal(t, &s1ap.LocationReport{
@@ -135,7 +150,7 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 	corpus["ue_context_modification_failure_full"] = mustMarshal(t, &s1ap.UEContextModificationFailure{
 		MMEUES1APID: s1ap.Ptr(s1ap.MMEUES1APID(1)),
 		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(2)),
-		Cause:       &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0},
+		Cause:       s1ap.Ptr(s1ap.CauseRadioNetworkUnspecified.Cause()),
 	})
 
 	corpus["erab_modify_request_full"] = mustMarshal(t, &s1ap.ERABModifyRequest{
@@ -154,7 +169,7 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(2)),
 		ERABModify:  []s1ap.ERABModifyItemBearerModRes{{ERABID: 5}},
 		ERABFailedToModify: []s1ap.ERABItem{
-			{ERABID: 6, Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}},
+			{ERABID: 6, Cause: s1ap.CauseRadioNetworkUnspecified.Cause()},
 		},
 		CriticalityDiagnostics:  &s1ap.CriticalityDiagnostics{ProcedureCode: s1ap.Ptr(s1ap.ProcERABModify)},
 		UserLocationInformation: &s1ap.UserLocationInformation{EUTRANCGI: testCGI, TAI: testTAI},
@@ -164,10 +179,10 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		MMEUES1APID: 1,
 		ENBUES1APID: 2,
 		ToBeModified: []s1ap.ERABToBeModifiedItemBearerModInd{
-			{ERABID: 5, TransportLayerAddress: s1ap.TransportLayerAddress{10, 45, 0, 1}, DLGTPTEID: 0x21},
+			{ERABID: 5, TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 45, 0, 1}), DLGTPTEID: 0x21},
 		},
-		NotToBeModified: []s1ap.ERABToBeModifiedItemBearerModInd{
-			{ERABID: 6, TransportLayerAddress: s1ap.TransportLayerAddress{10, 45, 0, 2}, DLGTPTEID: 0x22},
+		NotToBeModified: s1ap.ERABNotToBeModifiedListBearerModInd{
+			{ERABID: 6, TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 45, 0, 2}), DLGTPTEID: 0x22},
 		},
 		UserLocationInformation: &s1ap.UserLocationInformation{EUTRANCGI: testCGI, TAI: testTAI},
 	})
@@ -180,13 +195,13 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 	})
 
 	corpus["reset_all_full"] = mustMarshal(t, &s1ap.Reset{
-		Cause:     &s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscUnspecified},
-		ResetType: s1ap.ResetType{All: true},
+		Cause:     s1ap.Ptr(s1ap.CauseMiscUnspecified.Cause()),
+		ResetType: s1ap.ResetType{S1Interface: s1ap.Ptr(s1ap.ResetAllResetAll)},
 	})
 
 	corpus["reset_part_full"] = mustMarshal(t, &s1ap.Reset{
-		Cause: &s1ap.Cause{Group: s1ap.CauseGroupTransport, Value: 0},
-		ResetType: s1ap.ResetType{Part: []s1ap.UEAssociatedLogicalS1ConnectionItem{
+		Cause: s1ap.Ptr(s1ap.CauseTransportResourceUnavailable.Cause()),
+		ResetType: s1ap.ResetType{PartOfS1Interface: &s1ap.UEAssociatedLogicalS1ConnectionListRes{
 			{MMEUES1APID: s1ap.Ptr(s1ap.MMEUES1APID(7)), ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(3))},
 			{ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(4))},
 		}},
@@ -202,12 +217,12 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 	corpus["path_switch_request_full"] = mustMarshal(t, &s1ap.PathSwitchRequest{
 		ENBUES1APID: 9,
 		ERABToBeSwitchedDL: []s1ap.ERABToBeSwitchedDLItem{
-			{ERABID: 5, TransportLayerAddress: s1ap.TransportLayerAddress{10, 45, 0, 1}, GTPTEID: 0x11},
+			{ERABID: 5, TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 45, 0, 1}), GTPTEID: 0x11},
 		},
 		SourceMMEUES1APID:      4,
 		EUTRANCGI:              s1ap.Ptr(testCGI),
 		TAI:                    s1ap.Ptr(testTAI),
-		UESecurityCapabilities: s1ap.Ptr(s1ap.UESecurityCapabilities{EncryptionAlgorithms: 0xe000, IntegrityProtectionAlgorithms: 0xe000}),
+		UESecurityCapabilities: s1ap.Ptr(s1ap.UESecurityCapabilities{EncryptionAlgorithms: s1ap.SecurityAlgorithms{Value: 0xe000}, IntegrityProtectionAlgorithms: s1ap.SecurityAlgorithms{Value: 0xe000}}),
 	})
 
 	corpus["path_switch_request_acknowledge_full"] = mustMarshal(t, &s1ap.PathSwitchRequestAcknowledge{
@@ -215,16 +230,17 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		ENBUES1APID:               s1ap.Ptr(s1ap.ENBUES1APID(9)),
 		UEAggregateMaximumBitRate: &s1ap.UEAggregateMaximumBitRate{DL: 200000000, UL: 100000000},
 		ERABToBeReleased: []s1ap.ERABItem{
-			{ERABID: 6, Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}},
+			{ERABID: 6, Cause: s1ap.CauseRadioNetworkUnspecified.Cause()},
 		},
 		SecurityContext:        s1ap.SecurityContext{NextHopChainingCount: 3, NextHopParameter: s1ap.SecurityKey{0x01, 0x02, 0x03}},
-		UESecurityCapabilities: s1ap.Ptr(s1ap.UESecurityCapabilities{EncryptionAlgorithms: 0xe000, IntegrityProtectionAlgorithms: 0xe000}),
+		MMEUES1APID2:           s1ap.Ptr(s1ap.MMEUES1APID(5)),
+		UESecurityCapabilities: s1ap.Ptr(s1ap.UESecurityCapabilities{EncryptionAlgorithms: s1ap.SecurityAlgorithms{Value: 0xe000}, IntegrityProtectionAlgorithms: s1ap.SecurityAlgorithms{Value: 0xe000}}),
 	})
 
 	corpus["path_switch_request_failure_full"] = mustMarshal(t, &s1ap.PathSwitchRequestFailure{
 		MMEUES1APID:            s1ap.Ptr(s1ap.MMEUES1APID(4)),
 		ENBUES1APID:            s1ap.Ptr(s1ap.ENBUES1APID(9)),
-		Cause:                  &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 6},
+		Cause:                  s1ap.Ptr(s1ap.CauseRadioNetworkHOFailureInTarget.Cause()),
 		CriticalityDiagnostics: &s1ap.CriticalityDiagnostics{ProcedureCode: s1ap.Ptr(s1ap.ProcPathSwitchRequest)},
 	})
 
@@ -232,13 +248,13 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		MMEUES1APID: 4,
 		ENBUES1APID: 9,
 		NASPDU:      s1ap.NASPDU{0x07, 0x4b, 0x09},
-		Cause:       &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 27},
+		Cause:       s1ap.Ptr(s1ap.CauseRadioNetworkInvalidQoSCombination.Cause()),
 	})
 
 	corpus["s1_setup_request_full"] = mustMarshal(t, &s1ap.S1SetupRequest{
 		GlobalENBID: s1ap.GlobalENBID{
 			PLMNIdentity: testPLMN,
-			ENBID:        s1ap.ENBID{Kind: s1ap.ENBIDMacro, Value: 411},
+			ENBID:        s1ap.ENBID{MacroENBID: s1ap.Ptr(s1ap.MacroENBID(411))},
 		},
 		ENBName: s1ap.Ptr("srsenb01"),
 		SupportedTAs: s1ap.SupportedTAs{{
@@ -262,7 +278,7 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 	})
 
 	corpus["s1_setup_failure_full"] = mustMarshal(t, &s1ap.S1SetupFailure{
-		Cause:                  &s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 3},
+		Cause:                  s1ap.Ptr(s1ap.CauseMiscOMIntervention.Cause()),
 		TimeToWait:             s1ap.Ptr(s1ap.TimeToWaitV10s),
 		CriticalityDiagnostics: testDiagnostics(),
 	})
@@ -276,10 +292,10 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 
 	corpus["paging_full"] = mustMarshal(t, &s1ap.Paging{
 		UEIdentityIndexValue:       s1ap.Ptr(uint16(42)),
-		STMSI:                      &s1ap.STMSI{MMEC: 1, MTMSI: 0x01020304},
+		UEPagingID:                 &s1ap.UEPagingID{STMSI: &s1ap.STMSI{MMEC: 1, MTMSI: 0x01020304}},
 		PagingDRX:                  s1ap.Ptr(s1ap.PagingDRXv64),
 		CNDomain:                   s1ap.Ptr(s1ap.CNDomainPS),
-		TAIList:                    []s1ap.TAI{testTAI},
+		TAIList:                    s1ap.TAIList{{TAI: testTAI}},
 		PagingPriority:             s1ap.Ptr(s1ap.PagingPriorityLevel1),
 		UERadioCapabilityForPaging: []byte{0xab, 0xcd},
 	})
@@ -287,7 +303,7 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 	corpus["error_indication_full"] = mustMarshal(t, &s1ap.ErrorIndication{
 		MMEUES1APID:            s1ap.Ptr(s1ap.MMEUES1APID(7)),
 		ENBUES1APID:            s1ap.Ptr(s1ap.ENBUES1APID(807)),
-		Cause:                  &s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: 0},
+		Cause:                  s1ap.Ptr(s1ap.CauseProtocolTransferSyntaxError.Cause()),
 		CriticalityDiagnostics: testDiagnostics(),
 		STMSI:                  &s1ap.STMSI{MMEC: 1, MTMSI: 0x01020304},
 	})
@@ -295,7 +311,7 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 	corpus["initial_context_setup_failure_full"] = mustMarshal(t, &s1ap.InitialContextSetupFailure{
 		MMEUES1APID:            s1ap.Ptr(s1ap.MMEUES1APID(7)),
 		ENBUES1APID:            s1ap.Ptr(s1ap.ENBUES1APID(807)),
-		Cause:                  &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0},
+		Cause:                  s1ap.Ptr(s1ap.CauseRadioNetworkUnspecified.Cause()),
 		CriticalityDiagnostics: testDiagnostics(),
 	})
 
@@ -310,13 +326,13 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		MMEUES1APID:  7,
 		ENBUES1APID:  2,
 		HandoverType: s1ap.HandoverTypeIntraLTE,
-		Cause:        &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 16},
-		TargetID: s1ap.TargetID{TargeteNBID: s1ap.TargeteNBID{
-			GlobalENBID: s1ap.GlobalENBID{PLMNIdentity: testPLMN, ENBID: s1ap.ENBID{Kind: s1ap.ENBIDMacro, Value: 2}},
+		Cause:        s1ap.Ptr(s1ap.CauseRadioNetworkHandoverDesirableForRadio.Cause()),
+		TargetID: s1ap.TargetID{TargeteNBID: &s1ap.TargeteNBID{
+			GlobalENBID: s1ap.GlobalENBID{PLMNIdentity: testPLMN, ENBID: s1ap.ENBID{MacroENBID: s1ap.Ptr(s1ap.MacroENBID(2))}},
 			SelectedTAI: testTAI,
 		}},
 		DirectForwardingPathAvailability: s1ap.Ptr(s1ap.DirectForwardingPathAvailable),
-		SourceToTarget:                   s1ap.TransparentContainer{0xab, 0xcd},
+		SourceToTarget:                   testSourceeNBContainer(t),
 	})
 
 	corpus["handover_command_full"] = mustMarshal(t, &s1ap.HandoverCommand{
@@ -326,10 +342,10 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		NASSecurityParametersfromEUTRAN: s1ap.NASSecurityParametersfromEUTRAN{0x01, 0x02},
 		ERABSubjecttoDataForwarding: []s1ap.ERABDataForwardingItem{{
 			ERABID:               5,
-			DLTransportLayerAddr: s1ap.TransportLayerAddress{10, 4, 0, 2},
+			DLTransportLayerAddr: s1ap.Ptr(ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 2})),
 			DLGTPTEID:            s1ap.Ptr(s1ap.GTPTEID(0x99)),
 		}},
-		ERABToRelease:          []s1ap.ERABItem{{ERABID: 6, Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}}},
+		ERABToRelease:          []s1ap.ERABItem{{ERABID: 6, Cause: s1ap.CauseRadioNetworkUnspecified.Cause()}},
 		TargetToSource:         s1ap.TransparentContainer{0x11},
 		CriticalityDiagnostics: testDiagnostics(),
 	})
@@ -337,23 +353,23 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 	corpus["handover_preparation_failure_full"] = mustMarshal(t, &s1ap.HandoverPreparationFailure{
 		MMEUES1APID:            s1ap.Ptr(s1ap.MMEUES1APID(7)),
 		ENBUES1APID:            s1ap.Ptr(s1ap.ENBUES1APID(2)),
-		Cause:                  &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0},
+		Cause:                  s1ap.Ptr(s1ap.CauseRadioNetworkUnspecified.Cause()),
 		CriticalityDiagnostics: testDiagnostics(),
 	})
 
 	corpus["handover_request_full"] = mustMarshal(t, &s1ap.HandoverRequest{
 		MMEUES1APID:  7,
 		HandoverType: s1ap.HandoverTypeUTRANtoLTE,
-		Cause:        &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 16},
+		Cause:        s1ap.Ptr(s1ap.CauseRadioNetworkHandoverDesirableForRadio.Cause()),
 		UEAMBR:       s1ap.UEAggregateMaximumBitRate{DL: 100_000_000, UL: 50_000_000},
 		ERABToBeSetup: []s1ap.ERABToBeSetupItemHOReq{{
 			ERABID:                5,
-			TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2},
+			TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 2}),
 			GTPTEID:               0x99,
 			QoS:                   s1ap.ERABLevelQoSParameters{QCI: 9, ARP: s1ap.AllocationAndRetentionPriority{PriorityLevel: 15}},
 		}},
-		SourceToTarget:         s1ap.TransparentContainer{0xab},
-		UESecurityCapabilities: s1ap.UESecurityCapabilities{EncryptionAlgorithms: 0xc000, IntegrityProtectionAlgorithms: 0xc000},
+		SourceToTarget:         testSourceeNBContainer(t),
+		UESecurityCapabilities: s1ap.UESecurityCapabilities{EncryptionAlgorithms: s1ap.SecurityAlgorithms{Value: 0xc000}, IntegrityProtectionAlgorithms: s1ap.SecurityAlgorithms{Value: 0xc000}},
 		HandoverRestrictionList: &s1ap.HandoverRestrictionList{
 			ServingPLMN:        testPLMN,
 			EquivalentPLMNs:    s1ap.EPLMNs{testPLMN},
@@ -363,6 +379,8 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		},
 		SecurityContext:               s1ap.SecurityContext{NextHopChainingCount: 1},
 		NASSecurityParameterstoEUTRAN: s1ap.NASSecurityParameterstoEUTRAN{0x0a, 0x0b},
+		GUMMEI:                        &s1ap.GUMMEI{PLMNIdentity: testPLMN, MMEGroupID: s1ap.MMEGroupID{0x80, 0x01}, MMECode: 0x02},
+		MMEUES1APID2:                  s1ap.Ptr(s1ap.MMEUES1APID(8)),
 	})
 
 	corpus["handover_request_acknowledge_full"] = mustMarshal(t, &s1ap.HandoverRequestAcknowledge{
@@ -370,17 +388,17 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(55)),
 		ERABAdmitted: []s1ap.ERABAdmittedItem{{
 			ERABID:                5,
-			TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2},
+			TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 2}),
 			GTPTEID:               0x99,
 		}},
-		ERABFailedToSetup:      []s1ap.ERABItem{{ERABID: 6, Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}}},
+		ERABFailedToSetup:      []s1ap.ERABItem{{ERABID: 6, Cause: s1ap.CauseRadioNetworkUnspecified.Cause()}},
 		TargetToSource:         s1ap.TransparentContainer{0x11},
 		CriticalityDiagnostics: testDiagnostics(),
 	})
 
 	corpus["handover_failure_full"] = mustMarshal(t, &s1ap.HandoverFailure{
 		MMEUES1APID:            s1ap.Ptr(s1ap.MMEUES1APID(7)),
-		Cause:                  &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0},
+		Cause:                  s1ap.Ptr(s1ap.CauseRadioNetworkUnspecified.Cause()),
 		CriticalityDiagnostics: testDiagnostics(),
 	})
 
@@ -394,7 +412,7 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 	corpus["handover_cancel_full"] = mustMarshal(t, &s1ap.HandoverCancel{
 		MMEUES1APID: 7,
 		ENBUES1APID: 2,
-		Cause:       &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0},
+		Cause:       s1ap.Ptr(s1ap.CauseRadioNetworkUnspecified.Cause()),
 	})
 
 	corpus["handover_cancel_acknowledge_full"] = mustMarshal(t, &s1ap.HandoverCancelAcknowledge{
@@ -443,6 +461,12 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		RoutingID:   3,
 		LPPaPDU:     lppaPDU,
 	})
+
+	addPWSOverloadCorpus(t, corpus)
+
+	for name, b := range extensionIEsCorpus(t) {
+		corpus[name] = b
+	}
 
 	return corpus
 }
@@ -514,6 +538,9 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			s1ap.ProcENBConfigurationUpdate, s1ap.ProcENBConfigurationTransfer,
 			s1ap.ProcMMEConfigurationTransfer, s1ap.ProcLocationReport,
 			s1ap.ProcDownlinkNonUEAssociatedLPPaTransport, s1ap.ProcUplinkNonUEAssociatedLPPaTransport,
+			s1ap.ProcWriteReplaceWarning, s1ap.ProcKill, s1ap.ProcPWSRestartIndication,
+			s1ap.ProcPWSFailureIndication, s1ap.ProcOverloadStart, s1ap.ProcOverloadStop,
+			s1ap.ProcRerouteNASRequest, s1ap.ProcS1Removal,
 		},
 		"SuccessfulOutcome": {
 			s1ap.ProcS1Setup, s1ap.ProcInitialContextSetup, s1ap.ProcUEContextRelease, s1ap.ProcUEContextModification,
@@ -522,11 +549,12 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			s1ap.ProcReset, s1ap.ProcPathSwitchRequest,
 			s1ap.ProcERABModify, s1ap.ProcERABModificationIndication,
 			s1ap.ProcENBConfigurationUpdate,
+			s1ap.ProcWriteReplaceWarning, s1ap.ProcKill, s1ap.ProcS1Removal,
 		},
 		"UnsuccessfulOutcome": {
 			s1ap.ProcS1Setup, s1ap.ProcInitialContextSetup, s1ap.ProcUEContextModification,
 			s1ap.ProcHandoverPreparation, s1ap.ProcHandoverResourceAllocation,
-			s1ap.ProcPathSwitchRequest, s1ap.ProcENBConfigurationUpdate,
+			s1ap.ProcPathSwitchRequest, s1ap.ProcENBConfigurationUpdate, s1ap.ProcS1Removal,
 		},
 	}
 

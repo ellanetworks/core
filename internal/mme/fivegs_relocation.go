@@ -35,8 +35,14 @@ func NGRANIdentityFromS1AP(target s1ap.TargetNgRanNodeID) (interworking.NGRANIde
 	case node.GNB != nil:
 		id := node.GNB.GlobalGNBID
 
-		if id.GNBID.Bits < 22 || id.GNBID.Bits > 32 {
-			return interworking.NGRANIdentity{}, fmt.Errorf("%w: no gNB identity is %d bits wide", ErrUnusableTargetNGRAN, id.GNBID.Bits)
+		if id.GNBID.GNBID == nil {
+			return interworking.NGRANIdentity{}, fmt.Errorf("%w: unknown gNB identity alternative", ErrUnusableTargetNGRAN)
+		}
+
+		gnbID := *id.GNBID.GNBID
+
+		if gnbID.Bits < 22 || gnbID.Bits > 32 {
+			return interworking.NGRANIdentity{}, fmt.Errorf("%w: no gNB identity is %d bits wide", ErrUnusableTargetNGRAN, gnbID.Bits)
 		}
 
 		plmn, err := decodePLMN(id.PLMNIdentity)
@@ -46,19 +52,14 @@ func NGRANIdentityFromS1AP(target s1ap.TargetNgRanNodeID) (interworking.NGRANIde
 
 		out.Kind = interworking.NGRANNodeGNB
 		out.PlmnID = plmn
-		out.ID = id.GNBID.Value
-		out.Bits = uint8(id.GNBID.Bits)
+		out.ID = gnbID.Value
+		out.Bits = uint8(gnbID.Bits)
 	case node.NgENB != nil:
 		id := node.NgENB.GlobalNgENBID
 
-		bits, ok := map[s1ap.ENBIDKind]uint8{
-			s1ap.ENBIDShortMacro: 18,
-			s1ap.ENBIDMacro:      20,
-			s1ap.ENBIDLongMacro:  21,
-			s1ap.ENBIDHome:       28,
-		}[id.ENBID.Kind]
+		value, ok := id.ENBID.Value()
 		if !ok {
-			return interworking.NGRANIdentity{}, fmt.Errorf("%w: unknown ng-eNB identity kind %d", ErrUnusableTargetNGRAN, id.ENBID.Kind)
+			return interworking.NGRANIdentity{}, fmt.Errorf("%w: unknown ng-eNB identity alternative", ErrUnusableTargetNGRAN)
 		}
 
 		plmn, err := decodePLMN(id.PLMNIdentity)
@@ -68,8 +69,8 @@ func NGRANIdentityFromS1AP(target s1ap.TargetNgRanNodeID) (interworking.NGRANIde
 
 		out.Kind = interworking.NGRANNodeNgENB
 		out.PlmnID = plmn
-		out.ID = id.ENBID.Value
-		out.Bits = bits
+		out.ID = value
+		out.Bits = uint8(id.ENBID.Bits())
 	default:
 		return interworking.NGRANIdentity{}, fmt.Errorf("%w: it is neither a gNB nor an ng-eNB", ErrUnusableTargetNGRAN)
 	}

@@ -8,6 +8,9 @@ import (
 	"errors"
 	"slices"
 	"testing"
+
+	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // A ProtocolIE the message type does not model must survive Marshal/Parse
@@ -21,8 +24,8 @@ func TestUnknownIERoundTrip(t *testing.T) {
 		MMEUES1APID:       1,
 		ENBUES1APID:       2,
 		UERadioCapability: []byte{0xaa, 0xbb},
-		messageMeta:       messageMeta{unknownIEs: []rawIE{{id: unknownID, crit: CriticalityNotify, value: unknownVal}}},
 	}
+	in.appendUnknown(rawIE{ID: unknownID, Criticality: CriticalityNotify, Value: unknownVal})
 
 	pduBytes, err := in.Marshal()
 	if err != nil {
@@ -56,8 +59,8 @@ func TestUnknownIERoundTrip(t *testing.T) {
 
 func TestUnknownIEsNilWhenNone(t *testing.T) {
 	in := &UEContextReleaseCommand{
-		UES1APIDs: UES1APIDs{MMEUES1APID: 1, ENBUES1APID: 2, Pair: true},
-		Cause:     Ptr(Cause{Group: CauseGroupNAS, Value: 0}),
+		UES1APIDs: UES1APIDs{UES1APIDPair: &UES1APIDPair{MMEUES1APID: 1, ENBUES1APID: 2}},
+		Cause:     Ptr(CauseNASNormalRelease.Cause()),
 	}
 
 	pduBytes, err := in.Marshal()
@@ -142,10 +145,13 @@ func TestUnmodeledIECriticality(t *testing.T) {
 		t.Helper()
 
 		m := &S1SetupRequest{
-			GlobalENBID:      GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{Kind: ENBIDMacro, Value: 1}},
+			GlobalENBID:      GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{MacroENBID: Ptr(MacroENBID(1))}},
 			SupportedTAs:     SupportedTAs{{TAC: 1, BroadcastPLMNs: BPLMNs{{0x00, 0xf1, 0x10}}}},
 			DefaultPagingDRX: Ptr(PagingDRXv128),
-			messageMeta:      messageMeta{unknownIEs: unknown},
+		}
+
+		for _, u := range unknown {
+			m.appendUnknown(u)
 		}
 
 		raw, err := m.Marshal()
@@ -163,8 +169,8 @@ func TestUnmodeledIECriticality(t *testing.T) {
 
 	t.Run("reject rejects the procedure", func(t *testing.T) {
 		value := setup(t,
-			rawIE{id: ignoreID, crit: CriticalityIgnore, value: []byte{0x01}},
-			rawIE{id: rejectID, crit: CriticalityReject, value: []byte{0x02}},
+			rawIE{ID: ignoreID, Criticality: CriticalityIgnore, Value: []byte{0x01}},
+			rawIE{ID: rejectID, Criticality: CriticalityReject, Value: []byte{0x02}},
 		)
 
 		var ase *AbstractSyntaxError
@@ -184,8 +190,8 @@ func TestUnmodeledIECriticality(t *testing.T) {
 
 	t.Run("ignore and notify are reported and preserved", func(t *testing.T) {
 		value := setup(t,
-			rawIE{id: ignoreID, crit: CriticalityIgnore, value: []byte{0x01}},
-			rawIE{id: notifyID, crit: CriticalityNotify, value: []byte{0x03}},
+			rawIE{ID: ignoreID, Criticality: CriticalityIgnore, Value: []byte{0x01}},
+			rawIE{ID: notifyID, Criticality: CriticalityNotify, Value: []byte{0x03}},
 		)
 
 		out, err := ParseS1SetupRequest(value)
@@ -208,7 +214,7 @@ func TestUnmodeledIECriticality(t *testing.T) {
 	})
 
 	t.Run("ignore alone needs no report", func(t *testing.T) {
-		out, err := ParseS1SetupRequest(setup(t, rawIE{id: 400, crit: CriticalityIgnore, value: []byte{0x01}}))
+		out, err := ParseS1SetupRequest(setup(t, rawIE{ID: 400, Criticality: CriticalityIgnore, Value: []byte{0x01}}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -217,4 +223,118 @@ func TestUnmodeledIECriticality(t *testing.T) {
 			t.Error("ReportRequired() = true, want false for an ignore IE")
 		}
 	})
+}
+
+func goldS1SetupRequestForWire() *S1SetupRequest {
+	return &S1SetupRequest{
+		GlobalENBID:      GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{MacroENBID: Ptr(MacroENBID(0x0abcd))}},
+		SupportedTAs:     SupportedTAs{{TAC: 0x0001, BroadcastPLMNs: BPLMNs{{0x00, 0xf1, 0x10}}}},
+		DefaultPagingDRX: Ptr(PagingDRXv128),
+	}
+}
+
+func bodyOf(t *testing.T, body func(*per.Writer, per.Encoding) error) []byte {
+	t.Helper()
+
+	w := per.NewWriter()
+	if err := body(w, per.Aligned); err != nil {
+		t.Fatal(err)
+	}
+
+	return perBytes(w)
+}
+
+func wireIDs(t *testing.T, body func(*per.Writer, per.Encoding) error) []ProtocolIEID {
+	t.Helper()
+
+	var ids []ProtocolIEID
+	for _, f := range wireIEs(t, body) {
+		ids = append(ids, f.ID)
+	}
+
+	return ids
+}
+
+func TestUnknownIEKeepsItsWirePosition(t *testing.T) {
+	const unknownID ProtocolIEID = 300
+
+	src := goldS1SetupRequestForWire()
+	value := container(t,
+		ieField{ID: IDGlobalENBID, Criticality: CriticalityReject, Value: &src.GlobalENBID},
+		ieField{ID: IDSupportedTAs, Criticality: CriticalityReject, Value: src.SupportedTAs},
+		ieField{ID: unknownID, Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0xde, 0xad})},
+		ieField{ID: IDDefaultPagingDRX, Criticality: CriticalityIgnore, Value: PagingDRXv128},
+	)
+
+	req, err := ParseS1SetupRequest(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := bodyOf(t, req.encodeBody); !bytes.Equal(got, value) {
+		t.Fatalf("re-encoded\n got  % x\n want % x", got, value)
+	}
+
+	req.ENBName = Ptr("eNB-1")
+	req.UERetentionInformation = Ptr(UERetentionUesRetained)
+
+	want := []ProtocolIEID{IDGlobalENBID, IDENBname, IDSupportedTAs, unknownID, IDDefaultPagingDRX, IDUERetentionInformation}
+	if got := wireIDs(t, req.encodeBody); !slices.Equal(got, want) {
+		t.Fatalf("IE order %v, want %v", got, want)
+	}
+}
+
+func TestUnknownIEBeforeEveryTypedIEKeepsItsWirePosition(t *testing.T) {
+	src := goldS1SetupRequestForWire()
+	value := container(t,
+		ieField{ID: ProtocolIEID(300), Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0x01})},
+		ieField{ID: IDGlobalENBID, Criticality: CriticalityReject, Value: &src.GlobalENBID},
+		ieField{ID: IDSupportedTAs, Criticality: CriticalityReject, Value: src.SupportedTAs},
+		ieField{ID: IDDefaultPagingDRX, Criticality: CriticalityIgnore, Value: PagingDRXv128},
+		ieField{ID: ProtocolIEID(9999), Criticality: CriticalityNotify, Value: apimpl.RawValue([]byte{0x02})},
+	)
+
+	req, err := ParseS1SetupRequest(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := bodyOf(t, req.encodeBody); !bytes.Equal(got, value) {
+		t.Fatalf("re-encoded\n got  % x\n want % x", got, value)
+	}
+}
+
+func TestReceivedIECriticalityIsReencoded(t *testing.T) {
+	src := goldS1SetupRequestForWire()
+	value := container(t,
+		ieField{ID: IDGlobalENBID, Criticality: CriticalityReject, Value: &src.GlobalENBID},
+		ieField{ID: IDSupportedTAs, Criticality: CriticalityReject, Value: src.SupportedTAs},
+		ieField{ID: IDDefaultPagingDRX, Criticality: CriticalityReject, Value: PagingDRXv128},
+	)
+
+	req, err := ParseS1SetupRequest(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := bodyOf(t, req.encodeBody); !bytes.Equal(got, value) {
+		t.Fatalf("re-encoded\n got  % x\n want % x", got, value)
+	}
+
+	if got := wireIEs(t, src.encodeBody)[2].Criticality; got != CriticalityIgnore {
+		t.Fatalf("built from scratch: Default Paging DRX criticality %v, want ignore", got)
+	}
+}
+
+func TestConformingMessageParsesToItsBuiltForm(t *testing.T) {
+	in := goldS1SetupRequestForWire()
+
+	req, err := ParseS1SetupRequest(bodyOf(t, in.encodeBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !req.Equal(*in) {
+		t.Fatalf("parsed %+v, want %+v", req, in)
+	}
 }

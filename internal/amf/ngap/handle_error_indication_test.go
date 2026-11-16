@@ -29,9 +29,7 @@ func TestHandleErrorIndication_WithCause(t *testing.T) {
 	sender := ran.Conn.(*fakeNGAPSender)
 
 	msg := &ngap.ErrorIndication{
-		Cause: ngap.Ptr(ngap.Cause{
-			Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified,
-		}),
+		Cause: ngap.Ptr(ngap.CauseRadioNetworkUnspecified.Cause()),
 	}
 
 	HandleErrorIndication(context.Background(), amfInstance, ran, msg)
@@ -51,9 +49,7 @@ func TestHandleErrorIndication_ReleasesNamedUE(t *testing.T) {
 	amfID := ngap.AMFUENGAPID(10)
 	msg := &ngap.ErrorIndication{
 		AMFUENGAPID: &amfID,
-		Cause: ngap.Ptr(ngap.Cause{
-			Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified,
-		}),
+		Cause:       ngap.Ptr(ngap.CauseRadioNetworkUnspecified.Cause()),
 	}
 
 	HandleErrorIndication(context.Background(), amfInstance, ran, msg)
@@ -75,9 +71,7 @@ func TestHandleErrorIndication_UnknownUENoRelease(t *testing.T) {
 	amfID := ngap.AMFUENGAPID(999)
 	msg := &ngap.ErrorIndication{
 		AMFUENGAPID: &amfID,
-		Cause: ngap.Ptr(ngap.Cause{
-			Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified,
-		}),
+		Cause:       ngap.Ptr(ngap.CauseRadioNetworkUnspecified.Cause()),
 	}
 
 	HandleErrorIndication(context.Background(), amfInstance, ran, msg)

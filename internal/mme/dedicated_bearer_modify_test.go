@@ -160,7 +160,7 @@ func TestFailedModificationKeepsTheBearer(t *testing.T) {
 			m.RadioBearerModified(context.Background(), ue, 6, false)
 		}},
 		{"user-inactivity release before the UE answered", func(m *MME, ue *UeContext) {
-			ue.Conn().releaseCause.Store(&s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUserInactivity})
+			ue.Conn().releaseCause.Store(s1ap.Ptr(s1ap.CauseRadioNetworkUserInactivity.Cause()))
 			m.FreeUeConn(context.Background(), ue)
 		}},
 		{"handover before the eNB answered", func(m *MME, ue *UeContext) { m.ResumeBearerReconfigurationAfterHandover(context.Background(), ue) }},
@@ -426,7 +426,7 @@ func TestModificationTheUEHasNotAnsweredIsAbortedByAConnectionRelease(t *testing
 
 			sent := cc.count()
 
-			ue.Conn().releaseCause.Store(&s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUserInactivity})
+			ue.Conn().releaseCause.Store(s1ap.Ptr(s1ap.CauseRadioNetworkUserInactivity.Cause()))
 			m.FreeUeConn(ctx, ue)
 
 			if got := fake.modifications(); len(got) != 1 || got[0].outcome != models.ModificationFailed {
@@ -460,7 +460,7 @@ func TestModificationTheUEAcceptedIsCommittedWhenTheRadioIsInterrupted(t *testin
 				m.ReconcileBearersToRAN(context.Background(), ue, RANBearers{Present: []RANBearer{{Ebi: 6, EnbFTEID: voiceENB}}})
 			},
 			interrupt: func(m *MME, ue *UeContext) {
-				ue.Conn().releaseCause.Store(&s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUserInactivity})
+				ue.Conn().releaseCause.Store(s1ap.Ptr(s1ap.CauseRadioNetworkUserInactivity.Cause()))
 				m.FreeUeConn(context.Background(), ue)
 			},
 		},
@@ -621,7 +621,7 @@ func TestIdleARPChangeIsCommittedWithoutPaging(t *testing.T) {
 	m, ue, cc, fake := activeVoiceBearer(t)
 	ctx := context.Background()
 
-	ue.Conn().releaseCause.Store(&s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUserInactivity})
+	ue.Conn().releaseCause.Store(s1ap.Ptr(s1ap.CauseRadioNetworkUserInactivity.Cause()))
 	m.FreeUeConn(ctx, ue)
 
 	sent := cc.count()
@@ -683,7 +683,7 @@ func TestProcedureStartedOnASupersededConnectionIsNotArmed(t *testing.T) {
 	ctx := context.Background()
 
 	stale := ue.Conn()
-	stale.releaseCause.Store(&s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUserInactivity})
+	stale.releaseCause.Store(s1ap.Ptr(s1ap.CauseRadioNetworkUserInactivity.Cause()))
 	m.FreeUeConn(ctx, ue)
 	m.AttachUeConn(ctx, ue, m.NewUeConn(&captureConn{}, 9))
 

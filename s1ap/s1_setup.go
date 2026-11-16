@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 36.413 §9.1.8.4.
@@ -15,33 +16,36 @@ type S1SetupRequest struct {
 	DefaultPagingDRX *PagingDRX
 	// What the eNB offers (§8.7.3.2); the MME never accepts it.
 	UERetentionInformation *UERetentionInformation
+	CSGIdList              CSGIdList
+	NBIoTDefaultPagingDRX  *NBIoTDefaultPagingDRX
+	ConnectedengNBList     ConnectedengNBList
 
 	messageMeta
 }
 
 var s1SetupRequestIEs = []ieSpec[S1SetupRequest]{
 	{
-		id: IDGlobalENBID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *S1SetupRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.GlobalENBID)
+		ID: IDGlobalENBID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *S1SetupRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.GlobalENBID)
 		},
-		encode: func(m *S1SetupRequest) (per.Marshaler, bool) { return &m.GlobalENBID, true },
+		Encode: func(m *S1SetupRequest) (per.Marshaler, bool) { return &m.GlobalENBID, true },
 	},
 	{
-		id: IDENBname, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *S1SetupRequest, raw []byte, enc per.Encoding) error {
+		ID: IDENBname, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *S1SetupRequest, r *per.Reader, enc per.Encoding) error {
 			var (
 				err error
 				n   Name
 			)
-			if err = perIEDecode(raw, &n); err == nil {
+			if err = decodeIE(r, &n); err == nil {
 				name := string(n)
 				m.ENBName = &name
 			}
 
 			return err
 		},
-		encode: func(m *S1SetupRequest) (per.Marshaler, bool) {
+		Encode: func(m *S1SetupRequest) (per.Marshaler, bool) {
 			if m.ENBName == nil {
 				return nil, false
 			}
@@ -50,18 +54,18 @@ var s1SetupRequestIEs = []ieSpec[S1SetupRequest]{
 		},
 	},
 	{
-		id: IDSupportedTAs, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *S1SetupRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.SupportedTAs)
+		ID: IDSupportedTAs, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *S1SetupRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.SupportedTAs)
 		},
-		encode: func(m *S1SetupRequest) (per.Marshaler, bool) { return m.SupportedTAs, true },
+		Encode: func(m *S1SetupRequest) (per.Marshaler, bool) { return m.SupportedTAs, true },
 	},
 	{
-		id: IDDefaultPagingDRX, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *S1SetupRequest, raw []byte, enc per.Encoding) error {
+		ID: IDDefaultPagingDRX, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *S1SetupRequest, r *per.Reader, enc per.Encoding) error {
 			var v PagingDRX
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -69,7 +73,7 @@ var s1SetupRequestIEs = []ieSpec[S1SetupRequest]{
 
 			return nil
 		},
-		encode: func(m *S1SetupRequest) (per.Marshaler, bool) {
+		Encode: func(m *S1SetupRequest) (per.Marshaler, bool) {
 			if m.DefaultPagingDRX == nil {
 				return nil, false
 			}
@@ -77,12 +81,13 @@ var s1SetupRequestIEs = []ieSpec[S1SetupRequest]{
 			return m.DefaultPagingDRX, true
 		},
 	},
+	apimpl.ListIE(IDCSGIdList, CriticalityReject, func(m *S1SetupRequest) *CSGIdList { return &m.CSGIdList }),
 	{
-		id: IDUERetentionInformation, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *S1SetupRequest, raw []byte, enc per.Encoding) error {
+		ID: IDUERetentionInformation, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *S1SetupRequest, r *per.Reader, enc per.Encoding) error {
 			var v UERetentionInformation
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -90,7 +95,7 @@ var s1SetupRequestIEs = []ieSpec[S1SetupRequest]{
 
 			return nil
 		},
-		encode: func(m *S1SetupRequest) (per.Marshaler, bool) {
+		Encode: func(m *S1SetupRequest) (per.Marshaler, bool) {
 			if m.UERetentionInformation == nil {
 				return nil, false
 			}
@@ -98,6 +103,8 @@ var s1SetupRequestIEs = []ieSpec[S1SetupRequest]{
 			return m.UERetentionInformation, true
 		},
 	},
+	apimpl.OptionalIE(IDNBIoTDefaultPagingDRX, CriticalityIgnore, func(m *S1SetupRequest) **NBIoTDefaultPagingDRX { return &m.NBIoTDefaultPagingDRX }),
+	apimpl.ListIE(IDConnectedengNBList, CriticalityIgnore, func(m *S1SetupRequest) *ConnectedengNBList { return &m.ConnectedengNBList }),
 }
 
 func (m *S1SetupRequest) encodeBody(w *per.Writer, enc per.Encoding) error {
@@ -122,4 +129,8 @@ func (m *S1SetupRequest) Marshal() ([]byte, error) {
 
 func ParseS1SetupRequest(value []byte) (*S1SetupRequest, error) {
 	return parseMessageBody[S1SetupRequest](ProcS1Setup, TriggeringInitiatingMessage, s1SetupRequestIEs, value)
+}
+
+func DecodeS1SetupRequest(value []byte) (*S1SetupRequest, error) {
+	return decodeMessageBody[S1SetupRequest](ProcS1Setup, s1SetupRequestIEs, value)
 }

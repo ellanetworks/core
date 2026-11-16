@@ -34,17 +34,24 @@ type UserPlaneSecurityInformation struct {
 // PathSwitchRequestTransferDecoded is the per-session transfer the target node
 // sends to move the downlink tunnel to itself (TS 38.413 §9.3.4.8).
 type PathSwitchRequestTransferDecoded struct {
-	DLNGUUPTNLInformation        GTPTunnel                     `json:"dl_ng_u_up_tnl_information"`
-	DLNGUTNLInformationReused    *bool                         `json:"dl_ng_u_tnl_information_reused,omitempty"`
-	UserPlaneSecurityInformation *UserPlaneSecurityInformation `json:"user_plane_security_information,omitempty"`
-	QosFlowAccepted              []int64                       `json:"qos_flow_accepted,omitempty"`
+	DLNGUUPTNLInformation                         GTPTunnel                     `json:"dl_ng_u_up_tnl_information"`
+	DLNGUTNLInformationReused                     *bool                         `json:"dl_ng_u_tnl_information_reused,omitempty"`
+	UserPlaneSecurityInformation                  *UserPlaneSecurityInformation `json:"user_plane_security_information,omitempty"`
+	QosFlowAccepted                               []int64                       `json:"qos_flow_accepted,omitempty"`
+	AdditionalDLQosFlowPerTNLInformation          []QosFlowPerTNLInformation    `json:"additional_dl_qos_flow_per_tnl_information,omitempty"`
+	RedundantDLNGUUPTNLInformation                *GTPTunnel                    `json:"redundant_dl_ng_u_up_tnl_information,omitempty"`
+	RedundantDLNGUTNLInformationReused            *bool                         `json:"redundant_dl_ng_u_tnl_information_reused,omitempty"`
+	AdditionalRedundantDLQosFlowPerTNLInformation []QosFlowPerTNLInformation    `json:"additional_redundant_dl_qos_flow_per_tnl_information,omitempty"`
 }
 
 // PathSwitchRequestAcknowledgeTransferDecoded is the transfer the AMF returns per
 // switched session (TS 38.413 §9.3.4.9).
 type PathSwitchRequestAcknowledgeTransferDecoded struct {
-	ULNGUUPTNLInformation *GTPTunnel          `json:"ul_ng_u_up_tnl_information,omitempty"`
-	SecurityIndication    *SecurityIndication `json:"security_indication,omitempty"`
+	ULNGUUPTNLInformation                  *GTPTunnel          `json:"ul_ng_u_up_tnl_information,omitempty"`
+	SecurityIndication                     *SecurityIndication `json:"security_indication,omitempty"`
+	AdditionalNGUUPTNLInformation          []ULNGUUPTNLModify  `json:"additional_ng_u_up_tnl_information,omitempty"`
+	RedundantULNGUUPTNLInformation         *GTPTunnel          `json:"redundant_ul_ng_u_up_tnl_information,omitempty"`
+	AdditionalRedundantNGUUPTNLInformation []ULNGUUPTNLModify  `json:"additional_redundant_ng_u_up_tnl_information,omitempty"`
 }
 
 // CauseTransferDecoded is a transfer carrying only a cause, as the failed and
@@ -98,6 +105,16 @@ func libPathSwitchRequestTransfer(raw ngap.TransferContainer) (*PathSwitchReques
 		out.QosFlowAccepted = append(out.QosFlowAccepted, int64(flow.QosFlowIdentifier))
 	}
 
+	out.AdditionalDLQosFlowPerTNLInformation = qosFlowPerTNLInformationList(t.AdditionalDLQosFlowPerTNLInformation)
+	out.RedundantDLNGUUPTNLInformation = optionalGTPTunnel(t.RedundantDLNGUUPTNLInformation)
+
+	if t.RedundantDLNGUTNLInformationReused != nil {
+		reused := *t.RedundantDLNGUTNLInformationReused == ngap.DLNGUTNLInformationReusedTrue
+		out.RedundantDLNGUTNLInformationReused = &reused
+	}
+
+	out.AdditionalRedundantDLQosFlowPerTNLInformation = qosFlowPerTNLInformationList(t.AdditionalRedundantDLQosFlowPerTNLInformation)
+
 	return out, nil
 }
 
@@ -113,6 +130,10 @@ func libPathSwitchRequestAcknowledgeTransfer(raw ngap.TransferContainer) (*PathS
 		tunnel := libGTPTunnel(*t.ULNGUUPTNLInformation)
 		out.ULNGUUPTNLInformation = &tunnel
 	}
+
+	out.AdditionalNGUUPTNLInformation = gtpTunnelPairs(t.AdditionalNGUUPTNLInformation)
+	out.RedundantULNGUUPTNLInformation = optionalGTPTunnel(t.RedundantULNGUUPTNLInformation)
+	out.AdditionalRedundantNGUUPTNLInformation = gtpTunnelPairs(t.AdditionalRedundantNGUUPTNLInformation)
 
 	return out, nil
 }
@@ -195,6 +216,16 @@ func buildPathSwitchRequest(value []byte) NGAPMessageValue {
 		ies = append(ies, ie(ngap.IDPDUSessionResourceFailedToSetupListPSReq, ngap.CriticalityIgnore, failed))
 	}
 
+	if m.SourceAMFGUAMI != nil {
+		ies = append(ies, ie(ngap.IDSourceAMFGUAMI, ngap.CriticalityIgnore, guami(*m.SourceAMFGUAMI)))
+	}
+
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDRRCResumeCause, ngap.CriticalityIgnore, m.RRCResumeCause},
+		{ngap.IDRedCapIndication, ngap.CriticalityIgnore, m.RedCapIndication},
+		{ngap.IDERedCapIndication, ngap.CriticalityIgnore, m.ERedCapIndication},
+	})
+
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }
 
@@ -255,6 +286,46 @@ func buildPathSwitchRequestAcknowledge(value []byte) NGAPMessageValue {
 	if m.CriticalityDiagnostics != nil {
 		ies = append(ies, ie(ngap.IDCriticalityDiagnostics, ngap.CriticalityIgnore, criticalityDiagnostics(*m.CriticalityDiagnostics)))
 	}
+
+	if m.AMFUENGAPID2 != nil {
+		ies = append(ies, ie(ngap.IDAMFUENGAPID2, ngap.CriticalityIgnore, int64(*m.AMFUENGAPID2)))
+	}
+
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDNewSecurityContextInd, ngap.CriticalityReject, m.NewSecurityContextInd},
+		{ngap.IDCoreNetworkAssistanceInformationForInactive, ngap.CriticalityIgnore, m.CoreNetworkAssistanceInformationForInactive},
+		{ngap.IDRRCInactiveTransitionReportRequest, ngap.CriticalityIgnore, m.RRCInactiveTransitionReportRequest},
+		{ngap.IDRedirectionVoiceFallback, ngap.CriticalityIgnore, m.RedirectionVoiceFallback},
+		{ngap.IDCNAssistedRANTuning, ngap.CriticalityIgnore, m.CNAssistedRANTuning},
+		{ngap.IDSRVCCOperationPossible, ngap.CriticalityIgnore, m.SRVCCOperationPossible},
+		{ngap.IDEnhancedCoverageRestriction, ngap.CriticalityIgnore, m.EnhancedCoverageRestriction},
+		{ngap.IDExtendedConnectedTime, ngap.CriticalityIgnore, m.ExtendedConnectedTime},
+		{ngap.IDUEDifferentiationInfo, ngap.CriticalityIgnore, m.UEDifferentiationInfo},
+		{ngap.IDNRV2XServicesAuthorized, ngap.CriticalityIgnore, m.NRV2XServicesAuthorized},
+		{ngap.IDLTEV2XServicesAuthorized, ngap.CriticalityIgnore, m.LTEV2XServicesAuthorized},
+		{ngap.IDNRUESidelinkAggregateMaximumBitrate, ngap.CriticalityIgnore, m.NRUESidelinkAggregateMaximumBitrate},
+		{ngap.IDLTEUESidelinkAggregateMaximumBitrate, ngap.CriticalityIgnore, m.LTEUESidelinkAggregateMaximumBitrate},
+		{ngap.IDPC5QoSParameters, ngap.CriticalityIgnore, m.PC5QoSParameters},
+		{ngap.IDCEmodeBrestricted, ngap.CriticalityIgnore, m.CEmodeBrestricted},
+		{ngap.IDUEUPCIoTSupport, ngap.CriticalityIgnore, m.UEUPCIoTSupport},
+		{ngap.IDUERadioCapabilityID, ngap.CriticalityReject, m.UERadioCapabilityID},
+		{ngap.IDManagementBasedMDTPLMNList, ngap.CriticalityIgnore, m.ManagementBasedMDTPLMNList},
+		{ngap.IDTimeSyncAssistanceInfo, ngap.CriticalityIgnore, m.TimeSyncAssistanceInfo},
+		{ngap.IDFiveGProSeAuthorized, ngap.CriticalityIgnore, m.FiveGProSeAuthorized},
+		{ngap.IDFiveGProSeUEPC5AggregateMaximumBitRate, ngap.CriticalityIgnore, m.FiveGProSeUEPC5AggregateMaximumBitRate},
+		{ngap.IDFiveGProSePC5QoSParameters, ngap.CriticalityIgnore, m.FiveGProSePC5QoSParameters},
+		{ngap.IDManagementBasedMDTPLMNModificationList, ngap.CriticalityIgnore, m.ManagementBasedMDTPLMNModificationList},
+		{ngap.IDIABAuthorized, ngap.CriticalityIgnore, m.IABAuthorized},
+		{ngap.IDAerialUEsubscriptionInformation, ngap.CriticalityIgnore, m.AerialUEsubscriptionInformation},
+		{ngap.IDNRA2XServicesAuthorized, ngap.CriticalityIgnore, m.NRA2XServicesAuthorized},
+		{ngap.IDLTEA2XServicesAuthorized, ngap.CriticalityIgnore, m.LTEA2XServicesAuthorized},
+		{ngap.IDNRA2XUEPC5AggregateMaximumBitRate, ngap.CriticalityIgnore, m.NRA2XUEPC5AggregateMaximumBitRate},
+		{ngap.IDLTEA2XUEPC5AggregateMaximumBitRate, ngap.CriticalityIgnore, m.LTEA2XUEPC5AggregateMaximumBitRate},
+		{ngap.IDA2XPC5QoSParameters, ngap.CriticalityIgnore, m.A2XPC5QoSParameters},
+		{ngap.IDMobileIABAuthorized, ngap.CriticalityIgnore, m.MobileIABAuthorized},
+		{ngap.IDPartiallyAllowedNSSAI, ngap.CriticalityIgnore, m.PartiallyAllowedNSSAI},
+		{ngap.IDSLPositioningRangingServiceInfo, ngap.CriticalityIgnore, m.SLPositioningRangingServiceInfo},
+	})
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }

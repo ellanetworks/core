@@ -6,10 +6,10 @@ package ngap
 import (
 	"bytes"
 	"encoding/hex"
-	"errors"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 // Golden UPTransportLayerInformation carrying a GTP tunnel to 192.168.1.1
@@ -21,8 +21,8 @@ const goldenUPTransportLayerInformation = "01f0c0a8010100000001"
 
 func TestUPTransportLayerInformationGolden(t *testing.T) {
 	in := UPTransportLayerInformation{
-		GTPTunnel: GTPTunnel{
-			TransportLayerAddress: TransportLayerAddress{192, 168, 1, 1},
+		GTPTunnel: &GTPTunnel{
+			TransportLayerAddress: tlaOf(192, 168, 1, 1),
 			GTPTEID:               1,
 		},
 	}
@@ -41,28 +41,30 @@ func TestUPTransportLayerInformationGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !bytes.Equal(out.GTPTunnel.TransportLayerAddress, in.GTPTunnel.TransportLayerAddress) ||
+	if out.GTPTunnel.TransportLayerAddress != in.GTPTunnel.TransportLayerAddress ||
 		out.GTPTunnel.GTPTEID != in.GTPTunnel.GTPTEID {
 		t.Fatalf("round trip: %+v, want %+v", out.GTPTunnel, in.GTPTunnel)
 	}
 }
 
-// The CHOICE is closed by choice-Extensions rather than an extension marker, so
-// an unmodeled alternative is §10.3.1 case 6, handled on the carrying IE's
-// criticality.
 func TestUPTransportLayerInformationChoiceExtension(t *testing.T) {
-	raw := choiceExtensionValue(t, upTransportLayerInformationAlternatives,
-		upTransportLayerInformationChoiceExtensions, IDAMFUENGAPID)
+	raw := choiceExtensionValue(t, 2, 1, IDAMFUENGAPID)
 
-	_, err := unmarshalPERValue[UPTransportLayerInformation](raw)
-	if err == nil {
-		t.Fatal("decoded an unmodeled choice-Extensions alternative")
+	got, err := unmarshalPERValue[UPTransportLayerInformation](raw)
+	if err != nil {
+		t.Fatalf("decode is lenient, got %v", err)
 	}
 
-	// A transfer-syntax error here would abort the whole message instead of
-	// leaving criticality to decide, so the kind matters, not just that it
-	// failed.
-	if !errors.Is(err, errNotComprehended) {
-		t.Fatalf("err = %v, want errNotComprehended so criticality decides (§10.3.1 case 6)", err)
+	if got.GTPTunnel != nil || got.ChoiceExtension == nil || got.ChoiceExtension.ID != IDAMFUENGAPID {
+		t.Fatalf("decoded %+v, want the unknown alternative kept", got)
+	}
+
+	if !bytes.Equal(ieRaw(t, &got), raw) {
+		t.Fatal("unknown alternative did not re-encode byte-exact")
+	}
+
+	d := ap.Diagnose[ProtocolIEID](&got)
+	if len(d.IEs) != 1 || d.IEs[0].ID != IDAMFUENGAPID || d.IEs[0].Criticality != CriticalityReject {
+		t.Fatalf("diagnostics = %+v, want the alternative not comprehended on its own criticality", d.IEs)
 	}
 }

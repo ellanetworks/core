@@ -20,22 +20,22 @@ import (
 
 // causeUnknownPLMN is S1AP Cause Misc "unknown-PLMN" (TS 36.413), returned in S1
 // Setup Failure when the eNB broadcasts no PLMN this MME serves.
-var causeUnknownPLMN = s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscUnknownPLMN}
+var causeUnknownPLMN = s1ap.CauseMiscUnknownPLMN.Cause()
 
 // causeNoServedTAC is S1AP Cause Misc "unspecified", returned when the eNB
 // broadcasts a served PLMN but no TAC this MME serves. TS 36.413 §8.7.3.4
 // mandates rejection only on Unknown PLMN; rejecting an unserved TAC matches the
 // AMF's NG Setup / RAN Configuration Update handling.
-var causeNoServedTAC = s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscUnspecified}
+var causeNoServedTAC = s1ap.CauseMiscUnspecified.Cause()
 
 // causeUnspecified is the same Cause Misc "unspecified" on the wire, named for
 // the other reason the MME sends it: a failure on its own side, where the
 // eNB's configuration is not at fault and nothing more specific fits. Kept
 // distinct from causeNoServedTAC so a reader can tell which rejection a call
 // site means.
-var causeUnspecified = s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscUnspecified}
+var causeUnspecified = s1ap.CauseMiscUnspecified.Cause()
 
-var causeSemanticError = s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolSemanticError}
+var causeSemanticError = s1ap.CauseProtocolSemanticError.Cause()
 
 // handleS1Setup answers an eNB's S1 Setup Request with an S1 Setup Response when
 // the eNB broadcasts a TAI this MME serves, otherwise an S1 Setup Failure
@@ -80,7 +80,7 @@ func handleS1Setup(ctx context.Context, m *mme.MME, conn *sctp.SCTPConn, value [
 
 	m.RadioLog(ctx, conn).Info("S1 Setup Request",
 		zap.String("enb_name", enbName(req.ENBName)),
-		zap.Uint32("enb_id", req.GlobalENBID.ENBID.Value),
+		zap.Uint32("enb_id", enbIDValue(req.GlobalENBID.ENBID)),
 	)
 
 	if !accepted {
@@ -178,7 +178,7 @@ func s1SetupOutcomeFor(reqValue []byte, plmn models.PlmnID, tacs []uint16, mmeGr
 		}
 
 		reason = "eNB broadcasts no PLMN served by this MME (Unknown PLMN)"
-		if cause == causeNoServedTAC {
+		if cause.Equal(causeNoServedTAC) {
 			reason = "eNB broadcasts a served PLMN but no TAC served by this MME"
 		}
 
@@ -287,4 +287,10 @@ func enbName(name *string) string {
 	}
 
 	return *name
+}
+
+func enbIDValue(id s1ap.ENBID) uint32 {
+	v, _ := id.Value()
+
+	return v
 }

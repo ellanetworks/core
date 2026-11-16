@@ -14,35 +14,18 @@ type TimerApproachForGUAMIRemoval uint8
 
 const (
 	TimerApproachApplyTimer TimerApproachForGUAMIRemoval = iota
-
-	timerApproachForGUAMIRemovalRootCount = 1
 )
-
-func (t TimerApproachForGUAMIRemoval) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, timerApproachForGUAMIRemovalRootCount, int64(t), "TimerApproachForGUAMIRemoval")
-}
-
-func (t *TimerApproachForGUAMIRemoval) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := decodeRootEnumerated(r, enc, timerApproachForGUAMIRemovalRootCount, "TimerApproachForGUAMIRemoval")
-	if err != nil {
-		return err
-	}
-
-	*t = TimerApproachForGUAMIRemoval(v)
-
-	return nil
-}
 
 // UnavailableGUAMIItem ::= SEQUENCE { gUAMI, timerApproachForGUAMIRemoval
 // OPTIONAL, backupAMFName OPTIONAL, iE-Extensions OPTIONAL } (extensible),
 // defined inline in TS 38.413 §9.2.6.10.
 type UnavailableGUAMIItem struct {
-	_                            [0]struct{} `per:"extseq"`
 	GUAMI                        GUAMI
 	TimerApproachForGUAMIRemoval *TimerApproachForGUAMIRemoval `per:",optional"`
-	// The AMF to reselect towards (§8.7.6.2).
-	BackupAMFName *Name        `per:",optional"`
-	_             ieExtensions `per:",skip"`
+	BackupAMFName                *Name                         `per:",optional"`
+	ExtendedBackupAMFName        *ExtendedAMFName              `per:",extie:IDExtendedBackupAMFName,crit:ignore"`
+	iEExtensions                 extensionMeta                 `per:",exttable"`
+	extensions                   per.ExtensionAdditions        `per:",extraw"`
 }
 
 // UnavailableGUAMIList ::= SEQUENCE (SIZE(1..maxnoofServedGUAMIs)) OF
@@ -59,11 +42,11 @@ type AMFStatusIndication struct {
 
 var aMFStatusIndicationIEs = []ieSpec[AMFStatusIndication]{
 	{
-		id: IDUnavailableGUAMIList, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *AMFStatusIndication, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.UnavailableGUAMIList)
+		ID: IDUnavailableGUAMIList, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *AMFStatusIndication, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.UnavailableGUAMIList)
 		},
-		encode: func(m *AMFStatusIndication) (per.Marshaler, bool) {
+		Encode: func(m *AMFStatusIndication) (per.Marshaler, bool) {
 			return m.UnavailableGUAMIList, true
 		},
 	},
@@ -91,4 +74,8 @@ func (m *AMFStatusIndication) Marshal() ([]byte, error) {
 
 func ParseAMFStatusIndication(value []byte) (*AMFStatusIndication, error) {
 	return parseMessageBody[AMFStatusIndication](ProcAMFStatusIndication, TriggeringInitiatingMessage, aMFStatusIndicationIEs, value)
+}
+
+func DecodeAMFStatusIndication(value []byte) (*AMFStatusIndication, error) {
+	return decodeMessageBody[AMFStatusIndication](ProcAMFStatusIndication, aMFStatusIndicationIEs, value)
 }

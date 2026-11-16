@@ -133,7 +133,11 @@ func runN2HandoverPartialAdmission(_ context.Context, env scenarios.Env, _ any) 
 		return fmt.Errorf("the HandoverRequest carried %d PDU sessions, want 2", len(req.PDUSessionResourceSetupListHOReq))
 	}
 
-	refusal := ngaplib.Cause{Group: ngaplib.CauseGroupRadioNetwork, Value: ngaplib.CauseRadioNetworkRadioResourcesNotAvailable}
+	refusal := ngaplib.CauseRadioNetworkRadioResourcesNotAvailable.Cause()
+
+	if err := targetGNB.InheritSelectedPLMN(partialTargetRANID, sourceGNB, ranUENGAPID); err != nil {
+		return fmt.Errorf("carry the selected PLMN to the target gNB: %w", err)
+	}
 
 	if err := targetGNB.SendHandoverRequestAcknowledge(&gnb.HandoverRequestAcknowledgeOpts{
 		AMFUENGAPID: int64(req.AMFUENGAPID),

@@ -4,19 +4,13 @@
 package s1ap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 const (
 	maxnoofTAIs = 256
-
-	// CNDomain ::= ENUMERATED { ps, cs } (non-extensible, TS 36.413).
-	cnDomainRootCount = 2
-	// UEPagingID ::= CHOICE { s-TMSI, iMSI, ... } (extensible).
-	uePagingIDRootCount   = 2
-	uePagingIDChoiceSTMSI = 0
 )
 
 // Ella Core pages the PS domain.
@@ -39,30 +33,73 @@ const (
 	PagingPriorityLevel6
 	PagingPriorityLevel7
 	PagingPriorityLevel8
-
-	pagingPriorityRootCount = 8
 )
 
 // TS 36.413 §9.1.6.
 type Paging struct {
 	UEIdentityIndexValue *uint16
-	STMSI                *STMSI
+	UEPagingID           *UEPagingID
 	PagingDRX            *PagingDRX
 	CNDomain             *CNDomain
-	TAIList              []TAI
+	TAIList              TAIList
 	PagingPriority       *PagingPriority
 	// The eNB-reported paging-specific capability; when set, the eNB may use it
 	// to apply specific paging schemes.
-	UERadioCapabilityForPaging []byte
+	UERadioCapabilityForPaging   []byte
+	CSGIdList                    CSGIdList
+	AssistanceDataForPaging      *AssistanceDataForPaging
+	PagingeDRXInformation        *PagingeDRXInformation
+	ExtendedUEIdentityIndexValue *ExtendedUEIdentityIndexValue
+	NBIoTPagingeDRXInformation   *NBIoTPagingeDRXInformation
+	NBIoTUEIdentityIndexValue    *NBIoTUEIdentityIndexValue
+	EnhancedCoverageRestricted   *EnhancedCoverageRestricted
+	CEModeBRestricted            *CEModeBRestricted
+	DataSize                     *DataSize
+	WUSAssistanceInformation     *WUSAssistanceInformation
+	NBIoTPagingDRX               *NBIoTPagingDRX
+	PagingCause                  *PagingCause
 
 	messageMeta
 }
 
-// taiItem ::= SEQUENCE { tAI TAI, iE-Extensions OPTIONAL, ... }.
-type taiItem struct {
-	_   [0]struct{} `per:"extseq"`
-	TAI TAI
-	_   ieExtensions `per:",skip"`
+// TAIItem ::= SEQUENCE { tAI TAI, iE-Extensions OPTIONAL, ... }.
+type TAIItem struct {
+	extensions    per.ExtensionAdditions `per:",extraw"`
+	TAI           TAI
+	iEExtensions  extensionMeta `per:",exttable"`
+	containerCrit `per:"-"`
+}
+
+type TAIList []TAIItem
+
+func (l TAIList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return encodeSingleContainerList(w, enc, maxnoofTAIs, IDTAIItem, CriticalityIgnore, l)
+}
+
+func (l *TAIList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := decodeItemList[TAIItem](r, enc, maxnoofTAIs, IDTAIItem, CriticalityIgnore)
+	*l = items
+
+	return err
+}
+
+type UEPagingID struct {
+	STMSI *STMSI                    `per:",choice:0"`
+	IMSI  *IMSI                     `per:",choice:1"`
+	Ext   *per.ExtensionAlternative `per:",extalt"`
+}
+
+type IMSI []byte
+
+func (i IMSI) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeOctetString(w, enc, 3, 8, true, true, false, i)
+}
+
+func (i *IMSI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 3, 8, true, true, false)
+	*i = b
+
+	return err
 }
 
 // UE-Identity-Index-value ::= BIT STRING (SIZE(10)) — §9.2.3.10.
@@ -70,9 +107,9 @@ const ueIdentityIndexValueBits = 10
 
 var pagingIEs = []ieSpec[Paging]{
 	{
-		id: IDUEIdentityIndexValue, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
-			n, err := decodeBitStringUint(per.NewReader(raw), enc, ueIdentityIndexValueBits)
+		ID: IDUEIdentityIndexValue, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *Paging, r *per.Reader, enc per.Encoding) error {
+			n, err := decodeBitStringUint(r, enc, ueIdentityIndexValueBits)
 			if err != nil {
 				return err
 			}
@@ -82,7 +119,7 @@ var pagingIEs = []ieSpec[Paging]{
 
 			return nil
 		},
-		encode: func(m *Paging) (per.Marshaler, bool) {
+		Encode: func(m *Paging) (per.Marshaler, bool) {
 			if m.UEIdentityIndexValue == nil {
 				return nil, false
 			}
@@ -93,59 +130,18 @@ var pagingIEs = []ieSpec[Paging]{
 		},
 	},
 	{
-		id: IDUEPagingID, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
-			sub := per.NewReader(raw)
-
-			isExt, err := sub.ReadBit()
-			if err != nil {
-				return err
-			}
-
-			if isExt {
-				return fmt.Errorf("%w: UE paging identity extension alternative", errNotComprehended)
-			}
-
-			index, err := per.DecodeConstrainedWholeNumber(sub, enc, 0, uePagingIDRootCount-1)
-			if err != nil {
-				return err
-			}
-
-			if index != uePagingIDChoiceSTMSI {
-				return fmt.Errorf("%w: UE paging identity choice %d", errNotComprehended, index)
-			}
-
-			var v STMSI
-			if err := v.UnmarshalPER(sub, enc); err != nil {
-				return err
-			}
-
-			m.STMSI = &v
-
-			return nil
+		ID: IDUEPagingID, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *Paging, r *per.Reader, enc per.Encoding) error {
+			return decodeOptionalIE(r, &m.UEPagingID)
 		},
-		encode: func(m *Paging) (per.Marshaler, bool) {
-			if m.STMSI == nil {
-				return nil, false
-			}
-
-			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				w.WriteBit(false)
-
-				if err := per.EncodeConstrainedWholeNumber(w, enc, 0, uePagingIDRootCount-1, uePagingIDChoiceSTMSI); err != nil {
-					return err
-				}
-
-				return m.STMSI.MarshalPER(w, enc)
-			}), true
-		},
+		Encode: func(m *Paging) (per.Marshaler, bool) { return optionalIE(m.UEPagingID) },
 	},
 	{
-		id: IDPagingDRX, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
+		ID: IDPagingDRX, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *Paging, r *per.Reader, enc per.Encoding) error {
 			var drx PagingDRX
 
-			if err := perIEDecode(raw, &drx); err != nil {
+			if err := decodeIE(r, &drx); err != nil {
 				return err
 			}
 
@@ -153,7 +149,7 @@ var pagingIEs = []ieSpec[Paging]{
 
 			return nil
 		},
-		encode: func(m *Paging) (per.Marshaler, bool) {
+		Encode: func(m *Paging) (per.Marshaler, bool) {
 			if m.PagingDRX == nil {
 				return nil, false
 			}
@@ -162,91 +158,56 @@ var pagingIEs = []ieSpec[Paging]{
 		},
 	},
 	{
-		id: IDCNDomain, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
-			index, err := per.DecodeEnumerated(per.NewReader(raw), enc, cnDomainRootCount, false)
-			if err != nil {
-				return err
-			}
-
-			v := CNDomain(index)
-			m.CNDomain = &v
-
-			return nil
+		ID: IDCNDomain, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *Paging, r *per.Reader, enc per.Encoding) error {
+			return decodeOptionalIE(r, &m.CNDomain)
 		},
-		encode: func(m *Paging) (per.Marshaler, bool) {
-			if m.CNDomain == nil {
-				return nil, false
-			}
-
-			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return per.EncodeEnumerated(w, enc, cnDomainRootCount, false, int64(*m.CNDomain))
-			}), true
-		},
+		Encode: func(m *Paging) (per.Marshaler, bool) { return optionalIE(m.CNDomain) },
 	},
 	{
-		id: IDTAIList, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
-			items, err := decodeItemList[taiItem](per.NewReader(raw), enc, maxnoofTAIs, IDTAIItem)
-			if err != nil {
-				return err
-			}
-
-			m.TAIList = make([]TAI, len(items))
-			for i, it := range items {
-				m.TAIList[i] = it.TAI
-			}
-
-			return nil
+		ID: IDTAIList, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *Paging, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.TAIList)
 		},
-		encode: func(m *Paging) (per.Marshaler, bool) {
+		Encode: func(m *Paging) (per.Marshaler, bool) {
 			if len(m.TAIList) == 0 {
 				return nil, false
 			}
 
-			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				items := make([]taiItem, len(m.TAIList))
-				for i, tai := range m.TAIList {
-					items[i] = taiItem{TAI: tai}
-				}
-
-				return encodeSingleContainerList(w, enc, maxnoofTAIs, IDTAIItem, CriticalityIgnore, items)
-			}), true
+			return &m.TAIList, true
 		},
 	},
+	apimpl.ListIE(IDCSGIdList, CriticalityIgnore, func(m *Paging) *CSGIdList { return &m.CSGIdList }),
 	{
-		id: IDPagingPriority, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
-			v, err := decodeRootEnumerated(per.NewReader(raw), enc, pagingPriorityRootCount, "PagingPriority")
-			if err != nil {
+		ID: IDPagingPriority, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *Paging, r *per.Reader, enc per.Encoding) error {
+			var v PagingPriority
+			if err := v.UnmarshalPER(r, enc); err != nil {
 				return err
 			}
 
-			p := PagingPriority(v)
-			m.PagingPriority = &p
+			m.PagingPriority = &v
 
 			return nil
 		},
-		encode: func(m *Paging) (per.Marshaler, bool) {
+		Encode: func(m *Paging) (per.Marshaler, bool) {
 			if m.PagingPriority == nil {
 				return nil, false
 			}
 
-			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeRootEnumerated(w, enc, pagingPriorityRootCount, int64(*m.PagingPriority), "PagingPriority")
-			}), true
+			return m.PagingPriority, true
 		},
 	},
 	{
-		id: IDUERadioCapabilityForPaging, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *Paging, raw []byte, enc per.Encoding) error {
+		ID: IDUERadioCapabilityForPaging, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *Paging, r *per.Reader, enc per.Encoding) error {
 			var err error
 
-			m.UERadioCapabilityForPaging, err = per.DecodeOctetString(per.NewReader(raw), enc, 0, 0, true, false, false)
+			m.UERadioCapabilityForPaging, err = per.DecodeOctetString(r, enc, 0, 0, true, false, false)
 
 			return err
 		},
-		encode: func(m *Paging) (per.Marshaler, bool) {
+		Encode: func(m *Paging) (per.Marshaler, bool) {
 			if len(m.UERadioCapabilityForPaging) == 0 {
 				return nil, false
 			}
@@ -256,6 +217,17 @@ var pagingIEs = []ieSpec[Paging]{
 			}), true
 		},
 	},
+	apimpl.OptionalIE(IDAssistanceDataForPaging, CriticalityIgnore, func(m *Paging) **AssistanceDataForPaging { return &m.AssistanceDataForPaging }),
+	apimpl.OptionalIE(IDPagingeDRXInformation, CriticalityIgnore, func(m *Paging) **PagingeDRXInformation { return &m.PagingeDRXInformation }),
+	apimpl.OptionalIE(IDExtendedUEIdentityIndexValue, CriticalityIgnore, func(m *Paging) **ExtendedUEIdentityIndexValue { return &m.ExtendedUEIdentityIndexValue }),
+	apimpl.OptionalIE(IDNBIoTPagingeDRXInformation, CriticalityIgnore, func(m *Paging) **NBIoTPagingeDRXInformation { return &m.NBIoTPagingeDRXInformation }),
+	apimpl.OptionalIE(IDNBIoTUEIdentityIndexValue, CriticalityIgnore, func(m *Paging) **NBIoTUEIdentityIndexValue { return &m.NBIoTUEIdentityIndexValue }),
+	apimpl.OptionalIE(IDEnhancedCoverageRestricted, CriticalityIgnore, func(m *Paging) **EnhancedCoverageRestricted { return &m.EnhancedCoverageRestricted }),
+	apimpl.OptionalIE(IDCEModeBRestricted, CriticalityIgnore, func(m *Paging) **CEModeBRestricted { return &m.CEModeBRestricted }),
+	apimpl.OptionalIE(IDDataSize, CriticalityIgnore, func(m *Paging) **DataSize { return &m.DataSize }),
+	apimpl.OptionalIE(IDWUSAssistanceInformation, CriticalityIgnore, func(m *Paging) **WUSAssistanceInformation { return &m.WUSAssistanceInformation }),
+	apimpl.OptionalIE(IDNBIoTPagingDRX, CriticalityIgnore, func(m *Paging) **NBIoTPagingDRX { return &m.NBIoTPagingDRX }),
+	apimpl.OptionalIE(IDPagingCause, CriticalityIgnore, func(m *Paging) **PagingCause { return &m.PagingCause }),
 }
 
 func (m *Paging) encodeBody(w *per.Writer, enc per.Encoding) error {
@@ -280,4 +252,12 @@ func (m *Paging) Marshal() ([]byte, error) {
 
 func ParsePaging(value []byte) (*Paging, error) {
 	return parseMessageBody[Paging](ProcPaging, TriggeringInitiatingMessage, pagingIEs, value)
+}
+
+func DecodePaging(value []byte) (*Paging, error) {
+	return decodeMessageBody[Paging](ProcPaging, pagingIEs, value)
+}
+
+func (l *TAIList) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	return diagnoseItemList(d, IDTAIItem, CriticalityIgnore, l)
 }

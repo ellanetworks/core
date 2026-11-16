@@ -260,7 +260,7 @@ func (amf *AMF) buildPaging(guami *models.Guami, ue *UeContext) (*ngap.Paging, e
 	}
 
 	return &ngap.Paging{
-		FiveGSTMSI:       stmsi,
+		UEPagingIdentity: &ngap.UEPagingIdentity{FiveGSTMSI: stmsi},
 		TAIListForPaging: taiList,
 		// Replay the gNB-reported paging capability so it can apply paging
 		// optimisations (TS 38.413 §9.3.1.68); omitted when none was reported.
@@ -286,12 +286,12 @@ func fiveGSTMSIFor(guti etsi.GUTI5G) (*ngap.FiveGSTMSI, error) {
 	}, nil
 }
 
-func areaToNGAPTAIs(area []models.Tai) ([]ngap.TAI, error) {
+func areaToNGAPTAIs(area []models.Tai) (ngap.TAIListForPaging, error) {
 	if len(area) == 0 {
 		return nil, fmt.Errorf("empty registration area")
 	}
 
-	out := make([]ngap.TAI, 0, len(area))
+	out := make(ngap.TAIListForPaging, 0, len(area))
 
 	for _, t := range area {
 		if t.PlmnID == nil {
@@ -308,7 +308,7 @@ func areaToNGAPTAIs(area []models.Tai) ([]ngap.TAI, error) {
 			return nil, fmt.Errorf("parse TAC %q: %w", t.Tac, err)
 		}
 
-		out = append(out, ngap.TAI{PLMNIdentity: plmn, TAC: ngap.TAC(tac)})
+		out = append(out, ngap.TAIListForPagingItem{TAI: ngap.TAI{PLMNIdentity: plmn, TAC: ngap.TAC(tac)}})
 	}
 
 	return out, nil

@@ -10,10 +10,10 @@ import (
 // PDUSessionResourceNotifyItem ::= SEQUENCE { pDUSessionID,
 // pDUSessionResourceNotifyTransfer, iE-Extensions OPTIONAL } (extensible).
 type PDUSessionResourceNotifyItem struct {
-	_            [0]struct{} `per:"extseq"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // PDUSessionResourceNotifyList ::= SEQUENCE (SIZE(1..maxnoofPDUSessions)) OF
@@ -24,10 +24,10 @@ type PDUSessionResourceNotifyList []PDUSessionResourceNotifyItem
 // pDUSessionResourceNotifyReleasedTransfer, iE-Extensions OPTIONAL }
 // (extensible).
 type PDUSessionResourceReleasedItemNot struct {
-	_            [0]struct{} `per:"extseq"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // PDUSessionResourceReleasedListNot ::= SEQUENCE (SIZE(1..maxnoofPDUSessions))
@@ -50,25 +50,25 @@ type PDUSessionResourceNotify struct {
 
 var pDUSessionResourceNotifyIEs = []ieSpec[PDUSessionResourceNotify]{
 	{
-		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceNotify, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.AMFUENGAPID)
+		ID: IDAMFUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceNotify, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.AMFUENGAPID)
 		},
-		encode: func(m *PDUSessionResourceNotify) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
+		Encode: func(m *PDUSessionResourceNotify) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceNotify, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.RANUENGAPID)
+		ID: IDRANUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceNotify, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.RANUENGAPID)
 		},
-		encode: func(m *PDUSessionResourceNotify) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
+		Encode: func(m *PDUSessionResourceNotify) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
-		id: IDPDUSessionResourceNotifyList, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceNotify, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.PDUSessionResourceNotify)
+		ID: IDPDUSessionResourceNotifyList, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceNotify, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.PDUSessionResourceNotify)
 		},
-		encode: func(m *PDUSessionResourceNotify) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceNotify) (per.Marshaler, bool) {
 			if m.PDUSessionResourceNotify == nil {
 				return nil, false
 			}
@@ -77,11 +77,11 @@ var pDUSessionResourceNotifyIEs = []ieSpec[PDUSessionResourceNotify]{
 		},
 	},
 	{
-		id: IDPDUSessionResourceReleasedListNot, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *PDUSessionResourceNotify, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.PDUSessionResourceReleased)
+		ID: IDPDUSessionResourceReleasedListNot, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *PDUSessionResourceNotify, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.PDUSessionResourceReleased)
 		},
-		encode: func(m *PDUSessionResourceNotify) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceNotify) (per.Marshaler, bool) {
 			if m.PDUSessionResourceReleased == nil {
 				return nil, false
 			}
@@ -90,11 +90,11 @@ var pDUSessionResourceNotifyIEs = []ieSpec[PDUSessionResourceNotify]{
 		},
 	},
 	{
-		id: IDUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *PDUSessionResourceNotify, raw []byte, enc per.Encoding) error {
+		ID: IDUserLocationInformation, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *PDUSessionResourceNotify, r *per.Reader, enc per.Encoding) error {
 			var uli UserLocationInformation
 
-			if err := perIEDecode(raw, &uli); err != nil {
+			if err := decodeIE(r, &uli); err != nil {
 				return err
 			}
 
@@ -102,7 +102,7 @@ var pDUSessionResourceNotifyIEs = []ieSpec[PDUSessionResourceNotify]{
 
 			return nil
 		},
-		encode: func(m *PDUSessionResourceNotify) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceNotify) (per.Marshaler, bool) {
 			if m.UserLocationInformation == nil {
 				return nil, false
 			}
@@ -136,22 +136,30 @@ func ParsePDUSessionResourceNotify(value []byte) (*PDUSessionResourceNotify, err
 	return parseMessageBody[PDUSessionResourceNotify](ProcPDUSessionResourceNotify, TriggeringInitiatingMessage, pDUSessionResourceNotifyIEs, value)
 }
 
+func DecodePDUSessionResourceNotify(value []byte) (*PDUSessionResourceNotify, error) {
+	return decodeMessageBody[PDUSessionResourceNotify](ProcPDUSessionResourceNotify, pDUSessionResourceNotifyIEs, value)
+}
+
 // NotificationCause ::= ENUMERATED { fulfilled, not-fulfilled, ... } —
 // TS 38.413 §9.3.4.5.
 type NotificationCause uint8
 
 const (
-	NotificationCauseFulfilled    NotificationCause = 0
-	NotificationCauseNotFulfilled NotificationCause = 1
+	NotificationCauseFulfilled      NotificationCause = 0
+	NotificationCauseNotFulfilled   NotificationCause = 1
+	NotificationCauseNotFulfilledDL NotificationCause = 2
+	NotificationCauseNotFulfilledUL NotificationCause = 3
 )
 
 // QosFlowNotifyItem ::= SEQUENCE { qosFlowIdentifier, notificationCause,
 // iE-Extensions OPTIONAL } (extensible).
 type QosFlowNotifyItem struct {
-	_                 [0]struct{} `per:"extseq"`
-	QosFlowIdentifier QosFlowIdentifier
-	NotificationCause NotificationCause `per:"ENUMERATED,range:0..1,..."`
-	_                 ieExtensions      `per:",skip"`
+	extensions                        per.ExtensionAdditions `per:",extraw"`
+	QosFlowIdentifier                 QosFlowIdentifier
+	NotificationCause                 NotificationCause
+	CurrentQoSParaSetIndex            *AlternativeQoSParaSetNotifyIndex  `per:",extie:IDCurrentQoSParaSetIndex,crit:ignore"`
+	TSCTrafficCharacteristicsFeedback *TSCTrafficCharacteristicsFeedback `per:",extie:IDTSCTrafficCharacteristicsFeedback,crit:ignore"`
+	iEExtensions                      extensionMeta                      `per:",exttable"`
 }
 
 // QosFlowNotifyList ::= SEQUENCE (SIZE(1..maxnoofQosFlows)) OF QosFlowNotifyItem.
@@ -161,10 +169,12 @@ type QosFlowNotifyList []QosFlowNotifyItem
 // qosFlowReleasedList OPTIONAL, iE-Extensions OPTIONAL } (extensible) —
 // TS 38.413 §9.3.4.5.
 type PDUSessionResourceNotifyTransfer struct {
-	_               [0]struct{}          `per:"extseq"`
-	QosFlowNotify   QosFlowNotifyList    `per:",optional"`
-	QosFlowReleased QosFlowListWithCause `per:",optional"`
-	_               ieExtensions         `per:",skip"`
+	extensions                   per.ExtensionAdditions        `per:",extraw"`
+	QosFlowNotify                QosFlowNotifyList             `per:",optional"`
+	QosFlowReleased              QosFlowListWithCause          `per:",optional"`
+	SecondaryRATUsageInformation *SecondaryRATUsageInformation `per:",extie:IDSecondaryRATUsageInformation,crit:ignore"`
+	QosFlowFeedbackList          QosFlowFeedbackList           `per:",extie:IDQosFlowFeedbackList,crit:ignore"`
+	iEExtensions                 extensionMeta                 `per:",exttable"`
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.
@@ -183,11 +193,11 @@ func (t *PDUSessionResourceNotifyTransfer) Marshal() (TransferContainer, error) 
 // ParsePDUSessionResourceNotifyTransfer decodes the QoS flow notifications an
 // NG-RAN node reports for a PDU session.
 func ParsePDUSessionResourceNotifyTransfer(b TransferContainer) (*PDUSessionResourceNotifyTransfer, error) {
-	var t PDUSessionResourceNotifyTransfer
-
-	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
-		return nil, err
-	}
-
-	return &t, nil
+	return parseTransfer[PDUSessionResourceNotifyTransfer](b)
 }
+
+func DecodePDUSessionResourceNotifyTransfer(b TransferContainer) (*PDUSessionResourceNotifyTransfer, error) {
+	return decodeTransfer[PDUSessionResourceNotifyTransfer](b)
+}
+
+func (t *PDUSessionResourceNotifyTransfer) Diagnostics() Diagnostics { return diagnosticsOf(t) }

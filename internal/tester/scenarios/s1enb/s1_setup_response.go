@@ -55,7 +55,7 @@ func runS1SetupHomeENB(_ context.Context, env scenarios.Env, _ any) error {
 
 	e, err := s1enb.Start(&s1enb.StartOpts{
 		ENBID:            homeENBID,
-		ENBIDKind:        s1ap.ENBIDHome,
+		ENBIDKind:        s1enb.ENBIDHome,
 		MCC:              scenarios.DefaultMCC,
 		MNC:              scenarios.DefaultMNC,
 		TAC:              scenarios.DefaultTAC,

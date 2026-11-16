@@ -29,6 +29,10 @@ func buildMMEConfigurationUpdate(value []byte) (S1APMessageValue, string) {
 		ies = append(ies, ie(s1ap.IDRelativeMMECapacity, s1ap.CriticalityReject, *m.RelativeMMECapacity))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDServedDCNs, s1ap.CriticalityIgnore, m.ServedDCNs},
+	})
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	if m.RelativeMMECapacity == nil {

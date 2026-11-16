@@ -60,7 +60,7 @@ func TestServedTAICauseEmptySupportedTAs(t *testing.T) {
 		t.Fatal("an empty Supported-TA list must not be accepted")
 	}
 
-	if cause != causeNoServedTAC {
+	if !cause.Equal(causeNoServedTAC) {
 		t.Errorf("cause = %+v, want unspecified (%+v)", cause, causeNoServedTAC)
 	}
 }
@@ -76,7 +76,7 @@ func TestServedTAICauseUnservedPLMN(t *testing.T) {
 		t.Fatal("an unserved PLMN must not be accepted")
 	}
 
-	if cause != causeUnknownPLMN {
+	if !cause.Equal(causeUnknownPLMN) {
 		t.Errorf("cause = %+v, want unknown-PLMN (%+v)", cause, causeUnknownPLMN)
 	}
 }

@@ -78,10 +78,7 @@ func (m *MME) ForwardRelocation(ctx context.Context, req interworking.ForwardRel
 	}
 
 	if !access.Allow4G {
-		return none, interworking.TargetRefusal{Cause: s1ap.Cause{
-			Group: s1ap.CauseGroupRadioNetwork,
-			Value: s1ap.CauseRadioNetworkHOTargetNotAllowed,
-		}}
+		return none, interworking.TargetRefusal{Cause: s1ap.CauseRadioNetworkHOTargetNotAllowed.Cause()}
 	}
 
 	ue := NewUeContext()
@@ -407,13 +404,18 @@ func (m *MME) handoverRestrictionList(ctx context.Context) (*s1ap.HandoverRestri
 }
 
 func targetGlobalENBID(target interworking.ENBIdentity) (s1ap.GlobalENBID, error) {
-	kind, ok := map[uint8]s1ap.ENBIDKind{
-		18: s1ap.ENBIDShortMacro,
-		20: s1ap.ENBIDMacro,
-		21: s1ap.ENBIDLongMacro,
-		28: s1ap.ENBIDHome,
-	}[target.Bits]
-	if !ok {
+	var enbID s1ap.ENBID
+
+	switch target.Bits {
+	case 18:
+		enbID.ShortMacroENBID = s1ap.Ptr(s1ap.ShortMacroENBID(target.ID))
+	case 20:
+		enbID.MacroENBID = s1ap.Ptr(s1ap.MacroENBID(target.ID))
+	case 21:
+		enbID.LongMacroENBID = s1ap.Ptr(s1ap.LongMacroENBID(target.ID))
+	case 28:
+		enbID.HomeENBID = s1ap.Ptr(s1ap.HomeENBID(target.ID))
+	default:
 		return s1ap.GlobalENBID{}, fmt.Errorf("mme: no eNB identity is %d bits wide", target.Bits)
 	}
 
@@ -424,6 +426,6 @@ func targetGlobalENBID(target interworking.ENBIdentity) (s1ap.GlobalENBID, error
 
 	return s1ap.GlobalENBID{
 		PLMNIdentity: plmn,
-		ENBID:        s1ap.ENBID{Kind: kind, Value: target.ID},
+		ENBID:        enbID,
 	}, nil
 }

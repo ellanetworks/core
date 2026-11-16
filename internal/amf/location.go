@@ -69,63 +69,57 @@ func (ue *UeContext) SetLocation(loc models.UserLocation, tai models.Tai) {
 func (ueConn *UeConn) buildLocation(ctx context.Context, uli ngap.UserLocationInformation) (models.UserLocation, *models.Tai, bool) {
 	curTime := time.Now().UTC()
 
-	cellPlmnID, err := decodePLMN(uli.PLMNIdentity)
-	if err != nil {
-		logger.AmfLog.Warn("could not decode the cell PLMN of a User Location Information", zap.Error(err))
-		return models.UserLocation{}, nil, false
-	}
+	switch {
+	case uli.NR != nil:
+		cellPlmnID, tai, ok := cellLocation(uli.NR.NRCGI.PLMNIdentity, uli.NR.TAI)
+		if !ok {
+			return models.UserLocation{}, nil, false
+		}
 
-	plmnID, err := decodePLMN(uli.TAI.PLMNIdentity)
-	if err != nil {
-		logger.AmfLog.Warn("could not decode the TAI PLMN of a User Location Information", zap.Error(err))
-		return models.UserLocation{}, nil, false
-	}
-
-	tai := &models.Tai{
-		PlmnID: &plmnID,
-		Tac:    fmt.Sprintf("%06x", uint32(uli.TAI.TAC)),
-	}
-
-	switch uli.Kind {
-	case ngap.UserLocationNR:
 		nr := &models.NrLocation{
 			Tai:                 tai,
-			Ncgi:                &models.Ncgi{PlmnID: &cellPlmnID, NrCellID: fmt.Sprintf("%09x", uli.CellIdentity)},
+			Ncgi:                &models.Ncgi{PlmnID: &cellPlmnID, NrCellID: fmt.Sprintf("%09x", uint64(uli.NR.NRCGI.NRCellIdentity))},
 			UeLocationTimestamp: &curTime,
 		}
-		if uli.TimeStamp != nil {
-			nr.AgeOfLocationInformation = ageOfLocation(*uli.TimeStamp, curTime)
+		if uli.NR.TimeStamp != nil {
+			nr.AgeOfLocationInformation = ageOfLocation(*uli.NR.TimeStamp, curTime)
 		}
 
 		return models.UserLocation{NrLocation: nr}, tai, true
-	case ngap.UserLocationEUTRA:
+	case uli.EUTRA != nil:
+		cellPlmnID, tai, ok := cellLocation(uli.EUTRA.EUTRACGI.PLMNIdentity, uli.EUTRA.TAI)
+		if !ok {
+			return models.UserLocation{}, nil, false
+		}
+
 		eutra := &models.EutraLocation{
 			Tai:                 tai,
-			Ecgi:                &models.Ecgi{PlmnID: &cellPlmnID, EutraCellID: fmt.Sprintf("%07x", uli.CellIdentity)},
+			Ecgi:                &models.Ecgi{PlmnID: &cellPlmnID, EutraCellID: fmt.Sprintf("%07x", uint32(uli.EUTRA.EUTRACGI.EUTRACellIdentity))},
 			UeLocationTimestamp: &curTime,
 		}
-		if uli.TimeStamp != nil {
-			eutra.AgeOfLocationInformation = ageOfLocation(*uli.TimeStamp, curTime)
+		if uli.EUTRA.TimeStamp != nil {
+			eutra.AgeOfLocationInformation = ageOfLocation(*uli.EUTRA.TimeStamp, curTime)
 		}
 
 		return models.UserLocation{EutraLocation: eutra}, tai, true
-	case ngap.UserLocationN3IWF:
+	case uli.N3IWF != nil:
 		// Untrusted non-3GPP access reports the UE's transport address instead of
 		// a cell, so this alternative carries no TAI of its own. TS 23.501
 		// §5.3.2.3 has the N3IWF supply one — dedicated to non-3GPP access — over
 		// N2 setup or in the optional id-TAI extension of the with-PortNumber
-		// alternative, neither of which is modelled, so the operator's own TAI
-		// stands in and the location is recorded rather than dropped.
-		n3gppTai, err := ueConn.operatorTai(ctx)
+		// alternative. The extension is used when present; otherwise the
+		// operator's own TAI stands in and the location is recorded rather than
+		// dropped.
+		n3gppTai, err := ueConn.n3iwfTai(ctx, uli.N3IWF.TAI)
 		if err != nil {
-			logger.AmfLog.Error("cannot record an N3IWF location without an operator TAI", zap.Error(err))
+			logger.AmfLog.Error("cannot record an N3IWF location without a TAI", zap.Error(err))
 			return models.UserLocation{}, nil, false
 		}
 
-		ipv4, ipv6 := uli.IPAddress.IPs()
+		ipv4, ipv6 := uli.N3IWF.IPAddress.IPv4(), uli.N3IWF.IPAddress.IPv6()
 		n3ga := &models.N3gaLocation{
 			N3gppTai:   n3gppTai,
-			PortNumber: int32(uli.PortNumber),
+			PortNumber: int32(uli.N3IWF.PortNumber),
 		}
 
 		if ipv4.IsValid() {
@@ -140,6 +134,39 @@ func (ueConn *UeConn) buildLocation(ctx context.Context, uli ngap.UserLocationIn
 	default:
 		return models.UserLocation{}, nil, false
 	}
+}
+
+func cellLocation(cellPLMN ngap.PLMNIdentity, t ngap.TAI) (models.PlmnID, *models.Tai, bool) {
+	cellPlmnID, err := decodePLMN(cellPLMN)
+	if err != nil {
+		logger.AmfLog.Warn("could not decode the cell PLMN of a User Location Information", zap.Error(err))
+		return models.PlmnID{}, nil, false
+	}
+
+	tai, err := taiToModels(t)
+	if err != nil {
+		logger.AmfLog.Warn("could not decode the TAI PLMN of a User Location Information", zap.Error(err))
+		return models.PlmnID{}, nil, false
+	}
+
+	return cellPlmnID, tai, true
+}
+
+func taiToModels(t ngap.TAI) (*models.Tai, error) {
+	plmnID, err := decodePLMN(t.PLMNIdentity)
+	if err != nil {
+		return nil, err
+	}
+
+	return &models.Tai{PlmnID: &plmnID, Tac: fmt.Sprintf("%06x", uint32(t.TAC))}, nil
+}
+
+func (ueConn *UeConn) n3iwfTai(ctx context.Context, t *ngap.TAI) (*models.Tai, error) {
+	if t != nil {
+		return taiToModels(*t)
+	}
+
+	return ueConn.operatorTai(ctx)
 }
 
 func (ueConn *UeConn) operatorTai(ctx context.Context) (*models.Tai, error) {

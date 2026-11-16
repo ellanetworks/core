@@ -29,11 +29,7 @@ func handleENBConfigurationTransfer(ctx context.Context, m *mme.MME, radio *mme.
 		return
 	}
 
-	target, err := msg.SONConfigurationTransfer.TargetENBID()
-	if err != nil {
-		logger.From(ctx, logger.MmeLog).Warn("could not decode Target eNB-ID from SON Configuration Transfer", zap.Error(err))
-		return
-	}
+	target := msg.SONConfigurationTransfer.TargeteNBID
 
 	targetID, err := mme.RanNodeID(target.GlobalENBID)
 	if err != nil {

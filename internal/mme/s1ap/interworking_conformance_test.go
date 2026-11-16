@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/per/ap"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -22,7 +23,7 @@ func icsResponseFor(t *testing.T, m *mme.MME, cc *captureConn, ue *mme.UeContext
 	for _, ebi := range ebis {
 		rsp.ERABSetup = append(rsp.ERABSetup, s1ap.ERABSetupItemCtxtSURes{
 			ERABID:                s1ap.ERABID(ebi),
-			TransportLayerAddress: s1ap.TransportLayerAddress{10, 3, 0, 3},
+			TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 3, 0, 3}),
 			GTPTEID:               s1ap.GTPTEID(0x90 + uint32(ebi)),
 		})
 	}

@@ -18,6 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/roaming"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
+	"github.com/ellanetworks/core/per/ap"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
@@ -283,7 +284,7 @@ func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext
 	for _, p := range pdns {
 		// The S1-U endpoint advertises whichever transport address family the N3 has
 		// (TS 36.413).
-		sgwTLA, err := models.EncodeTransportLayerAddress(p.SgwFTEID.Addr, p.SgwN3IPv6)
+		sgwTLA, err := ap.TransportLayerAddressFromAddrs(p.SgwFTEID.Addr, p.SgwN3IPv6)
 		if err != nil {
 			logger.From(ctx, logger.MmeLog).Error("failed to encode S-GW transport layer address", logger.ERABID(p.Ebi), zap.Error(err))
 
@@ -296,7 +297,7 @@ func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext
 				QCI: s1ap.QCI(p.Qci),
 				ARP: mme.BearerARP(p.Arp),
 			},
-			TransportLayerAddress: s1ap.TransportLayerAddress(sgwTLA),
+			TransportLayerAddress: sgwTLA,
 			GTPTEID:               s1ap.GTPTEID(p.SgwFTEID.TEID),
 		})
 	}
@@ -306,7 +307,7 @@ func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext
 			continue
 		}
 
-		sgwTLA, err := models.EncodeTransportLayerAddress(d.SGW.Addr, d.SGWN3IPv6)
+		sgwTLA, err := ap.TransportLayerAddressFromAddrs(d.SGW.Addr, d.SGWN3IPv6)
 		if err != nil {
 			logger.From(ctx, logger.MmeLog).Error("failed to encode S-GW transport layer address", logger.ERABID(d.EBI), zap.Error(err))
 
@@ -316,7 +317,7 @@ func buildInitialContextSetup(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		erabs = append(erabs, s1ap.ERABToBeSetupItemCtxtSUReq{
 			ERABID:                s1ap.ERABID(d.EBI),
 			QoS:                   mme.DedicatedERABQoS(&d),
-			TransportLayerAddress: s1ap.TransportLayerAddress(sgwTLA),
+			TransportLayerAddress: sgwTLA,
 			GTPTEID:               s1ap.GTPTEID(d.SGW.TEID),
 		})
 	}

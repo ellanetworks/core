@@ -4,6 +4,8 @@
 package s1ap
 
 import (
+	"strings"
+
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/s1ap"
@@ -21,8 +23,24 @@ func procedureCodeToEnum(code s1ap.ProcedureCode) utils.EnumField {
 	return utils.MakeEnum(int64(code), name, !ok)
 }
 
+func namedEnum[T ~int | ~int32 | ~int64 | ~uint8 | ~uint16 | ~uint32 | ~uint64](v T, name string) utils.EnumField {
+	if strings.HasPrefix(name, "unknown(") {
+		name = ""
+	}
+
+	return utils.NamedEnum(v, name)
+}
+
+func derefSlice[S ~[]E, E any](p *S) S {
+	if p == nil {
+		return nil
+	}
+
+	return *p
+}
+
 func criticalityToEnum(c s1ap.Criticality) utils.EnumField {
-	return utils.NamedEnum(uint8(c), c.Name())
+	return namedEnum(uint8(c), c.Name())
 }
 
 // PLMNID is the MCC/MNC view of a 3-octet PLMN identity.

@@ -5,7 +5,7 @@
 // the UNALIGNED PER variant NR-RRC uses (3GPP TS 38.331 §8.1).
 package rrctest
 
-//go:generate sh -c "cd ../../../.. && go run ./cmd/pergen -o per/internal/conformance/rrc/per_gen.go github.com/ellanetworks/core/per/internal/conformance/rrc"
+//go:generate go run github.com/ellanetworks/core/per/cmd/pergen
 
 // RRCRelease models the NR-RRC RRCRelease message (TS 38.331 §6.4.2).
 type RRCRelease struct {

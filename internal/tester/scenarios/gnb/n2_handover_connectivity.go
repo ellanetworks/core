@@ -184,6 +184,10 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 	targetN3IP := netip.MustParseAddr(targetGNBSpec.N3Address)
 	targetDLTEID := uint32(9000)
 
+	if err := targetGNB.InheritSelectedPLMN(targetRanUENGAPID, sourceGNB, ranUENGAPID); err != nil {
+		return fmt.Errorf("carry the selected PLMN to the target gNB: %w", err)
+	}
+
 	err = targetGNB.SendHandoverRequestAcknowledge(&gnb.HandoverRequestAcknowledgeOpts{
 		AMFUENGAPID: targetAmfUENGAPID,
 		RANUENGAPID: targetRanUENGAPID,

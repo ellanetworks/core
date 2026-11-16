@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/netip"
 	"slices"
 
@@ -284,14 +285,23 @@ func (s *SMF) bindNGRANDownlink(ctx context.Context, smContext *SMContext, n2Dat
 	return dropped, nil
 }
 
-func anchorFromGTPTunnel(t libngap.GTPTunnel) AnchorBinding {
-	ipv4, ipv6 := ngap.ParseTransportLayerAddress(t.TransportLayerAddress)
-
-	return AnchorBinding{
-		TEID: uint32(t.GTPTEID),
-		IPv4: ipv4,
-		IPv6: ipv6,
+func anchorFromGTPTunnel(u libngap.UPTransportLayerInformation) (AnchorBinding, error) {
+	t := u.GTPTunnel
+	if t == nil {
+		return AnchorBinding{}, fmt.Errorf("UP transport layer information is not a GTP tunnel")
 	}
+
+	b := AnchorBinding{TEID: uint32(t.GTPTEID)}
+
+	if v4 := t.TransportLayerAddress.IPv4(); v4.IsValid() {
+		b.IPv4 = net.IP(v4.AsSlice())
+	}
+
+	if v6 := t.TransportLayerAddress.IPv6(); v6.IsValid() {
+		b.IPv6 = net.IP(v6.AsSlice())
+	}
+
+	return b, nil
 }
 
 func anchorFromSetupResponse(b []byte) (AnchorBinding, error) {
@@ -300,9 +310,7 @@ func anchorFromSetupResponse(b []byte) (AnchorBinding, error) {
 		return AnchorBinding{}, fmt.Errorf("failed to unmarshall resource setup response transfer: %w", err)
 	}
 
-	// UPTransportLayerInformation is a CHOICE whose only modelled alternative is
-	// gTPTunnel; the decoder refuses choice-Extensions on our behalf.
-	return anchorFromGTPTunnel(transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel), nil
+	return anchorFromGTPTunnel(transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation)
 }
 
 // UpdateSmContextN2InfoPduResSetupFail handles a PDUSession Resource Setup failure.

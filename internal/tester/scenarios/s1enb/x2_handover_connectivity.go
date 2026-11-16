@@ -108,7 +108,7 @@ func runS1ENBX2HandoverConnectivity(ctx context.Context, env scenarios.Env, _ an
 		return fmt.Errorf("ping before handover via source eNB: %w", err)
 	}
 
-	targetENBUEID := target.AllocateENBUEID()
+	targetENBUEID := target.AllocateENBUEIDFor(ue)
 
 	dlTEID, err := target.SendPathSwitchRequest(targetENBUEID, res.MMEUES1APID, res.ERABID, ue.S1APSecurityCapabilities())
 	if err != nil {

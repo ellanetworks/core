@@ -150,7 +150,7 @@ func TestDetachSwitchOff(t *testing.T) {
 	}
 
 	cmd := parseUEContextReleaseCommand(t, cc.sent[0])
-	if !cmd.UES1APIDs.Pair || cmd.UES1APIDs.MMEUES1APID != ue.Conn().MMEUES1APID || cmd.UES1APIDs.ENBUES1APID != 7 {
+	if p := cmd.UES1APIDs.UES1APIDPair; p == nil || p.MMEUES1APID != ue.Conn().MMEUES1APID || p.ENBUES1APID != 7 {
 		t.Fatalf("unexpected release command IDs: %+v", cmd.UES1APIDs)
 	}
 
@@ -307,7 +307,7 @@ func TestDetachAcceptReleasesWithTheDetachCause(t *testing.T) {
 	}
 
 	cmd := parseUEContextReleaseCommand(t, cc.sent[0])
-	if cmd.Cause == nil || *cmd.Cause != mme.CauseNASDetach {
+	if cmd.Cause == nil || !cmd.Cause.Equal(mme.CauseNASDetach) {
 		t.Errorf("release cause = %+v, want NAS detach: releasing the last PDN first claims the release, so the detach's own cause never reaches the eNB", cmd.Cause)
 	}
 }

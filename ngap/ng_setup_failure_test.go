@@ -23,8 +23,8 @@ func TestNGSetupFailureGoldenDecode(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	want := Cause{Group: CauseGroupMisc, Value: CauseMiscUnknownPLMNOrSNPN}
-	if deref(fail.Cause) != want {
+	want := CauseMiscUnknownPLMNOrSNPN.Cause()
+	if !deref(fail.Cause).Equal(want) {
 		t.Errorf("cause = %v, want %v", deref(fail.Cause), want)
 	}
 
@@ -34,7 +34,7 @@ func TestNGSetupFailureGoldenDecode(t *testing.T) {
 }
 
 func TestNGSetupFailureCauseOnly(t *testing.T) {
-	in := &NGSetupFailure{Cause: Ptr(Cause{Group: CauseGroupProtocol, Value: CauseProtocolAbstractSyntaxErrorReject})}
+	in := &NGSetupFailure{Cause: Ptr(CauseProtocolAbstractSyntaxErrorReject.Cause())}
 
 	b, err := in.Marshal()
 	if err != nil {
@@ -56,7 +56,7 @@ func TestNGSetupFailureCauseOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if deref(out.Cause) != deref(in.Cause) || out.TimeToWait != nil || out.CriticalityDiagnostics != nil {
+	if !deref(out.Cause).Equal(deref(in.Cause)) || out.TimeToWait != nil || out.CriticalityDiagnostics != nil {
 		t.Fatalf("got %+v", out)
 	}
 }
@@ -74,7 +74,7 @@ func TestNGSetupFailureWithoutCauseIsDelivered(t *testing.T) {
 	}
 
 	diag := out.Diagnostics()
-	if len(diag.IEs) != 1 || diag.IEs[0].ID != IDCause || diag.IEs[0].TypeOfError != TypeOfErrorMissing {
+	if len(diag.IEs) != 1 || diag.IEs[0].ID != IDCause || typeOfError(diag.IEs[0]) != TypeOfErrorMissing {
 		t.Fatalf("diagnostics = %+v", diag.IEs)
 	}
 }

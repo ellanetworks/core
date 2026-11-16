@@ -1,0 +1,122 @@
+{
+  "summary": "Reroute NAS Request (eNB UE 2)",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 52,
+    "label": "RerouteNASRequest",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 8,
+          "label": "eNB-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 2
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 0,
+          "label": "MME-UE-S1AP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 7
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 225,
+          "label": "S1-Message",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "hex": "000c4000"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 223,
+          "label": "MME-Group-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 32770
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 224,
+          "label": "Additional-GUTI",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "gummei": {
+            "plmn_id": {
+              "mcc": "001",
+              "mnc": "01"
+            },
+            "mme_group_id": 32769,
+            "mme_code": 1
+          },
+          "m_tmsi": 3735928559
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 230,
+          "label": "UE-Usage-Type",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 5
+      }
+    ]
+  }
+}

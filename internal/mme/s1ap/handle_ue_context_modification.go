@@ -45,7 +45,7 @@ func handleUEContextModificationFailure(ctx context.Context, m *mme.MME, radio *
 	ue.TouchLastSeen()
 	ueConn.ForgetUEAMBR()
 
-	cause := s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscUnspecified}
+	cause := s1ap.CauseMiscUnspecified.Cause()
 	if resp.Cause != nil {
 		cause = *resp.Cause
 	}

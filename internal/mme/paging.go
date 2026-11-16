@@ -23,7 +23,7 @@ var errPagingSkipped = errors.New("paging skipped")
 
 var errUEConnected = errors.New("mme: the UE re-established its S1 connection before it was paged")
 
-var causeErrorIndicationReceived = s1ap.Cause{Group: s1ap.CauseGroupTransport, Value: s1ap.CauseTransportResourceUnavailable}
+var causeErrorIndicationReceived = s1ap.CauseTransportResourceUnavailable.Cause()
 
 // Page sends an S1AP Paging for an EMM-REGISTERED, ECM-IDLE UE so it re-establishes
 // the S1 connection and buffered downlink data is delivered, within the UE's
@@ -255,7 +255,7 @@ func (m *MME) buildPaging(ctx context.Context, ue *UeContext) (*s1ap.Paging, err
 
 	return &s1ap.Paging{
 		UEIdentityIndexValue: s1ap.Ptr(ueIdentityIndex(ue.imsiOrEmpty())),
-		STMSI:                &s1ap.STMSI{MMEC: s1ap.MMECode(mmeCode), MTMSI: s1ap.MTMSI(mtmsi)},
+		UEPagingID:           &s1ap.UEPagingID{STMSI: &s1ap.STMSI{MMEC: s1ap.MMECode(mmeCode), MTMSI: s1ap.MTMSI(mtmsi)}},
 		CNDomain:             s1ap.Ptr(s1ap.CNDomainPS),
 		TAIList:              taiList,
 		// Replay the eNB-reported paging capability so it can apply paging
@@ -307,12 +307,12 @@ func (m *MME) ServedTAIs(ctx context.Context) ([]models.Tai, error) {
 
 // areaToS1APTAIs encodes a registration area as the S1AP TAI list carried in Paging.
 // An empty area is rejected: it would page the UE nowhere.
-func areaToS1APTAIs(area []models.Tai) ([]s1ap.TAI, error) {
+func areaToS1APTAIs(area []models.Tai) (s1ap.TAIList, error) {
 	if len(area) == 0 {
 		return nil, fmt.Errorf("empty registration area")
 	}
 
-	out := make([]s1ap.TAI, 0, len(area))
+	out := make(s1ap.TAIList, 0, len(area))
 
 	for _, t := range area {
 		if t.PlmnID == nil {
@@ -329,7 +329,7 @@ func areaToS1APTAIs(area []models.Tai) ([]s1ap.TAI, error) {
 			return nil, fmt.Errorf("invalid TAC %q: %w", t.Tac, err)
 		}
 
-		out = append(out, s1ap.TAI{PLMNIdentity: plmnID, TAC: s1ap.TAC(tac)})
+		out = append(out, s1ap.TAIItem{TAI: s1ap.TAI{PLMNIdentity: plmnID, TAC: s1ap.TAC(tac)}})
 	}
 
 	return out, nil

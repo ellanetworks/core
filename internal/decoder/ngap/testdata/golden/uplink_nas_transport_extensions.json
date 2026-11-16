@@ -1,0 +1,146 @@
+{
+  "summary": "UplinkNASTransport, AMF-UE=1, RAN-UE=2, NAS=REGISTRATION COMPLETE",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 46,
+    "label": "UplinkNASTransport",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 1,
+    "label": "ignore",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 10,
+          "label": "AMF-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 85,
+          "label": "RAN-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 2
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 38,
+          "label": "NAS-PDU",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "protocol": "NAS",
+          "raw_hex": "7e0043",
+          "decoded": {
+            "security_header": {
+              "protocol_discriminator": {
+                "type": "enum",
+                "value": 126,
+                "label": "5GMM",
+                "unknown": false
+              },
+              "security_header_type": {
+                "type": "enum",
+                "value": 0,
+                "label": "plain",
+                "unknown": false
+              },
+              "sequence_number": 0
+            },
+            "gmm_message": {
+              "gmm_header": {
+                "message_type": {
+                  "type": "enum",
+                  "value": 67,
+                  "label": "REGISTRATION COMPLETE",
+                  "unknown": false
+                }
+              },
+              "registration_complete": {}
+            },
+            "encrypted": false
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 121,
+          "label": "UserLocationInformation",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "nr": {
+            "nr_cgi": {
+              "plmn_id": {
+                "mcc": "001",
+                "mnc": "01"
+              },
+              "nr_cell_identity": "000000010"
+            },
+            "tai": {
+              "plmn_id": {
+                "mcc": "001",
+                "mnc": "01"
+              },
+              "tac": "000001"
+            }
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 246,
+          "label": "TNGFIdentityInformation",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "hex": "0102"
+        }
+      }
+    ]
+  }
+}

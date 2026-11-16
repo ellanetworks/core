@@ -14,7 +14,7 @@ import (
 // is shown rather than dropped (TS 36.413 §9.3).
 func TestAppendUnknownIEs(t *testing.T) {
 	ies := appendUnknownIEs(nil, []s1ap.RawIE{
-		{ID: 300, Criticality: s1ap.CriticalityNotify, Value: []byte{0xde, 0xad}},
+		{ID: 999, Criticality: s1ap.CriticalityNotify, Value: []byte{0xde, 0xad}},
 	})
 
 	if len(ies) != 1 {
@@ -22,8 +22,8 @@ func TestAppendUnknownIEs(t *testing.T) {
 	}
 
 	got := ies[0]
-	if got.ID.Value != 300 || !got.ID.Unknown {
-		t.Fatalf("id = %+v, want value 300 flagged unknown", got.ID)
+	if got.ID.Value != 999 || !got.ID.Unknown {
+		t.Fatalf("id = %+v, want value 999 flagged unknown", got.ID)
 	}
 
 	if got.Criticality.Value != int64(s1ap.CriticalityNotify) {
@@ -43,7 +43,7 @@ func TestDecodeInitialContextSetupFailure(t *testing.T) {
 	raw, err := (&s1ap.InitialContextSetupFailure{
 		MMEUES1APID: s1ap.Ptr(s1ap.MMEUES1APID(1)),
 		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(2)),
-		Cause:       &s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0},
+		Cause:       s1ap.Ptr(s1ap.CauseRadioNetworkUnspecified.Cause()),
 	}).Marshal()
 	if err != nil {
 		t.Fatal(err)

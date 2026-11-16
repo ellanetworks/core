@@ -133,11 +133,11 @@ func (nGSetupRequest *NGSetupRequest) UnmarshalPER(r *per.Reader, enc per.Encodi
 	}
 	if p_RANNodeName {
 		var v string
-		sp, err := per.DecodeString(r, enc)
+		sp1, err := per.DecodeString(r, enc)
 		if err != nil {
 			return err
 		}
-		v = string(sp)
+		v = string(sp1)
 		nGSetupRequest.RANNodeName = &v
 	}
 	if err := (&nGSetupRequest.SupportedTAList).UnmarshalPER(r, enc); err != nil {
@@ -157,11 +157,11 @@ func (pLMNIdentity *PLMNIdentity) MarshalPER(w *per.Writer, enc per.Encoding) er
 }
 
 func (pLMNIdentity *PLMNIdentity) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	p, err := per.DecodeOctetString(r, enc, 3, 3, true, true, false)
+	p0, err := per.DecodeOctetString(r, enc, 3, 3, true, true, false)
 	if err != nil {
 		return err
 	}
-	pLMNIdentity.Value = p
+	pLMNIdentity.Value = p0
 	return nil
 }
 
@@ -195,11 +195,11 @@ func (supportedTAIItem *SupportedTAIItem) UnmarshalPER(r *per.Reader, enc per.En
 	if err := (&supportedTAIItem.PLMN).UnmarshalPER(r, enc); err != nil {
 		return err
 	}
-	p, err := per.DecodeOctetString(r, enc, 3, 3, true, true, false)
+	p1, err := per.DecodeOctetString(r, enc, 3, 3, true, true, false)
 	if err != nil {
 		return err
 	}
-	supportedTAIItem.TAC = p
+	supportedTAIItem.TAC = p1
 	return nil
 }
 

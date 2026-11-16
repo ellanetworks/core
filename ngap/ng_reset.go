@@ -4,35 +4,24 @@
 package ngap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
 )
 
 // TS 38.413, NGAP-Constants.
 const maxnoofNGConnectionsToReset = 65536
 
-// ResetType CHOICE alternatives, defined inline in the NG RESET of TS 38.413
-// §9.2.6.11 rather than in a clause of its own. The CHOICE is not
-// extensible, so choice-Extensions is a plain alternative index.
-const (
-	resetTypeNGInterface = iota
-	resetTypePartOfNGInterface
-	resetTypeChoiceExtensions
-
-	resetTypeAlternatives = 3
-)
-
 // ResetAll ::= ENUMERATED { reset-all, ... }.
-const resetAllRootCount = 1
+type ResetAll uint8
+
+const ResetAllResetAll ResetAll = 0
 
 // TS 38.413 §9.3.3.25. Both identities are optional; an item may carry either
 // or both.
 type UEAssociatedLogicalNGConnectionItem struct {
-	_           [0]struct{}  `per:"extseq"`
-	AMFUENGAPID *AMFUENGAPID `per:",optional"`
-	RANUENGAPID *RANUENGAPID `per:",optional"`
-	_           ieExtensions `per:",skip"`
+	AMFUENGAPID  *AMFUENGAPID           `per:",optional"`
+	RANUENGAPID  *RANUENGAPID           `per:",optional"`
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // UEAssociatedLogicalNGConnectionList ::= SEQUENCE (SIZE(1..
@@ -40,56 +29,10 @@ type UEAssociatedLogicalNGConnectionItem struct {
 // A plain SEQUENCE OF: the items are not in a ProtocolIE-SingleContainer.
 type UEAssociatedLogicalNGConnectionList []UEAssociatedLogicalNGConnectionItem
 
-// All selects nG-Interface, resetting the whole interface; otherwise Part
-// selects partOfNG-Interface, the connections to reset.
 type ResetType struct {
-	All  bool
-	Part UEAssociatedLogicalNGConnectionList
-}
-
-func (t ResetType) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	if t.All {
-		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, resetTypeAlternatives-1, resetTypeNGInterface); err != nil {
-			return err
-		}
-
-		return encodeRootEnumerated(w, enc, resetAllRootCount, 0, "ResetAll")
-	}
-
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, resetTypeAlternatives-1, resetTypePartOfNGInterface); err != nil {
-		return err
-	}
-
-	return t.Part.MarshalPER(w, enc)
-}
-
-func (t *ResetType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, resetTypeAlternatives-1)
-	if err != nil {
-		return fmt.Errorf("ngap: ResetType choice: %w", err)
-	}
-
-	switch idx {
-	case resetTypeNGInterface:
-		if _, err := decodeRootEnumerated(r, enc, resetAllRootCount, "ResetAll"); err != nil {
-			return fmt.Errorf("ngap: ResetAll: %w", err)
-		}
-
-		*t = ResetType{All: true}
-
-		return nil
-	case resetTypeChoiceExtensions:
-		return decodeChoiceExtension(r, enc, "ResetType")
-	default:
-		var items UEAssociatedLogicalNGConnectionList
-		if err := items.UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-
-		*t = ResetType{Part: items}
-
-		return nil
-	}
+	NGInterface       *ResetAll                            `per:",choice:0"`
+	PartOfNGInterface *UEAssociatedLogicalNGConnectionList `per:",choice:1"`
+	ChoiceExtension   *SingleContainer                     `per:",choice:2,extie"`
 }
 
 // TS 38.413 §9.2.6.11.
@@ -102,11 +45,11 @@ type NGReset struct {
 
 var nGResetIEs = []ieSpec[NGReset]{
 	{
-		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *NGReset, raw []byte, enc per.Encoding) error {
+		ID: IDCause, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *NGReset, r *per.Reader, enc per.Encoding) error {
 			var v Cause
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -114,7 +57,7 @@ var nGResetIEs = []ieSpec[NGReset]{
 
 			return nil
 		},
-		encode: func(m *NGReset) (per.Marshaler, bool) {
+		Encode: func(m *NGReset) (per.Marshaler, bool) {
 			if m.Cause == nil {
 				return nil, false
 			}
@@ -123,11 +66,11 @@ var nGResetIEs = []ieSpec[NGReset]{
 		},
 	},
 	{
-		id: IDResetType, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *NGReset, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ResetType)
+		ID: IDResetType, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *NGReset, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.ResetType)
 		},
-		encode: func(m *NGReset) (per.Marshaler, bool) { return &m.ResetType, true },
+		Encode: func(m *NGReset) (per.Marshaler, bool) { return &m.ResetType, true },
 	},
 }
 
@@ -155,6 +98,10 @@ func ParseNGReset(value []byte) (*NGReset, error) {
 	return parseMessageBody[NGReset](ProcNGReset, TriggeringInitiatingMessage, nGResetIEs, value)
 }
 
+func DecodeNGReset(value []byte) (*NGReset, error) {
+	return decodeMessageBody[NGReset](ProcNGReset, nGResetIEs, value)
+}
+
 // TS 38.413 §9.2.6.12.
 type NGResetAcknowledge struct {
 	ConnectionList         UEAssociatedLogicalNGConnectionList
@@ -166,11 +113,11 @@ type NGResetAcknowledge struct {
 // The message has no mandatory IE.
 var nGResetAcknowledgeIEs = []ieSpec[NGResetAcknowledge]{
 	{
-		id: IDUEAssociatedLogicalNGConnectionList, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *NGResetAcknowledge, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ConnectionList)
+		ID: IDUEAssociatedLogicalNGConnectionList, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *NGResetAcknowledge, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.ConnectionList)
 		},
-		encode: func(m *NGResetAcknowledge) (per.Marshaler, bool) {
+		Encode: func(m *NGResetAcknowledge) (per.Marshaler, bool) {
 			if len(m.ConnectionList) == 0 {
 				return nil, false
 			}
@@ -179,10 +126,10 @@ var nGResetAcknowledgeIEs = []ieSpec[NGResetAcknowledge]{
 		},
 	},
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *NGResetAcknowledge, raw []byte, enc per.Encoding) error {
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *NGResetAcknowledge, r *per.Reader, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
-			if err := perIEDecode(raw, &cd); err != nil {
+			if err := decodeIE(r, &cd); err != nil {
 				return err
 			}
 
@@ -190,7 +137,7 @@ var nGResetAcknowledgeIEs = []ieSpec[NGResetAcknowledge]{
 
 			return nil
 		},
-		encode: func(m *NGResetAcknowledge) (per.Marshaler, bool) {
+		Encode: func(m *NGResetAcknowledge) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -222,4 +169,8 @@ func (m *NGResetAcknowledge) Marshal() ([]byte, error) {
 
 func ParseNGResetAcknowledge(value []byte) (*NGResetAcknowledge, error) {
 	return parseMessageBody[NGResetAcknowledge](ProcNGReset, TriggeringSuccessfulOutcome, nGResetAcknowledgeIEs, value)
+}
+
+func DecodeNGResetAcknowledge(value []byte) (*NGResetAcknowledge, error) {
+	return decodeMessageBody[NGResetAcknowledge](ProcNGReset, nGResetAcknowledgeIEs, value)
 }

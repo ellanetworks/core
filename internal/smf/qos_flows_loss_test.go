@@ -154,7 +154,7 @@ func ranReleasesVoice(t *testing.T, s *smf.SMF, ref string) {
 	raw, err := (&libngap.PDUSessionResourceNotifyTransfer{
 		QosFlowReleased: libngap.QosFlowListWithCause{{
 			QosFlowIdentifier: voiceQFI,
-			Cause:             libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: libngap.CauseRadioNetworkRadioResourcesNotAvailable},
+			Cause:             libngap.CauseRadioNetworkRadioResourcesNotAvailable.Cause(),
 		}},
 	}).Marshal()
 	if err != nil {
@@ -633,7 +633,7 @@ func TestPathSwitchClearsAPendingDeletionTheTargetNeverHeld(t *testing.T) {
 	waitFlowModifications(t, amfCb, 2)
 
 	raw, err := (&libngap.PDUSessionResourceModifyUnsuccessfulTransfer{
-		Cause: libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: libngap.CauseRadioNetworkRadioResourcesNotAvailable},
+		Cause: libngap.CauseRadioNetworkRadioResourcesNotAvailable.Cause(),
 	}).Marshal()
 	if err != nil {
 		t.Fatal(err)
@@ -860,7 +860,7 @@ func TestRANReleasingTheDefaultFlowReleasesTheSession(t *testing.T) {
 	raw, err := (&libngap.PDUSessionResourceNotifyTransfer{
 		QosFlowReleased: libngap.QosFlowListWithCause{{
 			QosFlowIdentifier: libngap.QosFlowIdentifier(models.DefaultQFI),
-			Cause:             libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: libngap.CauseRadioNetworkRadioResourcesNotAvailable},
+			Cause:             libngap.CauseRadioNetworkRadioResourcesNotAvailable.Cause(),
 		}},
 	}).Marshal()
 	if err != nil {

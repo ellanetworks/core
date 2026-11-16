@@ -12,12 +12,7 @@ import (
 )
 
 func testGNBID(value uint32) ngap.GlobalRANNodeID {
-	return ngap.GlobalRANNodeID{
-		Kind:         ngap.RANNodeIDGNB,
-		PLMNIdentity: ngap.PLMNIdentity{0x00, 0xf1, 0x10},
-		Value:        value,
-		Bits:         24,
-	}
+	return ngap.NewGlobalGNBID(ngap.PLMNIdentity{0x00, 0xf1, 0x10}, value, 24)
 }
 
 func newIdentityTestRadio(t *testing.T, a *AMF, name string) (*Radio, *sctp.SCTPConn) {

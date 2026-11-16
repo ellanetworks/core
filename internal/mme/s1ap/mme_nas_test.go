@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/per/ap"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -25,7 +26,7 @@ func TestInitialContextSetupResponseRelaysENBFTEID(t *testing.T) {
 		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(7)),
 		ERABSetup: []s1ap.ERABSetupItemCtxtSURes{{
 			ERABID:                s1ap.ERABID(mme.DefaultERABID),
-			TransportLayerAddress: s1ap.TransportLayerAddress([]byte{10, 3, 0, 3}),
+			TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 3, 0, 3}),
 			GTPTEID:               s1ap.GTPTEID(0x55),
 		}},
 	}
@@ -85,7 +86,7 @@ func TestInitialContextSetupResponseENBTransportFamily(t *testing.T) {
 				ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(7)),
 				ERABSetup: []s1ap.ERABSetupItemCtxtSURes{{
 					ERABID:                s1ap.ERABID(mme.DefaultERABID),
-					TransportLayerAddress: s1ap.TransportLayerAddress(tc.tla),
+					TransportLayerAddress: ap.TransportLayerAddressFromOctets(tc.tla),
 					GTPTEID:               s1ap.GTPTEID(0x55),
 				}},
 			}
@@ -126,12 +127,12 @@ func TestInitialContextSetupResponseMultipleERABs(t *testing.T) {
 		ERABSetup: []s1ap.ERABSetupItemCtxtSURes{
 			{
 				ERABID:                s1ap.ERABID(mme.DefaultERABID),
-				TransportLayerAddress: s1ap.TransportLayerAddress([]byte{10, 3, 0, 3}),
+				TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 3, 0, 3}),
 				GTPTEID:               s1ap.GTPTEID(0x55),
 			},
 			{
 				ERABID:                s1ap.ERABID(6),
-				TransportLayerAddress: s1ap.TransportLayerAddress([]byte{10, 3, 0, 4}),
+				TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 3, 0, 4}),
 				GTPTEID:               s1ap.GTPTEID(0x66),
 			},
 		},
@@ -178,12 +179,12 @@ func TestInitialContextSetupResponseReleasesFailedERAB(t *testing.T) {
 		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(7)),
 		ERABSetup: []s1ap.ERABSetupItemCtxtSURes{{
 			ERABID:                s1ap.ERABID(mme.DefaultERABID),
-			TransportLayerAddress: s1ap.TransportLayerAddress([]byte{10, 3, 0, 3}),
+			TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 3, 0, 3}),
 			GTPTEID:               s1ap.GTPTEID(0x55),
 		}},
 		ERABFailedToSetup: []s1ap.ERABItem{{
 			ERABID: s1ap.ERABID(6),
-			Cause:  s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0},
+			Cause:  s1ap.CauseRadioNetworkUnspecified.Cause(),
 		}},
 	}
 
@@ -232,7 +233,7 @@ func TestInitialContextSetupFailureAbortsUE(t *testing.T) {
 	fail := &s1ap.InitialContextSetupFailure{
 		MMEUES1APID: s1ap.Ptr(mmeID),
 		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(7)),
-		Cause:       s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupTransport, Value: s1ap.CauseTransportResourceUnavailable}),
+		Cause:       s1ap.Ptr(s1ap.CauseTransportResourceUnavailable.Cause()),
 	}
 
 	b, err := fail.Marshal()

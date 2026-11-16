@@ -49,8 +49,8 @@ func TestBuildNGSetupRequestRoundTrips(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	if msg.GlobalRANNodeID.Kind != ngap.RANNodeIDMacroNgENB {
-		t.Errorf("node kind = %d, want macro ng-eNB", msg.GlobalRANNodeID.Kind)
+	if n := msg.GlobalRANNodeID.GlobalNgENBID; n == nil || n.NgENBID.MacroNgENBID == nil {
+		t.Errorf("node = %+v, want a macro ng-eNB", msg.GlobalRANNodeID)
 	}
 
 	if msg.RANNodeName == nil || *msg.RANNodeName != "ella-ng-enb" {
@@ -97,10 +97,11 @@ func TestBuildUplinkNasTransportRoundTrips(t *testing.T) {
 		t.Errorf("NAS PDU = %x, want %x", msg.NASPDU, nas)
 	}
 
-	uli := msg.UserLocationInformation
-	if uli == nil || uli.Kind != ngap.UserLocationEUTRA {
-		t.Fatalf("location = %+v, want an E-UTRA cell", uli)
+	if msg.UserLocationInformation == nil || msg.UserLocationInformation.EUTRA == nil {
+		t.Fatalf("location = %+v, want an E-UTRA cell", msg.UserLocationInformation)
 	}
+
+	uli := msg.UserLocationInformation.EUTRA
 
 	if uli.TAI.TAC != 1 {
 		t.Errorf("TAC = %d, want 1", uli.TAI.TAC)

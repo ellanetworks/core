@@ -4,8 +4,6 @@
 package s1ap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
 )
 
@@ -37,88 +35,36 @@ const (
 	TraceDepthMaximumWithoutVendorSpecificExtension
 )
 
-const traceDepthRootValues = 6
+type InterfacesToTrace uint8
 
 const (
-	InterfaceToTraceS1MME uint8 = 1 << (7 - iota)
+	InterfaceToTraceS1MME InterfacesToTrace = 1 << (7 - iota)
 	InterfaceToTraceX2
 	InterfaceToTraceUu
 	InterfaceToTraceF1C
 	InterfaceToTraceE1
 )
 
+func (i InterfacesToTrace) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return encodeBitStringUint(w, enc, uint64(i), 8)
+}
+
+func (i *InterfacesToTrace) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := decodeBitStringUint(r, enc, 8)
+	*i = InterfacesToTrace(v)
+
+	return err
+}
+
 type TraceActivation struct {
 	EUTRANTraceID                  EUTRANTraceID
-	InterfacesToTrace              uint8
+	InterfacesToTrace              InterfacesToTrace
 	TraceDepth                     TraceDepth
 	TraceCollectionEntityIPAddress TransportLayerAddress
-}
-
-func (t TraceActivation) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
-
-	if err := t.EUTRANTraceID.MarshalPER(w, enc); err != nil {
-		return err
-	}
-
-	if err := per.EncodeBitString(w, enc, 8, 8, true, true, false, []byte{t.InterfacesToTrace}, 8); err != nil {
-		return err
-	}
-
-	if err := encodeRootEnumerated(w, enc, traceDepthRootValues, int64(t.TraceDepth), "TraceDepth"); err != nil {
-		return err
-	}
-
-	if len(t.TraceCollectionEntityIPAddress) == 0 {
-		return fmt.Errorf("s1ap: TraceActivation without a Trace Collection Entity IP Address")
-	}
-
-	return t.TraceCollectionEntityIPAddress.MarshalPER(w, enc)
-}
-
-func (t *TraceActivation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	extBit, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-
-	extContainer, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-
-	var v TraceActivation
-
-	if err := v.EUTRANTraceID.UnmarshalPER(r, enc); err != nil {
-		return err
-	}
-
-	b, _, err := per.DecodeBitString(r, enc, 8, 8, true, true, false)
-	if err != nil {
-		return err
-	}
-
-	v.InterfacesToTrace = b[0]
-
-	depth, err := decodeRootEnumerated(r, enc, traceDepthRootValues, "TraceDepth")
-	if err != nil {
-		return err
-	}
-
-	v.TraceDepth = TraceDepth(depth)
-
-	if err := v.TraceCollectionEntityIPAddress.UnmarshalPER(r, enc); err != nil {
-		return err
-	}
-
-	if err := skipSequenceExtensionsPER(r, enc, extContainer, extBit); err != nil {
-		return err
-	}
-
-	*t = v
-
-	return nil
+	MDTConfigurationNR             *MDTConfigurationNR    `per:",extie:IDMDTConfigurationNR,crit:ignore"`
+	TraceCollectionEntityURI       *URIAddress            `per:",extie:IDTraceCollectionEntityURI,crit:ignore"`
+	iEExtensions                   extensionMeta          `per:",exttable"`
+	extensions                     per.ExtensionAdditions `per:",extraw"`
 }
 
 type TraceStart struct {
@@ -131,25 +77,25 @@ type TraceStart struct {
 
 var traceStartIEs = []ieSpec[TraceStart]{
 	{
-		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *TraceStart, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.MMEUES1APID)
+		ID: IDMMEUES1APID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *TraceStart, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.MMEUES1APID)
 		},
-		encode: func(m *TraceStart) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+		Encode: func(m *TraceStart) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *TraceStart, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ENBUES1APID)
+		ID: IDENBUES1APID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *TraceStart, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.ENBUES1APID)
 		},
-		encode: func(m *TraceStart) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+		Encode: func(m *TraceStart) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: IDTraceActivation, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *TraceStart, raw []byte, enc per.Encoding) error {
+		ID: IDTraceActivation, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *TraceStart, r *per.Reader, enc per.Encoding) error {
 			var v TraceActivation
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -157,7 +103,7 @@ var traceStartIEs = []ieSpec[TraceStart]{
 
 			return nil
 		},
-		encode: func(m *TraceStart) (per.Marshaler, bool) {
+		Encode: func(m *TraceStart) (per.Marshaler, bool) {
 			if m.TraceActivation == nil {
 				return nil, false
 			}
@@ -191,6 +137,10 @@ func ParseTraceStart(value []byte) (*TraceStart, error) {
 	return parseMessageBody[TraceStart](ProcTraceStart, TriggeringInitiatingMessage, traceStartIEs, value)
 }
 
+func DecodeTraceStart(value []byte) (*TraceStart, error) {
+	return decodeMessageBody[TraceStart](ProcTraceStart, traceStartIEs, value)
+}
+
 type TraceFailureIndication struct {
 	MMEUES1APID   MMEUES1APID
 	ENBUES1APID   ENBUES1APID
@@ -202,25 +152,25 @@ type TraceFailureIndication struct {
 
 var traceFailureIndicationIEs = []ieSpec[TraceFailureIndication]{
 	{
-		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *TraceFailureIndication, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.MMEUES1APID)
+		ID: IDMMEUES1APID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *TraceFailureIndication, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.MMEUES1APID)
 		},
-		encode: func(m *TraceFailureIndication) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+		Encode: func(m *TraceFailureIndication) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *TraceFailureIndication, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ENBUES1APID)
+		ID: IDENBUES1APID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *TraceFailureIndication, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.ENBUES1APID)
 		},
-		encode: func(m *TraceFailureIndication) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+		Encode: func(m *TraceFailureIndication) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: IDEUTRANTraceID, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *TraceFailureIndication, raw []byte, enc per.Encoding) error {
+		ID: IDEUTRANTraceID, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *TraceFailureIndication, r *per.Reader, enc per.Encoding) error {
 			var v EUTRANTraceID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -228,7 +178,7 @@ var traceFailureIndicationIEs = []ieSpec[TraceFailureIndication]{
 
 			return nil
 		},
-		encode: func(m *TraceFailureIndication) (per.Marshaler, bool) {
+		Encode: func(m *TraceFailureIndication) (per.Marshaler, bool) {
 			if m.EUTRANTraceID == nil {
 				return nil, false
 			}
@@ -237,11 +187,11 @@ var traceFailureIndicationIEs = []ieSpec[TraceFailureIndication]{
 		},
 	},
 	{
-		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *TraceFailureIndication, raw []byte, enc per.Encoding) error {
+		ID: IDCause, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *TraceFailureIndication, r *per.Reader, enc per.Encoding) error {
 			var v Cause
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -249,7 +199,7 @@ var traceFailureIndicationIEs = []ieSpec[TraceFailureIndication]{
 
 			return nil
 		},
-		encode: func(m *TraceFailureIndication) (per.Marshaler, bool) {
+		Encode: func(m *TraceFailureIndication) (per.Marshaler, bool) {
 			if m.Cause == nil {
 				return nil, false
 			}
@@ -281,4 +231,8 @@ func (m *TraceFailureIndication) Marshal() ([]byte, error) {
 
 func ParseTraceFailureIndication(value []byte) (*TraceFailureIndication, error) {
 	return parseMessageBody[TraceFailureIndication](ProcTraceFailureIndication, TriggeringInitiatingMessage, traceFailureIndicationIEs, value)
+}
+
+func DecodeTraceFailureIndication(value []byte) (*TraceFailureIndication, error) {
+	return decodeMessageBody[TraceFailureIndication](ProcTraceFailureIndication, traceFailureIndicationIEs, value)
 }

@@ -132,7 +132,7 @@ func (a *AMF) RelocationComplete(ctx context.Context, supi etsi.SUPI, id interwo
 
 	a.handVisitorToEPS(ctx, ue)
 	a.releaseToEPS(ctx, ue, source,
-		ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkSuccessfulHandover})
+		ngap.CauseRadioNetworkSuccessfulHandover.Cause())
 
 	logger.From(ctx, logger.AmfLog).Info("UE handed over to EPS; releasing its 5GS resources and keeping its 5G security context for a return",
 		logger.SUPI(supi.String()))

@@ -21,6 +21,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/teid"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/s1ap"
 	"github.com/ellanetworks/core/sctp"
 	"go.uber.org/zap"
@@ -61,10 +62,19 @@ type Frame struct {
 // (S1 Setup, Reset). Real eNB-UE-S1AP-IDs start at 1 (see AllocateENBUEID).
 const NoUEID int64 = 0
 
+type ENBIDKind uint8
+
+const (
+	ENBIDMacro ENBIDKind = iota
+	ENBIDHome
+	ENBIDShortMacro
+	ENBIDLongMacro
+)
+
 // StartOpts configures an eNB simulator.
 type StartOpts struct {
 	ENBID            uint32 // eNB identity, at the width ENBIDKind implies
-	ENBIDKind        s1ap.ENBIDKind
+	ENBIDKind        ENBIDKind
 	MCC              string
 	MNC              string
 	TAC              string // hex or decimal string; parsed as the 16-bit TAC
@@ -85,6 +95,8 @@ type StartOpts struct {
 	// SkipS1SetupWait sends the S1 Setup Request but returns without waiting for
 	// the response, so a scenario can assert an S1 Setup Failure (TS 36.413).
 	SkipS1SetupWait bool
+
+	AdditionalPLMNs []nas.PLMN
 }
 
 // ENB is a connected S1AP eNB. Its methods are safe for concurrent use.
@@ -92,9 +104,10 @@ var DefaultUERadioCapability = []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 
 
 type ENB struct {
 	enbID     uint32
-	enbIDKind s1ap.ENBIDKind
+	enbIDKind ENBIDKind
 	name      string
 	plmn      s1ap.PLMNIdentity
+	bplmns    s1ap.BPLMNs
 	tac       uint16
 	n3Addr    net.IP // eNB S1-U endpoint reported in bearer setup
 
@@ -118,6 +131,7 @@ type ENB struct {
 	background sync.WaitGroup
 
 	nextENBUEID int64
+	selected    map[int64]s1ap.PLMNIdentity
 	nextTEID    uint32
 	nextFwdTEID uint32
 
@@ -165,6 +179,11 @@ func Start(opts *StartOpts) (*ENB, error) {
 		return nil, err
 	}
 
+	bplmns, err := broadcastPLMNs(plmn, opts.AdditionalPLMNs)
+	if err != nil {
+		return nil, err
+	}
+
 	addresses := opts.CoreS1MMEAddresses
 	if len(addresses) == 0 {
 		addresses = []string{opts.CoreS1MMEAddress}
@@ -200,6 +219,8 @@ func Start(opts *StartOpts) (*ENB, error) {
 		enbIDKind:         opts.ENBIDKind,
 		name:              opts.Name,
 		plmn:              plmn,
+		bplmns:            bplmns,
+		selected:          make(map[int64]s1ap.PLMNIdentity),
 		tac:               tac,
 		n3Addr:            n3IP,
 		tunnels:           make(map[uint32]*tunnel),
@@ -750,8 +771,8 @@ func frameENBUEID(f Frame) int64 {
 		// Only the pair alternative names an eNB UE S1AP ID; a Command
 		// addressed by the MME id alone cannot be demultiplexed per UE
 		// (TS 36.413 §9.1.4.6).
-		if m, err := s1ap.ParseUEContextReleaseCommand(f.Value); err == nil && m.UES1APIDs.Pair {
-			return int64(m.UES1APIDs.ENBUES1APID)
+		if m, err := s1ap.ParseUEContextReleaseCommand(f.Value); err == nil && m.UES1APIDs.UES1APIDPair != nil {
+			return int64(m.UES1APIDs.UES1APIDPair.ENBUES1APID)
 		}
 	case f.Category == Initiating && f.ProcedureCode == s1ap.ProcERABSetup:
 		if m, err := s1ap.ParseERABSetupRequest(f.Value); err == nil {
