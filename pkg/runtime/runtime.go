@@ -471,7 +471,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}
 	}
 
-	cp := newControlPlane(ctx, dbInstance, raftID, smf.WithMaxSessions(ebpf.DefaultMaxSessions))
+	cp := newControlPlane(ctx, dbInstance, raftID, smf.WithMaxSessions(ebpf.NewMapSizing(cfg.Datapath.MaxSessions).MaxSessions))
 	pcfInstance, smfInstance, subscriptions := cp.pcf, cp.smf, cp.subscriptions
 
 	if cfg.Telemetry.Enabled {

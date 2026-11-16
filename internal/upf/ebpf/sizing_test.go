@@ -93,14 +93,52 @@ func TestMapSizingApplyCoversBothBuilds(t *testing.T) {
 }
 
 func TestProjectedBytes(t *testing.T) {
-	def := NewMapSizing(0).ProjectedBytes()
-	if def < 60<<20 || def > 90<<20 {
-		t.Errorf("default projection %d MiB, want about 75 MiB", def>>20)
+	spec, err := LoadN3N6Entrypoint()
+	if err != nil {
+		t.Fatalf("load spec: %v", err)
 	}
 
-	ceiling := NewMapSizing(200000).ProjectedBytes()
+	def := NewMapSizing(0).ProjectedBytes(spec, 4)
+	if def < 60<<20 || def > 90<<20 {
+		t.Errorf("default projection %d MiB, want about 77 MiB", def>>20)
+	}
+
+	ceiling := NewMapSizing(MaxSessionsLimit).ProjectedBytes(spec, 4)
 	if ceiling < 3<<30 || ceiling > 4<<30 {
-		t.Errorf("ceiling projection %d MiB, want about 3.5 GiB", ceiling>>20)
+		t.Errorf("ceiling projection %d MiB, want about 3.6 GiB", ceiling>>20)
+	}
+}
+
+func TestSessionLimitKeepsEveryMapWithinTheTableMaximum(t *testing.T) {
+	for name, n := range NewMapSizing(MaxSessionsLimit).maxEntries() {
+		if n > maxTableEntries {
+			t.Errorf("%s = %d entries at %d sessions, above %d", name, n, MaxSessionsLimit, maxTableEntries)
+		}
+	}
+
+	if n := NewMapSizing(MaxSessionsLimit + 1).maxEntries()["qer_windows"]; n <= maxTableEntries {
+		t.Errorf("qer_windows = %d at %d sessions, want the limit to be the largest count that fits", n, MaxSessionsLimit+1)
+	}
+}
+
+func TestClampedShare(t *testing.T) {
+	cases := []struct {
+		sessions          uint32
+		clamped           bool
+		connections, flow uint32
+	}{
+		{2000, false, 100, 100},
+		{80000, false, 100, 100},
+		{100000, true, 83, 83},
+		{MaxSessionsLimit, true, 16, 16},
+	}
+
+	for _, tc := range cases {
+		s := NewMapSizing(tc.sessions)
+		if s.clamped() != tc.clamped || s.natConnectionsPerSession() != tc.connections || s.flowsPerSession() != tc.flow {
+			t.Errorf("%d sessions: clamped %v, %d connections, %d flows per session; want %v, %d, %d",
+				tc.sessions, s.clamped(), s.natConnectionsPerSession(), s.flowsPerSession(), tc.clamped, tc.connections, tc.flow)
+		}
 	}
 }
 
@@ -111,34 +149,40 @@ func TestMemoryCheck(t *testing.T) {
 		"sys/fs/cgroup/system.slice/ella.service/memory.max": {Data: []byte("8589934592\n")},
 	}
 
-	limit, warn := NewMapSizing(0).MemoryCheck(host)
+	limit, warn := MemoryCheck(host, 1<<30)
 	if limit != 8<<30 {
 		t.Fatalf("limit = %d, want the service cgroup's 8 GiB", limit)
 	}
 
 	if warn {
-		t.Error("default sizing warned on 8 GiB")
+		t.Error("1 GiB warned on 8 GiB")
 	}
 
-	if _, warn := NewMapSizing(200000).MemoryCheck(host); !warn {
-		t.Error("ceiling sizing did not warn on 8 GiB")
+	if _, warn := MemoryCheck(host, 3<<30); !warn {
+		t.Error("3 GiB did not warn on 8 GiB")
 	}
 
 	host["sys/fs/cgroup/system.slice/ella.service/memory.max"] = &fstest.MapFile{Data: []byte("max\n")}
 	host["sys/fs/cgroup/system.slice/memory.max"] = &fstest.MapFile{Data: []byte("1073741824\n")}
 
-	if limit, _ := NewMapSizing(0).MemoryCheck(host); limit != 16384000<<10 {
-		t.Errorf("limit = %d, want MemTotal when the process's own cgroup is unlimited", limit)
+	if limit, _ := MemoryCheck(host, 0); limit != 1<<30 {
+		t.Errorf("limit = %d, want the parent slice's 1 GiB when the process's own cgroup is unlimited", limit)
+	}
+
+	host["sys/fs/cgroup/system.slice/ella.service/memory.max"] = &fstest.MapFile{Data: []byte("536870912\n")}
+
+	if limit, _ := MemoryCheck(host, 0); limit != 512<<20 {
+		t.Errorf("limit = %d, want the tighter of the service and slice limits", limit)
 	}
 
 	host["proc/self/cgroup"] = &fstest.MapFile{Data: []byte("0::/\n")}
 	host["sys/fs/cgroup/memory.max"] = &fstest.MapFile{Data: []byte("2147483648\n")}
 
-	if limit, _ := NewMapSizing(0).MemoryCheck(host); limit != 2<<30 {
+	if limit, _ := MemoryCheck(host, 0); limit != 2<<30 {
 		t.Errorf("limit = %d, want the namespaced cgroup root's 2 GiB", limit)
 	}
 
-	if limit, warn := NewMapSizing(0).MemoryCheck(fstest.MapFS{}); limit != 0 || warn {
+	if limit, warn := MemoryCheck(fstest.MapFS{}, 1<<40); limit != 0 || warn {
 		t.Errorf("missing sources gave limit %d warn %v", limit, warn)
 	}
 }
@@ -146,13 +190,13 @@ func TestMemoryCheck(t *testing.T) {
 func TestWrapCreateError(t *testing.T) {
 	s := NewMapSizing(200000)
 
-	err := s.wrapCreateError(unix.ENOMEM)
-	if !errors.Is(err, unix.ENOMEM) || !strings.Contains(err.Error(), "raise the memory limit") {
+	err := s.wrapCreateError(unix.ENOMEM, 3<<30)
+	if !errors.Is(err, unix.ENOMEM) || !strings.Contains(err.Error(), "raise the memory limit") || !strings.Contains(err.Error(), "3072 MiB") {
 		t.Errorf("ENOMEM wrapped as %q", err)
 	}
 
 	other := errors.New("verifier")
-	if got := s.wrapCreateError(other); got != other {
+	if got := s.wrapCreateError(other, 0); got != other {
 		t.Errorf("unrelated error rewrapped as %q", got)
 	}
 }
