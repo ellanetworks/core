@@ -12,12 +12,13 @@ import (
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/eps"
+	"github.com/ellanetworks/core/per/ap"
 	"github.com/ellanetworks/core/s1ap"
 )
 
 var targetGlobalENBID = s1ap.GlobalENBID{
 	PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10},
-	ENBID:        s1ap.ENBID{Kind: s1ap.ENBIDMacro, Value: 2},
+	ENBID:        s1ap.ENBID{MacroENBID: s1ap.Ptr(s1ap.MacroENBID(2))},
 }
 
 func handoverUE(t *testing.T, m *mme.MME) (*mme.UeContext, *captureConn, *captureConn) {
@@ -53,8 +54,8 @@ func sampleHandoverRequired(ue *mme.UeContext) *s1ap.HandoverRequired {
 		MMEUES1APID:    ue.Conn().MMEUES1APID,
 		ENBUES1APID:    ue.Conn().ENBUES1APID(),
 		HandoverType:   s1ap.HandoverTypeIntraLTE,
-		Cause:          s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 16}),
-		TargetID:       s1ap.TargetID{TargeteNBID: s1ap.TargeteNBID{GlobalENBID: targetGlobalENBID, SelectedTAI: s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}}},
+		Cause:          s1ap.Ptr(s1ap.CauseRadioNetworkHandoverDesirableForRadio.Cause()),
+		TargetID:       s1ap.TargetID{TargeteNBID: &s1ap.TargeteNBID{GlobalENBID: targetGlobalENBID, SelectedTAI: s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}}},
 		SourceToTarget: s1ap.TransparentContainer{0x01, 0x02, 0x03},
 	}
 }
@@ -150,7 +151,7 @@ func driveToPrepared(t *testing.T, m *mme.MME, ue *mme.UeContext, source, target
 		ENBUES1APID: s1ap.Ptr(targetENBUEID),
 		ERABAdmitted: []s1ap.ERABAdmittedItem{{
 			ERABID:                s1ap.ERABID(mme.DefaultERABID),
-			TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2},
+			TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 2}),
 			GTPTEID:               0x99,
 		}},
 		TargetToSource: s1ap.TransparentContainer{0xaa},
@@ -207,7 +208,7 @@ func TestHandoverHappyPath(t *testing.T) {
 		ENBUES1APID: s1ap.Ptr(targetENBUEID),
 		ERABAdmitted: []s1ap.ERABAdmittedItem{{
 			ERABID:                s1ap.ERABID(mme.DefaultERABID),
-			TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2},
+			TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 2}),
 			GTPTEID:               0x99,
 		}},
 		TargetToSource: s1ap.TransparentContainer{0xaa},
@@ -272,11 +273,15 @@ func TestHandoverHappyPath(t *testing.T) {
 	}
 
 	relCmd, err := s1ap.ParseUEContextReleaseCommand(rel.Value)
-	if err != nil || relCmd.UES1APIDs.MMEUES1APID != sourceMME {
+	if err != nil {
 		t.Fatalf("source release addressed wrong id: %+v err %v", relCmd, err)
 	}
 
-	if want := (s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 2}); relCmd.Cause == nil || *relCmd.Cause != want {
+	if relMME, _ := relCmd.UES1APIDs.MMEID(); relMME != sourceMME {
+		t.Fatalf("source release addressed wrong id: %+v err %v", relCmd, err)
+	}
+
+	if want := s1ap.CauseRadioNetworkSuccessfulHandover.Cause(); relCmd.Cause == nil || !relCmd.Cause.Equal(want) {
 		t.Fatalf("source release cause = %+v, want %+v (successful-handover)", relCmd.Cause, want)
 	}
 
@@ -313,7 +318,7 @@ func TestHandoverRequiredNoSecurityFails(t *testing.T) {
 	}
 
 	fail, _ := s1ap.ParseHandoverPreparationFailure(uo.Value)
-	if fail.Cause == nil || *fail.Cause != causeHandoverNoSecurity {
+	if fail.Cause == nil || !fail.Cause.Equal(causeHandoverNoSecurity) {
 		t.Fatalf("cause = %+v, want authentication-failure", fail.Cause)
 	}
 
@@ -327,7 +332,7 @@ func TestHandoverRequiredUnknownTargetFails(t *testing.T) {
 	ue, source, _ := handoverUE(t, m)
 
 	req := sampleHandoverRequired(ue)
-	req.TargetID.TargeteNBID.GlobalENBID.ENBID.Value = 999
+	req.TargetID.TargeteNBID.GlobalENBID.ENBID = s1ap.ENBID{MacroENBID: s1ap.Ptr(s1ap.MacroENBID(999))}
 
 	handleHandoverRequired(context.Background(), m, mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, req.Marshal)))
 
@@ -337,7 +342,7 @@ func TestHandoverRequiredUnknownTargetFails(t *testing.T) {
 	}
 
 	fail, _ := s1ap.ParseHandoverPreparationFailure(uo.Value)
-	if fail.Cause == nil || *fail.Cause != causeUnknownTargetID {
+	if fail.Cause == nil || !fail.Cause.Equal(causeUnknownTargetID) {
 		t.Fatalf("cause = %+v, want unknown-targetID", fail.Cause)
 	}
 }
@@ -468,7 +473,7 @@ func TestHandoverFailureFailsToSource(t *testing.T) {
 
 	handleHandoverRequired(context.Background(), m, mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, sampleHandoverRequired(ue).Marshal)))
 
-	fail := &s1ap.HandoverFailure{MMEUES1APID: s1ap.Ptr(targetMMEUEID(t, target)), Cause: s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 12})}
+	fail := &s1ap.HandoverFailure{MMEUES1APID: s1ap.Ptr(targetMMEUEID(t, target)), Cause: s1ap.Ptr(s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell.Cause())}
 	handleHandoverFailure(context.Background(), m, mme.NewRadioForTest(target), unsuccessfulValue(t, mustMarshal(t, fail.Marshal)))
 
 	if ue.HasHandoverForTest() {
@@ -485,7 +490,7 @@ func TestHandoverFailureFailsToSource(t *testing.T) {
 		t.Fatalf("parse HANDOVER PREPARATION FAILURE: %v", err)
 	}
 
-	if want := (s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 12}); prepFail.Cause == nil || *prepFail.Cause != want {
+	if want := s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell.Cause(); prepFail.Cause == nil || !prepFail.Cause.Equal(want) {
 		t.Fatalf("preparation failure cause = %+v, want %+v (relayed target cause)", prepFail.Cause, want)
 	}
 
@@ -500,7 +505,7 @@ func TestHandoverCancelReleasesTarget(t *testing.T) {
 
 	targetMME, targetENBUEID := driveToPrepared(t, m, ue, source, target)
 
-	cancel := &s1ap.HandoverCancel{MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: ue.Conn().ENBUES1APID(), Cause: s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5})}
+	cancel := &s1ap.HandoverCancel{MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: ue.Conn().ENBUES1APID(), Cause: s1ap.Ptr(s1ap.CauseRadioNetworkPartialHandover.Cause())}
 	handleHandoverCancel(context.Background(), m, mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, cancel.Marshal)))
 
 	if ue.HasHandoverForTest() {
@@ -517,7 +522,7 @@ func TestHandoverCancelReleasesTarget(t *testing.T) {
 		t.Fatalf("parse target release command: %v", err)
 	}
 
-	if want := (s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5}); relCmd.Cause == nil || *relCmd.Cause != want {
+	if want := s1ap.CauseRadioNetworkPartialHandover.Cause(); relCmd.Cause == nil || !relCmd.Cause.Equal(want) {
 		t.Fatalf("target release cause = %+v, want %+v (relayed cancel cause)", relCmd.Cause, want)
 	}
 
@@ -549,7 +554,7 @@ func TestHandoverCancelDuringPreparationReleasesTarget(t *testing.T) {
 		t.Fatalf("expected one HANDOVER REQUEST to the target, got %d", target.count())
 	}
 
-	cancel := &s1ap.HandoverCancel{MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: ue.Conn().ENBUES1APID(), Cause: s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5})}
+	cancel := &s1ap.HandoverCancel{MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: ue.Conn().ENBUES1APID(), Cause: s1ap.Ptr(s1ap.CauseRadioNetworkPartialHandover.Cause())}
 	handleHandoverCancel(context.Background(), m, mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, cancel.Marshal)))
 
 	if ue.HasHandoverForTest() {
@@ -566,11 +571,11 @@ func TestHandoverCancelDuringPreparationReleasesTarget(t *testing.T) {
 		t.Fatalf("parse target release command: %v", err)
 	}
 
-	if relCmd.UES1APIDs.Pair {
+	if relCmd.UES1APIDs.UES1APIDPair != nil {
 		t.Error("a preparing target's release must use the MME-UE-S1AP-ID alone, not the pair")
 	}
 
-	if want := (s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5}); relCmd.Cause == nil || *relCmd.Cause != want {
+	if want := s1ap.CauseRadioNetworkPartialHandover.Cause(); relCmd.Cause == nil || !relCmd.Cause.Equal(want) {
 		t.Fatalf("target release cause = %+v, want %+v (relayed cancel cause)", relCmd.Cause, want)
 	}
 
@@ -610,10 +615,10 @@ func TestHandoverPartialAdmissionReleasesFailedPDN(t *testing.T) {
 		ENBUES1APID: s1ap.Ptr(targetENBUEID),
 		ERABAdmitted: []s1ap.ERABAdmittedItem{{
 			ERABID:                s1ap.ERABID(mme.DefaultERABID),
-			TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2},
+			TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 2}),
 			GTPTEID:               0x99,
 		}},
-		ERABFailedToSetup: []s1ap.ERABItem{{ERABID: 6, Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}}},
+		ERABFailedToSetup: []s1ap.ERABItem{{ERABID: 6, Cause: s1ap.CauseRadioNetworkUnspecified.Cause()}},
 		TargetToSource:    s1ap.TransparentContainer{0xaa},
 	}
 	handleHandoverRequestAcknowledge(context.Background(), m, mme.NewRadioForTest(target), successfulValue(t, mustMarshal(t, ack.Marshal)))
@@ -652,7 +657,7 @@ func TestHandoverCancelDuringCommitIgnored(t *testing.T) {
 
 	targetBefore := target.count()
 
-	cancel := &s1ap.HandoverCancel{MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: ue.Conn().ENBUES1APID(), Cause: s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5})}
+	cancel := &s1ap.HandoverCancel{MMEUES1APID: ue.Conn().MMEUES1APID, ENBUES1APID: ue.Conn().ENBUES1APID(), Cause: s1ap.Ptr(s1ap.CauseRadioNetworkPartialHandover.Cause())}
 	handleHandoverCancel(context.Background(), m, mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, cancel.Marshal)))
 
 	if !ue.HasHandoverForTest() {
@@ -707,7 +712,7 @@ func TestHandoverGuardTimerAbandons(t *testing.T) {
 		t.Fatalf("parse target release command: %v", err)
 	}
 
-	if want := (s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 8}); relCmd.Cause == nil || *relCmd.Cause != want {
+	if want := s1ap.CauseRadioNetworkTS1RelocOverallExpiry.Cause(); relCmd.Cause == nil || !relCmd.Cause.Equal(want) {
 		t.Fatalf("target release cause = %+v, want %+v (tS1relocoverall-expiry)", relCmd.Cause, want)
 	}
 }
@@ -733,10 +738,10 @@ func TestHandoverPartialAdmissionKeepsSurvivingPDN(t *testing.T) {
 		ENBUES1APID: s1ap.Ptr(targetENBUEID),
 		ERABAdmitted: []s1ap.ERABAdmittedItem{{
 			ERABID:                6,
-			TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2},
+			TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 2}),
 			GTPTEID:               0x99,
 		}},
-		ERABFailedToSetup: []s1ap.ERABItem{{ERABID: s1ap.ERABID(mme.DefaultERABID), Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 0}}},
+		ERABFailedToSetup: []s1ap.ERABItem{{ERABID: s1ap.ERABID(mme.DefaultERABID), Cause: s1ap.CauseRadioNetworkUnspecified.Cause()}},
 		TargetToSource:    s1ap.TransparentContainer{0xaa},
 	}
 	handleHandoverRequestAcknowledge(context.Background(), m, mme.NewRadioForTest(target), successfulValue(t, mustMarshal(t, ack.Marshal)))
@@ -808,7 +813,7 @@ func TestHandoverNotifyUnknownMMEUES1APIDSendsErrorIndication(t *testing.T) {
 		t.Fatalf("Error Indication eNB-UE-S1AP-ID = %v, want %d", ind.ENBUES1APID, targetENB)
 	}
 
-	if ind.Cause == nil || *ind.Cause != causeUnknownMMEUES1APID {
+	if ind.Cause == nil || !ind.Cause.Equal(causeUnknownMMEUES1APID) {
 		t.Fatalf("Error Indication cause = %v, want unknown-mme-ue-s1ap-id", ind.Cause)
 	}
 
@@ -851,7 +856,7 @@ func TestHandoverNotifyInconsistentENBUES1APIDSendsErrorIndication(t *testing.T)
 		t.Fatalf("Error Indication eNB-UE-S1AP-ID = %v, want %d", ind.ENBUES1APID, wrongENB)
 	}
 
-	if ind.Cause == nil || ind.Cause.Group != s1ap.CauseGroupRadioNetwork {
+	if ind.Cause == nil || ind.Cause.RadioNetwork == nil {
 		t.Fatalf("Error Indication cause = %v, want a radio-network cause", ind.Cause)
 	}
 
@@ -950,8 +955,8 @@ func TestHandoverTargetResetAborts(t *testing.T) {
 
 	targetMME, _ := driveToPrepared(t, m, ue, source, target)
 
-	cause := s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 0}
-	handleReset(context.Background(), m, mme.NewRadioForTest(target), resetValue(t, &s1ap.Reset{Cause: s1ap.Ptr(cause), ResetType: s1ap.ResetType{All: true}}))
+	cause := s1ap.CauseMiscControlProcessingOverload.Cause()
+	handleReset(context.Background(), m, mme.NewRadioForTest(target), resetValue(t, &s1ap.Reset{Cause: s1ap.Ptr(cause), ResetType: s1ap.ResetType{S1Interface: s1ap.Ptr(s1ap.ResetAllResetAll)}}))
 
 	if ue.HasHandoverForTest() {
 		t.Fatal("handover not aborted by a reset on the target eNB")
@@ -1023,7 +1028,7 @@ func TestHandoverRequestAcknowledge_NoMatchingPreparation_DoesNotReleaseLiveUE(t
 	ack := &s1ap.HandoverRequestAcknowledge{
 		MMEUES1APID:    s1ap.Ptr(ue.Conn().MMEUES1APID),
 		ENBUES1APID:    s1ap.Ptr(ue.Conn().ENBUES1APID()),
-		ERABAdmitted:   []s1ap.ERABAdmittedItem{{ERABID: s1ap.ERABID(mme.DefaultERABID), TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2}, GTPTEID: 0x99}},
+		ERABAdmitted:   []s1ap.ERABAdmittedItem{{ERABID: s1ap.ERABID(mme.DefaultERABID), TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 2}), GTPTEID: 0x99}},
 		TargetToSource: s1ap.TransparentContainer{0xaa},
 	}
 
@@ -1074,7 +1079,7 @@ func TestHandoverCancelFromTheTargetLeavesTheHandoverStanding(t *testing.T) {
 	cancel := &s1ap.HandoverCancel{
 		MMEUES1APID: targetMME,
 		ENBUES1APID: targetENBUEID,
-		Cause:       s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5}),
+		Cause:       s1ap.Ptr(s1ap.CauseRadioNetworkPartialHandover.Cause()),
 	}
 	handleHandoverCancel(context.Background(), m, mme.NewRadioForTest(target), initiatingValue(t, mustMarshal(t, cancel.Marshal)))
 
@@ -1152,9 +1157,9 @@ func handoverForwardingExchangeFull(t *testing.T, directPath bool) forwardingExc
 		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(55)),
 		ERABAdmitted: []s1ap.ERABAdmittedItem{{
 			ERABID:                s1ap.ERABID(mme.DefaultERABID),
-			TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2},
+			TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 2}),
 			GTPTEID:               0x99,
-			DLTransportLayerAddr:  s1ap.TransportLayerAddress{10, 4, 0, 3},
+			DLTransportLayerAddr:  s1ap.Ptr(ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 3})),
 			DLGTPTEID:             s1ap.Ptr(s1ap.GTPTEID(0xfeed)),
 		}},
 		TargetToSource: s1ap.TransparentContainer{0xaa},
@@ -1178,7 +1183,7 @@ func handoverForwardingExchangeFull(t *testing.T, directPath bool) forwardingExc
 func TestHandoverRelaysForwardingEndpointOnDirectPath(t *testing.T) {
 	hoReq, cmd := handoverForwardingExchange(t, true)
 
-	if ext := hoReq.ERABToBeSetup[0].Extensions; ext != nil && ext.DataForwardingNotPossible != nil {
+	if hoReq.ERABToBeSetup[0].DataForwardingNotPossible != nil {
 		t.Error("HANDOVER REQUEST still declared data forwarding not possible")
 	}
 
@@ -1195,7 +1200,7 @@ func TestHandoverRelaysForwardingEndpointOnDirectPath(t *testing.T) {
 		t.Errorf("forwarded DL GTP-TEID = %v, want 0xfeed", item.DLGTPTEID)
 	}
 
-	if got := []byte(item.DLTransportLayerAddr); string(got) != string([]byte{10, 4, 0, 3}) {
+	if got := item.DLTransportLayerAddr; got == nil || *got != ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 3}) {
 		t.Errorf("forwarded DL transport layer address = %v, want 10.4.0.3", got)
 	}
 }
@@ -1203,7 +1208,7 @@ func TestHandoverRelaysForwardingEndpointOnDirectPath(t *testing.T) {
 func TestHandoverWithoutDirectPathForwardsIndirectly(t *testing.T) {
 	hoReq, cmd, sessions := handoverForwardingExchangeSessions(t, false)
 
-	if ext := hoReq.ERABToBeSetup[0].Extensions; ext != nil && ext.DataForwardingNotPossible != nil {
+	if hoReq.ERABToBeSetup[0].DataForwardingNotPossible != nil {
 		t.Error("HANDOVER REQUEST declared data forwarding not possible, so the target allocates no endpoint")
 	}
 
@@ -1217,7 +1222,7 @@ func TestHandoverWithoutDirectPathForwardsIndirectly(t *testing.T) {
 		t.Errorf("forwarded DL GTP-TEID = %v, want the UPF's 0xABCD", item.DLGTPTEID)
 	}
 
-	if got := []byte(item.DLTransportLayerAddr); string(got) != string([]byte{192, 168, 1, 1}) {
+	if got := item.DLTransportLayerAddr; got == nil || *got != ap.TransportLayerAddressFromOctets([]byte{192, 168, 1, 1}) {
 		t.Errorf("forwarded DL transport layer address = %v, want the UPF's 192.168.1.1", got)
 	}
 
@@ -1247,17 +1252,17 @@ func TestHandoverDropsHalfPopulatedForwardingTunnel(t *testing.T) {
 			DLGTPTEID: s1ap.Ptr(s1ap.GTPTEID(0xfeed)),
 		}},
 		{"dl address without a teid", s1ap.ERABAdmittedItem{
-			DLTransportLayerAddr: s1ap.TransportLayerAddress{10, 4, 0, 3},
+			DLTransportLayerAddr: s1ap.Ptr(ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 3})),
 		}},
 		{"ul teid without an address", s1ap.ERABAdmittedItem{
 			ULGTPTEID: s1ap.Ptr(s1ap.GTPTEID(0xbeef)),
 		}},
 		{"dl address that is neither ipv4 nor ipv6", s1ap.ERABAdmittedItem{
-			DLTransportLayerAddr: s1ap.TransportLayerAddress{10, 4, 0, 3, 7},
+			DLTransportLayerAddr: s1ap.Ptr(ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 3, 7})),
 			DLGTPTEID:            s1ap.Ptr(s1ap.GTPTEID(0xfeed)),
 		}},
 		{"ul address that is neither ipv4 nor ipv6", s1ap.ERABAdmittedItem{
-			ULTransportLayerAddr: s1ap.TransportLayerAddress{10, 4, 0, 3, 7},
+			ULTransportLayerAddr: s1ap.Ptr(ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 3, 7})),
 			ULGTPTEID:            s1ap.Ptr(s1ap.GTPTEID(0xbeef)),
 		}},
 	}
@@ -1281,7 +1286,7 @@ func TestHandoverDropsHalfPopulatedForwardingTunnel(t *testing.T) {
 
 			item := tc.item
 			item.ERABID = s1ap.ERABID(mme.DefaultERABID)
-			item.TransportLayerAddress = s1ap.TransportLayerAddress{10, 4, 0, 2}
+			item.TransportLayerAddress = ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 2})
 			item.GTPTEID = 0x99
 
 			ack := &s1ap.HandoverRequestAcknowledge{
@@ -1329,11 +1334,11 @@ func TestHandoverDropsOnlyTheUnusableForwardingDirection(t *testing.T) {
 		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(55)),
 		ERABAdmitted: []s1ap.ERABAdmittedItem{{
 			ERABID:                s1ap.ERABID(mme.DefaultERABID),
-			TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2},
+			TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 2}),
 			GTPTEID:               0x99,
-			DLTransportLayerAddr:  s1ap.TransportLayerAddress{10, 4, 0, 3, 7},
+			DLTransportLayerAddr:  s1ap.Ptr(ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 3, 7})),
 			DLGTPTEID:             s1ap.Ptr(s1ap.GTPTEID(0xfeed)),
-			ULTransportLayerAddr:  s1ap.TransportLayerAddress{10, 4, 0, 4},
+			ULTransportLayerAddr:  s1ap.Ptr(ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 4})),
 			ULGTPTEID:             s1ap.Ptr(s1ap.GTPTEID(0xbeef)),
 		}},
 		TargetToSource: s1ap.TransparentContainer{0xaa},
@@ -1359,7 +1364,7 @@ func TestHandoverDropsOnlyTheUnusableForwardingDirection(t *testing.T) {
 			item.DLTransportLayerAddr, item.DLGTPTEID)
 	}
 
-	if got := []byte(item.ULTransportLayerAddr); string(got) != string([]byte{10, 4, 0, 4}) {
+	if got := item.ULTransportLayerAddr; got == nil || *got != ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 4}) {
 		t.Errorf("forwarded UL transport layer address = %v, want 10.4.0.4", got)
 	}
 
@@ -1394,7 +1399,7 @@ func TestHandoverFailureReleasesForwardingTunnel(t *testing.T) {
 
 	fail := &s1ap.HandoverFailure{
 		MMEUES1APID: s1ap.Ptr(x.hoReq.MMEUES1APID),
-		Cause:       s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 12}),
+		Cause:       s1ap.Ptr(s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell.Cause()),
 	}
 
 	handleHandoverFailure(context.Background(), x.m, mme.NewRadioForTest(x.target), unsuccessfulValue(t, mustMarshal(t, fail.Marshal)))
@@ -1429,7 +1434,7 @@ func TestHandoverCancelAfterCompletionKeepsForwardingTunnel(t *testing.T) {
 	cancel := &s1ap.HandoverCancel{
 		MMEUES1APID: x.hoReq.MMEUES1APID,
 		ENBUES1APID: s1ap.ENBUES1APID(55),
-		Cause:       s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 12}),
+		Cause:       s1ap.Ptr(s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell.Cause()),
 	}
 
 	handleHandoverCancel(context.Background(), x.m, mme.NewRadioForTest(x.source), initiatingValue(t, mustMarshal(t, cancel.Marshal)))
@@ -1465,9 +1470,9 @@ func TestHandoverForwardingEndpointIsDualStack(t *testing.T) {
 		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(55)),
 		ERABAdmitted: []s1ap.ERABAdmittedItem{{
 			ERABID:                s1ap.ERABID(mme.DefaultERABID),
-			TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2},
+			TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 2}),
 			GTPTEID:               0x99,
-			DLTransportLayerAddr:  s1ap.TransportLayerAddress{10, 4, 0, 3},
+			DLTransportLayerAddr:  s1ap.Ptr(ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 3})),
 			DLGTPTEID:             s1ap.Ptr(s1ap.GTPTEID(0xfeed)),
 		}},
 		TargetToSource: s1ap.TransparentContainer{0xaa},
@@ -1489,7 +1494,7 @@ func TestHandoverForwardingEndpointIsDualStack(t *testing.T) {
 		t.Fatalf("E-RABSubjecttoDataForwardingList has %d items, want 1", len(cmd.ERABSubjecttoDataForwarding))
 	}
 
-	if got := len(cmd.ERABSubjecttoDataForwarding[0].DLTransportLayerAddr); got != 20 {
-		t.Fatalf("forwarding transport layer address is %d octets, want the 20-octet dual-stack form", got)
+	if got := cmd.ERABSubjecttoDataForwarding[0].DLTransportLayerAddr; got == nil || got.Bits() != 160 {
+		t.Fatalf("forwarding transport layer address is %v, want the 160-bit dual-stack form", got)
 	}
 }

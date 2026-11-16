@@ -67,7 +67,7 @@ func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 			return nasreply.Handled()
 		}
 
-		cause := ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease}
+		cause := ngap.CauseNASNormalRelease.Cause()
 
 		if ueConn.MTSignallingPending() {
 			ueConn.DeferRelease(ctx, cause)

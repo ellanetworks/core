@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/per/ap"
 	"github.com/ellanetworks/core/sctp"
 )
 
@@ -192,8 +193,8 @@ func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SendsPreparationFailur
 
 	failure := sourceNGAPSender.SentHandoverPreparationFailures[0]
 
-	wantRadioNetworkCause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHOFailureInTarget}
-	if failure.Cause == nil || *failure.Cause != wantRadioNetworkCause {
+	wantRadioNetworkCause := ngap.CauseRadioNetworkHOFailureInTarget.Cause()
+	if failure.Cause == nil || !failure.Cause.Equal(wantRadioNetworkCause) {
 		t.Errorf("cause = %v, want ho-failure-in-target-5GC-ngran-node-or-target-system", failure.Cause)
 	}
 
@@ -245,8 +246,8 @@ func TestHandoverRequestAcknowledge_HappyPath(t *testing.T) {
 
 	transferBytes, err := (&ngap.HandoverRequestAcknowledgeTransfer{
 		DLNGUUPTNLInformation: ngap.UPTransportLayerInformation{
-			GTPTunnel: ngap.GTPTunnel{
-				TransportLayerAddress: ngap.TransportLayerAddress{10, 0, 0, 2},
+			GTPTunnel: &ngap.GTPTunnel{
+				TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 0, 0, 2}),
 				GTPTEID:               0x000004D2,
 			},
 		},
@@ -299,8 +300,8 @@ func admittedAckMsg(t *testing.T) *ngap.HandoverRequestAcknowledge {
 	t.Helper()
 
 	transferBytes, err := (&ngap.HandoverRequestAcknowledgeTransfer{
-		DLNGUUPTNLInformation: ngap.UPTransportLayerInformation{GTPTunnel: ngap.GTPTunnel{
-			TransportLayerAddress: ngap.TransportLayerAddress{10, 0, 0, 2},
+		DLNGUUPTNLInformation: ngap.UPTransportLayerInformation{GTPTunnel: &ngap.GTPTunnel{
+			TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 0, 0, 2}),
 			GTPTEID:               1234,
 		}},
 		QosFlowSetupResponse: ngap.QosFlowListWithDataForwarding{{QosFlowIdentifier: 1}},
@@ -343,8 +344,8 @@ func TestHandoverRequestAcknowledge_PartialAdmission(t *testing.T) {
 		amf.HandoverCandidate{PDUSessionID: 1}, amf.HandoverCandidate{PDUSessionID: 2})
 
 	admittedBytes, err := (&ngap.HandoverRequestAcknowledgeTransfer{
-		DLNGUUPTNLInformation: ngap.UPTransportLayerInformation{GTPTunnel: ngap.GTPTunnel{
-			TransportLayerAddress: ngap.TransportLayerAddress{10, 0, 0, 2},
+		DLNGUUPTNLInformation: ngap.UPTransportLayerInformation{GTPTunnel: &ngap.GTPTunnel{
+			TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 0, 0, 2}),
 			GTPTEID:               1234,
 		}},
 		QosFlowSetupResponse: ngap.QosFlowListWithDataForwarding{{QosFlowIdentifier: 1}},
@@ -354,7 +355,7 @@ func TestHandoverRequestAcknowledge_PartialAdmission(t *testing.T) {
 	}
 
 	unsuccessfulBytes, err := (&ngap.HandoverResourceAllocationUnsuccessfulTransfer{
-		Cause: ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkRadioResourcesNotAvailable},
+		Cause: ngap.CauseRadioNetworkRadioResourcesNotAvailable.Cause(),
 	}).Marshal()
 	if err != nil {
 		t.Fatalf("failed to marshal unsuccessful transfer: %v", err)
@@ -395,8 +396,8 @@ func TestHandoverRequestAcknowledge_PartialAdmission(t *testing.T) {
 		t.Fatalf("to-release transfer does not decode: %v", err)
 	}
 
-	wantRadioNetworkCause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkRadioResourcesNotAvailable}
-	if relayed.Cause != wantRadioNetworkCause {
+	wantRadioNetworkCause := ngap.CauseRadioNetworkRadioResourcesNotAvailable.Cause()
+	if !relayed.Cause.Equal(wantRadioNetworkCause) {
 		t.Errorf("cause = %v, want radio-resources-not-available", relayed.Cause)
 	}
 }

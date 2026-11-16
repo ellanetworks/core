@@ -4,9 +4,8 @@
 package ngap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // HandoverType ::= ENUMERATED { intra5gs, fivegs-to-eps, eps-to-5gs, ...,
@@ -19,24 +18,8 @@ const (
 	HandoverTypeIntra5GS HandoverType = iota
 	HandoverTypeFiveGSToEPS
 	HandoverTypeEPSToFiveGS
-
-	handoverTypeRootCount = 3
+	HandoverTypeFiveGSToUTRAN
 )
-
-func (h HandoverType) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, handoverTypeRootCount, int64(h), "HandoverType")
-}
-
-func (h *HandoverType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, handoverTypeRootCount, "HandoverType")
-	if err != nil {
-		return err
-	}
-
-	*h = HandoverType(idx)
-
-	return nil
-}
 
 // SourceToTargetTransparentContainer ::= OCTET STRING — TS 38.413 §9.3.1.20.
 // Opaque here: the octets are encoded per the target system's own spec.
@@ -100,10 +83,11 @@ func (p *NASSecurityParametersFromNGRAN) UnmarshalPER(r *per.Reader, enc per.Enc
 // OPTIONAL } (extensible), the NG-RAN alternative of the Target ID IE
 // (TS 38.413 §9.3.1.25).
 type TargetRANNodeID struct {
-	_               [0]struct{} `per:"extseq"`
-	GlobalRANNodeID GlobalRANNodeID
-	SelectedTAI     TAI
-	_               ieExtensions `per:",skip"`
+	extensions                 per.ExtensionAdditions `per:",extraw"`
+	GlobalRANNodeID            GlobalRANNodeID
+	SelectedTAI                TAI
+	SelectedTargetSNPNIdentity *NID          `per:",extie:IDSelectedTargetSNPNIdentity,crit:reject"`
+	iEExtensions               extensionMeta `per:",exttable"`
 }
 
 // TargeteNB-ID ::= SEQUENCE { globalENB-ID GlobalNgENB-ID, selected-EPS-TAI
@@ -113,92 +97,106 @@ type TargetRANNodeID struct {
 // despite naming an eNB attached to the EPC: TS 38.413 has no other shape for an
 // E-UTRAN node.
 type TargeteNBID struct {
-	_              [0]struct{} `per:"extseq"`
+	extensions     per.ExtensionAdditions `per:",extraw"`
 	GlobalENBID    GlobalNgENBID
 	SelectedEPSTAI EPSTAI
-	_              ieExtensions `per:",skip"`
+	iEExtensions   extensionMeta `per:",exttable"`
 }
-
-// TargetID CHOICE alternatives. The CHOICE is not extensible, so
-// choice-Extensions is a plain alternative index.
-const (
-	targetIDTargetRANNodeID = iota
-	targetIDTargetENBID
-	targetIDChoiceExtensions
-
-	targetIDAlternatives = 3
-)
 
 // TargetID ::= CHOICE { targetRANNodeID, targeteNB-ID, choice-Extensions } —
-// TS 38.413 §9.3.1.25. Two alternatives are modelled: targetRANNodeID for a
-// handover within 5GS and targeteNB-ID for the 5GS to EPS one, which is what a
-// source gNB names its target with when Handover Type is fivegs-to-eps.
-// TS 36.413's TargetID is a different CHOICE entirely (targeteNB-ID,
-// targetRNC-ID, cGI) whose alternatives do not correspond to these.
+// TS 38.413 §9.3.1.25. TS 36.413's TargetID is a different CHOICE entirely
+// (targeteNB-ID, targetRNC-ID, cGI) whose alternatives do not correspond to these.
 //
-// Exactly one alternative is set; which one is derived from the pointers rather
-// than stored, so the two can never disagree. Which one belongs is not free:
-// TS 38.413 §9.2.3.1 pairs it with the Handover Type IE, and the message handler
-// is what holds them together.
+// Which alternative belongs is not free: TS 38.413 §9.2.3.1 pairs it with the
+// Handover Type IE, and the message handler is what holds them together.
 type TargetID struct {
-	TargetRANNodeID *TargetRANNodeID
-	TargeteNBID     *TargeteNBID
+	TargetRANNodeID   *TargetRANNodeID       `per:",choice:0"`
+	TargeteNBID       *TargeteNBID           `per:",choice:1"`
+	TargetRNCID       *TargetRNCID           `per:",choice:2,extie:IDTargetRNCID,crit:reject"`
+	TargetHomeENBID   *TargetHomeENBID       `per:",choice:2,extie:IDTargetHomeENBID,crit:reject"`
+	ChoiceExtension   *SingleContainer       `per:",choice:2,extie"`
+	choiceCriticality apimpl.WireCriticality `per:",choicecrit"`
 }
 
-func (t TargetID) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	var (
-		idx   int64
-		value per.Marshaler
-	)
-
-	switch {
-	case t.TargetRANNodeID != nil && t.TargeteNBID != nil:
-		return fmt.Errorf("ngap: TargetID names both an NG-RAN node and an eNB")
-	case t.TargetRANNodeID != nil:
-		idx, value = targetIDTargetRANNodeID, t.TargetRANNodeID
-	case t.TargeteNBID != nil:
-		idx, value = targetIDTargetENBID, t.TargeteNBID
-	default:
-		return fmt.Errorf("ngap: TargetID names no target")
-	}
-
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, targetIDAlternatives-1, idx); err != nil {
-		return err
-	}
-
-	return value.MarshalPER(w, enc)
+type TargetRNCID struct {
+	LAI           LAI
+	RNCID         RNCID
+	ExtendedRNCID *ExtendedRNCID         `per:",optional"`
+	iEExtensions  extensionMeta          `per:",exttable"`
+	extensions    per.ExtensionAdditions `per:",extraw"`
 }
 
-func (t *TargetID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, targetIDAlternatives-1)
+type LAI struct {
+	PLMNIdentity PLMNIdentity
+	LAC          LAC
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+}
+
+type LAC [2]byte
+
+func (l LAC) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeOctetString(w, enc, 2, 2, true, true, false, l[:])
+}
+
+func (l *LAC) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 2, 2, true, true, false)
 	if err != nil {
 		return err
 	}
 
-	switch idx {
-	case targetIDTargetRANNodeID:
-		var v TargetRANNodeID
-		if err := v.UnmarshalPER(r, enc); err != nil {
-			return err
-		}
+	copy(l[:], b)
 
-		*t = TargetID{TargetRANNodeID: &v}
+	return nil
+}
 
-		return nil
-	case targetIDTargetENBID:
-		var v TargeteNBID
-		if err := v.UnmarshalPER(r, enc); err != nil {
-			return err
-		}
+type RNCID uint16
 
-		*t = TargetID{TargeteNBID: &v}
+func (id RNCID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeInteger(w, enc, per.Bounds{LB: 0, HasLB: true, UB: 4095, HasUB: true}, int64(id))
+}
 
-		return nil
-	case targetIDChoiceExtensions:
-		return decodeChoiceExtension(r, enc, "TargetID")
-	default:
-		return fmt.Errorf("%w: TargetID alternative %d", errNotComprehended, idx)
-	}
+func (id *RNCID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := per.DecodeInteger(r, enc, per.Bounds{LB: 0, HasLB: true, UB: 4095, HasUB: true})
+	*id = RNCID(v)
+
+	return err
+}
+
+type ExtendedRNCID uint16
+
+func (id ExtendedRNCID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeInteger(w, enc, per.Bounds{LB: 4096, HasLB: true, UB: 65535, HasUB: true}, int64(id))
+}
+
+func (id *ExtendedRNCID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := per.DecodeInteger(r, enc, per.Bounds{LB: 4096, HasLB: true, UB: 65535, HasUB: true})
+	*id = ExtendedRNCID(v)
+
+	return err
+}
+
+type TargetHomeENBID struct {
+	PLMNIdentity   PLMNIdentity
+	HomeENBID      HomeENBID
+	SelectedEPSTAI EPSTAI
+	iEExtensions   extensionMeta          `per:",exttable"`
+	extensions     per.ExtensionAdditions `per:",extraw"`
+}
+
+const homeENBIDBits = 28
+
+type HomeENBID uint32
+
+func (id HomeENBID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return encodeBitStringUint(w, enc, uint64(id), homeENBIDBits)
+}
+
+func (id *HomeENBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := decodeBitStringUint(r, enc, homeENBIDBits)
+	*id = HomeENBID(v)
+
+	return err
 }
 
 // NewSecurityContextInd ::= ENUMERATED { true, ... } — TS 38.413 §9.3.1.55. The
@@ -209,24 +207,7 @@ type NewSecurityContextInd uint8
 
 const (
 	NewSecurityContextIndTrue NewSecurityContextInd = iota
-
-	newSecurityContextIndRootCount = 1
 )
-
-func (n NewSecurityContextInd) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, newSecurityContextIndRootCount, int64(n), "NewSecurityContextInd")
-}
-
-func (n *NewSecurityContextInd) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, newSecurityContextIndRootCount, "NewSecurityContextInd")
-	if err != nil {
-		return err
-	}
-
-	*n = NewSecurityContextInd(idx)
-
-	return nil
-}
 
 // The Mobility Restriction List vocabulary (TS 38.413 §9.3.1.85). The list is
 // optional in the ASN.1 and not optional in practice: §8.4.2.4 has the target
@@ -251,10 +232,10 @@ type ForbiddenTACs []TAC
 // ForbiddenAreaInformation-Item ::= SEQUENCE { pLMNIdentity, forbiddenTACs,
 // iE-Extensions OPTIONAL } (extensible).
 type ForbiddenAreaInformationItem struct {
-	_             [0]struct{} `per:"extseq"`
+	extensions    per.ExtensionAdditions `per:",extraw"`
 	PLMNIdentity  PLMNIdentity
 	ForbiddenTACs ForbiddenTACs
-	_             ieExtensions `per:",skip"`
+	iEExtensions  extensionMeta `per:",exttable"`
 }
 
 // ForbiddenAreaInformation ::= SEQUENCE (SIZE(1..maxnoofEPLMNsPlusOne)) OF
@@ -265,12 +246,22 @@ type ForbiddenAreaInformation []ForbiddenAreaInformationItem
 // §9.3.1.85. A bit set to 1 restricts the UE from that RAT; bit 7 is reserved.
 // The value is held as the eight bits in transmission order, with e-UTRA in the
 // most significant.
-type RATRestrictionInformation uint8
+type RATRestrictionInformation struct {
+	Flags    RATRestrictionFlags
+	extended bool
+	raw      BitString
+}
+
+type RATRestrictionFlags uint8
+
+func RATRestrictionInformationFrom(f RATRestrictionFlags) RATRestrictionInformation {
+	return RATRestrictionInformation{Flags: f}
+}
 
 // RAT restriction bit positions, counted from the first bit in transmission
 // order (TS 38.413 §9.3.1.85).
 const (
-	RATRestrictionEUTRA RATRestrictionInformation = 1 << (7 - iota)
+	RATRestrictionEUTRA RATRestrictionFlags = 1 << (7 - iota)
 	RATRestrictionNR
 	RATRestrictionNRUnlicensed
 	RATRestrictionNRLEO
@@ -284,10 +275,11 @@ const (
 // RATRestrictions-Item ::= SEQUENCE { pLMNIdentity, rATRestrictionInformation,
 // iE-Extensions OPTIONAL } (extensible).
 type RATRestrictionsItem struct {
-	_                         [0]struct{} `per:"extseq"`
-	PLMNIdentity              PLMNIdentity
-	RATRestrictionInformation RATRestrictionInformation
-	_                         ieExtensions `per:",skip"`
+	extensions                        per.ExtensionAdditions `per:",extraw"`
+	PLMNIdentity                      PLMNIdentity
+	RATRestrictionInformation         RATRestrictionInformation
+	ExtendedRATRestrictionInformation *ExtendedRATRestrictionInformation `per:",extie:IDExtendedRATRestrictionInformation,crit:ignore"`
+	iEExtensions                      extensionMeta                      `per:",exttable"`
 }
 
 // RATRestrictions ::= SEQUENCE (SIZE(1..maxnoofEPLMNsPlusOne)) OF
@@ -303,11 +295,11 @@ type NotAllowedTACs []TAC
 // ServiceAreaInformation-Item ::= SEQUENCE { pLMNIdentity, allowedTACs OPTIONAL,
 // notAllowedTACs OPTIONAL, iE-Extensions OPTIONAL } (extensible).
 type ServiceAreaInformationItem struct {
-	_              [0]struct{} `per:"extseq"`
+	extensions     per.ExtensionAdditions `per:",extraw"`
 	PLMNIdentity   PLMNIdentity
 	AllowedTACs    AllowedTACs    `per:",optional"`
 	NotAllowedTACs NotAllowedTACs `per:",optional"`
-	_              ieExtensions   `per:",skip"`
+	iEExtensions   extensionMeta  `per:",exttable"`
 }
 
 // ServiceAreaInformation ::= SEQUENCE (SIZE(1..maxnoofEPLMNsPlusOne)) OF
@@ -329,22 +321,26 @@ const (
 // TS 38.413 §9.3.1.85. Only the serving PLMN is mandatory, and it is the one
 // field §8.4.2.4 turns on.
 type MobilityRestrictionList struct {
-	_                        [0]struct{} `per:"extseq"`
-	ServingPLMN              PLMNIdentity
-	EquivalentPLMNs          EquivalentPLMNs          `per:",optional"`
-	RATRestrictions          RATRestrictions          `per:",optional"`
-	ForbiddenAreaInformation ForbiddenAreaInformation `per:",optional"`
-	ServiceAreaInformation   ServiceAreaInformation   `per:",optional"`
-	_                        ieExtensions             `per:",skip"`
+	extensions                      per.ExtensionAdditions `per:",extraw"`
+	ServingPLMN                     PLMNIdentity
+	EquivalentPLMNs                 EquivalentPLMNs                 `per:",optional"`
+	RATRestrictions                 RATRestrictions                 `per:",optional"`
+	ForbiddenAreaInformation        ForbiddenAreaInformation        `per:",optional"`
+	ServiceAreaInformation          ServiceAreaInformation          `per:",optional"`
+	LastEUTRANPLMNIdentity          *PLMNIdentity                   `per:",extie:IDLastEUTRANPLMNIdentity,crit:ignore"`
+	CNTypeRestrictionsForServing    *CNTypeRestrictionsForServing   `per:",extie:IDCNTypeRestrictionsForServing,crit:ignore"`
+	CNTypeRestrictionsForEquivalent CNTypeRestrictionsForEquivalent `per:",extie:IDCNTypeRestrictionsForEquivalent,crit:ignore"`
+	NPNMobilityInformation          *NPNMobilityInformation         `per:",extie:IDNPNMobilityInformation,crit:reject"`
+	iEExtensions                    extensionMeta                   `per:",exttable"`
 }
 
 // PDUSessionResourceItemHORqd ::= SEQUENCE { pDUSessionID,
 // handoverRequiredTransfer, iE-Extensions OPTIONAL } (extensible).
 type PDUSessionResourceItemHORqd struct {
-	_            [0]struct{} `per:"extseq"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // PDUSessionResourceListHORqd ::= SEQUENCE (SIZE(1..maxnoofPDUSessions)) OF
@@ -355,10 +351,10 @@ type PDUSessionResourceListHORqd []PDUSessionResourceItemHORqd
 // handoverCommandTransfer, iE-Extensions OPTIONAL } (extensible). One entry per
 // session the target admitted.
 type PDUSessionResourceHandoverItem struct {
-	_            [0]struct{} `per:"extseq"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // PDUSessionResourceHandoverList ::= SEQUENCE (SIZE(1..maxnoofPDUSessions)) OF
@@ -369,10 +365,10 @@ type PDUSessionResourceHandoverList []PDUSessionResourceHandoverItem
 // handoverPreparationUnsuccessfulTransfer, iE-Extensions OPTIONAL }
 // (extensible). One entry per session the target refused.
 type PDUSessionResourceToReleaseItemHOCmd struct {
-	_            [0]struct{} `per:"extseq"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // PDUSessionResourceToReleaseListHOCmd ::= SEQUENCE
@@ -403,10 +399,10 @@ func (c *TargettoSourceFailureTransparentContainer) UnmarshalPER(r *per.Reader, 
 // iE-Extensions OPTIONAL } (extensible) — TS 38.413 §9.3.1.88. The {NH, NCC}
 // pair the target derives its AS keys from (TS 33.501).
 type SecurityContext struct {
-	_                    [0]struct{} `per:"extseq"`
-	NextHopChainingCount uint8       `per:",range:0..7"`
+	extensions           per.ExtensionAdditions `per:",extraw"`
+	NextHopChainingCount uint8                  `per:",range:0..7"`
 	NextHopNH            SecurityKey
-	_                    ieExtensions `per:",skip"`
+	iEExtensions         extensionMeta `per:",exttable"`
 }
 
 // PDUSessionResourceSetupItemHOReq ::= SEQUENCE { pDUSessionID, s-NSSAI,
@@ -414,11 +410,12 @@ type SecurityContext struct {
 // is a PDUSessionResourceSetupRequestTransfer, the same one the setup procedure
 // carries.
 type PDUSessionResourceSetupItemHOReq struct {
-	_            [0]struct{} `per:"extseq"`
-	PDUSessionID PDUSessionID
-	SNSSAI       SNSSAI
-	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	PDUSessionID                          PDUSessionID
+	SNSSAI                                SNSSAI
+	Transfer                              TransferContainer
+	PduSessionExpectedUEActivityBehaviour *ExpectedUEActivityBehaviour `per:",extie:IDPduSessionExpectedUEActivityBehaviour,crit:ignore"`
+	iEExtensions                          extensionMeta                `per:",exttable"`
+	extensions                            per.ExtensionAdditions       `per:",extraw"`
 }
 
 // PDUSessionResourceSetupListHOReq ::= SEQUENCE (SIZE(1..maxnoofPDUSessions))
@@ -428,10 +425,10 @@ type PDUSessionResourceSetupListHOReq []PDUSessionResourceSetupItemHOReq
 // PDUSessionResourceAdmittedItem ::= SEQUENCE { pDUSessionID,
 // handoverRequestAcknowledgeTransfer, iE-Extensions OPTIONAL } (extensible).
 type PDUSessionResourceAdmittedItem struct {
-	_            [0]struct{} `per:"extseq"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // PDUSessionResourceAdmittedList ::= SEQUENCE (SIZE(1..maxnoofPDUSessions)) OF
@@ -442,10 +439,10 @@ type PDUSessionResourceAdmittedList []PDUSessionResourceAdmittedItem
 // handoverResourceAllocationUnsuccessfulTransfer, iE-Extensions OPTIONAL }
 // (extensible).
 type PDUSessionResourceFailedToSetupItemHOAck struct {
-	_            [0]struct{} `per:"extseq"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // PDUSessionResourceFailedToSetupListHOAck ::= SEQUENCE
@@ -455,10 +452,10 @@ type PDUSessionResourceFailedToSetupListHOAck []PDUSessionResourceFailedToSetupI
 // PDUSessionResourceToBeSwitchedDLItem ::= SEQUENCE { pDUSessionID,
 // pathSwitchRequestTransfer, iE-Extensions OPTIONAL } (extensible).
 type PDUSessionResourceToBeSwitchedDLItem struct {
-	_            [0]struct{} `per:"extseq"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // PDUSessionResourceToBeSwitchedDLList ::= SEQUENCE
@@ -468,10 +465,10 @@ type PDUSessionResourceToBeSwitchedDLList []PDUSessionResourceToBeSwitchedDLItem
 // PDUSessionResourceFailedToSetupItemPSReq ::= SEQUENCE { pDUSessionID,
 // pathSwitchRequestSetupFailedTransfer, iE-Extensions OPTIONAL } (extensible).
 type PDUSessionResourceFailedToSetupItemPSReq struct {
-	_            [0]struct{} `per:"extseq"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // PDUSessionResourceFailedToSetupListPSReq ::= SEQUENCE
@@ -481,10 +478,11 @@ type PDUSessionResourceFailedToSetupListPSReq []PDUSessionResourceFailedToSetupI
 // PDUSessionResourceSwitchedItem ::= SEQUENCE { pDUSessionID,
 // pathSwitchRequestAcknowledgeTransfer, iE-Extensions OPTIONAL } (extensible).
 type PDUSessionResourceSwitchedItem struct {
-	_            [0]struct{} `per:"extseq"`
-	PDUSessionID PDUSessionID
-	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	PDUSessionID                          PDUSessionID
+	Transfer                              TransferContainer
+	PduSessionExpectedUEActivityBehaviour *ExpectedUEActivityBehaviour `per:",extie:IDPduSessionExpectedUEActivityBehaviour,crit:ignore"`
+	iEExtensions                          extensionMeta                `per:",exttable"`
+	extensions                            per.ExtensionAdditions       `per:",extraw"`
 }
 
 // PDUSessionResourceSwitchedList ::= SEQUENCE (SIZE(1..maxnoofPDUSessions)) OF
@@ -494,10 +492,10 @@ type PDUSessionResourceSwitchedList []PDUSessionResourceSwitchedItem
 // PDUSessionResourceReleasedItemPSAck ::= SEQUENCE { pDUSessionID,
 // pathSwitchRequestUnsuccessfulTransfer, iE-Extensions OPTIONAL } (extensible).
 type PDUSessionResourceReleasedItemPSAck struct {
-	_            [0]struct{} `per:"extseq"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // PDUSessionResourceReleasedListPSAck ::= SEQUENCE
@@ -507,10 +505,10 @@ type PDUSessionResourceReleasedListPSAck []PDUSessionResourceReleasedItemPSAck
 // PDUSessionResourceReleasedItemPSFail ::= SEQUENCE { pDUSessionID,
 // pathSwitchRequestUnsuccessfulTransfer, iE-Extensions OPTIONAL } (extensible).
 type PDUSessionResourceReleasedItemPSFail struct {
-	_            [0]struct{} `per:"extseq"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // PDUSessionResourceReleasedListPSFail ::= SEQUENCE

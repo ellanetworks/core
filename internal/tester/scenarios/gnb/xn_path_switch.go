@@ -74,6 +74,8 @@ func runXnPathSwitch(_ context.Context, env scenarios.Env, _ any) error {
 	}
 
 	ack, err := xnPathSwitch(targetGNB, &xnPathSwitchOpts{
+		Source:            sourceGNB,
+		SourceRANUENGAPID: ranUENGAPID,
 		SourceAMFUENGAPID: sourceAmfUENGAPID,
 		TargetRANUENGAPID: xnPathSwitchTargetRANID,
 		TargetN3IP:        targetN3IP,
@@ -134,6 +136,8 @@ func startXnTargetGNB(env scenarios.Env, n2Address, n3Address string) (*gnb.Gnod
 }
 
 type xnPathSwitchOpts struct {
+	Source            *gnb.GnodeB
+	SourceRANUENGAPID int64
 	SourceAMFUENGAPID int64
 	TargetRANUENGAPID int64
 	TargetN3IP        netip.Addr
@@ -145,6 +149,10 @@ type xnPathSwitchOpts struct {
 }
 
 func xnPathSwitch(targetGNB *gnb.GnodeB, opts *xnPathSwitchOpts) (*ngaplib.PathSwitchRequestAcknowledge, error) {
+	if err := targetGNB.InheritSelectedPLMN(opts.TargetRANUENGAPID, opts.Source, opts.SourceRANUENGAPID); err != nil {
+		return nil, fmt.Errorf("carry the selected PLMN to the target gNB: %w", err)
+	}
+
 	var sessions [16]*gnb.PDUSessionInformation
 
 	id := opts.PDUSessionID
@@ -200,7 +208,9 @@ func xnPathSwitch(targetGNB *gnb.GnodeB, opts *xnPathSwitchOpts) (*ngaplib.PathS
 
 func xnUESecurityCapabilities() ngaplib.UESecurityCapabilities {
 	return ngaplib.UESecurityCapabilities{
-		NREncryptionAlgorithms:          0x4000,
-		NRIntegrityProtectionAlgorithms: 0x4000,
+		NREncryptionAlgorithms:             ngaplib.SecurityAlgorithmsFrom(0x4000),
+		NRIntegrityProtectionAlgorithms:    ngaplib.SecurityAlgorithmsFrom(0x4000),
+		EUTRAEncryptionAlgorithms:          ngaplib.SecurityAlgorithmsFrom(0),
+		EUTRAIntegrityProtectionAlgorithms: ngaplib.SecurityAlgorithmsFrom(0),
 	}
 }

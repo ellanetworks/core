@@ -3,7 +3,7 @@
 
 package s1ap
 
-//go:generate sh -c "cd .. && go run ./cmd/pergen -o s1ap/per_gen.go github.com/ellanetworks/core/s1ap"
+//go:generate go run github.com/ellanetworks/core/per/cmd/pergen -profile profile -ieid ProtocolIEID
 
 import (
 	"encoding/binary"
@@ -68,8 +68,6 @@ func (t *FiveGSTAC) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
-// GNB-Identity ::= CHOICE { gNB-ID, ... }: one root alternative, a bit string
-// whose width the sender chooses within SIZE(22..32).
 func (g GNBID) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	if g.Bits < gnbIDMinBits || g.Bits > gnbIDMaxBits {
 		return fmt.Errorf("s1ap: gNB-ID of %d bits, want %d..%d", g.Bits, gnbIDMinBits, gnbIDMaxBits)
@@ -79,30 +77,11 @@ func (g GNBID) MarshalPER(w *per.Writer, enc per.Encoding) error {
 		return fmt.Errorf("s1ap: gNB id %d exceeds its own %d bits", g.Value, g.Bits)
 	}
 
-	w.WriteBit(false)
-
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 0, 0); err != nil {
-		return err
-	}
-
 	return per.EncodeBitString(w, enc, gnbIDMinBits, gnbIDMaxBits, true, true, false,
 		uintToBits(uint64(g.Value), g.Bits), g.Bits)
 }
 
 func (g *GNBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	isExt, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-
-	if isExt {
-		return fmt.Errorf("%w: GNB-Identity extension alternative", errNotComprehended)
-	}
-
-	if _, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 0); err != nil {
-		return err
-	}
-
 	b, nbits, err := per.DecodeBitString(r, enc, gnbIDMinBits, gnbIDMaxBits, true, true, false)
 	if err != nil {
 		return err
@@ -111,79 +90,6 @@ func (g *GNBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	*g = GNBID{Value: uint32(bitsToUint(b, nbits)), Bits: nbits}
 
 	return nil
-}
-
-// Global-RAN-NODE-ID ::= CHOICE { gNB, ng-eNB, ... }.
-const (
-	globalRANNodeIDGNB = iota
-	globalRANNodeIDNgENB
-
-	globalRANNodeIDRootCount = 2
-)
-
-func (g GlobalRANNodeID) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	var (
-		idx   int64
-		value per.Marshaler
-	)
-
-	switch {
-	case g.GNB != nil && g.NgENB != nil:
-		return fmt.Errorf("s1ap: Global-RAN-NODE-ID carries both a gNB and an ng-eNB")
-	case g.GNB != nil:
-		idx, value = globalRANNodeIDGNB, g.GNB
-	case g.NgENB != nil:
-		idx, value = globalRANNodeIDNgENB, g.NgENB
-	default:
-		return fmt.Errorf("s1ap: Global-RAN-NODE-ID carries no alternative")
-	}
-
-	w.WriteBit(false)
-
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, globalRANNodeIDRootCount-1, idx); err != nil {
-		return err
-	}
-
-	return value.MarshalPER(w, enc)
-}
-
-func (g *GlobalRANNodeID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	isExt, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-
-	if isExt {
-		return fmt.Errorf("%w: Global-RAN-NODE-ID extension alternative", errNotComprehended)
-	}
-
-	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, globalRANNodeIDRootCount-1)
-	if err != nil {
-		return err
-	}
-
-	switch idx {
-	case globalRANNodeIDGNB:
-		var v GNB
-		if err := v.UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-
-		*g = GlobalRANNodeID{GNB: &v}
-
-		return nil
-	case globalRANNodeIDNgENB:
-		var v NgENB
-		if err := v.UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-
-		*g = GlobalRANNodeID{NgENB: &v}
-
-		return nil
-	default:
-		return fmt.Errorf("%w: Global-RAN-NODE-ID alternative %d", errNotComprehended, idx)
-	}
 }
 
 func (t TAC) MarshalPER(w *per.Writer, enc per.Encoding) error {
@@ -201,100 +107,48 @@ func (t *TAC) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
-func (e ENBID) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	nb, ok := enbIDBits[e.Kind]
-	if !ok {
-		return fmt.Errorf("s1ap: invalid ENB-ID kind %d", e.Kind)
-	}
-
-	switch e.Kind {
-	case ENBIDMacro, ENBIDHome:
-		w.WriteBit(false)
-
-		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 1, int64(e.Kind)); err != nil {
-			return err
-		}
-
-		return per.EncodeBitString(w, enc, int64(nb), int64(nb), true, true, false, uintToBits(uint64(e.Value), nb), nb)
-	default:
-		w.WriteBit(true)
-
-		if err := per.EncodeNormallySmall(w, enc, int64(e.Kind-ENBIDShortMacro)); err != nil {
-			return err
-		}
-
-		inner := per.NewWriter()
-		if err := per.EncodeBitString(inner, enc, int64(nb), int64(nb), true, true, false, uintToBits(uint64(e.Value), nb), nb); err != nil {
-			return err
-		}
-
-		inner.AlignToByte()
-
-		return per.EncodeOpenTypeBytes(w, enc, inner.Bytes())
-	}
+func (e MacroENBID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return encodeBitStringUint(w, enc, uint64(e), macroENBIDBits)
 }
 
-func (e *ENBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	isExt, err := per.DecodeBoolean(r, enc)
-	if err != nil {
-		return err
-	}
+func (e *MacroENBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := decodeBitStringUint(r, enc, macroENBIDBits)
+	*e = MacroENBID(v)
 
-	if !isExt {
-		idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, 1)
-		if err != nil {
-			return err
-		}
+	return err
+}
 
-		kind := ENBIDMacro
-		if idx == 1 {
-			kind = ENBIDHome
-		}
+func (e HomeENBID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return encodeBitStringUint(w, enc, uint64(e), homeENBIDBits)
+}
 
-		nb := enbIDBits[kind]
+func (e *HomeENBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := decodeBitStringUint(r, enc, homeENBIDBits)
+	*e = HomeENBID(v)
 
-		b, _, err := per.DecodeBitString(r, enc, int64(nb), int64(nb), true, true, false)
-		if err != nil {
-			return err
-		}
+	return err
+}
 
-		*e = ENBID{Kind: kind, Value: uint32(bitsToUint(b, nb))}
+func (e ShortMacroENBID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return encodeBitStringUint(w, enc, uint64(e), shortMacroENBIDBits)
+}
 
-		return nil
-	}
+func (e *ShortMacroENBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := decodeBitStringUint(r, enc, shortMacroENBIDBits)
+	*e = ShortMacroENBID(v)
 
-	extIdx, err := per.DecodeNormallySmall(r, enc)
-	if err != nil {
-		return err
-	}
+	return err
+}
 
-	raw, err := per.DecodeOpenTypeBytes(r, enc)
-	if err != nil {
-		return err
-	}
+func (e LongMacroENBID) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return encodeBitStringUint(w, enc, uint64(e), longMacroENBIDBits)
+}
 
-	// ENB-ID defines two extension additions, short-macroENB-ID and
-	// long-macroENB-ID. The open type above is read first so a later addition
-	// leaves the reader positioned after the alternative it could not decode.
-	if extIdx > 1 {
-		return fmt.Errorf("%w: ENB-ID extension alternative %d", errNotComprehended, extIdx)
-	}
+func (e *LongMacroENBID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := decodeBitStringUint(r, enc, longMacroENBIDBits)
+	*e = LongMacroENBID(v)
 
-	kind := ENBIDShortMacro
-	if extIdx == 1 {
-		kind = ENBIDLongMacro
-	}
-
-	nb := enbIDBits[kind]
-
-	b, _, err := per.DecodeBitString(per.NewReader(raw), enc, int64(nb), int64(nb), true, true, false)
-	if err != nil {
-		return err
-	}
-
-	*e = ENBID{Kind: kind, Value: uint32(bitsToUint(b, nb))}
-
-	return nil
+	return err
 }
 
 func encodeBitStringUint(w *per.Writer, enc per.Encoding, v uint64, nbits int) error {
@@ -312,36 +166,6 @@ func decodeBitStringUint(r *per.Reader, enc per.Encoding, nbits int) (uint64, er
 	}
 
 	return bitsToUint(b, nbits), nil
-}
-
-func (u UERetentionInformation) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, ueRetentionInformationRootCount, int64(u), "UERetentionInformation")
-}
-
-func (u *UERetentionInformation) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, ueRetentionInformationRootCount, "UERetentionInformation")
-	if err != nil {
-		return err
-	}
-
-	*u = UERetentionInformation(idx)
-
-	return nil
-}
-
-func (p PagingDRX) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, pagingDRXRootCount, int64(p), "PagingDRX")
-}
-
-func (p *PagingDRX) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, pagingDRXRootCount, "PagingDRX")
-	if err != nil {
-		return err
-	}
-
-	*p = PagingDRX(idx)
-
-	return nil
 }
 
 func (b BPLMNs) MarshalPER(w *per.Writer, enc per.Encoding) error {
@@ -414,6 +238,81 @@ func (s *SupportedTAs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 
 // The container holds at least one extension (SIZE(1..maxProtocolExtensions)),
 // so a caller with nothing to send leaves the field nil.
+func (c RAC) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeOctetString(w, enc, 1, 1, true, true, false, []byte{byte(c)})
+}
+
+func (c *RAC) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 1, 1, true, true, false)
+	if err != nil {
+		return err
+	}
+
+	*c = RAC(b[0])
+
+	return nil
+}
+
+func (c CI) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return per.EncodeOctetString(w, enc, 2, 2, true, true, false, []byte{byte(c >> 8), byte(c)})
+}
+
+func (c *CI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, err := per.DecodeOctetString(r, enc, 2, 2, true, true, false)
+	if err != nil {
+		return err
+	}
+
+	*c = CI(uint16(b[0])<<8 | uint16(b[1]))
+
+	return nil
+}
+
+func (c CellIdentity) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return encodeBitStringUint(w, enc, uint64(c), cellIDBits)
+}
+
+func (c *CellIdentity) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	v, err := decodeBitStringUint(r, enc, cellIDBits)
+	*c = CellIdentity(v)
+
+	return err
+}
+
+func (a SecurityAlgorithms) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	if a.extended {
+		return per.EncodeBitString(w, enc, securityAlgorithmsBits, securityAlgorithmsBits, true, true, true, []byte(a.octets), a.bits)
+	}
+
+	return per.EncodeBitString(w, enc, securityAlgorithmsBits, securityAlgorithmsBits, true, true, true,
+		uintToBits(uint64(a.Value), securityAlgorithmsBits), securityAlgorithmsBits)
+}
+
+func (a *SecurityAlgorithms) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	b, nbits, err := per.DecodeBitString(r, enc, securityAlgorithmsBits, securityAlgorithmsBits, true, true, true)
+	if err != nil {
+		return err
+	}
+
+	if nbits == securityAlgorithmsBits {
+		*a = SecurityAlgorithms{Value: uint16(bitsToUint(b, nbits))}
+
+		return nil
+	}
+
+	head := make([]byte, 2)
+	copy(head, b)
+
+	*a = SecurityAlgorithms{
+		Value:    uint16(bitsToUint(head, securityAlgorithmsBits)),
+		extended: true,
+		octets:   string(b),
+		bits:     nbits,
+	}
+
+	return nil
+}
+
 func (l LAC) MarshalPER(w *per.Writer, enc per.Encoding) error {
 	return per.EncodeOctetString(w, enc, 2, 2, true, true, false, []byte{byte(l >> 8), byte(l)})
 }
@@ -504,203 +403,6 @@ func (f *ForbiddenLAs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 	return nil
 }
 
-func (f ForbiddenInterRATs) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, forbiddenInterRATsRootCount, int64(f), "ForbiddenInterRATs")
-}
-
-func (f *ForbiddenInterRATs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, forbiddenInterRATsRootCount, "ForbiddenInterRATs")
-	if err != nil {
-		return err
-	}
-
-	*f = ForbiddenInterRATs(idx)
-
-	return nil
-}
-
-func (e *ERABToBeSetupItemHOReqExtIEs) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	if e.DataForwardingNotPossible == nil {
-		return fmt.Errorf("s1ap: E-RABToBeSetupItemHOReq iE-Extensions carries no modeled extension")
-	}
-
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 1, maxProtocolExtensions, 1); err != nil {
-		return err
-	}
-
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, maxProtocolIEs, int64(IDDataForwardingNotPossible)); err != nil {
-		return err
-	}
-
-	if err := per.EncodeEnumerated(w, enc, criticalityRootCount, false, int64(CriticalityIgnore)); err != nil {
-		return err
-	}
-
-	v := *e.DataForwardingNotPossible
-
-	return per.EncodeOpenType(w, enc, per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-		return encodeRootEnumerated(w, enc, dataForwardingNotPossibleRootCount, int64(v), "DataForwardingNotPossible")
-	}))
-}
-
-func (e *ERABToBeSetupItemHOReqExtIEs) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	n, err := per.DecodeConstrainedWholeNumber(r, enc, 1, maxProtocolExtensions)
-	if err != nil {
-		return err
-	}
-
-	var rejected ProtocolIEID
-
-	comprehended := true
-
-	for range n {
-		id, err := per.DecodeConstrainedWholeNumber(r, enc, 0, maxProtocolIEs)
-		if err != nil {
-			return err
-		}
-
-		crit, err := per.DecodeEnumerated(r, enc, criticalityRootCount, false)
-		if err != nil {
-			return err
-		}
-
-		if ProtocolIEID(id) == IDDataForwardingNotPossible {
-			var v DataForwardingNotPossible
-
-			if err := per.DecodeOpenType(r, enc, per.UnmarshalerFunc(func(r *per.Reader, enc per.Encoding) error {
-				idx, err := decodeRootEnumerated(r, enc, dataForwardingNotPossibleRootCount, "DataForwardingNotPossible")
-				if err != nil {
-					return err
-				}
-
-				v = DataForwardingNotPossible(idx)
-
-				return nil
-			})); err != nil {
-				return err
-			}
-
-			e.DataForwardingNotPossible = &v
-
-			continue
-		}
-
-		if err := per.SkipOpenType(r, enc); err != nil {
-			return err
-		}
-
-		// §10.3.4.2, as for any unmodeled extension: reject stops the procedure,
-		// ignore and notify leave the enclosing IE deliverable.
-		if Criticality(crit) == CriticalityReject && comprehended {
-			comprehended, rejected = false, ProtocolIEID(id)
-		}
-	}
-
-	if !comprehended {
-		return &notComprehendedIE{ID: rejected, Crit: CriticalityReject, What: "iE-Extensions"}
-	}
-
-	return nil
-}
-
-// A ProtocolExtensionContainer: never encoded, and on decode only its
-// criticality is acted on.
-type ieExtensions struct{}
-
-func (ieExtensions) MarshalPER(*per.Writer, per.Encoding) error {
-	return fmt.Errorf("s1ap: unmodeled iE-Extensions cannot be encoded")
-}
-
-func (*ieExtensions) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	n, err := per.DecodeConstrainedWholeNumber(r, enc, 1, maxProtocolExtensions)
-	if err != nil {
-		return err
-	}
-
-	var rejected ProtocolIEID
-
-	comprehended := true
-
-	for i := int64(0); i < n; i++ {
-		id, err := per.DecodeConstrainedWholeNumber(r, enc, 0, maxProtocolIEs)
-		if err != nil {
-			return err
-		}
-
-		crit, err := per.DecodeEnumerated(r, enc, criticalityRootCount, false)
-		if err != nil {
-			return err
-		}
-
-		if err := per.SkipOpenType(r, enc); err != nil {
-			return err
-		}
-
-		// §10.3.4.2: an unmodeled extension marked reject stops the procedure;
-		// ignore and notify are skipped and the IE holding them still
-		// delivered. The container is consumed either way so the reader stays
-		// aligned. A notify extension should also be reported back, which a
-		// leaf decoder has no diagnostics sink to do.
-		//
-		// This rejects S1 Setup from a Release-13 eNB, whose SupportedTAs-Item
-		// carries the reject-criticality id-RAT-Type (232) on an NB-IoT TAC.
-		// Deliberate while NB-IoT is unsupported. Modeling RAT-Type is what
-		// changes that, not loosening this rule.
-		if Criticality(crit) == CriticalityReject && comprehended {
-			comprehended, rejected = false, ProtocolIEID(id)
-		}
-	}
-
-	if !comprehended {
-		return &notComprehendedIE{ID: rejected, Crit: CriticalityReject, What: "iE-Extensions"}
-	}
-
-	return nil
-}
-
-func skipSequenceExtensionsPER(r *per.Reader, enc per.Encoding, extContainer, extAdditions bool) error {
-	if extContainer {
-		var e ieExtensions
-		if err := e.UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-	}
-
-	if !extAdditions {
-		return nil
-	}
-
-	var present []bool
-
-	// A bitmap wider than 64 bits arrives fragmented (X.691 §19.7 via §11.9.3),
-	// so the callback runs once per fragment and the bits accumulate.
-	err := per.DecodeNormallySmallLength(r, enc, func(count int64) error {
-		for range count {
-			b, err := r.ReadBit()
-			if err != nil {
-				return err
-			}
-
-			present = append(present, b)
-		}
-
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-
-	for _, p := range present {
-		if p {
-			if err := per.SkipOpenType(r, enc); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
 func marshalSeqOf[T any](w *per.Writer, enc per.Encoding, lb, ub int64, items []T) error {
 	off := 0
 
@@ -748,8 +450,4 @@ func unmarshalSeqOf[T any](r *per.Reader, enc per.Encoding, lb, ub int64) ([]T, 
 	}
 
 	return items, nil
-}
-
-func perIEDecode(b []byte, u per.Unmarshaler) error {
-	return u.UnmarshalPER(per.NewReader(b), per.Aligned)
 }

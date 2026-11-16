@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/tracing"
+	"github.com/ellanetworks/core/per/ap"
 	"github.com/ellanetworks/core/s1ap"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -186,7 +187,12 @@ func (m *MME) traceActivation(id tracing.RANTraceID, conn S1APWriter) (*s1ap.Tra
 		return nil, fmt.Errorf("RAN trace is not enabled")
 	}
 
-	tce, err := tracing.TCEAddress(conn)
+	addr, err := tracing.TCEAddress(conn)
+	if err != nil {
+		return nil, err
+	}
+
+	tce, err := ap.TransportLayerAddressFrom(addr)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +201,7 @@ func (m *MME) traceActivation(id tracing.RANTraceID, conn S1APWriter) (*s1ap.Tra
 		EUTRANTraceID:                  s1ap.EUTRANTraceID(id),
 		InterfacesToTrace:              ranTraceInterfaces,
 		TraceDepth:                     s1ap.TraceDepthMinimum,
-		TraceCollectionEntityIPAddress: s1ap.TransportLayerAddress(tce.Unmap().AsSlice()),
+		TraceCollectionEntityIPAddress: tce,
 	}, nil
 }
 

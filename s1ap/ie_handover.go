@@ -4,8 +4,6 @@
 package s1ap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
 )
 
@@ -27,44 +25,9 @@ const (
 	HandoverTypeLTEtoGERAN
 	HandoverTypeUTRANtoLTE
 	HandoverTypeGERANtoLTE
-
-	// The extension additions, numbered on from the root as PER numbers them:
-	// the k-th addition is handoverTypeRootCount+k.
 	HandoverTypeEPSToFiveGS
 	HandoverTypeFiveGSToEPS
 )
-
-const (
-	handoverTypeRootCount = 5
-	// handoverTypeCount is every value 3GPP has assigned, root and extension
-	// together. A value beyond it names no handover this release defines.
-	handoverTypeCount = 7
-)
-
-func (t HandoverType) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	if t >= handoverTypeCount {
-		return fmt.Errorf("s1ap: HandoverType %d outside the assigned values", t)
-	}
-
-	return per.EncodeEnumerated(w, enc, handoverTypeRootCount, true, int64(t))
-}
-
-func (t *HandoverType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := per.DecodeEnumerated(r, enc, handoverTypeRootCount, true)
-	if err != nil {
-		return err
-	}
-
-	// §10.3.1 case 6, handled on the IE's criticality: an addition a later
-	// release makes is refused rather than narrowed onto a root value.
-	if idx >= handoverTypeCount {
-		return fmt.Errorf("%w: HandoverType extension value %d", errNotComprehended, idx)
-	}
-
-	*t = HandoverType(idx)
-
-	return nil
-}
 
 // Direct-Forwarding-Path-Availability ::= ENUMERATED { directPathAvailable,
 // ... } (TS 36.413 §9.2.3.15). The source eNB sets it in HANDOVER REQUIRED to
@@ -75,24 +38,7 @@ type DirectForwardingPathAvailability uint8
 
 const (
 	DirectForwardingPathAvailable DirectForwardingPathAvailability = iota
-
-	directForwardingPathAvailabilityRootCount = 1
 )
-
-func (d DirectForwardingPathAvailability) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, directForwardingPathAvailabilityRootCount, int64(d), "DirectForwardingPathAvailability")
-}
-
-func (d *DirectForwardingPathAvailability) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, directForwardingPathAvailabilityRootCount, "DirectForwardingPathAvailability")
-	if err != nil {
-		return err
-	}
-
-	*d = DirectForwardingPathAvailability(idx)
-
-	return nil
-}
 
 // TransparentContainer ::= OCTET STRING, relayed opaquely; the bytes are RAN
 // RRC information (TS 36.300).
@@ -156,130 +102,73 @@ func (p *NASSecurityParameterstoEUTRAN) UnmarshalPER(r *per.Reader, enc per.Enco
 // iE-Extensions OPTIONAL } (extensible) (TS 36.413 §9.2.1.26). The {NH, NCC}
 // pair the target derives the next KeNB from (TS 33.401).
 type SecurityContext struct {
-	_                    [0]struct{} `per:"extseq"`
-	NextHopChainingCount uint8       `per:",range:0..7"`
+	extensions           per.ExtensionAdditions `per:",extraw"`
+	NextHopChainingCount uint8                  `per:",range:0..7"`
 	NextHopParameter     SecurityKey
-	_                    ieExtensions `per:",skip"`
+	iEExtensions         extensionMeta `per:",exttable"`
 }
 
 // TargeteNB-ID ::= SEQUENCE { global-ENB-ID, selected-TAI, iE-Extensions
 // OPTIONAL } (extensible) (TS 36.413).
 type TargeteNBID struct {
-	_           [0]struct{} `per:"extseq"`
-	GlobalENBID GlobalENBID
-	SelectedTAI TAI
-	_           ieExtensions `per:",skip"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+	GlobalENBID  GlobalENBID
+	SelectedTAI  TAI
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // TargetNgRanNode-ID ::= SEQUENCE { global-RAN-NODE-ID, selected-TAI FiveGSTAI,
 // iE-Extensions OPTIONAL } (extensible) (TS 36.413). It names an NG-RAN node an
 // EPS to 5GS handover targets, so the tracking area it carries is a 5GS one.
 type TargetNgRanNodeID struct {
-	_               [0]struct{} `per:"extseq"`
+	extensions      per.ExtensionAdditions `per:",extraw"`
 	GlobalRANNodeID GlobalRANNodeID
 	SelectedTAI     FiveGSTAI
-	_               ieExtensions `per:",skip"`
+	iEExtensions    extensionMeta `per:",exttable"`
 }
 
 // TargetID ::= CHOICE { targeteNB-ID, targetRNC-ID, cGI, ...,
-// targetgNgRanNode-ID } (TS 36.413). Two alternatives are modelled: targeteNB-ID
-// for an intra-LTE handover and the targetgNgRanNode-ID extension addition for
-// the EPS to 5GS one. targetRNC-ID and cGI name targets Ella cannot reach.
+// targetgNgRanNode-ID } (TS 36.413).
 //
 // Which alternative is present is not free: TS 36.413 §9.1.5.1 pairs it with the
 // Handover Type IE, so an eps-to-5gs Handover Required carries the NG-RAN target
 // and an intralte one the eNB target. The CHOICE does not enforce that — the
 // message handler does.
 type TargetID struct {
-	TargeteNBID       TargeteNBID
-	TargetNgRanNodeID *TargetNgRanNodeID
+	TargeteNBID       *TargeteNBID              `per:",choice:0"`
+	TargetRNCID       *TargetRNCID              `per:",choice:1"`
+	CGI               *CGI                      `per:",choice:2"`
+	TargetNgRanNodeID *TargetNgRanNodeID        `per:",choice:0,ext"`
+	Ext               *per.ExtensionAlternative `per:",extalt"`
 }
 
-const (
-	targetIDRootCount = 3 // targeteNB-ID, targetRNC-ID, cGI
-
-	// targetIDExtTargetNgRanNodeID is the extension addition's index: the first,
-	// and so far only, addition TS 36.413 makes to the CHOICE.
-	targetIDExtTargetNgRanNodeID = 0
-)
-
-func (t TargetID) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	if t.TargetNgRanNodeID != nil {
-		w.WriteBit(true)
-
-		if err := per.EncodeNormallySmall(w, enc, targetIDExtTargetNgRanNodeID); err != nil {
-			return err
-		}
-
-		// An extension alternative travels as an open type, so a receiver that
-		// does not know it can step over it (X.691 §23).
-		inner := per.NewWriter()
-		if err := t.TargetNgRanNodeID.MarshalPER(inner, enc); err != nil {
-			return err
-		}
-
-		inner.AlignToByte()
-
-		return per.EncodeOpenTypeBytes(w, enc, inner.Bytes())
-	}
-
-	w.WriteBit(false)
-
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, targetIDRootCount-1, 0); err != nil {
-		return err
-	}
-
-	return t.TargeteNBID.MarshalPER(w, enc)
+type LAI struct {
+	PLMNIdentity PLMNIdentity
+	LAC          LAC
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
-func (t *TargetID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	isExt, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
+type RAC uint8
 
-	if isExt {
-		return t.unmarshalExtension(r, enc)
-	}
+type CI uint16
 
-	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, targetIDRootCount-1)
-	if err != nil {
-		return err
-	}
-
-	if idx != 0 {
-		return fmt.Errorf("%w: TargetID alternative %d (only targeteNB-ID)", errNotComprehended, idx)
-	}
-
-	return t.TargeteNBID.UnmarshalPER(r, enc)
+type TargetRNCID struct {
+	LAI           LAI
+	RAC           *RAC                   `per:",optional"`
+	RNCID         uint16                 `per:",range:0..4095"`
+	ExtendedRNCID *uint16                `per:",optional,range:4096..65535"`
+	iEExtensions  extensionMeta          `per:",exttable"`
+	extensions    per.ExtensionAdditions `per:",extraw"`
 }
 
-func (t *TargetID) unmarshalExtension(r *per.Reader, enc per.Encoding) error {
-	extIdx, err := per.DecodeNormallySmall(r, enc)
-	if err != nil {
-		return err
-	}
-
-	// The open type is read whatever it turns out to hold, so an addition a later
-	// release makes leaves the reader positioned after the alternative it could
-	// not decode.
-	raw, err := per.DecodeOpenTypeBytes(r, enc)
-	if err != nil {
-		return err
-	}
-
-	if extIdx != targetIDExtTargetNgRanNodeID {
-		return fmt.Errorf("%w: TargetID extension alternative %d", errNotComprehended, extIdx)
-	}
-
-	var node TargetNgRanNodeID
-	if err := node.UnmarshalPER(per.NewReader(raw), enc); err != nil {
-		return err
-	}
-
-	t.TargetNgRanNodeID = &node
-
-	return nil
+type CGI struct {
+	PLMNIdentity PLMNIdentity
+	LAC          LAC
+	CI           CI
+	RAC          *RAC                   `per:",optional"`
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // The Handover Restriction List vocabulary (TS 36.413 §9.2.1.22). The list is
@@ -311,10 +200,10 @@ type ForbiddenLACs []LAC
 // ForbiddenTAs-Item ::= SEQUENCE { pLMN-Identity, forbiddenTACs, iE-Extensions
 // OPTIONAL } (extensible).
 type ForbiddenTAsItem struct {
-	_             [0]struct{} `per:"extseq"`
+	extensions    per.ExtensionAdditions `per:",extraw"`
 	PLMNIdentity  PLMNIdentity
 	ForbiddenTACs ForbiddenTACs
-	_             ieExtensions `per:",skip"`
+	iEExtensions  extensionMeta `per:",exttable"`
 }
 
 // ForbiddenTAs ::= SEQUENCE (SIZE(1..maxnoofEPLMNsPlusOne)) OF ForbiddenTAs-Item.
@@ -323,10 +212,10 @@ type ForbiddenTAs []ForbiddenTAsItem
 // ForbiddenLAs-Item ::= SEQUENCE { pLMN-Identity, forbiddenLACs, iE-Extensions
 // OPTIONAL } (extensible).
 type ForbiddenLAsItem struct {
-	_             [0]struct{} `per:"extseq"`
+	extensions    per.ExtensionAdditions `per:",extraw"`
 	PLMNIdentity  PLMNIdentity
 	ForbiddenLACs ForbiddenLACs
-	_             ieExtensions `per:",skip"`
+	iEExtensions  extensionMeta `per:",exttable"`
 }
 
 // ForbiddenLAs ::= SEQUENCE (SIZE(1..maxnoofEPLMNsPlusOne)) OF ForbiddenLAs-Item.
@@ -342,8 +231,8 @@ const (
 	ForbiddenInterRATsGERAN
 	ForbiddenInterRATsUTRAN
 	ForbiddenInterRATsCDMA2000
-
-	forbiddenInterRATsRootCount = 4
+	ForbiddenInterRATsGERANandUTRAN
+	ForbiddenInterRATsCDMA2000andUTRAN
 )
 
 // Range bounds of the Handover Restriction List vocabulary (TS 36.413,
@@ -360,25 +249,36 @@ const (
 // iE-Extensions OPTIONAL } (extensible) (TS 36.413 §9.2.1.22). Only the serving
 // PLMN is mandatory, and it is the one field §8.4.2.4 turns on.
 type HandoverRestrictionList struct {
-	_                  [0]struct{} `per:"extseq"`
-	ServingPLMN        PLMNIdentity
-	EquivalentPLMNs    EPLMNs              `per:",optional"`
-	ForbiddenTAs       ForbiddenTAs        `per:",optional"`
-	ForbiddenLAs       ForbiddenLAs        `per:",optional"`
-	ForbiddenInterRATs *ForbiddenInterRATs `per:",optional"`
-	_                  ieExtensions        `per:",skip"`
+	extensions                       per.ExtensionAdditions `per:",extraw"`
+	ServingPLMN                      PLMNIdentity
+	EquivalentPLMNs                  EPLMNs                            `per:",optional"`
+	ForbiddenTAs                     ForbiddenTAs                      `per:",optional"`
+	ForbiddenLAs                     ForbiddenLAs                      `per:",optional"`
+	ForbiddenInterRATs               *ForbiddenInterRATs               `per:",optional"`
+	NRrestrictioninEPSasSecondaryRAT *NRrestrictioninEPSasSecondaryRAT `per:",extie:IDNRrestrictioninEPSasSecondaryRAT,crit:ignore"`
+	UnlicensedSpectrumRestriction    *UnlicensedSpectrumRestriction    `per:",extie:IDUnlicensedSpectrumRestriction,crit:ignore"`
+	CNTypeRestrictions               CNTypeRestrictions                `per:",extie:IDCNTypeRestrictions,crit:ignore"`
+	NRrestrictionin5GS               *NRrestrictionin5GS               `per:",extie:IDNRrestrictionin5GS,crit:ignore"`
+	LastNGRANPLMNIdentity            *PLMNIdentity                     `per:",extie:IDLastNGRANPLMNIdentity,crit:ignore"`
+	RATRestrictions                  RATRestrictions                   `per:",extie:IDRATRestrictions,crit:ignore"`
+	iEExtensions                     extensionMeta                     `per:",exttable"`
 }
 
 // ERABToBeSetupItemHOReq ::= SEQUENCE { e-RAB-ID, transportLayerAddress,
 // gTP-TEID, e-RABlevelQosParameters, iE-Extensions OPTIONAL } (extensible)
 // (TS 36.413).
 type ERABToBeSetupItemHOReq struct {
-	_                     [0]struct{} `per:"extseq"`
-	ERABID                ERABID
-	TransportLayerAddress TransportLayerAddress
-	GTPTEID               GTPTEID
-	QoS                   ERABLevelQoSParameters
-	Extensions            *ERABToBeSetupItemHOReqExtIEs `per:",optional"`
+	ERABID                    ERABID
+	TransportLayerAddress     TransportLayerAddress
+	GTPTEID                   GTPTEID
+	QoS                       ERABLevelQoSParameters
+	DataForwardingNotPossible *DataForwardingNotPossible `per:",extie:IDDataForwardingNotPossible,crit:ignore"`
+	BearerType                *BearerType                `per:",extie:IDBearerType,crit:reject"`
+	EthernetType              *EthernetType              `per:",extie:IDEthernetType,crit:ignore"`
+	SecurityIndication        *SecurityIndication        `per:",extie:IDSecurityIndication,crit:reject"`
+	iEExtensions              extensionMeta              `per:",exttable"`
+	extensions                per.ExtensionAdditions     `per:",extraw"`
+	containerCrit             `per:"-"`
 }
 
 // DataForwardingNotPossible ::= ENUMERATED { data-forwarding-not-possible,
@@ -387,31 +287,23 @@ type DataForwardingNotPossible uint8
 
 const (
 	DataForwardingNotPossibleTrue DataForwardingNotPossible = iota
-
-	dataForwardingNotPossibleRootCount = 1
 )
-
-// ERABToBeSetupItemHOReqExtIEs is the ProtocolExtensionContainer of
-// ERABToBeSetupItemHOReq. Of the extensions TS 36.413 defines for it, only
-// id-Data-Forwarding-Not-Possible (143, criticality ignore) is modeled.
-type ERABToBeSetupItemHOReqExtIEs struct {
-	DataForwardingNotPossible *DataForwardingNotPossible
-}
 
 // ERABAdmittedItem ::= SEQUENCE { e-RAB-ID, transportLayerAddress, gTP-TEID,
 // dL-transportLayerAddress OPTIONAL, dL-gTP-TEID OPTIONAL, uL-TransportLayerAddress
 // OPTIONAL, uL-GTP-TEID OPTIONAL, iE-Extensions OPTIONAL } (extensible)
 // (TS 36.413).
 type ERABAdmittedItem struct {
-	_                     [0]struct{} `per:"extseq"`
 	ERABID                ERABID
 	TransportLayerAddress TransportLayerAddress
 	GTPTEID               GTPTEID
-	DLTransportLayerAddr  TransportLayerAddress `per:",optional"`
-	DLGTPTEID             *GTPTEID              `per:",optional"`
-	ULTransportLayerAddr  TransportLayerAddress `per:",optional"`
-	ULGTPTEID             *GTPTEID              `per:",optional"`
-	_                     ieExtensions          `per:",skip"`
+	DLTransportLayerAddr  *TransportLayerAddress `per:",optional"`
+	DLGTPTEID             *GTPTEID               `per:",optional"`
+	ULTransportLayerAddr  *TransportLayerAddress `per:",optional"`
+	ULGTPTEID             *GTPTEID               `per:",optional"`
+	iEExtensions          extensionMeta          `per:",exttable"`
+	extensions            per.ExtensionAdditions `per:",extraw"`
+	containerCrit         `per:"-"`
 }
 
 // E-RABDataForwardingItem ::= SEQUENCE { e-RAB-ID, dL-transportLayerAddress
@@ -420,11 +312,12 @@ type ERABAdmittedItem struct {
 // counterpart is not an IE of the message body: NGAP carries the same tunnels
 // inside the per-session HandoverCommandTransfer.
 type ERABDataForwardingItem struct {
-	_                    [0]struct{} `per:"extseq"`
 	ERABID               ERABID
-	DLTransportLayerAddr TransportLayerAddress `per:",optional"`
-	DLGTPTEID            *GTPTEID              `per:",optional"`
-	ULTransportLayerAddr TransportLayerAddress `per:",optional"`
-	ULGTPTEID            *GTPTEID              `per:",optional"`
-	_                    ieExtensions          `per:",skip"`
+	DLTransportLayerAddr *TransportLayerAddress `per:",optional"`
+	DLGTPTEID            *GTPTEID               `per:",optional"`
+	ULTransportLayerAddr *TransportLayerAddress `per:",optional"`
+	ULGTPTEID            *GTPTEID               `per:",optional"`
+	iEExtensions         extensionMeta          `per:",exttable"`
+	extensions           per.ExtensionAdditions `per:",extraw"`
+	containerCrit        `per:"-"`
 }

@@ -5,6 +5,7 @@ package s1ap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // EventType ::= ENUMERATED { direct, change-of-serve-cell, stop-change-of-serve-cell,
@@ -27,44 +28,47 @@ const (
 // RequestType ::= SEQUENCE { eventType, reportArea, iE-Extensions OPTIONAL, ... }
 // (TS 36.413 §9.2.1.35).
 type RequestType struct {
-	_          [0]struct{}  `per:"extseq"`
-	EventType  EventType    `per:"ENUMERATED,range:0..2,..."`
-	ReportArea ReportArea   `per:"ENUMERATED,range:0..0,..."`
-	_          ieExtensions `per:",skip"`
+	extensions                per.ExtensionAdditions `per:",extraw"`
+	EventType                 EventType
+	ReportArea                ReportArea
+	RequestTypeAdditionalInfo *RequestTypeAdditionalInfo `per:",extie:IDRequestTypeAdditionalInfo,crit:ignore"`
+	iEExtensions              extensionMeta              `per:",exttable"`
 }
 
 // TS 36.413 §9.1.12.3.
 type LocationReport struct {
-	MMEUES1APID MMEUES1APID
-	ENBUES1APID ENBUES1APID
-	EUTRANCGI   *EUTRANCGI
-	TAI         *TAI
-	RequestType *RequestType
+	MMEUES1APID          MMEUES1APID
+	ENBUES1APID          ENBUES1APID
+	EUTRANCGI            *EUTRANCGI
+	TAI                  *TAI
+	RequestType          *RequestType
+	PSCellInformation    *PSCellInformation
+	LTENTNTAIInformation *LTENTNTAIInformation
 
 	messageMeta
 }
 
 var locationReportIEs = []ieSpec[LocationReport]{
 	{
-		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.MMEUES1APID)
+		ID: IDMMEUES1APID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *LocationReport, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.MMEUES1APID)
 		},
-		encode: func(m *LocationReport) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+		Encode: func(m *LocationReport) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ENBUES1APID)
+		ID: IDENBUES1APID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *LocationReport, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.ENBUES1APID)
 		},
-		encode: func(m *LocationReport) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+		Encode: func(m *LocationReport) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: IDEUTRANCGI, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
+		ID: IDEUTRANCGI, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *LocationReport, r *per.Reader, enc per.Encoding) error {
 			var v EUTRANCGI
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -72,7 +76,7 @@ var locationReportIEs = []ieSpec[LocationReport]{
 
 			return nil
 		},
-		encode: func(m *LocationReport) (per.Marshaler, bool) {
+		Encode: func(m *LocationReport) (per.Marshaler, bool) {
 			if m.EUTRANCGI == nil {
 				return nil, false
 			}
@@ -81,11 +85,11 @@ var locationReportIEs = []ieSpec[LocationReport]{
 		},
 	},
 	{
-		id: IDTAI, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
+		ID: IDTAI, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *LocationReport, r *per.Reader, enc per.Encoding) error {
 			var v TAI
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -93,7 +97,7 @@ var locationReportIEs = []ieSpec[LocationReport]{
 
 			return nil
 		},
-		encode: func(m *LocationReport) (per.Marshaler, bool) {
+		Encode: func(m *LocationReport) (per.Marshaler, bool) {
 			if m.TAI == nil {
 				return nil, false
 			}
@@ -102,11 +106,11 @@ var locationReportIEs = []ieSpec[LocationReport]{
 		},
 	},
 	{
-		id: IDRequestType, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
+		ID: IDRequestType, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *LocationReport, r *per.Reader, enc per.Encoding) error {
 			var v RequestType
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -114,7 +118,7 @@ var locationReportIEs = []ieSpec[LocationReport]{
 
 			return nil
 		},
-		encode: func(m *LocationReport) (per.Marshaler, bool) {
+		Encode: func(m *LocationReport) (per.Marshaler, bool) {
 			if m.RequestType == nil {
 				return nil, false
 			}
@@ -122,6 +126,8 @@ var locationReportIEs = []ieSpec[LocationReport]{
 			return m.RequestType, true
 		},
 	},
+	apimpl.OptionalIE(IDPSCellInformation, CriticalityIgnore, func(m *LocationReport) **PSCellInformation { return &m.PSCellInformation }),
+	apimpl.OptionalIE(IDLTENTNTAIInformation, CriticalityIgnore, func(m *LocationReport) **LTENTNTAIInformation { return &m.LTENTNTAIInformation }),
 }
 
 func (m *LocationReport) encodeBody(w *per.Writer, enc per.Encoding) error {
@@ -146,4 +152,8 @@ func (m *LocationReport) Marshal() ([]byte, error) {
 
 func ParseLocationReport(value []byte) (*LocationReport, error) {
 	return parseMessageBody[LocationReport](ProcLocationReport, TriggeringInitiatingMessage, locationReportIEs, value)
+}
+
+func DecodeLocationReport(value []byte) (*LocationReport, error) {
+	return decodeMessageBody[LocationReport](ProcLocationReport, locationReportIEs, value)
 }

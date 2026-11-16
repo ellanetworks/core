@@ -81,8 +81,8 @@ func runS1HandoverPartialAdmission(_ context.Context, env scenarios.Env, _ any) 
 		return fmt.Errorf("the Handover Request carried %d E-RABs, want both bearers", len(req.ERABToBeSetup))
 	}
 
-	targetENBUEID := pair.Target.AllocateENBUEID()
-	refusal := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioResourcesNotAvailable}
+	targetENBUEID := pair.Target.AllocateENBUEIDFor(pair.UE)
+	refusal := s1ap.CauseRadioNetworkRadioResourcesNotAvailable.Cause()
 
 	if _, err := pair.Target.SendHandoverRequestAcknowledgePartial(targetENBUEID, int64(req.MMEUES1APID),
 		[]s1ap.ERABID{pair.Attached.ERABID}, []s1ap.ERABID{second.ERABID}, refusal); err != nil {

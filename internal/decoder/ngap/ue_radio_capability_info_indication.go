@@ -30,5 +30,10 @@ func buildUERadioCapabilityInfoIndication(value []byte) NGAPMessageValue {
 			ueRadioCapabilityForPaging(*m.UERadioCapabilityForPaging)))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDUERadioCapabilityEUTRAFormat, ngap.CriticalityIgnore, m.UERadioCapabilityEUTRAFormat},
+		{ngap.IDXrDeviceWith2Rx, ngap.CriticalityIgnore, m.XrDeviceWith2Rx},
+	})
+
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }

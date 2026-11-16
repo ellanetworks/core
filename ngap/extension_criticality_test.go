@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // A real extension id TAI does not model: TAI-ExtIEs is empty (TS 38.413
@@ -63,8 +64,8 @@ func extendedTAIList(t *testing.T, crit Criticality) []byte {
 // extension's id rather than the container's.
 func TestRejectExtensionInsideIgnoreIERejects(t *testing.T) {
 	_, err := ParsePaging(container(t,
-		ieField{id: IDUEPagingIdentity, crit: CriticalityIgnore, val: &FiveGSTMSI{AMFSetID: 1, AMFPointer: 1, FiveGTMSI: 0xdeadbeef}},
-		ieField{id: IDTAIListForPaging, crit: CriticalityIgnore, raw: extendedTAIList(t, CriticalityReject)},
+		ieField{ID: IDUEPagingIdentity, Criticality: CriticalityIgnore, Value: &FiveGSTMSI{AMFSetID: 1, AMFPointer: 1, FiveGTMSI: 0xdeadbeef}},
+		ieField{ID: IDTAIListForPaging, Criticality: CriticalityIgnore, Value: apimpl.RawValue(extendedTAIList(t, CriticalityReject))},
 	))
 
 	var ase *AbstractSyntaxError
@@ -88,8 +89,8 @@ func TestRejectExtensionInsideIgnoreIERejects(t *testing.T) {
 // §10.3.4.2: an ignore extension is skipped and its IE still delivered.
 func TestIgnoreExtensionKeepsItsIE(t *testing.T) {
 	msg, err := ParsePaging(container(t,
-		ieField{id: IDUEPagingIdentity, crit: CriticalityIgnore, val: &FiveGSTMSI{AMFSetID: 1, AMFPointer: 1, FiveGTMSI: 0xdeadbeef}},
-		ieField{id: IDTAIListForPaging, crit: CriticalityIgnore, raw: extendedTAIList(t, CriticalityIgnore)},
+		ieField{ID: IDUEPagingIdentity, Criticality: CriticalityIgnore, Value: &FiveGSTMSI{AMFSetID: 1, AMFPointer: 1, FiveGTMSI: 0xdeadbeef}},
+		ieField{ID: IDTAIListForPaging, Criticality: CriticalityIgnore, Value: apimpl.RawValue(extendedTAIList(t, CriticalityIgnore))},
 	))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -99,7 +100,7 @@ func TestIgnoreExtensionKeepsItsIE(t *testing.T) {
 		t.Fatalf("TAIListForPaging = %+v, thrown away over an extension its own criticality says to ignore", msg.TAIListForPaging)
 	}
 
-	if msg.TAIListForPaging[0].TAC != 1 {
-		t.Errorf("TAI.TAC = %d, want 1", msg.TAIListForPaging[0].TAC)
+	if msg.TAIListForPaging[0].TAI.TAC != 1 {
+		t.Errorf("TAI.TAC = %d, want 1", msg.TAIListForPaging[0].TAI.TAC)
 	}
 }

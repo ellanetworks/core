@@ -74,12 +74,7 @@ func trackPreSetupDrainTestRadio(a *AMF, conn NGAPWriter) *Radio {
 }
 
 func drainTestRanNodeID() ngap.GlobalRANNodeID {
-	return ngap.GlobalRANNodeID{
-		Kind:         ngap.RANNodeIDGNB,
-		PLMNIdentity: ngap.PLMNIdentity{0x00, 0xf1, 0x10},
-		Value:        0x000102,
-		Bits:         24,
-	}
+	return ngap.NewGlobalGNBID(ngap.PLMNIdentity{0x00, 0xf1, 0x10}, 0x000102, 24)
 }
 
 func parseAMFConfigUpdate(t *testing.T, pdu []byte) *ngap.AMFConfigurationUpdate {

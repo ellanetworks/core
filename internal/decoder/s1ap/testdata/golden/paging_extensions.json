@@ -1,0 +1,136 @@
+{
+  "summary": "Paging (M-TMSI 16909060, 1 TAI)",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 10,
+    "label": "Paging",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 1,
+    "label": "ignore",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 80,
+          "label": "UEIdentityIndexValue",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 5
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 43,
+          "label": "UEPagingID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "mmec": 1,
+          "m_tmsi": 16909060
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 109,
+          "label": "CNDomain",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 0,
+          "label": "ps",
+          "unknown": false
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 46,
+          "label": "TAIList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": [
+          {
+            "plmn_id": {
+              "mcc": "001",
+              "mnc": "01"
+            },
+            "tac": 1
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 227,
+          "label": "Paging-eDRXInformation",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "paging_e_drx_cycle": {
+            "type": "enum",
+            "value": 2,
+            "label": "hf2",
+            "unknown": false
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 244,
+          "label": "NB-IoT-UEIdentityIndexValue",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "hex": "0ab0",
+          "bits": 12
+        }
+      }
+    ]
+  }
+}

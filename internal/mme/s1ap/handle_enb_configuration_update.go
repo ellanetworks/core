@@ -147,7 +147,7 @@ func enbConfigUpdateOutcomeFor(req *s1ap.ENBConfigurationUpdate, plmn s1ap.PLMNI
 			}
 
 			reason = "eNB broadcasts no PLMN served by this MME (Unknown PLMN)"
-			if cause == causeNoServedTAC {
+			if cause.Equal(causeNoServedTAC) {
 				reason = "eNB broadcasts a served PLMN but no TAC served by this MME"
 			}
 

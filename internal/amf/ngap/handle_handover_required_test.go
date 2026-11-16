@@ -66,7 +66,7 @@ func handoverRequired(t *testing.T, ranID ngap.RANUENGAPID, sessions ...uint8) *
 		})
 	}
 
-	cause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHandoverDesirableForRadio}
+	cause := ngap.CauseRadioNetworkHandoverDesirableForRadio.Cause()
 
 	return &ngap.HandoverRequired{
 		AMFUENGAPID:  1,
@@ -74,13 +74,8 @@ func handoverRequired(t *testing.T, ranID ngap.RANUENGAPID, sessions ...uint8) *
 		HandoverType: ngap.HandoverTypeIntra5GS,
 		Cause:        &cause,
 		TargetID: ngap.TargetID{TargetRANNodeID: &ngap.TargetRANNodeID{
-			GlobalRANNodeID: ngap.GlobalRANNodeID{
-				Kind:         ngap.RANNodeIDGNB,
-				PLMNIdentity: operatorPLMN,
-				Value:        uint32(gnb[0])<<16 | uint32(gnb[1])<<8 | uint32(gnb[2]),
-				Bits:         24,
-			},
-			SelectedTAI: ngap.TAI{PLMNIdentity: operatorPLMN, TAC: 1},
+			GlobalRANNodeID: ngap.NewGlobalGNBID(operatorPLMN, uint32(gnb[0])<<16|uint32(gnb[1])<<8|uint32(gnb[2]), 24),
+			SelectedTAI:     ngap.TAI{PLMNIdentity: operatorPLMN, TAC: 1},
 		}},
 		PDUSessionResourceListHORqd:        list,
 		SourceToTargetTransparentContainer: ngap.SourceToTargetTransparentContainer{0x01, 0x02, 0x03},
@@ -206,8 +201,8 @@ func TestHandoverRequired_UnknownRanUeNgapID(t *testing.T) {
 		t.Fatal("expected Cause in ErrorIndication, got nil")
 	}
 
-	wantRadioNetworkCause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownLocalUENGAPID}
-	if errorIndication.Cause == nil || *errorIndication.Cause != wantRadioNetworkCause {
+	wantRadioNetworkCause := ngap.CauseRadioNetworkUnknownLocalUENGAPID.Cause()
+	if errorIndication.Cause == nil || !errorIndication.Cause.Equal(wantRadioNetworkCause) {
 		t.Errorf("cause = %v, want unknown-local-UE-NGAP-ID", errorIndication.Cause)
 	}
 }
@@ -240,8 +235,8 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 
 	failure := sourceNGAPSender.SentHandoverPreparationFailures[0]
 
-	wantNasCause := ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASAuthenticationFailure}
-	if failure.Cause == nil || *failure.Cause != wantNasCause {
+	wantNasCause := ngap.CauseNASAuthenticationFailure.Cause()
+	if failure.Cause == nil || !failure.Cause.Equal(wantNasCause) {
 		t.Errorf("cause = %v, want authentication-failure", failure.Cause)
 	}
 
@@ -300,8 +295,8 @@ func TestHandoverRequired_UnknownTarget(t *testing.T) {
 
 	failure := sourceNGAPSender.SentHandoverPreparationFailures[0]
 
-	wantRadioNetworkCause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownTargetID}
-	if failure.Cause == nil || *failure.Cause != wantRadioNetworkCause {
+	wantRadioNetworkCause := ngap.CauseRadioNetworkUnknownTargetID.Cause()
+	if failure.Cause == nil || !failure.Cause.Equal(wantRadioNetworkCause) {
 		t.Errorf("cause = %v, want unknown-targetID", failure.Cause)
 	}
 }
@@ -520,8 +515,8 @@ func TestHandoverRequired_UnsupportedHandoverType(t *testing.T) {
 				t.Fatalf("expected 1 HandoverPreparationFailure, got %d", len(sourceNGAPSender.SentHandoverPreparationFailures))
 			}
 
-			want := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHoTargetNotAllowed}
-			if failure := sourceNGAPSender.SentHandoverPreparationFailures[0]; failure.Cause == nil || *failure.Cause != want {
+			want := ngap.CauseRadioNetworkHoTargetNotAllowed.Cause()
+			if failure := sourceNGAPSender.SentHandoverPreparationFailures[0]; failure.Cause == nil || !failure.Cause.Equal(want) {
 				t.Errorf("cause = %v, want ho-target-not-allowed", failure.Cause)
 			}
 
@@ -667,7 +662,7 @@ func TestHandoverRequired_OperatorLookupFailure(t *testing.T) {
 	}
 
 	failure := sourceNGAPSender.SentHandoverPreparationFailures[0]
-	if failure.Cause == nil || *failure.Cause != causeHandoverPrepUnspecific {
+	if failure.Cause == nil || !failure.Cause.Equal(causeHandoverPrepUnspecific) {
 		t.Errorf("cause = %v, want %v", failure.Cause, causeHandoverPrepUnspecific)
 	}
 }

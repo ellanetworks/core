@@ -356,7 +356,7 @@ func refuseHandoverToEPS(gNodeB *gnb.GnodeB, e *s1enb.ENB, ranUENGAPID int64) er
 		return fmt.Errorf("the target eNB got no Handover Request: %w", err)
 	}
 
-	refusal := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHOFailureInTarget}
+	refusal := s1ap.CauseRadioNetworkHOFailureInTarget.Cause()
 	if err := e.SendHandoverFailure(int64(req.MMEUES1APID), refusal); err != nil {
 		return fmt.Errorf("refuse the handover at the target eNB: %w", err)
 	}
@@ -371,8 +371,8 @@ func refuseHandoverToEPS(gNodeB *gnb.GnodeB, e *s1enb.ENB, ranUENGAPID int64) er
 	}
 
 	// TS 38.413 §9.3.1.2
-	if fail.Cause.Group != ngap.CauseGroupRadioNetwork || fail.Cause.Value != ngap.CauseRadioNetworkHOFailureInTarget {
-		return fmt.Errorf("the Handover Preparation Failure cause = %+v, want a radio-network failure in the target", *fail.Cause)
+	if !fail.Cause.Equal(ngap.CauseRadioNetworkHOFailureInTarget.Cause()) {
+		return fmt.Errorf("the Handover Preparation Failure cause = %v, want a radio-network failure in the target", *fail.Cause)
 	}
 
 	return nil

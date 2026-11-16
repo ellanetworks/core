@@ -82,12 +82,12 @@ func TestSignallingOnlyReleaseKeepsAPreservedVoiceBearer(t *testing.T) {
 	m, ue, _, fake := activeVoiceBearer(t)
 	ctx := context.Background()
 
-	ue.Conn().releaseCause.Store(&s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUserInactivity})
+	ue.Conn().releaseCause.Store(s1ap.Ptr(s1ap.CauseRadioNetworkUserInactivity.Cause()))
 	m.FreeUeConn(ctx, ue)
 
 	c := m.NewUeConn(&captureConn{}, 9)
 	m.AttachUeConn(ctx, ue, c)
-	c.releaseCause.Store(&s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASNormalRelease})
+	c.releaseCause.Store(s1ap.Ptr(s1ap.CauseNASNormalRelease.Cause()))
 	m.FreeUeConn(ctx, ue)
 
 	if _, b := m.LookupDedicated(ue, 6); b == nil {

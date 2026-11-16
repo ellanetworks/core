@@ -63,13 +63,9 @@ func (ue *UeContext) transferableEPSSessions(include func(pduSessionID uint8) bo
 }
 
 func ENBIdentityFromNGAP(target ngap.TargeteNBID) (interworking.ENBIdentity, error) {
-	bits, ok := map[ngap.NgENBIDKind]uint8{
-		ngap.NgENBIDMacro:      20,
-		ngap.NgENBIDShortMacro: 18,
-		ngap.NgENBIDLongMacro:  21,
-	}[target.GlobalENBID.NgENBID.Kind]
+	id, bits, ok := target.GlobalENBID.NgENBID.ID()
 	if !ok {
-		return interworking.ENBIdentity{}, fmt.Errorf("amf: unknown ng-eNB identity kind %d", target.GlobalENBID.NgENBID.Kind)
+		return interworking.ENBIdentity{}, fmt.Errorf("amf: unsupported ng-eNB identity alternative")
 	}
 
 	plmn, err := util.PLMNToModels(target.GlobalENBID.PLMNIdentity)
@@ -84,8 +80,8 @@ func ENBIdentityFromNGAP(target ngap.TargeteNBID) (interworking.ENBIdentity, err
 
 	return interworking.ENBIdentity{
 		PlmnID: plmn,
-		ID:     target.GlobalENBID.NgENBID.Value,
-		Bits:   bits,
+		ID:     id,
+		Bits:   uint8(bits),
 		SelectedEPSTAI: interworking.EPSTAI{
 			PlmnID: taiPlmn,
 			TAC:    uint16(target.SelectedEPSTAI.TAC),
@@ -128,80 +124,78 @@ func (ue *UeContext) BuildForwardRelocationRequest(target interworking.ENBIdenti
 }
 
 func S1APHandoverFailureCause(cause ngap.Cause) s1ap.Cause {
-	if cause == ngap.CauseInsufficientUECapabilities {
-		return s1ap.CauseInsufficientUECapabilities
+	if cause.RadioNetwork != nil && *cause.RadioNetwork == ngap.CauseRadioNetworkInsufficientUECapabilities {
+		return s1ap.CauseRadioNetworkInsufficientUECapabilities.Cause()
 	}
 
-	switch cause.Group {
-	case ngap.CauseGroupRadioNetwork:
-		switch cause.Value {
+	switch {
+	case cause.RadioNetwork != nil:
+		switch *cause.RadioNetwork {
 		case ngap.CauseRadioNetworkNoRadioResourcesInTargetCell:
-			return s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell}
+			return s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell.Cause()
 		case ngap.CauseRadioNetworkEncryptionAlgorithmsNotSupported:
-			return s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkEncryptionAlgorithmsNotSupported}
+			return s1ap.CauseRadioNetworkEncryptionAlgorithmsNotSupported.Cause()
 		case ngap.CauseRadioNetworkHoTargetNotAllowed:
-			return s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHOTargetNotAllowed}
+			return s1ap.CauseRadioNetworkHOTargetNotAllowed.Cause()
 		}
-	case ngap.CauseGroupMisc:
-		if cause.Value == ngap.CauseMiscOMIntervention {
-			return s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscOMIntervention}
+	case cause.Misc != nil:
+		if *cause.Misc == ngap.CauseMiscOMIntervention {
+			return s1ap.CauseMiscOMIntervention.Cause()
 		}
 	}
 
-	return s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHOFailureInTarget}
+	return s1ap.CauseRadioNetworkHOFailureInTarget.Cause()
 }
 
 func NGAPHandoverFailureCause(cause s1ap.Cause) ngap.Cause {
-	if cause == s1ap.CauseInsufficientUECapabilities {
-		return ngap.CauseInsufficientUECapabilities
-	}
-
-	switch cause.Group {
-	case s1ap.CauseGroupRadioNetwork:
-		switch cause.Value {
+	switch {
+	case cause.RadioNetwork != nil:
+		switch *cause.RadioNetwork {
+		case s1ap.CauseRadioNetworkInsufficientUECapabilities:
+			return ngap.CauseRadioNetworkInsufficientUECapabilities.Cause()
 		case s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell:
-			return ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkNoRadioResourcesInTargetCell}
+			return ngap.CauseRadioNetworkNoRadioResourcesInTargetCell.Cause()
 		case s1ap.CauseRadioNetworkEncryptionAlgorithmsNotSupported:
-			return ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkEncryptionAlgorithmsNotSupported}
+			return ngap.CauseRadioNetworkEncryptionAlgorithmsNotSupported.Cause()
 		case s1ap.CauseRadioNetworkHOTargetNotAllowed:
-			return ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHoTargetNotAllowed}
+			return ngap.CauseRadioNetworkHoTargetNotAllowed.Cause()
 		}
-	case s1ap.CauseGroupMisc:
-		if cause.Value == s1ap.CauseMiscOMIntervention {
-			return ngap.Cause{Group: ngap.CauseGroupMisc, Value: ngap.CauseMiscOMIntervention}
+	case cause.Misc != nil:
+		if *cause.Misc == s1ap.CauseMiscOMIntervention {
+			return ngap.CauseMiscOMIntervention.Cause()
 		}
 	}
 
-	return ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHOFailureInTarget}
+	return ngap.CauseRadioNetworkHOFailureInTarget.Cause()
 }
 
 func NGAPHandoverCause(cause s1ap.Cause) ngap.Cause {
-	if cause.Group == s1ap.CauseGroupRadioNetwork {
-		switch cause.Value {
+	if cause.RadioNetwork != nil {
+		switch *cause.RadioNetwork {
 		case s1ap.CauseRadioNetworkTimeCriticalHandover:
-			return ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkTimeCriticalHandover}
+			return ngap.CauseRadioNetworkTimeCriticalHandover.Cause()
 		case s1ap.CauseRadioNetworkResourceOptimisationHandover:
-			return ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkResourceOptimisationHandover}
+			return ngap.CauseRadioNetworkResourceOptimisationHandover.Cause()
 		case s1ap.CauseRadioNetworkReduceLoadInServingCell:
-			return ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkReduceLoadInServingCell}
+			return ngap.CauseRadioNetworkReduceLoadInServingCell.Cause()
 		}
 	}
 
-	return ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHandoverDesirableForRadio}
+	return ngap.CauseRadioNetworkHandoverDesirableForRadio.Cause()
 }
 
 // TS 29.010 §7.2, TS 29.274 §8.49
 func S1APHandoverCause(cause *ngap.Cause) s1ap.Cause {
-	if cause != nil && cause.Group == ngap.CauseGroupRadioNetwork {
-		switch cause.Value {
+	if cause != nil && cause.RadioNetwork != nil {
+		switch *cause.RadioNetwork {
 		case ngap.CauseRadioNetworkHandoverDesirableForRadio:
-			return s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHandoverDesirableForRadio}
+			return s1ap.CauseRadioNetworkHandoverDesirableForRadio.Cause()
 		case ngap.CauseRadioNetworkTimeCriticalHandover:
-			return s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkTimeCriticalHandover}
+			return s1ap.CauseRadioNetworkTimeCriticalHandover.Cause()
 		case ngap.CauseRadioNetworkReduceLoadInServingCell:
-			return s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkReduceLoadInServingCell}
+			return s1ap.CauseRadioNetworkReduceLoadInServingCell.Cause()
 		}
 	}
 
-	return s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkResourceOptimisationHandover}
+	return s1ap.CauseRadioNetworkResourceOptimisationHandover.Cause()
 }

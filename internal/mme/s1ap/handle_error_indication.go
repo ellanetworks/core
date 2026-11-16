@@ -17,9 +17,9 @@ import (
 // causeUnknownPairUES1APID is S1AP Cause Radio Network "unknown-pair-ue-s1ap-id"
 // (TS 36.413): a UE-associated message whose eNB-UE-S1AP-ID does not match the
 // one stored against its MME-UE-S1AP-ID.
-var causeUnknownPairUES1APID = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnknownPairUES1APID}
+var causeUnknownPairUES1APID = s1ap.CauseRadioNetworkUnknownPairUES1APID.Cause()
 
-var causeUnknownENBUES1APID = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnknownENBUES1APID}
+var causeUnknownENBUES1APID = s1ap.CauseRadioNetworkUnknownENBUES1APID.Cause()
 
 func resolveUEQuiet(m *mme.MME, conn mme.S1APWriter, mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUES1APID) (*mme.UeContext, *mme.UeConn, bool) {
 	ue, ok := m.LookupUe(mmeID)
@@ -87,7 +87,7 @@ func rejectErroneousAPIDs(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 // causeMissingUES1APID answers a UE-associated message that omitted a UE S1AP
 // ID: without it the MME cannot address a UE context, so the procedure is
 // rejected (TS 36.413 §10.3.5).
-var causeMissingUES1APID = s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolAbstractSyntaxErrorReject}
+var causeMissingUES1APID = s1ap.CauseProtocolAbstractSyntaxErrorReject.Cause()
 
 // resolveUEIDs is resolveUE for a message whose UE S1AP IDs carry ignore
 // criticality and may therefore be absent.
@@ -131,7 +131,7 @@ func sendParseErrorIndication(ctx context.Context, m *mme.MME, conn mme.S1APWrit
 	ase, ok := errors.AsType[*s1ap.AbstractSyntaxError](err)
 	if !ok {
 		emitErrorIndication(ctx, m, conn, &s1ap.ErrorIndication{
-			Cause: &s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolTransferSyntaxError},
+			Cause: s1ap.Ptr(s1ap.CauseProtocolTransferSyntaxError.Cause()),
 			CriticalityDiagnostics: &s1ap.CriticalityDiagnostics{
 				ProcedureCode:        &proc,
 				TriggeringMessage:    &trigger,
@@ -169,7 +169,7 @@ func reportDiagnostics(ctx context.Context, m *mme.MME, conn mme.S1APWriter, pro
 	emitErrorIndication(ctx, m, conn, &s1ap.ErrorIndication{
 		MMEUES1APID: ids.mme,
 		ENBUES1APID: ids.enb,
-		Cause:       &s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolAbstractSyntaxErrorIgnoreAndNotify},
+		Cause:       s1ap.Ptr(s1ap.CauseProtocolAbstractSyntaxErrorIgnoreAndNotify.Cause()),
 		CriticalityDiagnostics: &s1ap.CriticalityDiagnostics{
 			ProcedureCode:             &proc,
 			TriggeringMessage:         &trigger,
@@ -218,7 +218,7 @@ func rejectWithFailure(ctx context.Context, m *mme.MME, conn mme.S1APWriter, pro
 	log := logger.From(ctx, logger.MmeLog)
 	log.Warn("failed to decode S1AP message", zap.Int("procedure_code", int(proc)), zap.Error(err))
 
-	cause := s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolTransferSyntaxError}
+	cause := s1ap.CauseProtocolTransferSyntaxError.Cause()
 
 	var diag *s1ap.CriticalityDiagnostics
 
@@ -246,9 +246,9 @@ func rejectWithFailure(ctx context.Context, m *mme.MME, conn mme.S1APWriter, pro
 // ERROR INDICATION (TS 36.413 §10.2). It carries no Criticality Diagnostics because a
 // transfer-syntax error decodes nothing to cite; it applies where a decode failed
 // outright.
-func sendProtocolErrorIndication(ctx context.Context, m *mme.MME, conn mme.S1APWriter, cause int) {
+func sendProtocolErrorIndication(ctx context.Context, m *mme.MME, conn mme.S1APWriter, cause s1ap.CauseProtocol) {
 	emitErrorIndication(ctx, m, conn, &s1ap.ErrorIndication{
-		Cause: &s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: cause},
+		Cause: s1ap.Ptr(cause.Cause()),
 	})
 }
 
@@ -258,7 +258,7 @@ func sendProtocolErrorIndication(ctx context.Context, m *mme.MME, conn mme.S1APW
 // (Procedure Code, Triggering Message, Procedure Criticality); Ignore is dropped
 // silently, as most procedures an eNB sends that the MME does not handle are.
 func respondToUnknownProcedure(ctx context.Context, m *mme.MME, conn mme.S1APWriter, im *s1ap.InitiatingMessage) {
-	var cause int
+	var cause s1ap.CauseProtocol
 
 	switch im.Criticality {
 	case s1ap.CriticalityReject:
@@ -274,7 +274,7 @@ func respondToUnknownProcedure(ctx context.Context, m *mme.MME, conn mme.S1APWri
 	crit := im.Criticality
 
 	emitErrorIndication(ctx, m, conn, &s1ap.ErrorIndication{
-		Cause: &s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: cause},
+		Cause: s1ap.Ptr(cause.Cause()),
 		CriticalityDiagnostics: &s1ap.CriticalityDiagnostics{
 			ProcedureCode:        &proc,
 			TriggeringMessage:    &trigger,
@@ -361,10 +361,5 @@ func reportsErroneousAPIDs(cause *s1ap.Cause) bool {
 		return false
 	}
 
-	switch *cause {
-	case causeUnknownMMEUES1APID, causeUnknownENBUES1APID, causeUnknownPairUES1APID:
-		return true
-	default:
-		return false
-	}
+	return cause.Equal(causeUnknownMMEUES1APID) || cause.Equal(causeUnknownENBUES1APID) || cause.Equal(causeUnknownPairUES1APID)
 }

@@ -924,7 +924,7 @@ func assertMovable(t *testing.T, sc *smf.SMContext) {
 
 func buildPDUSessionResourceSetupUnsuccessfulTransfer() ([]byte, error) {
 	transfer := libngap.PDUSessionResourceSetupUnsuccessfulTransfer{
-		Cause: libngap.Cause{Group: libngap.CauseGroupRadioNetwork, Value: libngap.CauseRadioNetworkUnspecified},
+		Cause: libngap.CauseRadioNetworkUnspecified.Cause(),
 	}
 
 	return transfer.Marshal()

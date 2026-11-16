@@ -8,6 +8,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"testing"
+
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // Golden PDU SESSION RESOURCE MODIFY PDUs.
@@ -96,10 +98,7 @@ func TestPDUSessionResourceModifyRoundTrips(t *testing.T) {
 			AMFUENGAPID:              Ptr(AMFUENGAPID(7)),
 			RANUENGAPID:              Ptr(RANUENGAPID(9)),
 			PDUSessionResourceModify: PDUSessionResourceModifyListModRes{{PDUSessionID: 1, Transfer: TransferContainer{0x01}}},
-			UserLocationInformation: &UserLocationInformation{
-				Kind: UserLocationNR, PLMNIdentity: plmn, CellIdentity: 0x123456789,
-				TAI: TAI{PLMNIdentity: plmn, TAC: 1},
-			},
+			UserLocationInformation:  &UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: plmn, NRCellIdentity: NRCellIdentity(0x123456789)}, TAI: TAI{PLMNIdentity: plmn, TAC: 1}}},
 		}
 
 		b, _ := in.Marshal()
@@ -116,7 +115,7 @@ func TestPDUSessionResourceModifyRoundTrips(t *testing.T) {
 			t.Fatalf("got %+v err %v", out, err)
 		}
 
-		if out.UserLocationInformation == nil || out.UserLocationInformation.CellIdentity != 0x123456789 {
+		if out.UserLocationInformation == nil || out.UserLocationInformation.NR == nil || out.UserLocationInformation.NR.NRCGI.NRCellIdentity != 0x123456789 {
 			t.Fatalf("ULI = %+v", out.UserLocationInformation)
 		}
 	})
@@ -126,8 +125,8 @@ func TestPDUSessionResourceModifyRoundTrips(t *testing.T) {
 // modifies nothing, so it is not delivered (§10.3.5).
 func TestPDUSessionResourceModifyRequestMissingList(t *testing.T) {
 	value := container(t,
-		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
-		ieField{id: IDRANUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
+		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))},
+		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(RANUENGAPID(2))))},
 	)
 
 	_, err := ParsePDUSessionResourceModifyRequest(value)
@@ -157,7 +156,7 @@ const (
 func TestPDUSessionResourceModifyRequestTransferGolden(t *testing.T) {
 	qp := QosFlowLevelQosParameters{
 		QosCharacteristics: QosCharacteristics{
-			Kind: QosCharacteristicsNonDynamic5QI, NonDynamic5QI: NonDynamic5QIDescriptor{FiveQI: 9},
+			NonDynamic5QI: &NonDynamic5QIDescriptor{FiveQI: 9},
 		},
 		AllocationAndRetentionPriority: AllocationAndRetentionPriority{PriorityLevelARP: 1},
 	}
@@ -166,17 +165,17 @@ func TestPDUSessionResourceModifyRequestTransferGolden(t *testing.T) {
 
 	full := PDUSessionResourceModifyRequestTransfer{
 		ULNGUUPTNLModify: ULNGUUPTNLModifyList{{
-			ULNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: GTPTunnel{
-				TransportLayerAddress: TransportLayerAddress{192, 168, 1, 1}, GTPTEID: 1,
+			ULNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: &GTPTunnel{
+				TransportLayerAddress: tlaOf(192, 168, 1, 1), GTPTEID: 1,
 			}},
-			DLNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: GTPTunnel{
-				TransportLayerAddress: TransportLayerAddress{10, 0, 0, 1}, GTPTEID: 2,
+			DLNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: &GTPTunnel{
+				TransportLayerAddress: tlaOf(10, 0, 0, 1), GTPTEID: 2,
 			}},
 		}},
 		QosFlowAddOrModifyRequest: addOrModify,
 		QosFlowToRelease: QosFlowListWithCause{{
 			QosFlowIdentifier: 2,
-			Cause:             Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified},
+			Cause:             CauseRadioNetworkUnspecified.Cause(),
 		}},
 	}
 
@@ -270,11 +269,11 @@ func TestQosFlowAddOrModifyRequestItemWithoutQosParameters(t *testing.T) {
 // separates them — only a list of exactly four does.
 func TestULNGUUPTNLModifyListAcceptsFourLegs(t *testing.T) {
 	item := ULNGUUPTNLModifyItem{
-		ULNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: GTPTunnel{
-			TransportLayerAddress: TransportLayerAddress{192, 168, 1, 1}, GTPTEID: 1,
+		ULNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: &GTPTunnel{
+			TransportLayerAddress: tlaOf(192, 168, 1, 1), GTPTEID: 1,
 		}},
-		DLNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: GTPTunnel{
-			TransportLayerAddress: TransportLayerAddress{10, 0, 0, 1}, GTPTEID: 2,
+		DLNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: &GTPTunnel{
+			TransportLayerAddress: tlaOf(10, 0, 0, 1), GTPTEID: 2,
 		}},
 	}
 
@@ -306,7 +305,7 @@ func TestULNGUUPTNLModifyListAcceptsFourLegs(t *testing.T) {
 }
 
 func TestModifyUnsuccessfulTransferRoundTrip(t *testing.T) {
-	in := PDUSessionResourceModifyUnsuccessfulTransfer{Cause: Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkIMSVoiceEPSFallbackTriggered}}
+	in := PDUSessionResourceModifyUnsuccessfulTransfer{Cause: CauseRadioNetworkIMSVoiceEPSFallbackTriggered.Cause()}
 
 	b, err := in.Marshal()
 	if err != nil {
@@ -314,7 +313,7 @@ func TestModifyUnsuccessfulTransferRoundTrip(t *testing.T) {
 	}
 
 	out, err := ParsePDUSessionResourceModifyUnsuccessfulTransfer(b)
-	if err != nil || out.Cause != in.Cause {
+	if err != nil || !out.Cause.Equal(in.Cause) {
 		t.Fatalf("decoded %+v (%v), want cause %+v", out, err, in.Cause)
 	}
 }
@@ -322,7 +321,7 @@ func TestModifyUnsuccessfulTransferRoundTrip(t *testing.T) {
 func TestNotifyTransferRoundTrip(t *testing.T) {
 	in := PDUSessionResourceNotifyTransfer{
 		QosFlowNotify:   QosFlowNotifyList{{QosFlowIdentifier: 2, NotificationCause: NotificationCauseNotFulfilled}},
-		QosFlowReleased: QosFlowListWithCause{{QosFlowIdentifier: 3, Cause: Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkRadioConnectionWithUELost}}},
+		QosFlowReleased: QosFlowListWithCause{{QosFlowIdentifier: 3, Cause: CauseRadioNetworkRadioConnectionWithUELost.Cause()}},
 	}
 
 	b, err := in.Marshal()
@@ -338,7 +337,7 @@ func TestNotifyTransferRoundTrip(t *testing.T) {
 }
 
 func TestModifyUnsuccessfulTransferEncoding(t *testing.T) {
-	b, err := (&PDUSessionResourceModifyUnsuccessfulTransfer{Cause: Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkIMSVoiceEPSFallbackTriggered}}).Marshal()
+	b, err := (&PDUSessionResourceModifyUnsuccessfulTransfer{Cause: CauseRadioNetworkIMSVoiceEPSFallbackTriggered.Cause()}).Marshal()
 	if err != nil || !bytes.Equal(b, []byte{0x01, 0x20}) {
 		t.Fatalf("encoded % x (%v), want 01 20", b, err)
 	}

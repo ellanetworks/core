@@ -5,6 +5,7 @@ package ngap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // TS 38.413 §9.2.6.4. Every IE is optional: §8.7.2.2 leaves the corresponding
@@ -15,26 +16,30 @@ type RANConfigurationUpdate struct {
 	DefaultPagingDRX                *PagingDRX
 	GlobalRANNodeID                 *GlobalRANNodeID
 	NGRANTNLAssociationToRemoveList NGRANTNLAssociationToRemoveList
+	NBIoTDefaultPagingDRX           *NBIoTDefaultPagingDRX
+	ExtendedRANNodeName             *ExtendedRANNodeName
+	AdditionalULI                   *AdditionalULI
+	AIoTSupport                     *AIoTSupport
 
 	messageMeta
 }
 
 var rANConfigurationUpdateIEs = []ieSpec[RANConfigurationUpdate]{
 	{
-		id: IDRANNodeName, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *RANConfigurationUpdate, raw []byte, enc per.Encoding) error {
+		ID: IDRANNodeName, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *RANConfigurationUpdate, r *per.Reader, enc per.Encoding) error {
 			var (
 				err error
 				n   Name
 			)
-			if err = perIEDecode(raw, &n); err == nil {
+			if err = decodeIE(r, &n); err == nil {
 				name := string(n)
 				m.RANNodeName = &name
 			}
 
 			return err
 		},
-		encode: func(m *RANConfigurationUpdate) (per.Marshaler, bool) {
+		Encode: func(m *RANConfigurationUpdate) (per.Marshaler, bool) {
 			if m.RANNodeName == nil {
 				return nil, false
 			}
@@ -43,11 +48,11 @@ var rANConfigurationUpdateIEs = []ieSpec[RANConfigurationUpdate]{
 		},
 	},
 	{
-		id: IDSupportedTAList, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *RANConfigurationUpdate, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.SupportedTAList)
+		ID: IDSupportedTAList, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *RANConfigurationUpdate, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.SupportedTAList)
 		},
-		encode: func(m *RANConfigurationUpdate) (per.Marshaler, bool) {
+		Encode: func(m *RANConfigurationUpdate) (per.Marshaler, bool) {
 			if len(m.SupportedTAList) == 0 {
 				return nil, false
 			}
@@ -56,11 +61,11 @@ var rANConfigurationUpdateIEs = []ieSpec[RANConfigurationUpdate]{
 		},
 	},
 	{
-		id: IDDefaultPagingDRX, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *RANConfigurationUpdate, raw []byte, enc per.Encoding) error {
+		ID: IDDefaultPagingDRX, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *RANConfigurationUpdate, r *per.Reader, enc per.Encoding) error {
 			var drx PagingDRX
 
-			if err := perIEDecode(raw, &drx); err != nil {
+			if err := decodeIE(r, &drx); err != nil {
 				return err
 			}
 
@@ -68,7 +73,7 @@ var rANConfigurationUpdateIEs = []ieSpec[RANConfigurationUpdate]{
 
 			return nil
 		},
-		encode: func(m *RANConfigurationUpdate) (per.Marshaler, bool) {
+		Encode: func(m *RANConfigurationUpdate) (per.Marshaler, bool) {
 			if m.DefaultPagingDRX == nil {
 				return nil, false
 			}
@@ -77,11 +82,11 @@ var rANConfigurationUpdateIEs = []ieSpec[RANConfigurationUpdate]{
 		},
 	},
 	{
-		id: IDGlobalRANNodeID, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *RANConfigurationUpdate, raw []byte, enc per.Encoding) error {
+		ID: IDGlobalRANNodeID, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *RANConfigurationUpdate, r *per.Reader, enc per.Encoding) error {
 			var v GlobalRANNodeID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -89,7 +94,7 @@ var rANConfigurationUpdateIEs = []ieSpec[RANConfigurationUpdate]{
 
 			return nil
 		},
-		encode: func(m *RANConfigurationUpdate) (per.Marshaler, bool) {
+		Encode: func(m *RANConfigurationUpdate) (per.Marshaler, bool) {
 			if m.GlobalRANNodeID == nil {
 				return nil, false
 			}
@@ -100,11 +105,11 @@ var rANConfigurationUpdateIEs = []ieSpec[RANConfigurationUpdate]{
 	{
 		// Modeled but not acted on: the IE is reject, so not comprehending it
 		// would reject an otherwise valid update (§10.3.4.2).
-		id: IDNGRANTNLAssociationToRemoveList, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *RANConfigurationUpdate, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.NGRANTNLAssociationToRemoveList)
+		ID: IDNGRANTNLAssociationToRemoveList, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *RANConfigurationUpdate, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.NGRANTNLAssociationToRemoveList)
 		},
-		encode: func(m *RANConfigurationUpdate) (per.Marshaler, bool) {
+		Encode: func(m *RANConfigurationUpdate) (per.Marshaler, bool) {
 			if len(m.NGRANTNLAssociationToRemoveList) == 0 {
 				return nil, false
 			}
@@ -112,6 +117,10 @@ var rANConfigurationUpdateIEs = []ieSpec[RANConfigurationUpdate]{
 			return m.NGRANTNLAssociationToRemoveList, true
 		},
 	},
+	apimpl.OptionalIE(IDNBIoTDefaultPagingDRX, CriticalityIgnore, func(m *RANConfigurationUpdate) **NBIoTDefaultPagingDRX { return &m.NBIoTDefaultPagingDRX }),
+	apimpl.OptionalIE(IDExtendedRANNodeName, CriticalityIgnore, func(m *RANConfigurationUpdate) **ExtendedRANNodeName { return &m.ExtendedRANNodeName }),
+	apimpl.OptionalIE(IDAdditionalULI, CriticalityIgnore, func(m *RANConfigurationUpdate) **AdditionalULI { return &m.AdditionalULI }),
+	apimpl.OptionalIE(IDAIoTSupport, CriticalityReject, func(m *RANConfigurationUpdate) **AIoTSupport { return &m.AIoTSupport }),
 }
 
 func (m *RANConfigurationUpdate) encodeBody(w *per.Writer, enc per.Encoding) error {
@@ -138,6 +147,10 @@ func ParseRANConfigurationUpdate(value []byte) (*RANConfigurationUpdate, error) 
 	return parseMessageBody[RANConfigurationUpdate](ProcRANConfigurationUpdate, TriggeringInitiatingMessage, rANConfigurationUpdateIEs, value)
 }
 
+func DecodeRANConfigurationUpdate(value []byte) (*RANConfigurationUpdate, error) {
+	return decodeMessageBody[RANConfigurationUpdate](ProcRANConfigurationUpdate, rANConfigurationUpdateIEs, value)
+}
+
 // TS 38.413 §9.2.6.5.
 type RANConfigurationUpdateAcknowledge struct {
 	CriticalityDiagnostics *CriticalityDiagnostics
@@ -147,11 +160,11 @@ type RANConfigurationUpdateAcknowledge struct {
 
 var rANConfigurationUpdateAcknowledgeIEs = []ieSpec[RANConfigurationUpdateAcknowledge]{
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *RANConfigurationUpdateAcknowledge, raw []byte, enc per.Encoding) error {
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *RANConfigurationUpdateAcknowledge, r *per.Reader, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
-			if err := perIEDecode(raw, &cd); err != nil {
+			if err := decodeIE(r, &cd); err != nil {
 				return err
 			}
 
@@ -159,7 +172,7 @@ var rANConfigurationUpdateAcknowledgeIEs = []ieSpec[RANConfigurationUpdateAcknow
 
 			return nil
 		},
-		encode: func(m *RANConfigurationUpdateAcknowledge) (per.Marshaler, bool) {
+		Encode: func(m *RANConfigurationUpdateAcknowledge) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -193,6 +206,10 @@ func ParseRANConfigurationUpdateAcknowledge(value []byte) (*RANConfigurationUpda
 	return parseMessageBody[RANConfigurationUpdateAcknowledge](ProcRANConfigurationUpdate, TriggeringSuccessfulOutcome, rANConfigurationUpdateAcknowledgeIEs, value)
 }
 
+func DecodeRANConfigurationUpdateAcknowledge(value []byte) (*RANConfigurationUpdateAcknowledge, error) {
+	return decodeMessageBody[RANConfigurationUpdateAcknowledge](ProcRANConfigurationUpdate, rANConfigurationUpdateAcknowledgeIEs, value)
+}
+
 // TS 38.413 §9.2.6.6.
 type RANConfigurationUpdateFailure struct {
 	Cause                  *Cause
@@ -204,11 +221,11 @@ type RANConfigurationUpdateFailure struct {
 
 var rANConfigurationUpdateFailureIEs = []ieSpec[RANConfigurationUpdateFailure]{
 	{
-		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *RANConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
+		ID: IDCause, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *RANConfigurationUpdateFailure, r *per.Reader, enc per.Encoding) error {
 			var v Cause
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -216,7 +233,7 @@ var rANConfigurationUpdateFailureIEs = []ieSpec[RANConfigurationUpdateFailure]{
 
 			return nil
 		},
-		encode: func(m *RANConfigurationUpdateFailure) (per.Marshaler, bool) {
+		Encode: func(m *RANConfigurationUpdateFailure) (per.Marshaler, bool) {
 			if m.Cause == nil {
 				return nil, false
 			}
@@ -225,11 +242,11 @@ var rANConfigurationUpdateFailureIEs = []ieSpec[RANConfigurationUpdateFailure]{
 		},
 	},
 	{
-		id: IDTimeToWait, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *RANConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
+		ID: IDTimeToWait, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *RANConfigurationUpdateFailure, r *per.Reader, enc per.Encoding) error {
 			var ttw TimeToWait
 
-			if err := perIEDecode(raw, &ttw); err != nil {
+			if err := decodeIE(r, &ttw); err != nil {
 				return err
 			}
 
@@ -237,7 +254,7 @@ var rANConfigurationUpdateFailureIEs = []ieSpec[RANConfigurationUpdateFailure]{
 
 			return nil
 		},
-		encode: func(m *RANConfigurationUpdateFailure) (per.Marshaler, bool) {
+		Encode: func(m *RANConfigurationUpdateFailure) (per.Marshaler, bool) {
 			if m.TimeToWait == nil {
 				return nil, false
 			}
@@ -246,11 +263,11 @@ var rANConfigurationUpdateFailureIEs = []ieSpec[RANConfigurationUpdateFailure]{
 		},
 	},
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *RANConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *RANConfigurationUpdateFailure, r *per.Reader, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
-			if err := perIEDecode(raw, &cd); err != nil {
+			if err := decodeIE(r, &cd); err != nil {
 				return err
 			}
 
@@ -258,7 +275,7 @@ var rANConfigurationUpdateFailureIEs = []ieSpec[RANConfigurationUpdateFailure]{
 
 			return nil
 		},
-		encode: func(m *RANConfigurationUpdateFailure) (per.Marshaler, bool) {
+		Encode: func(m *RANConfigurationUpdateFailure) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -290,4 +307,8 @@ func (m *RANConfigurationUpdateFailure) Marshal() ([]byte, error) {
 
 func ParseRANConfigurationUpdateFailure(value []byte) (*RANConfigurationUpdateFailure, error) {
 	return parseMessageBody[RANConfigurationUpdateFailure](ProcRANConfigurationUpdate, TriggeringUnsuccessfulOutcome, rANConfigurationUpdateFailureIEs, value)
+}
+
+func DecodeRANConfigurationUpdateFailure(value []byte) (*RANConfigurationUpdateFailure, error) {
+	return decodeMessageBody[RANConfigurationUpdateFailure](ProcRANConfigurationUpdate, rANConfigurationUpdateFailureIEs, value)
 }

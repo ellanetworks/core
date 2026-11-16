@@ -43,7 +43,7 @@ func TestWireCriticality(t *testing.T) {
 		crit Criticality
 	}
 
-	cause := Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 0})
+	cause := Ptr(CauseRadioNetworkUnspecified.Cause())
 
 	tests := []struct {
 		name string
@@ -68,6 +68,44 @@ func TestWireCriticality(t *testing.T) {
 				{IDMMEUES1APID, CriticalityIgnore},
 				{IDENBUES1APID, CriticalityIgnore},
 				{IDCause, CriticalityIgnore},
+			},
+		},
+		{
+			"HandoverRequest §9.1.5.4 GUMMEI and MME UE S1AP ID 2",
+			(&HandoverRequest{
+				Cause:          Ptr(CauseRadioNetworkUnspecified.Cause()),
+				SourceToTarget: TransparentContainer{0x00},
+				ERABToBeSetup:  []ERABToBeSetupItemHOReq{{ERABID: 1, TransportLayerAddress: goldTLA(), GTPTEID: 1, QoS: goldQoS()}},
+				GUMMEI:         Ptr(goldGUMMEI()),
+				MMEUES1APID2:   Ptr(MMEUES1APID(3)),
+			}).encodeBody,
+			[]wireIE{
+				{IDMMEUES1APID, CriticalityReject},
+				{IDHandoverType, CriticalityReject},
+				{IDCause, CriticalityIgnore},
+				{IDUEAggregateMaximumBitrate, CriticalityReject},
+				{IDERABToBeSetupListHOReq, CriticalityReject},
+				{IDSourceToTargetTransparentContainer, CriticalityReject},
+				{IDUESecurityCapabilities, CriticalityReject},
+				{IDSecurityContext, CriticalityReject},
+				{IDGUMMEI, CriticalityIgnore},
+				{IDMMEUES1APID2, CriticalityIgnore},
+			},
+		},
+		{
+			"PathSwitchRequestAcknowledge §9.1.5.9 MME UE S1AP ID 2",
+			(&PathSwitchRequestAcknowledge{
+				MMEUES1APID:            Ptr(MMEUES1APID(1)),
+				ENBUES1APID:            Ptr(ENBUES1APID(2)),
+				MMEUES1APID2:           Ptr(MMEUES1APID(3)),
+				UESecurityCapabilities: &UESecurityCapabilities{},
+			}).encodeBody,
+			[]wireIE{
+				{IDMMEUES1APID, CriticalityIgnore},
+				{IDENBUES1APID, CriticalityIgnore},
+				{IDSecurityContext, CriticalityReject},
+				{IDMMEUES1APID2, CriticalityIgnore},
+				{IDUESecurityCapabilities, CriticalityIgnore},
 			},
 		},
 		{
@@ -263,6 +301,28 @@ func TestWireCriticality(t *testing.T) {
 			},
 		},
 		{
+			"InitialContextSetupRequest §9.1.4.1 GUMMEI and MME UE S1AP ID 2",
+			(&InitialContextSetupRequest{
+				MMEUES1APID:       1,
+				ENBUES1APID:       2,
+				ERABToBeSetup:     []ERABToBeSetupItemCtxtSUReq{{ERABID: 1, QoS: goldQoS(), TransportLayerAddress: goldTLA(), GTPTEID: 1}},
+				UERadioCapability: UERadioCapability{0x01},
+				GUMMEI:            Ptr(goldGUMMEI()),
+				MMEUES1APID2:      Ptr(MMEUES1APID(3)),
+			}).encodeBody,
+			[]wireIE{
+				{IDMMEUES1APID, CriticalityReject},
+				{IDENBUES1APID, CriticalityReject},
+				{IDUEAggregateMaximumBitrate, CriticalityReject},
+				{IDERABToBeSetupListCtxtSUReq, CriticalityReject},
+				{IDUESecurityCapabilities, CriticalityReject},
+				{IDSecurityKey, CriticalityReject},
+				{IDUERadioCapability, CriticalityIgnore},
+				{IDGUMMEI, CriticalityIgnore},
+				{IDMMEUES1APID2, CriticalityIgnore},
+			},
+		},
+		{
 			"InitialContextSetupResponse §9.1.4.3",
 			(&InitialContextSetupResponse{
 				MMEUES1APID:            Ptr(MMEUES1APID(1)),
@@ -340,7 +400,7 @@ func TestWireCriticality(t *testing.T) {
 			(&UEContextReleaseRequest{
 				MMEUES1APID: 1,
 				ENBUES1APID: 2,
-				Cause:       Ptr(Cause{Group: CauseGroupRadioNetwork, Value: 0}),
+				Cause:       Ptr(CauseRadioNetworkUnspecified.Cause()),
 			}).encodeBody,
 			[]wireIE{
 				{IDMMEUES1APID, CriticalityReject},
@@ -349,10 +409,25 @@ func TestWireCriticality(t *testing.T) {
 			},
 		},
 		{
+			"UEContextReleaseRequest §9.1.4.5 GW Context Release Indication",
+			(&UEContextReleaseRequest{
+				MMEUES1APID:                1,
+				ENBUES1APID:                2,
+				Cause:                      Ptr(CauseRadioNetworkX2HandoverTriggered.Cause()),
+				GWContextReleaseIndication: Ptr(GWContextReleaseIndicationTrue),
+			}).encodeBody,
+			[]wireIE{
+				{IDMMEUES1APID, CriticalityReject},
+				{IDENBUES1APID, CriticalityReject},
+				{IDCause, CriticalityIgnore},
+				{IDGWContextReleaseIndication, CriticalityReject},
+			},
+		},
+		{
 			"UEContextReleaseCommand §9.1.4.6",
 			(&UEContextReleaseCommand{
-				UES1APIDs: UES1APIDs{MMEUES1APID: 1, ENBUES1APID: 2, Pair: true},
-				Cause:     Ptr(Cause{Group: CauseGroupNAS, Value: 0}),
+				UES1APIDs: UES1APIDs{UES1APIDPair: &UES1APIDPair{MMEUES1APID: 1, ENBUES1APID: 2}},
+				Cause:     Ptr(CauseNASNormalRelease.Cause()),
 			}).encodeBody,
 			[]wireIE{
 				{IDUES1APIDs, CriticalityReject},
@@ -410,7 +485,7 @@ func TestWireCriticality(t *testing.T) {
 				MMEUES1APID: 1,
 				ENBUES1APID: 2,
 				NASPDU:      NASPDU{0x07},
-				Cause:       Ptr(Cause{Group: CauseGroupMisc, Value: CauseMiscUnspecified}),
+				Cause:       Ptr(CauseMiscUnspecified.Cause()),
 			}).encodeBody,
 			[]wireIE{
 				{IDMMEUES1APID, CriticalityReject},
@@ -429,8 +504,8 @@ func TestWireCriticality(t *testing.T) {
 			}
 
 			for i, w := range tt.want {
-				if got[i].id != w.id || got[i].crit != w.crit {
-					t.Errorf("IE %d: got %v/%v, want %v/%v", i, got[i].id, got[i].crit, w.id, w.crit)
+				if got[i].ID != w.id || got[i].Criticality != w.crit {
+					t.Errorf("IE %d: got %v/%v, want %v/%v", i, got[i].ID, got[i].Criticality, w.id, w.crit)
 				}
 			}
 		})

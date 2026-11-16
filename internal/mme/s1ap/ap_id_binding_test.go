@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/per/ap"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -19,7 +20,7 @@ func handoverAck(targetMME s1ap.MMEUES1APID, enbID s1ap.ENBUES1APID) *s1ap.Hando
 		ENBUES1APID: s1ap.Ptr(enbID),
 		ERABAdmitted: []s1ap.ERABAdmittedItem{{
 			ERABID:                s1ap.ERABID(mme.DefaultERABID),
-			TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2},
+			TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 2}),
 			GTPTEID:               0x99,
 		}},
 		TargetToSource: s1ap.TransparentContainer{0xaa},
@@ -121,7 +122,7 @@ func TestPathSwitchRequestReusingAnAllocatedENBUES1APIDIsRejectedAndReleasesTheH
 		t.Errorf("Error Indication carries (%v, %v), want only the received eNB-UE-S1AP-ID 42", ind.MMEUES1APID, ind.ENBUES1APID)
 	}
 
-	if ind.Cause == nil || *ind.Cause != causeUnknownENBUES1APID {
+	if ind.Cause == nil || !ind.Cause.Equal(causeUnknownENBUES1APID) {
 		t.Errorf("Error Indication cause = %v, want unknown-enb-ue-s1ap-id", ind.Cause)
 	}
 

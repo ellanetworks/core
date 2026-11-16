@@ -10,9 +10,9 @@ import (
 )
 
 func TestResetRoundTripsResetAll(t *testing.T) {
-	cause := Cause{Group: CauseGroupMisc, Value: 0}
+	cause := CauseMiscControlProcessingOverload.Cause()
 
-	in := &Reset{Cause: &cause, ResetType: ResetType{All: true}}
+	in := &Reset{Cause: &cause, ResetType: ResetType{S1Interface: Ptr(ResetAllResetAll)}}
 
 	b, err := in.Marshal()
 	if err != nil {
@@ -34,27 +34,27 @@ func TestResetRoundTripsResetAll(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !out.ResetType.All {
-		t.Fatalf("ResetType.All = false, want true")
+	if out.ResetType.S1Interface == nil || *out.ResetType.S1Interface != ResetAllResetAll {
+		t.Fatalf("ResetType.S1Interface = %v, want reset-all", out.ResetType.S1Interface)
 	}
 
-	if len(out.ResetType.Part) != 0 {
-		t.Fatalf("ResetType.Part = %v, want empty", out.ResetType.Part)
+	if out.ResetType.PartOfS1Interface != nil {
+		t.Fatalf("ResetType.PartOfS1Interface = %v, want nil", out.ResetType.PartOfS1Interface)
 	}
 
-	if deref(out.Cause) != cause {
+	if !deref(out.Cause).Equal(cause) {
 		t.Fatalf("Cause = %+v, want %+v", out.Cause, cause)
 	}
 }
 
 func TestResetRoundTripsPartOfInterface(t *testing.T) {
-	cause := Cause{Group: CauseGroupRadioNetwork, Value: 0}
+	cause := CauseRadioNetworkUnspecified.Cause()
 	mme := MMEUES1APID(42)
 	enb := ENBUES1APID(7)
 
 	in := &Reset{
 		Cause: &cause,
-		ResetType: ResetType{Part: []UEAssociatedLogicalS1ConnectionItem{
+		ResetType: ResetType{PartOfS1Interface: &UEAssociatedLogicalS1ConnectionListRes{
 			{MMEUES1APID: &mme, ENBUES1APID: &enb},
 			{ENBUES1APID: &enb},
 		}},
@@ -75,21 +75,23 @@ func TestResetRoundTripsPartOfInterface(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.ResetType.All {
-		t.Fatalf("ResetType.All = true, want false")
+	if out.ResetType.S1Interface != nil {
+		t.Fatalf("ResetType.S1Interface = %v, want nil", out.ResetType.S1Interface)
 	}
 
-	if len(out.ResetType.Part) != 2 {
-		t.Fatalf("ResetType.Part length = %d, want 2", len(out.ResetType.Part))
+	if out.ResetType.PartOfS1Interface == nil || len(*out.ResetType.PartOfS1Interface) != 2 {
+		t.Fatalf("ResetType.PartOfS1Interface = %v, want 2 items", out.ResetType.PartOfS1Interface)
 	}
 
-	first := out.ResetType.Part[0]
+	part := *out.ResetType.PartOfS1Interface
+
+	first := part[0]
 	if first.MMEUES1APID == nil || *first.MMEUES1APID != mme ||
 		first.ENBUES1APID == nil || *first.ENBUES1APID != enb {
 		t.Fatalf("first item = %+v, want mme=%d enb=%d", first, mme, enb)
 	}
 
-	second := out.ResetType.Part[1]
+	second := part[1]
 	if second.MMEUES1APID != nil || second.ENBUES1APID == nil || *second.ENBUES1APID != enb {
 		t.Fatalf("second item = %+v, want only enb=%d", second, enb)
 	}
@@ -160,7 +162,7 @@ func TestResetAcknowledgeRoundTripsWithList(t *testing.T) {
 // encoded.
 func TestResetTypeRejectsEmptyPart(t *testing.T) {
 	w := per.NewWriter()
-	if err := (ResetType{Part: []UEAssociatedLogicalS1ConnectionItem{}}).MarshalPER(w, per.Aligned); err == nil {
+	if err := (&ResetType{PartOfS1Interface: &UEAssociatedLogicalS1ConnectionListRes{}}).MarshalPER(w, per.Aligned); err == nil {
 		t.Fatal("encode accepted an empty partOfS1-Interface list")
 	}
 }

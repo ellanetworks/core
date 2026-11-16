@@ -21,7 +21,7 @@ func TestDecodeUEContextReleaseRequest(t *testing.T) {
 	}
 
 	c := mustIE(t, msg, s1ap.IDCause).Value.(Cause)
-	if c.Group.Value != int64(s1ap.CauseGroupRadioNetwork) || c.Value.Value != 29 {
+	if c.Group.Value != 0 || c.Value.Value != 29 {
 		t.Fatalf("cause = %+v", c)
 	}
 }
@@ -39,7 +39,7 @@ func TestDecodeUEContextReleaseCommand(t *testing.T) {
 	}
 
 	c := mustIE(t, msg, s1ap.IDCause).Value.(Cause)
-	if c.Group.Value != int64(s1ap.CauseGroupRadioNetwork) || c.Value.Value != int64(s1ap.CauseRadioNetworkRadioConnectionWithUELost) {
+	if c.Group.Value != 0 || c.Value.Value != int64(s1ap.CauseRadioNetworkRadioConnectionWithUELost) {
 		t.Fatalf("cause = %+v", c)
 	}
 }

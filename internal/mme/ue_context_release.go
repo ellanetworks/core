@@ -49,7 +49,7 @@ func (c *UeConn) SuperviseICS(ctx context.Context) {
 // causeSupersededConnection is the release cause for the old S1 connection when a UE
 // re-establishes on a new one: a normal release of the superseded NAS signalling
 // connection (TS 36.413 §8.3.3.1).
-var causeSupersededConnection = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASNormalRelease}
+var causeSupersededConnection = s1ap.CauseNASNormalRelease.Cause()
 
 // releaseSupersededConn releases the detached old connection toward the eNB and guards
 // the Release Complete (TS 36.413 §8.3.3.1).
@@ -133,7 +133,7 @@ func (c *UeConn) sendUEContextReleaseCommand(ctx context.Context, cause s1ap.Cau
 	}
 
 	cmd := &s1ap.UEContextReleaseCommand{
-		UES1APIDs: s1ap.UES1APIDs{MMEUES1APID: c.MMEUES1APID, ENBUES1APID: c.ENBUES1APID(), Pair: true},
+		UES1APIDs: ueS1APIDs(c.MMEUES1APID, c.ENBUES1APID(), true),
 		Cause:     s1ap.Ptr(cause),
 	}
 
@@ -388,4 +388,12 @@ func (m *MME) releaseUEContextLocallyHeld(ctx context.Context, ue *UeContext, ex
 	log.Info("UE idle", logger.RAT(metrics.RAT4G), zap.String("trigger", trigger))
 
 	m.ResumeDeferredServiceRequest(ctx, ue)
+}
+
+func ueS1APIDs(mmeUEID s1ap.MMEUES1APID, enbUEID s1ap.ENBUES1APID, pair bool) s1ap.UES1APIDs {
+	if pair {
+		return s1ap.UES1APIDs{UES1APIDPair: &s1ap.UES1APIDPair{MMEUES1APID: mmeUEID, ENBUES1APID: enbUEID}}
+	}
+
+	return s1ap.UES1APIDs{MMEUES1APID: &mmeUEID}
 }

@@ -52,7 +52,7 @@ func TestResolveUEUnknownMMEUES1APIDSendsErrorIndication(t *testing.T) {
 		t.Fatalf("expected eNB-UE-S1AP-ID 7, got %v", ind.ENBUES1APID)
 	}
 
-	if ind.Cause == nil || *ind.Cause != causeUnknownMMEUES1APID {
+	if ind.Cause == nil || !ind.Cause.Equal(causeUnknownMMEUES1APID) {
 		t.Fatalf("expected cause unknown-mme-ue-s1ap-id, got %v", ind.Cause)
 	}
 }
@@ -80,7 +80,7 @@ func TestResolveUEInconsistentENBUES1APIDSendsErrorIndication(t *testing.T) {
 		t.Fatalf("expected the received eNB-UE-S1AP-ID 99, got %v", ind.ENBUES1APID)
 	}
 
-	if ind.Cause == nil || *ind.Cause != causeUnknownPairUES1APID {
+	if ind.Cause == nil || !ind.Cause.Equal(causeUnknownPairUES1APID) {
 		t.Fatalf("expected cause unknown-pair-ue-s1ap-id, got %v", ind.Cause)
 	}
 }

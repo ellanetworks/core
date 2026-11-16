@@ -53,7 +53,7 @@ func BuildHandoverRequired(opts *HandoverRequiredOpts) ([]byte, error) {
 
 	cause := opts.Cause
 	if cause == nil {
-		cause = &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHandoverDesirableForRadio}
+		cause = new(ngap.CauseRadioNetworkHandoverDesirableForRadio.Cause())
 	}
 
 	sessions := make(ngap.PDUSessionResourceListHORqd, 0, len(opts.PDUSessions))
@@ -101,7 +101,7 @@ func handoverTargetID(opts *HandoverRequiredOpts, tac ngap.TAC) (ngap.TargetID, 
 		return ngap.TargetID{TargeteNBID: &ngap.TargeteNBID{
 			GlobalENBID: ngap.GlobalNgENBID{
 				PLMNIdentity: plmn,
-				NgENBID:      ngap.NgENBID{Kind: ngap.NgENBIDMacro, Value: *opts.TargetENBID},
+				NgENBID:      ngap.NgENBID{MacroNgENBID: new(ngap.MacroNgENBID(*opts.TargetENBID))},
 			},
 			SelectedEPSTAI: ngap.EPSTAI{PLMNIdentity: plmn, TAC: ngap.EPSTAC(tac)},
 		}}, nil
@@ -114,7 +114,7 @@ func handoverTargetID(opts *HandoverRequiredOpts, tac ngap.TAC) (ngap.TargetID, 
 
 	return ngap.TargetID{TargetRANNodeID: &ngap.TargetRANNodeID{
 		GlobalRANNodeID: node,
-		SelectedTAI:     ngap.TAI{PLMNIdentity: node.PLMNIdentity, TAC: tac},
+		SelectedTAI:     ngap.TAI{PLMNIdentity: plmn, TAC: tac},
 	}}, nil
 }
 

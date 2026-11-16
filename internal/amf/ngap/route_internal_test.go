@@ -125,8 +125,7 @@ func TestHandleHandoverRequired_TargeteNBIDSendsPreparationFailure(t *testing.T)
 			failure.AMFUENGAPID, failure.RANUENGAPID)
 	}
 
-	if failure.Cause == nil || failure.Cause.Group != ngaplib.CauseGroupProtocol ||
-		failure.Cause.Value != ngaplib.CauseProtocolAbstractSyntaxErrorReject {
+	if failure.Cause == nil || !failure.Cause.Equal(ngaplib.CauseProtocolAbstractSyntaxErrorReject.Cause()) {
 		t.Fatalf("cause = %+v, want protocol abstract-syntax-error-reject", failure.Cause)
 	}
 
@@ -169,8 +168,8 @@ func TestSendProtocolErrorIndication(t *testing.T) {
 
 	ind := sentErrorIndication(t, w.msgs[0])
 
-	want := ngaplib.Cause{Group: ngaplib.CauseGroupProtocol, Value: ngaplib.CauseProtocolTransferSyntaxError}
-	if ind.Cause == nil || *ind.Cause != want {
+	want := ngaplib.CauseProtocolTransferSyntaxError.Cause()
+	if ind.Cause == nil || !ind.Cause.Equal(want) {
 		t.Errorf("cause = %v, want transfer-syntax-error", ind.Cause)
 	}
 
@@ -185,7 +184,7 @@ func TestRespondToUnknownProcedure(t *testing.T) {
 		name      string
 		crit      ngaplib.Criticality
 		wantReply bool
-		wantCause int
+		wantCause ngaplib.CauseProtocol
 	}{
 		{"reject", ngaplib.CriticalityReject, true, ngaplib.CauseProtocolAbstractSyntaxErrorReject},
 		{"ignore-and-notify", ngaplib.CriticalityNotify, true, ngaplib.CauseProtocolAbstractSyntaxErrorIgnoreAndNotify},
@@ -216,8 +215,8 @@ func TestRespondToUnknownProcedure(t *testing.T) {
 
 			ind := sentErrorIndication(t, w.msgs[0])
 
-			want := ngaplib.Cause{Group: ngaplib.CauseGroupProtocol, Value: tt.wantCause}
-			if ind.Cause == nil || *ind.Cause != want {
+			want := tt.wantCause.Cause()
+			if ind.Cause == nil || !ind.Cause.Equal(want) {
 				t.Errorf("cause = %v, want %v", ind.Cause, want)
 			}
 

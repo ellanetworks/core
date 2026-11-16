@@ -275,17 +275,14 @@ func (e *ENB) sendERABReleaseResponse(cmd *s1ap.ERABReleaseCommand, enbUEID int6
 // sendERABSetupResponse acknowledges an E-RAB SETUP REQUEST, reporting the eNB's
 // S1-U downlink endpoint for the new E-RAB (TS 36.413 §8.2.1).
 func (e *ENB) sendERABSetupResponse(req *s1ap.ERABSetupRequest, enbUEID int64, dlTEID uint32) error {
-	addr := e.n3Addr.To4()
-	if addr == nil {
-		addr = e.n3Addr.To16()
-	}
+	addr := e.n3TransportLayerAddress()
 
 	resp := &s1ap.ERABSetupResponse{
 		MMEUES1APID: s1ap.Ptr(req.MMEUES1APID),
 		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(enbUEID)),
 		ERABSetup: []s1ap.ERABSetupItemBearerSURes{{
 			ERABID:                req.ERABToBeSetup[0].ERABID,
-			TransportLayerAddress: s1ap.TransportLayerAddress(addr),
+			TransportLayerAddress: addr,
 			GTPTEID:               s1ap.GTPTEID(dlTEID),
 		}},
 	}

@@ -15,13 +15,14 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/per/ap"
 	"github.com/ellanetworks/core/sctp"
 )
 
 func buildPathSwitchRequestTransfer(teid uint32, ip []byte) (ngap.TransferContainer, error) {
 	return (&ngap.PathSwitchRequestTransfer{
-		DLNGUUPTNLInformation: ngap.UPTransportLayerInformation{GTPTunnel: ngap.GTPTunnel{
-			TransportLayerAddress: ngap.TransportLayerAddress(ip),
+		DLNGUUPTNLInformation: ngap.UPTransportLayerInformation{GTPTunnel: &ngap.GTPTunnel{
+			TransportLayerAddress: ap.TransportLayerAddressFromOctets(ip),
 			GTPTEID:               ngap.GTPTEID(teid),
 		}},
 		QosFlowAccepted: ngap.QosFlowAcceptedList{{QosFlowIdentifier: 1}},
@@ -36,12 +37,7 @@ func buildPathSwitchRequest(
 	uESecurityCapabilities *ngap.UESecurityCapabilities,
 ) *ngap.PathSwitchRequest {
 	msg := &ngap.PathSwitchRequest{
-		UserLocationInformation: &ngap.UserLocationInformation{
-			Kind:         ngap.UserLocationNR,
-			PLMNIdentity: ngap.PLMNIdentity{0x02, 0xf8, 0x39},
-			CellIdentity: 1,
-			TAI:          ngap.TAI{PLMNIdentity: ngap.PLMNIdentity{0x02, 0xf8, 0x39}, TAC: 1},
-		},
+		UserLocationInformation:              &ngap.UserLocationInformation{NR: &ngap.UserLocationInformationNR{NRCGI: ngap.NRCGI{PLMNIdentity: ngap.PLMNIdentity{0x02, 0xf8, 0x39}, NRCellIdentity: ngap.NRCellIdentity(1)}, TAI: ngap.TAI{PLMNIdentity: ngap.PLMNIdentity{0x02, 0xf8, 0x39}, TAC: 1}}},
 		UESecurityCapabilities:               uESecurityCapabilities,
 		PDUSessionResourceToBeSwitchedDLList: pduSessionDLList,
 		PDUSessionResourceFailedToSetup:      failedList,
@@ -688,7 +684,7 @@ func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 	}
 
 	failedBytes, err := (&ngap.PathSwitchRequestSetupFailedTransfer{
-		Cause: ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownLocalUENGAPID},
+		Cause: ngap.CauseRadioNetworkUnknownLocalUENGAPID.Cause(),
 	}).Marshal()
 	if err != nil {
 		t.Fatalf("failed to marshal failed transfer: %v", err)
@@ -850,8 +846,10 @@ func TestPathSwitchRequest_UESecurityCapabilitiesMatching(t *testing.T) {
 	}
 
 	matchingCaps := &ngap.UESecurityCapabilities{
-		NREncryptionAlgorithms:          0x8000,
-		NRIntegrityProtectionAlgorithms: 0x4000,
+		NREncryptionAlgorithms:             ngap.SecurityAlgorithmsFrom(0x8000),
+		NRIntegrityProtectionAlgorithms:    ngap.SecurityAlgorithmsFrom(0x4000),
+		EUTRAEncryptionAlgorithms:          ngap.SecurityAlgorithmsFrom(0),
+		EUTRAIntegrityProtectionAlgorithms: ngap.SecurityAlgorithmsFrom(0),
 	}
 
 	msg := buildPathSwitchRequest(

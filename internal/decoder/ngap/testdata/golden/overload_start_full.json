@@ -1,0 +1,86 @@
+{
+  "summary": "OverloadStart",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 22,
+    "label": "OverloadStart",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 1,
+    "label": "ignore",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 2,
+          "label": "AMFOverloadResponse",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 1,
+          "label": "reject-rrc-cr-signalling",
+          "unknown": false
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 9,
+          "label": "AMFTrafficLoadReductionIndication",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 50
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 49,
+          "label": "OverloadStartNSSAIList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": [
+          {
+            "slice_overload_list": [
+              {
+                "sst": 1,
+                "sd": "000001"
+              }
+            ],
+            "slice_overload_response": {
+              "type": "enum",
+              "value": 2,
+              "label": "permit-emergency-sessions-and-mobile-terminated-services-only",
+              "unknown": false
+            },
+            "slice_traffic_load_reduction_indication": 20
+          }
+        ]
+      }
+    ]
+  }
+}

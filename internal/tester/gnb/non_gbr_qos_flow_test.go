@@ -174,7 +174,7 @@ func TestGBRRefusalSparesNonGBRQoSFlows(t *testing.T) {
 	g := newQoSTestGnodeB()
 	g.storePDUSession(testRANUEID, &PDUSessionInformation{PDUSessionID: testPDUSession, QFI: defaultTestQFI, QosId: defaultTestQFI, FiveQi: 9})
 
-	cause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified}
+	cause := ngap.CauseRadioNetworkUnspecified.Cause()
 	g.RefuseNextGBRQoSFlows(testRANUEID, cause)
 
 	handleModify(t, g, modifyRequest(t, mcpttFlow()))

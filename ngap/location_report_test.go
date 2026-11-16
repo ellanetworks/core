@@ -5,19 +5,13 @@ package ngap
 
 import (
 	"encoding/hex"
-	"errors"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
 )
 
 func locationReportULI() UserLocationInformation {
-	return UserLocationInformation{
-		Kind:         UserLocationNR,
-		PLMNIdentity: PLMNIdentity{0x02, 0xf8, 0x39},
-		CellIdentity: 1,
-		TAI:          TAI{PLMNIdentity: PLMNIdentity{0x02, 0xf8, 0x39}, TAC: 1},
-	}
+	return UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: PLMNIdentity{0x02, 0xf8, 0x39}, NRCellIdentity: NRCellIdentity(1)}, TAI: TAI{PLMNIdentity: PLMNIdentity{0x02, 0xf8, 0x39}, TAC: 1}}}
 }
 
 const goldenLocationReport = "0012402f000005000a000200010055000200020079400f4002f839000000001002" +
@@ -58,7 +52,7 @@ func TestLocationReportGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.UserLocationInformation == nil || out.UserLocationInformation.TAI.TAC != 1 ||
+	if out.UserLocationInformation == nil || out.UserLocationInformation.NR == nil || out.UserLocationInformation.NR.TAI.TAC != 1 ||
 		out.LocationReportingRequestType == nil || out.LocationReportingRequestType.EventType != EventTypeDirect ||
 		len(out.UEPresenceInAreaOfInterestList) != 1 ||
 		out.UEPresenceInAreaOfInterestList[0].LocationReportingReferenceID != 3 ||
@@ -106,8 +100,8 @@ func TestLocationReportingControlGolden(t *testing.T) {
 // gives its own three, and the two agree only on the first two. A test that
 // pins the count is what stops a value being copied across.
 func TestEventTypeRootCountMatchesSpec(t *testing.T) {
-	if eventTypeRootCount != 6 {
-		t.Errorf("root count is %d, TS 38.413 §9.3.1.65 defines six members before the extension marker", eventTypeRootCount)
+	if int64(len(enumEventType.Root)) != 6 {
+		t.Errorf("root count is %d, TS 38.413 §9.3.1.65 defines six members before the extension marker", int64(len(enumEventType.Root)))
 	}
 
 	if EventTypeStopChangeOfServeCell != 3 {
@@ -116,35 +110,33 @@ func TestEventTypeRootCountMatchesSpec(t *testing.T) {
 	}
 }
 
-// This AMF never asks for area-of-interest reporting, so a peer naming one back
-// is refused rather than misread. The preamble bit must still be consumed, or
-// every field after it would be read at the wrong offset.
-func TestLocationReportingRequestTypeRefusesAreaOfInterest(t *testing.T) {
+func TestLocationReportingRequestTypeAreaOfInterestRoundTrip(t *testing.T) {
+	tai := TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 3}
+	in := LocationReportingRequestType{
+		EventType:  EventTypeUEPresenceInAreaOfInterest,
+		ReportArea: ReportAreaCell,
+		AreaOfInterestList: AreaOfInterestList{{
+			AreaOfInterest: AreaOfInterest{
+				AreaOfInterestTAIList:     AreaOfInterestTAIList{{TAI: tai}},
+				AreaOfInterestRANNodeList: AreaOfInterestRANNodeList{{GlobalRANNodeID: NewGlobalGNBID(tai.PLMNIdentity, 0x1234, 22)}},
+			},
+			LocationReportingReferenceID: 5,
+		}},
+		AdditionalCancelledlocationReportingReferenceIDList: AdditionalCancelledlocationReportingReferenceIDList{{LocationReportingReferenceIDToBeCancelled: 6}},
+	}
+
 	w := per.NewWriter()
-	w.WriteBit(false) // no extension
-	w.WriteBit(true)  // areaOfInterestList present
-	w.WriteBit(false) // no locationReportingReferenceIDToBeCancelled
-	w.WriteBit(false) // no iE-Extensions
-
-	if err := encodeRootEnumerated(w, per.Aligned, eventTypeRootCount, int64(EventTypeUEPresenceInAreaOfInterest), "EventType"); err != nil {
+	if err := in.MarshalPER(w, per.Aligned); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := encodeRootEnumerated(w, per.Aligned, reportAreaRootCount, int64(ReportAreaCell), "ReportArea"); err != nil {
+	out, err := unmarshalPERValue[LocationReportingRequestType](perBytes(w))
+	if err != nil {
 		t.Fatal(err)
 	}
 
-	w.AlignToByte()
-
-	var v LocationReportingRequestType
-
-	err := v.UnmarshalPER(per.NewReader(w.Bytes()), per.Aligned)
-	if err == nil {
-		t.Fatal("an areaOfInterestList decoded")
-	}
-
-	if !errors.Is(err, errNotComprehended) {
-		t.Errorf("err = %v, want errNotComprehended so criticality decides", err)
+	if !out.Equal(in) {
+		t.Fatalf("round trip = %+v, want %+v", out, in)
 	}
 }
 
@@ -174,34 +166,5 @@ func TestLocationReportingRequestTypeReferenceIDRoundTrip(t *testing.T) {
 	if out.EventType != in.EventType || out.LocationReportingReferenceIDToBeCancelled == nil ||
 		*out.LocationReportingReferenceIDToBeCancelled != id {
 		t.Fatalf("round trip %+v", out)
-	}
-}
-
-// The ASN.1 makes locationReportingReferenceIDToBeCancelled present exactly when
-// Event Type is "stop UE presence in the area of interest"
-// (ifEventTypeisStopUEPresinAoI, TS 38.413 §9.3.1.65). Both halves of the
-// condition are enforced: a conforming gNB answers a violation with LOCATION
-// REPORTING FAILURE INDICATION (§8.12.1.3).
-func TestLocationReportingRequestTypeConditionalReferenceID(t *testing.T) {
-	id := LocationReportingReferenceID(7)
-
-	tests := []struct {
-		name    string
-		in      LocationReportingRequestType
-		wantErr bool
-	}{
-		{"direct without a reference id", LocationReportingRequestType{EventType: EventTypeDirect}, false},
-		{"direct with a reference id", LocationReportingRequestType{EventType: EventTypeDirect, LocationReportingReferenceIDToBeCancelled: &id}, true},
-		{"stop without a reference id", LocationReportingRequestType{EventType: EventTypeStopUEPresenceInAreaOfInterest}, true},
-		{"stop with a reference id", LocationReportingRequestType{EventType: EventTypeStopUEPresenceInAreaOfInterest, LocationReportingReferenceIDToBeCancelled: &id}, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.in.MarshalPER(per.NewWriter(), per.Aligned)
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
 	}
 }

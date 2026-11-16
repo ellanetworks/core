@@ -5,158 +5,189 @@ package s1ap
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/ellanetworks/core/per"
 )
 
-// CauseGroup selects a Cause CHOICE alternative (TS 36.413).
-type CauseGroup uint8
-
-const (
-	CauseGroupRadioNetwork CauseGroup = iota
-	CauseGroupTransport
-	CauseGroupNAS
-	CauseGroupProtocol
-	CauseGroupMisc
-
-	causeRootGroups = 5
-)
-
-// Root ENUMERATED values per group, which sets the index width.
-var causeGroupRootCount = [causeRootGroups]int{
-	CauseGroupRadioNetwork: 36,
-	CauseGroupTransport:    2,
-	CauseGroupNAS:          4,
-	CauseGroupProtocol:     7,
-	CauseGroupMisc:         6,
+// Cause ::= CHOICE { radioNetwork, transport, nas, protocol, misc, ... }
+// (TS 36.413 §9.2.1.3).
+type Cause struct {
+	RadioNetwork *CauseRadioNetwork        `per:",choice:0"`
+	Transport    *CauseTransport           `per:",choice:1"`
+	NAS          *CauseNas                 `per:",choice:2"`
+	Protocol     *CauseProtocol            `per:",choice:3"`
+	Misc         *CauseMisc                `per:",choice:4"`
+	Ext          *per.ExtensionAlternative `per:",extalt"`
 }
 
-// Root ENUMERATED values of each Cause group (TS 36.413). A value is an index
-// within its own group, so the same number differs across groups.
+type CauseRadioNetwork uint8
+
 const (
-	CauseRadioNetworkUnspecified                       = 0  // unspecified
-	CauseRadioNetworkSuccessfulHandover                = 2  // successful-handover
-	CauseRadioNetworkReleaseDueToEUTRANGeneratedReason = 3  // release-due-to-eutran-generated-reason
-	CauseRadioNetworkHandoverCancelled                 = 4  // handover-cancelled
-	CauseRadioNetworkPartialHandover                   = 5  // partial-handover
-	CauseRadioNetworkHOFailureInTarget                 = 6  // ho-failure-in-target-EPC-eNB-or-target-system
-	CauseRadioNetworkHOTargetNotAllowed                = 7  // ho-target-not-allowed
-	CauseRadioNetworkTS1RelocOverallExpiry             = 8  // tS1relocoverall-expiry
-	CauseRadioNetworkUnknownTargetID                   = 11 // unknown-targetID
-	CauseRadioNetworkNoRadioResourcesInTargetCell      = 12 // no-radio-resources-available-in-target-cell
-	CauseRadioNetworkUnknownMMEUES1APID                = 13 // unknown-mme-ue-s1ap-id
-	CauseRadioNetworkUnknownENBUES1APID                = 14
-	CauseRadioNetworkUnknownPairUES1APID               = 15 // unknown-pair-ue-s1ap-id
-	CauseRadioNetworkHandoverDesirableForRadio         = 16 // handover-desirable-for-radio-reason
-	CauseRadioNetworkTimeCriticalHandover              = 17 // time-critical-handover
-	CauseRadioNetworkResourceOptimisationHandover      = 18 // resource-optimisation-handover
-	CauseRadioNetworkReduceLoadInServingCell           = 19 // reduce-load-in-serving-cell
-	CauseRadioNetworkUserInactivity                    = 20 // user-inactivity
-	CauseRadioNetworkRadioConnectionWithUELost         = 21 // radio-connection-with-ue-lost
-	CauseRadioNetworkLoadBalancingTAURequired          = 22 // load-balancing-tau-required
-	CauseRadioNetworkCSFallbackTriggered               = 23 // cs-fallback-triggered
-	CauseRadioNetworkUENotAvailableForPSService        = 24 // ue-not-available-for-ps-service
-	CauseRadioNetworkRadioResourcesNotAvailable        = 25 // radio-resources-not-available
-	CauseRadioNetworkInterRATRedirection               = 28 // interrat-redirection
-	CauseRadioNetworkS1IntraSystemHandoverTriggered    = 33 // s1-intra-system-handover-triggered
-	CauseRadioNetworkS1InterSystemHandoverTriggered    = 34 // s1-inter-system-handover-triggered
-	CauseRadioNetworkX2HandoverTriggered               = 35 // x2-handover-triggered
-	CauseRadioNetworkInteractionWithOtherProcedure     = 29 // interaction-with-other-procedure
-	CauseRadioNetworkMultipleERABIDInstances           = 31 // multiple-E-RAB-ID-instances
-
-	// encryption-and-or-integrity-protection-algorithms-not-supported
-	CauseRadioNetworkEncryptionAlgorithmsNotSupported = 32
-
-	CauseTransportResourceUnavailable = 0 // transport-resource-unavailable
-
-	CauseNASNormalRelease         = 0 // normal-release
-	CauseNASAuthenticationFailure = 1 // authentication-failure
-	CauseNASDetach                = 2 // detach
-	CauseNASUnspecified           = 3 // unspecified
-
-	CauseProtocolTransferSyntaxError                = 0 // transfer-syntax-error
-	CauseProtocolAbstractSyntaxErrorReject          = 1 // abstract-syntax-error-reject
-	CauseProtocolAbstractSyntaxErrorIgnoreAndNotify = 2 // abstract-syntax-error-ignore-and-notify
-	CauseProtocolSemanticError                      = 4 // semantic-error
-
-	// abstract-syntax-error-falsely-constructed-message
-	CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage = 5
-
-	CauseMiscOMIntervention = 3 // om-intervention
-	CauseMiscUnspecified    = 4 // unspecified
-	CauseMiscUnknownPLMN    = 5 // unknown-PLMN
+	CauseRadioNetworkUnspecified CauseRadioNetwork = iota
+	CauseRadioNetworkTX2RelocOverallExpiry
+	CauseRadioNetworkSuccessfulHandover
+	CauseRadioNetworkReleaseDueToEUTRANGeneratedReason
+	CauseRadioNetworkHandoverCancelled
+	CauseRadioNetworkPartialHandover
+	CauseRadioNetworkHOFailureInTarget
+	CauseRadioNetworkHOTargetNotAllowed
+	CauseRadioNetworkTS1RelocOverallExpiry
+	CauseRadioNetworkTS1RelocPrepExpiry
+	CauseRadioNetworkCellNotAvailable
+	CauseRadioNetworkUnknownTargetID
+	CauseRadioNetworkNoRadioResourcesInTargetCell
+	CauseRadioNetworkUnknownMMEUES1APID
+	CauseRadioNetworkUnknownENBUES1APID
+	CauseRadioNetworkUnknownPairUES1APID
+	CauseRadioNetworkHandoverDesirableForRadio
+	CauseRadioNetworkTimeCriticalHandover
+	CauseRadioNetworkResourceOptimisationHandover
+	CauseRadioNetworkReduceLoadInServingCell
+	CauseRadioNetworkUserInactivity
+	CauseRadioNetworkRadioConnectionWithUELost
+	CauseRadioNetworkLoadBalancingTAURequired
+	CauseRadioNetworkCSFallbackTriggered
+	CauseRadioNetworkUENotAvailableForPSService
+	CauseRadioNetworkRadioResourcesNotAvailable
+	CauseRadioNetworkFailureInRadioInterfaceProcedure
+	CauseRadioNetworkInvalidQoSCombination
+	CauseRadioNetworkInterRATRedirection
+	CauseRadioNetworkInteractionWithOtherProcedure
+	CauseRadioNetworkUnknownERABID
+	CauseRadioNetworkMultipleERABIDInstances
+	CauseRadioNetworkEncryptionAlgorithmsNotSupported
+	CauseRadioNetworkS1IntraSystemHandoverTriggered
+	CauseRadioNetworkS1InterSystemHandoverTriggered
+	CauseRadioNetworkX2HandoverTriggered
+	CauseRadioNetworkRedirectionTowards1xRTT
+	CauseRadioNetworkNotSupportedQCIValue
+	CauseRadioNetworkInvalidCSGID
+	CauseRadioNetworkReleaseDueToPreemption
+	CauseRadioNetworkN26InterfaceNotAvailable
+	CauseRadioNetworkInsufficientUECapabilities
+	CauseRadioNetworkMaximumBearerPreemptionRateExceeded
+	CauseRadioNetworkUPIntegrityProtectionNotPossible
+	CauseRadioNetworkReleaseDueToDiscontinuousCoverage
 )
 
-var CauseInsufficientUECapabilities = Cause{Group: CauseGroupRadioNetwork, Value: 5, Extended: true}
+type CauseTransport uint8
 
-// CauseN26InterfaceNotAvailable is radioNetwork extension index 4,
-// "N26 interface not available" (TS 36.413 §9.2.1.3).
-var CauseN26InterfaceNotAvailable = Cause{Group: CauseGroupRadioNetwork, Value: 4, Extended: true}
+const (
+	CauseTransportResourceUnavailable CauseTransport = iota
+	CauseTransportUnspecified
+)
 
-// Cause ::= CHOICE of five extensible ENUMERATED groups. Value indexes the
-// chosen group; Extended marks it as indexing an extension addition.
-type Cause struct {
-	Group    CauseGroup
-	Value    int
-	Extended bool
+type CauseNas uint8
+
+const (
+	CauseNASNormalRelease CauseNas = iota
+	CauseNASAuthenticationFailure
+	CauseNASDetach
+	CauseNASUnspecified
+	CauseNASCSGSubscriptionExpiry
+	CauseNASUENotInPLMNServingArea
+	CauseNASIABNotAuthorized
+)
+
+type CauseProtocol uint8
+
+const (
+	CauseProtocolTransferSyntaxError CauseProtocol = iota
+	CauseProtocolAbstractSyntaxErrorReject
+	CauseProtocolAbstractSyntaxErrorIgnoreAndNotify
+	CauseProtocolMessageNotCompatible
+	CauseProtocolSemanticError
+	CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage
+	CauseProtocolUnspecified
+)
+
+type CauseMisc uint8
+
+const (
+	CauseMiscControlProcessingOverload CauseMisc = iota
+	CauseMiscNotEnoughUserPlaneProcessingResources
+	CauseMiscHardwareFailure
+	CauseMiscOMIntervention
+	CauseMiscUnspecified
+	CauseMiscUnknownPLMN
+)
+
+func (v CauseRadioNetwork) Cause() Cause { return Cause{RadioNetwork: &v} }
+
+func (v CauseTransport) Cause() Cause { return Cause{Transport: &v} }
+
+func (v CauseNas) Cause() Cause { return Cause{NAS: &v} }
+
+func (v CauseProtocol) Cause() Cause { return Cause{Protocol: &v} }
+
+func (v CauseMisc) Cause() Cause { return Cause{Misc: &v} }
+
+func (c Cause) alternative() (index int, value interface{ Name() string }, enumIndex int, ok bool) {
+	switch {
+	case c.RadioNetwork != nil:
+		return 0, *c.RadioNetwork, int(*c.RadioNetwork), true
+	case c.Transport != nil:
+		return 1, *c.Transport, int(*c.Transport), true
+	case c.NAS != nil:
+		return 2, *c.NAS, int(*c.NAS), true
+	case c.Protocol != nil:
+		return 3, *c.Protocol, int(*c.Protocol), true
+	case c.Misc != nil:
+		return 4, *c.Misc, int(*c.Misc), true
+	default:
+		return 0, nil, 0, false
+	}
+}
+
+var causeGroupNames = [...]string{"radioNetwork", "transport", "nas", "protocol", "misc"}
+
+func (c Cause) Group() (index int, ok bool) {
+	index, _, _, ok = c.alternative()
+
+	return index, ok
+}
+
+func (c Cause) GroupName() string {
+	index, _, _, ok := c.alternative()
+	if !ok {
+		return ""
+	}
+
+	return causeGroupNames[index]
 }
 
 func (c Cause) EnumeratedValue() int {
-	if c.Extended && int(c.Group) < causeRootGroups {
-		return causeGroupRootCount[c.Group] + c.Value
-	}
+	_, v := c.ValueName()
 
-	return c.Value
+	return v
 }
 
-func (c Cause) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	if int(c.Group) >= causeRootGroups {
-		return fmt.Errorf("s1ap: invalid cause group %d", c.Group)
+func (c Cause) ValueName() (name string, index int) {
+	_, v, i, ok := c.alternative()
+	if !ok {
+		return "unknown", 0
 	}
 
-	w.WriteBit(false)
-
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, causeRootGroups-1, int64(c.Group)); err != nil {
-		return err
+	name = v.Name()
+	if strings.HasPrefix(name, "unknown(") {
+		name = "unknown"
 	}
 
-	n := int64(causeGroupRootCount[c.Group])
-
-	idx := int64(c.Value)
-	if c.Extended {
-		idx += n
-	}
-
-	return per.EncodeEnumerated(w, enc, n, true, idx)
+	return name, i
 }
 
-func (c *Cause) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	gExt, err := r.ReadBit()
-	if err != nil {
-		return err
+func (c Cause) String() string {
+	group := c.GroupName()
+	if group == "" {
+		if c.Ext != nil {
+			return fmt.Sprintf("extension-%d", c.Ext.Index)
+		}
+
+		return ""
 	}
 
-	if gExt {
-		return fmt.Errorf("%w: cause extension group", errNotComprehended)
-	}
+	name, index := c.ValueName()
 
-	gi, err := per.DecodeConstrainedWholeNumber(r, enc, 0, causeRootGroups-1)
-	if err != nil {
-		return fmt.Errorf("s1ap: cause group: %w", err)
-	}
-
-	n := int64(causeGroupRootCount[gi])
-
-	idx, err := per.DecodeEnumerated(r, enc, n, true)
-	if err != nil {
-		return fmt.Errorf("s1ap: cause value: %w", err)
-	}
-
-	if idx >= n {
-		*c = Cause{Group: CauseGroup(gi), Value: int(idx - n), Extended: true}
-	} else {
-		*c = Cause{Group: CauseGroup(gi), Value: int(idx)}
-	}
-
-	return nil
+	return fmt.Sprintf("%s: %s (%d)", group, name, index)
 }

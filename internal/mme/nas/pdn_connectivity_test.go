@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
+	"github.com/ellanetworks/core/per/ap"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -121,7 +122,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatalf("E-RAB Setup Request malformed: %+v", req)
 	}
 
-	tla, err := models.EncodeTransportLayerAddress(netip.MustParseAddr("10.31.0.9"), netip.Addr{})
+	tla, err := ap.TransportLayerAddressFrom(netip.MustParseAddr("10.31.0.9"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +130,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 	resp := &s1ap.ERABSetupResponse{
 		MMEUES1APID: s1ap.Ptr(ue.Conn().MMEUES1APID), ENBUES1APID: s1ap.Ptr(ue.Conn().ENBUES1APID()),
 		ERABSetup: []s1ap.ERABSetupItemBearerSURes{{
-			ERABID: 6, TransportLayerAddress: s1ap.TransportLayerAddress(tla), GTPTEID: 0x1234,
+			ERABID: 6, TransportLayerAddress: tla, GTPTEID: 0x1234,
 		}},
 	}
 
@@ -571,7 +572,7 @@ func failERABSetup(t *testing.T, m *mme.MME, ue *mme.UeContext, cc *captureConn,
 		MMEUES1APID: s1ap.Ptr(ue.Conn().MMEUES1APID), ENBUES1APID: s1ap.Ptr(ue.Conn().ENBUES1APID()),
 		ERABFailedToSetup: []s1ap.ERABItem{{
 			ERABID: s1ap.ERABID(ebi),
-			Cause:  s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioResourcesNotAvailable},
+			Cause:  s1ap.CauseRadioNetworkRadioResourcesNotAvailable.Cause(),
 		}},
 	}
 

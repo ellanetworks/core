@@ -106,7 +106,7 @@ func runS1ENBErrorIndication(ctx context.Context, env scenarios.Env) error {
 		return fmt.Errorf("the MME did not release S1 after the Error Indication: %w", err)
 	}
 
-	if err := e.SendUEContextReleaseComplete(int64(cmd.UES1APIDs.MMEUES1APID), int64(cmd.UES1APIDs.ENBUES1APID)); err != nil {
+	if err := e.SendUEContextReleaseComplete(ueS1APIDs(cmd.UES1APIDs)); err != nil {
 		return fmt.Errorf("acknowledge the UE Context Release: %w", err)
 	}
 

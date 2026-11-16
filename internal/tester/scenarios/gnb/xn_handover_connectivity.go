@@ -128,6 +128,8 @@ func runXnHandoverConnectivity(ctx context.Context, env scenarios.Env, _ any) er
 	}
 
 	if _, err := xnPathSwitch(targetGNB, &xnPathSwitchOpts{
+		Source:            sourceGNB,
+		SourceRANUENGAPID: ranUENGAPID,
 		SourceAMFUENGAPID: sourceAmfUENGAPID,
 		TargetRANUENGAPID: xnHandoverConnRANID,
 		TargetN3IP:        targetN3IP,

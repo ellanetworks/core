@@ -23,10 +23,7 @@ func HandleHandoverCancel(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	sourceUe.Log(ctx).Debug("Handle Handover Cancel", zap.Uint32("source_ran_ue_ngap_id", uint32(sourceUe.RanUeNgapID())), zap.Uint64("source_amf_ue_ngap_id", uint64(sourceUe.AmfUeNgapID)))
 	sourceUe.TouchLastSeen()
 
-	cause := ngap.Cause{
-		Group: ngap.CauseGroupRadioNetwork,
-		Value: ngap.CauseRadioNetworkHOFailureInTarget,
-	}
+	cause := ngap.CauseRadioNetworkHOFailureInTarget.Cause()
 
 	if msg.Cause != nil {
 		sourceUe.Log(ctx).Debug("Handover Cancel Cause", logger.Cause(msg.Cause.String()))

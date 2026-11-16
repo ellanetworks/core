@@ -13,7 +13,7 @@ import (
 
 // TS 38.413 §8.3.3.2
 func TestUEContextReleaseCommandSelectsIDAlternative(t *testing.T) {
-	cause := ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease}
+	cause := ngap.CauseNASNormalRelease.Cause()
 
 	tests := []struct {
 		name string
@@ -59,12 +59,17 @@ func TestUEContextReleaseCommandSelectsIDAlternative(t *testing.T) {
 			}
 
 			wantPair := tt.ran != models.RanUeNgapIDUnspecified
-			if cmd.UENGAPIDs.Pair != wantPair {
-				t.Fatalf("Pair = %v, want %v", cmd.UENGAPIDs.Pair, wantPair)
+			if gotPair := cmd.UENGAPIDs.UENGAPIDPair != nil; gotPair != wantPair {
+				t.Fatalf("pair = %v, want %v", gotPair, wantPair)
 			}
 
-			if cmd.UENGAPIDs.AMFUENGAPID != 1 {
-				t.Fatalf("AMFUENGAPID = %d, want 1", cmd.UENGAPIDs.AMFUENGAPID)
+			amfID := cmd.UENGAPIDs.AMFUENGAPID
+			if p := cmd.UENGAPIDs.UENGAPIDPair; p != nil {
+				amfID = &p.AMFUENGAPID
+			}
+
+			if amfID == nil || *amfID != 1 {
+				t.Fatalf("AMFUENGAPID = %v, want 1", amfID)
 			}
 		})
 	}

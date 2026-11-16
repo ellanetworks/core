@@ -132,6 +132,29 @@
             }
           }
         ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 453,
+          "label": "SourceAMF-GUAMI",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "plmn_id": {
+            "mcc": "001",
+            "mnc": "01"
+          },
+          "amf_region_id": "ca",
+          "amf_set_id": "fe0",
+          "amf_pointer": "04"
+        }
       }
     ]
   }

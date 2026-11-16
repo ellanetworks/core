@@ -27,18 +27,20 @@ type PDUSessionResourceListCxtRelReq struct {
 	PDUSessionID int64 `json:"pdu_session_id"`
 }
 
-// UENGAPIDs ::= CHOICE { uE-NGAP-ID-pair, aMF-UE-NGAP-ID, ... }. The library
-// flattens the CHOICE onto one struct with a Pair discriminator, so only the
+// UENGAPIDs ::= CHOICE { uE-NGAP-ID-pair, aMF-UE-NGAP-ID, ... }. Only the
 // selected alternative is rendered (TS 38.413 §9.3.3.1).
 func libUENGAPIDs(ids ngap.UENGAPIDs) UENGAPIDs {
-	if ids.Pair {
+	switch {
+	case ids.UENGAPIDPair != nil:
 		return UENGAPIDs{UENGAPIDPair: UENGAPIDPair{
-			AMFUENGAPID: int64(ids.AMFUENGAPID),
-			RANUENGAPID: int64(ids.RANUENGAPID),
+			AMFUENGAPID: int64(ids.UENGAPIDPair.AMFUENGAPID),
+			RANUENGAPID: int64(ids.UENGAPIDPair.RANUENGAPID),
 		}}
+	case ids.AMFUENGAPID != nil:
+		return UENGAPIDs{AMFUENGAPID: int64(*ids.AMFUENGAPID)}
+	default:
+		return UENGAPIDs{}
 	}
-
-	return UENGAPIDs{AMFUENGAPID: int64(ids.AMFUENGAPID)}
 }
 
 func buildUEContextReleaseRequest(value []byte) NGAPMessageValue {
@@ -63,6 +65,10 @@ func buildUEContextReleaseRequest(value []byte) NGAPMessageValue {
 
 	if m.Cause != nil {
 		ies = append(ies, ie(ngap.IDCause, ngap.CriticalityIgnore, cause(*m.Cause)))
+	}
+
+	if m.GWContextReleaseIndication != nil {
+		ies = append(ies, ie(ngap.IDGWContextReleaseIndication, ngap.CriticalityReject, true))
 	}
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
@@ -119,6 +125,11 @@ func buildUEContextReleaseComplete(value []byte) NGAPMessageValue {
 		ies = append(ies, ie(ngap.IDCriticalityDiagnostics, ngap.CriticalityIgnore,
 			criticalityDiagnostics(*m.CriticalityDiagnostics)))
 	}
+
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDInfoOnRecommendedCellsAndRANNodesForPaging, ngap.CriticalityIgnore, m.InfoOnRecommendedCellsAndRANNodesForPaging},
+		{ngap.IDPagingAssisDataforCEcapabUE, ngap.CriticalityIgnore, m.PagingAssisDataforCEcapabUE},
+	})
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }

@@ -19,7 +19,7 @@ func TestHandleHandoverCancel_UnknownRanUeNgapID(t *testing.T) {
 	msg := &ngap.HandoverCancel{
 		AMFUENGAPID: 1099511627775,
 		RANUENGAPID: 99,
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified},
+		Cause:       new(ngap.CauseRadioNetworkUnspecified.Cause()),
 	}
 
 	HandleHandoverCancel(context.Background(), amfInstance, ran, msg)
@@ -30,8 +30,8 @@ func TestHandleHandoverCancel_UnknownRanUeNgapID(t *testing.T) {
 
 	errInd := sender.SentErrorIndications[0]
 
-	wantRadioNetworkCause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownLocalUENGAPID}
-	if errInd.Cause == nil || *errInd.Cause != wantRadioNetworkCause {
+	wantRadioNetworkCause := ngap.CauseRadioNetworkUnknownLocalUENGAPID.Cause()
+	if errInd.Cause == nil || !errInd.Cause.Equal(wantRadioNetworkCause) {
 		t.Errorf("cause = %v, want unknown-local-UE-NGAP-ID", errInd.Cause)
 	}
 }
@@ -49,7 +49,7 @@ func TestHandleHandoverCancel_UnknownAmfUeNgapID(t *testing.T) {
 	msg := &ngap.HandoverCancel{
 		AMFUENGAPID: 999,
 		RANUENGAPID: 1,
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified},
+		Cause:       new(ngap.CauseRadioNetworkUnspecified.Cause()),
 	}
 
 	HandleHandoverCancel(context.Background(), amfInstance, sourceRan, msg)
@@ -91,7 +91,7 @@ func TestHandleHandoverCancel_HappyPath(t *testing.T) {
 	msg := &ngap.HandoverCancel{
 		AMFUENGAPID: 10,
 		RANUENGAPID: 1,
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified},
+		Cause:       new(ngap.CauseRadioNetworkUnspecified.Cause()),
 	}
 
 	HandleHandoverCancel(context.Background(), amfInstance, sourceRan, msg)

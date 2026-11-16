@@ -1,0 +1,70 @@
+{
+  "summary": "UEContextModification, AMF-UE=7, RAN-UE=3",
+  "pdu_type": "SuccessfulOutcome",
+  "procedure_code": {
+    "type": "enum",
+    "value": 40,
+    "label": "UEContextModification",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 10,
+          "label": "AMF-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 7
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 85,
+          "label": "RAN-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 3
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 92,
+          "label": "RRCState",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 1,
+          "label": "connected",
+          "unknown": false
+        }
+      }
+    ]
+  }
+}

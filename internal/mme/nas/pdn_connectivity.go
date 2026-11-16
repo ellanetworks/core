@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
+	"github.com/ellanetworks/core/per/ap"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
@@ -255,7 +256,7 @@ func resumePDNConnectivity(ctx context.Context, m *mme.MME, ue *mme.UeContext, u
 }
 
 func buildERABSetup(p *mme.PdnConnection, ueAmbr models.Ambr) (*s1ap.ERABSetupRequest, error) {
-	sgwTLA, err := models.EncodeTransportLayerAddress(p.SgwFTEID.Addr, p.SgwN3IPv6)
+	sgwTLA, err := ap.TransportLayerAddressFromAddrs(p.SgwFTEID.Addr, p.SgwN3IPv6)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode S-GW transport layer address: %w", err)
 	}
@@ -270,7 +271,7 @@ func buildERABSetup(p *mme.PdnConnection, ueAmbr models.Ambr) (*s1ap.ERABSetupRe
 				QCI: s1ap.QCI(p.Qci),
 				ARP: mme.BearerARP(p.Arp),
 			},
-			TransportLayerAddress: s1ap.TransportLayerAddress(sgwTLA),
+			TransportLayerAddress: sgwTLA,
 			GTPTEID:               s1ap.GTPTEID(p.SgwFTEID.TEID),
 		}},
 	}, nil

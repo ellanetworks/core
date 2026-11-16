@@ -6,7 +6,6 @@ package s1ap
 import (
 	"encoding/hex"
 	"fmt"
-	"net"
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/decoder/nas/eps"
@@ -18,14 +17,18 @@ import (
 // §9.2.2.1) — the S1-U endpoint — as a dotted IPv4 / IPv6 address (or both),
 // matching the NGAP decoder. An unexpected length falls back to hex so no
 // information is lost.
-func transportLayerAddress(b []byte) string {
-	switch len(b) {
-	case 4, 16:
-		return net.IP(b).String()
-	case 20: // IPv4 followed by IPv6
-		return net.IP(b[:4]).String() + "+" + net.IP(b[4:]).String()
+func transportLayerAddress(a s1ap.TransportLayerAddress) string {
+	ipv4, ipv6 := a.IPv4(), a.IPv6()
+
+	switch {
+	case ipv4.IsValid() && ipv6.IsValid():
+		return ipv4.String() + "+" + ipv6.String()
+	case ipv4.IsValid():
+		return ipv4.String()
+	case ipv6.IsValid():
+		return ipv6.String()
 	default:
-		return hex.EncodeToString(b)
+		return hex.EncodeToString(a.Bytes())
 	}
 }
 
@@ -102,7 +105,10 @@ type UES1APIDs struct {
 }
 
 func ues1apIDs(ids s1ap.UES1APIDs) UES1APIDs {
-	return UES1APIDs{MMEUES1APID: uint32(ids.MMEUES1APID), ENBUES1APID: uint32(ids.ENBUES1APID)}
+	mme, _ := ids.MMEID()
+	enb, _ := ids.ENBID()
+
+	return UES1APIDs{MMEUES1APID: uint32(mme), ENBUES1APID: uint32(enb)}
 }
 
 // CriticalityDiagnostics is the decoded CriticalityDiagnostics IE (TS 36.413
@@ -123,11 +129,11 @@ type CriticalityDiagnosticsIE struct {
 }
 
 func triggeringMessageToEnum(t s1ap.TriggeringMessage) utils.EnumField {
-	return utils.NamedEnum(uint8(t), t.Name())
+	return namedEnum(uint8(t), t.Name())
 }
 
 func typeOfErrorToEnum(t s1ap.TypeOfError) utils.EnumField {
-	return utils.NamedEnum(uint8(t), t.Name())
+	return namedEnum(uint8(t), t.Name())
 }
 
 func criticalityDiagnostics(d s1ap.CriticalityDiagnostics) CriticalityDiagnostics {
@@ -176,11 +182,11 @@ func gummei(g s1ap.GUMMEI) GUMMEI {
 }
 
 func cnDomainToEnum(d s1ap.CNDomain) utils.EnumField {
-	return utils.NamedEnum(uint8(d), d.Name())
+	return namedEnum(uint8(d), d.Name())
 }
 
 func rrcCauseToEnum(c s1ap.RRCEstablishmentCause) utils.EnumField {
-	return utils.NamedEnum(uint8(c), c.Name())
+	return namedEnum(uint8(c), c.Name())
 }
 
 // ie is a small constructor for an Information Element with a spec-fixed

@@ -108,14 +108,9 @@ func TestSONConfigurationTransferTargetRANNodeID(t *testing.T) {
 		t.Fatalf("TargetRANNodeID: %v", err)
 	}
 
-	want := GlobalRANNodeID{
-		Kind:         RANNodeIDGNB,
-		PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10},
-		Value:        0x000102,
-		Bits:         24,
-	}
+	want := NewGlobalGNBID(PLMNIdentity{0x00, 0xf1, 0x10}, 0x000102, 24)
 
-	if target.GlobalRANNodeID != want {
+	if !target.GlobalRANNodeID.Equal(want) {
 		t.Errorf("GlobalRANNodeID = %+v, want %+v", target.GlobalRANNodeID, want)
 	}
 

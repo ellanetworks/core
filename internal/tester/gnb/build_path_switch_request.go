@@ -8,6 +8,7 @@ import (
 	"net/netip"
 
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 type PathSwitchRequestOpts struct {
@@ -21,6 +22,8 @@ type PathSwitchRequestOpts struct {
 	UESecurityCapabilities ngap.UESecurityCapabilities
 	Mcc                    string
 	Mnc                    string
+	SelectedMcc            string
+	SelectedMnc            string
 	Tac                    string
 	GnbID                  string
 }
@@ -29,12 +32,12 @@ type PathSwitchRequestOpts struct {
 // which the target NG-RAN node sends after an Xn handover to move the downlink
 // tunnels of every session it took over.
 func BuildPathSwitchRequest(opts *PathSwitchRequestOpts) ([]byte, error) {
-	uli, err := userLocation(opts.Mcc, opts.Mnc, opts.GnbID, opts.Tac)
+	uli, err := userLocation(opts.Mcc, opts.Mnc, opts.SelectedMcc, opts.SelectedMnc, opts.GnbID, opts.Tac)
 	if err != nil {
 		return nil, err
 	}
 
-	addr, err := transportLayerAddress(opts.N3GnbIp)
+	addr, err := ap.TransportLayerAddressFrom(opts.N3GnbIp)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +77,7 @@ func BuildPathSwitchRequest(opts *PathSwitchRequestOpts) ([]byte, error) {
 func buildPathSwitchRequestTransfer(teid uint32, addr ngap.TransportLayerAddress, flows []uint8) (ngap.TransferContainer, error) {
 	transfer := &ngap.PathSwitchRequestTransfer{
 		DLNGUUPTNLInformation: ngap.UPTransportLayerInformation{
-			GTPTunnel: ngap.GTPTunnel{TransportLayerAddress: addr, GTPTEID: ngap.GTPTEID(teid)},
+			GTPTunnel: &ngap.GTPTunnel{TransportLayerAddress: addr, GTPTEID: ngap.GTPTEID(teid)},
 		},
 		QosFlowAccepted: ngap.QosFlowAcceptedList{{QosFlowIdentifier: 1}},
 	}

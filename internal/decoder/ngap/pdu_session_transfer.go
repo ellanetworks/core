@@ -56,7 +56,14 @@ func libPDUSessionResourceSetupRequestTransfer(raw ngap.TransferContainer) (*PDU
 	}
 
 	out.SecurityIndication = securityIndication(t.SecurityIndication)
+	out.RedundantULNGUUPTNLInformation = optionalGTPTunnel(t.RedundantULNGUUPTNLInformation)
+	out.AdditionalRedundantULNGUUPTNLInformation = gtpTunnelList(t.AdditionalRedundantULNGUUPTNLInformation)
 
+	out.RedundantPDUSessionInformation = renderPresent(t.RedundantPDUSessionInformation)
+	out.CommonNetworkInstance = renderPresent(t.CommonNetworkInstance)
+	out.RedundantCommonNetworkInstance = renderPresent(t.RedundantCommonNetworkInstance)
+	out.DownlinkTLContainer = renderPresent(t.DownlinkTLContainer)
+	out.MBSSessionSetupRequestList = renderPresent(t.MBSSessionSetupRequestList)
 	out.UnrecognizedIEs = unmodeledIEs(t.UnknownIEs())
 
 	return out, nil
@@ -70,11 +77,11 @@ func libQosFlowSetupRequest(flow ngap.QosFlowSetupRequestItem) QosFlowSetupReque
 		PriArp: int64(params.AllocationAndRetentionPriority.PriorityLevelARP),
 	}
 
-	switch params.QosCharacteristics.Kind {
-	case ngap.QosCharacteristicsNonDynamic5QI:
-		entry.FiveQi = ngap.Ptr(int64(params.QosCharacteristics.NonDynamic5QI.FiveQI))
-	case ngap.QosCharacteristicsDynamic5QI:
-		dyn := params.QosCharacteristics.Dynamic5QI
+	switch q := params.QosCharacteristics; {
+	case q.NonDynamic5QI != nil:
+		entry.FiveQi = ngap.Ptr(int64(q.NonDynamic5QI.FiveQI))
+	case q.Dynamic5QI != nil:
+		dyn := q.Dynamic5QI
 		entry.Dynamic = true
 		entry.PriorityLevelQos = ngap.Ptr(int64(dyn.PriorityLevelQos))
 		entry.PacketDelayBudget = ngap.Ptr(int64(dyn.PacketDelayBudget))

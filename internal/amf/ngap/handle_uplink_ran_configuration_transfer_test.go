@@ -136,8 +136,8 @@ func TestUplinkRANConfigurationTransfer_ForwardsToTargetRan(t *testing.T) {
 		t.Fatalf("forwarded transfer does not decode: %v", err)
 	}
 
-	if got.GlobalRANNodeID.Kind != ngap.RANNodeIDGNB {
-		t.Fatalf("forwarded transfer lost its target gNB ID: kind = %d", got.GlobalRANNodeID.Kind)
+	if got.GlobalRANNodeID.GlobalGNBID == nil {
+		t.Fatalf("forwarded transfer lost its target gNB ID: %+v", got.GlobalRANNodeID)
 	}
 
 	if want := "000102"; got.GlobalRANNodeID.Hex() != want {

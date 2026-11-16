@@ -217,7 +217,7 @@ func (amf *AMF) ConfigurationUpdateCompleted(ctx context.Context, ue *UeContext,
 	logger.From(ctx, logger.AmfLog).Info("the visitor acknowledged the registration request; releasing its NAS signalling connection",
 		logger.SUPI(ue.Supi().String()))
 
-	conn.ReleaseWithAction(ctx, UeContextN2NormalRelease, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
+	conn.ReleaseWithAction(ctx, UeContextN2NormalRelease, ngap.CauseNASNormalRelease.Cause())
 }
 
 func (amf *AMF) reregistrationFulfilled(ue *UeContext) {

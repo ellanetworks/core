@@ -260,7 +260,7 @@ func DecodeOctetString(
 	}
 
 	if hasUB && ub == 0 {
-		return nil, nil
+		return []byte{}, nil
 	}
 
 	if hasUB && hasLB && ub == lb {
@@ -284,7 +284,7 @@ func decodeOctetStringValue(
 	r *Reader, enc Encoding,
 	lb, ub int64, hasUB bool,
 ) ([]byte, error) {
-	var buf []byte
+	buf := []byte{}
 
 	err := DecodeLength(r, enc, lb, ub, hasUB, func(count int64) error {
 		p, err := readOctetAligned(r, enc, int(count))

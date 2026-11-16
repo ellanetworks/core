@@ -24,6 +24,14 @@ func buildUEContextReleaseRequest(value []byte) (S1APMessageValue, string) {
 		ies = append(ies, ie(s1ap.IDCause, s1ap.CriticalityIgnore, cause(*m.Cause)))
 	}
 
+	if m.GWContextReleaseIndication != nil {
+		ies = append(ies, ie(s1ap.IDGWContextReleaseIndication, s1ap.CriticalityReject, true))
+	}
+
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDSecondaryRATDataUsageReportList, s1ap.CriticalityIgnore, m.SecondaryRATDataUsageReportList},
+	})
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, fmt.Sprintf("UE Context Release Request (MME-UE %d, eNB-UE %d)", m.MMEUES1APID, m.ENBUES1APID)
@@ -45,7 +53,10 @@ func buildUEContextReleaseCommand(value []byte) (S1APMessageValue, string) {
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
-	return S1APMessageValue{IEs: ies}, fmt.Sprintf("UE Context Release Command (MME-UE %d, eNB-UE %d)", m.UES1APIDs.MMEUES1APID, m.UES1APIDs.ENBUES1APID)
+	mme, _ := m.UES1APIDs.MMEID()
+	enb, _ := m.UES1APIDs.ENBID()
+
+	return S1APMessageValue{IEs: ies}, fmt.Sprintf("UE Context Release Command (MME-UE %d, eNB-UE %d)", mme, enb)
 }
 
 func buildUEContextReleaseComplete(value []byte) (S1APMessageValue, string) {
@@ -71,6 +82,13 @@ func buildUEContextReleaseComplete(value []byte) (S1APMessageValue, string) {
 	if m.UserLocationInformation != nil {
 		ies = append(ies, ie(s1ap.IDUserLocationInformation, s1ap.CriticalityIgnore, userLocationInformation(*m.UserLocationInformation)))
 	}
+
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDInformationOnRecommendedCellsAndENBsForPaging, s1ap.CriticalityIgnore, m.InformationOnRecommendedCellsAndENBsForPaging},
+		{s1ap.IDCellIdentifierAndCELevelForCECapableUEs, s1ap.CriticalityIgnore, m.CellIdentifierAndCELevelForCECapableUEs},
+		{s1ap.IDSecondaryRATDataUsageReportList, s1ap.CriticalityIgnore, m.SecondaryRATDataUsageReportList},
+		{s1ap.IDTimeSinceSecondaryNodeRelease, s1ap.CriticalityIgnore, m.TimeSinceSecondaryNodeRelease},
+	})
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 

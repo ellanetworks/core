@@ -17,7 +17,7 @@ func TestDecodeErrorIndication(t *testing.T) {
 	ind := &s1ap.ErrorIndication{
 		MMEUES1APID: &mme,
 		ENBUES1APID: &enb,
-		Cause:       &s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: 0},
+		Cause:       s1ap.Ptr(s1ap.CauseProtocolTransferSyntaxError.Cause()),
 	}
 
 	raw, err := ind.Marshal()
@@ -39,7 +39,7 @@ func TestDecodeErrorIndication(t *testing.T) {
 	}
 
 	c := mustIE(t, msg, s1ap.IDCause).Value.(Cause)
-	if c.Group.Value != int64(s1ap.CauseGroupProtocol) || c.Value.Value != int64(s1ap.CauseProtocolTransferSyntaxError) {
+	if c.Group.Value != 3 || c.Value.Value != int64(s1ap.CauseProtocolTransferSyntaxError) {
 		t.Fatalf("cause = %+v", c)
 	}
 }

@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"testing"
+
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // Golden PDU SESSION RESOURCE SETUP PDUs.
@@ -111,10 +113,7 @@ func TestPDUSessionResourceSetupRoundTrips(t *testing.T) {
 			PDUSessionResourceSetup: PDUSessionResourceSetupListSURes{
 				{PDUSessionID: 1, Transfer: TransferContainer{0x01}},
 			},
-			UserLocationInformation: &UserLocationInformation{
-				Kind: UserLocationNR, PLMNIdentity: plmn, CellIdentity: 0x123456789,
-				TAI: TAI{PLMNIdentity: plmn, TAC: 1},
-			},
+			UserLocationInformation: &UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: plmn, NRCellIdentity: NRCellIdentity(0x123456789)}, TAI: TAI{PLMNIdentity: plmn, TAC: 1}}},
 		}
 
 		b, _ := in.Marshal()
@@ -131,7 +130,7 @@ func TestPDUSessionResourceSetupRoundTrips(t *testing.T) {
 			t.Fatalf("got %+v err %v", out, err)
 		}
 
-		if out.UserLocationInformation == nil || out.UserLocationInformation.CellIdentity != 0x123456789 {
+		if out.UserLocationInformation == nil || out.UserLocationInformation.NR == nil || out.UserLocationInformation.NR.NRCGI.NRCellIdentity != 0x123456789 {
 			t.Fatalf("ULI = %+v", out.UserLocationInformation)
 		}
 	})
@@ -141,8 +140,8 @@ func TestPDUSessionResourceSetupRoundTrips(t *testing.T) {
 // sets up nothing, so it is not delivered (§10.3.5).
 func TestPDUSessionResourceSetupRequestMissingSessionList(t *testing.T) {
 	value := container(t,
-		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
-		ieField{id: IDRANUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
+		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))},
+		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(RANUENGAPID(2))))},
 	)
 
 	_, err := ParsePDUSessionResourceSetupRequest(value)
@@ -177,7 +176,7 @@ const goldenSetupUnsuccessfulTransfer = "0000"
 
 func TestPDUSessionResourceSetupUnsuccessfulTransferRoundTrip(t *testing.T) {
 	in := &PDUSessionResourceSetupUnsuccessfulTransfer{
-		Cause: Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified},
+		Cause: CauseRadioNetworkUnspecified.Cause(),
 	}
 
 	b, err := in.Marshal()
@@ -194,7 +193,7 @@ func TestPDUSessionResourceSetupUnsuccessfulTransferRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.Cause != in.Cause {
+	if !out.Cause.Equal(in.Cause) {
 		t.Fatalf("cause = %+v, want %+v", out.Cause, in.Cause)
 	}
 }
@@ -219,8 +218,8 @@ const (
 )
 
 func setupTransferTunnel() UPTransportLayerInformation {
-	return UPTransportLayerInformation{GTPTunnel: GTPTunnel{
-		TransportLayerAddress: TransportLayerAddress{192, 168, 1, 1},
+	return UPTransportLayerInformation{GTPTunnel: &GTPTunnel{
+		TransportLayerAddress: tlaOf(192, 168, 1, 1),
 		GTPTEID:               1,
 	}}
 }
@@ -233,7 +232,7 @@ func TestPDUSessionResourceSetupRequestTransferGolden(t *testing.T) {
 			QosFlowIdentifier: 1,
 			QosFlowLevelQosParameters: QosFlowLevelQosParameters{
 				QosCharacteristics: QosCharacteristics{
-					Kind: QosCharacteristicsNonDynamic5QI, NonDynamic5QI: NonDynamic5QIDescriptor{FiveQI: 9},
+					NonDynamic5QI: &NonDynamic5QIDescriptor{FiveQI: 9},
 				},
 				AllocationAndRetentionPriority: AllocationAndRetentionPriority{PriorityLevelARP: 1},
 			},
@@ -262,7 +261,7 @@ func TestPDUSessionResourceSetupRequestTransferGolden(t *testing.T) {
 		t.Errorf("QosFlowSetupRequest = %+v, want one flow with identifier 1", out.QosFlowSetupRequest)
 	}
 
-	ipv4, _ := out.ULNGUUPTNLInformation.GTPTunnel.TransportLayerAddress.IPs()
+	ipv4 := out.ULNGUUPTNLInformation.GTPTunnel.TransportLayerAddress.IPv4()
 	if ipv4.String() != "192.168.1.1" || out.ULNGUUPTNLInformation.GTPTunnel.GTPTEID != 1 {
 		t.Errorf("tunnel = %s/%d, want 192.168.1.1/1", ipv4, out.ULNGUUPTNLInformation.GTPTunnel.GTPTEID)
 	}
@@ -307,7 +306,7 @@ func TestPDUSessionResourceSetupResponseTransferGolden(t *testing.T) {
 			},
 			QosFlowFailedToSetup: QosFlowListWithCause{{
 				QosFlowIdentifier: 2,
-				Cause:             Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified},
+				Cause:             CauseRadioNetworkUnspecified.Cause(),
 			}},
 		}, goldenSetupResponseTransferFull},
 	} {
@@ -355,16 +354,16 @@ func TestPDUSessionResourceSetupResponseTransferGolden(t *testing.T) {
 // the missing IE named in Criticality Diagnostics.
 func TestPDUSessionResourceSetupRequestTransferMissingTunnel(t *testing.T) {
 	value := container(t,
-		ieField{id: IDPDUSessionType, crit: CriticalityReject, raw: ieRaw(t, Ptr(PDUSessionTypeIPv4))},
-		ieField{id: IDQosFlowSetupRequestList, crit: CriticalityReject, raw: ieRaw(t, QosFlowSetupRequestList{{
+		ieField{ID: IDPDUSessionType, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(PDUSessionTypeIPv4)))},
+		ieField{ID: IDQosFlowSetupRequestList, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, QosFlowSetupRequestList{{
 			QosFlowIdentifier: 1,
 			QosFlowLevelQosParameters: QosFlowLevelQosParameters{
 				QosCharacteristics: QosCharacteristics{
-					Kind: QosCharacteristicsNonDynamic5QI, NonDynamic5QI: NonDynamic5QIDescriptor{FiveQI: 9},
+					NonDynamic5QI: &NonDynamic5QIDescriptor{FiveQI: 9},
 				},
 				AllocationAndRetentionPriority: AllocationAndRetentionPriority{PriorityLevelARP: 1},
 			},
-		}})},
+		}}))},
 	)
 
 	_, err := ParsePDUSessionResourceSetupRequestTransfer(value)
@@ -385,14 +384,14 @@ func TestPDUSessionResourceSetupRequestTransferMissingTunnel(t *testing.T) {
 
 func TestPDUSessionResourceSetupRequestTransferDirectForwardingPathAvailability(t *testing.T) {
 	in := PDUSessionResourceSetupRequestTransfer{
-		ULNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: GTPTunnel{
-			TransportLayerAddress: TransportLayerAddress{192, 168, 1, 1}, GTPTEID: 1,
+		ULNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: &GTPTunnel{
+			TransportLayerAddress: tlaOf(192, 168, 1, 1), GTPTEID: 1,
 		}},
 		PDUSessionType: PDUSessionTypeIPv4,
 		QosFlowSetupRequest: QosFlowSetupRequestList{{
 			QosFlowIdentifier: 1,
 			QosFlowLevelQosParameters: QosFlowLevelQosParameters{
-				QosCharacteristics:             QosCharacteristics{Kind: QosCharacteristicsNonDynamic5QI, NonDynamic5QI: NonDynamic5QIDescriptor{FiveQI: 9}},
+				QosCharacteristics:             QosCharacteristics{NonDynamic5QI: &NonDynamic5QIDescriptor{FiveQI: 9}},
 				AllocationAndRetentionPriority: AllocationAndRetentionPriority{PriorityLevelARP: 1},
 			},
 		}},

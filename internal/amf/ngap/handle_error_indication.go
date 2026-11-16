@@ -42,7 +42,7 @@ func reportDiagnostics(ctx context.Context, ran *amf.Radio, proc ngap.ProcedureC
 	emitErrorIndication(ctx, ran, &ngap.ErrorIndication{
 		AMFUENGAPID: ids.amf,
 		RANUENGAPID: ids.ran,
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupProtocol, Value: ngap.CauseProtocolAbstractSyntaxErrorIgnoreAndNotify},
+		Cause:       new(ngap.CauseProtocolAbstractSyntaxErrorIgnoreAndNotify.Cause()),
 		CriticalityDiagnostics: &ngap.CriticalityDiagnostics{
 			ProcedureCode:             &proc,
 			TriggeringMessage:         &trigger,
@@ -88,7 +88,7 @@ func sendParseErrorIndication(ctx context.Context, ran *amf.Radio, proc ngap.Pro
 		crit := ngap.ProcedureCriticality(proc)
 
 		emitErrorIndication(ctx, ran, &ngap.ErrorIndication{
-			Cause: &ngap.Cause{Group: ngap.CauseGroupProtocol, Value: ngap.CauseProtocolTransferSyntaxError},
+			Cause: new(ngap.CauseProtocolTransferSyntaxError.Cause()),
 			CriticalityDiagnostics: &ngap.CriticalityDiagnostics{
 				ProcedureCode:        &proc,
 				TriggeringMessage:    &trigger,
@@ -154,5 +154,5 @@ func HandleErrorIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 
 	ueConn.SetReleaseAction(amf.UeContextN2NormalRelease)
 
-	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified})
+	ueConn.SendUEContextReleaseCommand(ctx, ngap.CauseRadioNetworkUnspecified.Cause())
 }

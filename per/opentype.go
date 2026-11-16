@@ -34,9 +34,22 @@ func DecodeOpenType(r *Reader, enc Encoding, u Unmarshaler) error {
 		return err
 	}
 
+	return u.UnmarshalPER(NewReader(buf), enc)
+}
+
+func DecodeCompleteOpenType(r *Reader, enc Encoding, u Unmarshaler) error {
+	buf, err := DecodeOpenTypeBytes(r, enc)
+	if err != nil {
+		return err
+	}
+
 	inner := NewReader(buf)
 
-	return u.UnmarshalPER(inner, enc)
+	if err := u.UnmarshalPER(inner, enc); err != nil {
+		return err
+	}
+
+	return inner.Complete()
 }
 
 // SkipOpenType reads and discards an open type field (§11.2).
@@ -127,5 +140,19 @@ func DecodeNormallySmallLength(r *Reader, enc Encoding, consume func(count int64
 		return consume(n)
 	}
 
-	return decodeUnconstrainedLengthFrag(r, enc, consume)
+	var total int64
+
+	err = decodeUnconstrainedLengthFrag(r, enc, func(count int64) error {
+		total += count
+		return consume(count)
+	})
+	if err != nil {
+		return err
+	}
+
+	if total == 0 {
+		return ErrOverflow
+	}
+
+	return nil
 }

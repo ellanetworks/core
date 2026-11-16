@@ -142,10 +142,7 @@ func handoverRequiredToENB(t *testing.T, sessions ...uint8) *ngap.HandoverRequir
 	msg.TargetID = ngap.TargetID{TargeteNBID: &ngap.TargeteNBID{
 		GlobalENBID: ngap.GlobalNgENBID{
 			PLMNIdentity: operatorPLMN,
-			NgENBID: ngap.NgENBID{
-				Kind:  ngap.NgENBIDMacro,
-				Value: relocationTargetENBID,
-			},
+			NgENBID:      ngap.NgENBID{MacroNgENBID: new(ngap.MacroNgENBID(relocationTargetENBID))},
 		},
 		SelectedEPSTAI: ngap.EPSTAI{PLMNIdentity: operatorPLMN, TAC: 1},
 	}}
@@ -349,9 +346,7 @@ func TestHandoverRequiredToEPSRelaysATargetNotAllowedRefusal(t *testing.T) {
 		err  error
 	}{
 		{"a subscriber who is not a home subscriber", interworking.RefuseN26Relocation()},
-		{"a subscriber barred from 4G", interworking.TargetRefusal{Cause: s1ap.Cause{
-			Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHOTargetNotAllowed,
-		}}},
+		{"a subscriber barred from 4G", interworking.TargetRefusal{Cause: s1ap.CauseRadioNetworkHOTargetNotAllowed.Cause()}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			peer := &epsPeerStub{err: tc.err}
@@ -367,7 +362,7 @@ func TestHandoverRequiredToEPSRelaysATargetNotAllowedRefusal(t *testing.T) {
 			}
 
 			got := sender.SentHandoverPreparationFailures[0].Cause
-			if got == nil || *got != causeHOTargetNotAllowed {
+			if got == nil || !got.Equal(causeHOTargetNotAllowed) {
 				t.Errorf("cause = %+v, want ho-target-not-allowed", got)
 			}
 		})
@@ -396,7 +391,7 @@ func TestHandoverRequiredToEPSOfARoamingVisitorIsRefusedAtTheSource(t *testing.T
 		t.Fatalf("got %d Handover Preparation Failures, want 1", len(sender.SentHandoverPreparationFailures))
 	}
 
-	if got := sender.SentHandoverPreparationFailures[0].Cause; got == nil || *got != causeHOTargetNotAllowed {
+	if got := sender.SentHandoverPreparationFailures[0].Cause; got == nil || !got.Equal(causeHOTargetNotAllowed) {
 		t.Errorf("cause = %+v, want ho-target-not-allowed", got)
 	}
 
@@ -634,16 +629,14 @@ func TestHandoverToEPSFailureCause(t *testing.T) {
 		{"unknown target", fmt.Errorf("wrapped: %w", interworking.ErrUnknownTarget), causeUnknownTargetID},
 		{
 			"the target eNB's own cause",
-			interworking.TargetRefusal{Cause: s1ap.Cause{
-				Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell,
-			}},
-			ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkNoRadioResourcesInTargetCell},
+			interworking.TargetRefusal{Cause: s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell.Cause()},
+			ngap.CauseRadioNetworkNoRadioResourcesInTargetCell.Cause(),
 		},
 		{"target refused", fmt.Errorf("wrapped: %w", interworking.ErrTargetRefused), causeHOFailureInTarget},
 		{"anything else", errors.New("boom"), causeHOFailureInTarget},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := handoverToEPSFailureCause(tc.err); got != tc.want {
+			if got := handoverToEPSFailureCause(tc.err); !got.Equal(tc.want) {
 				t.Errorf("cause = %+v, want %+v", got, tc.want)
 			}
 		})

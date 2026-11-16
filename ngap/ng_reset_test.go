@@ -5,10 +5,11 @@ package ngap
 
 import (
 	"bytes"
-	"strings"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // Golden NG RESET PDUs
@@ -20,15 +21,15 @@ const (
 
 func goldNGResetAll() *NGReset {
 	return &NGReset{
-		Cause:     Ptr(Cause{Group: CauseGroupMisc, Value: CauseMiscOMIntervention}),
-		ResetType: ResetType{All: true},
+		Cause:     Ptr(CauseMiscOMIntervention.Cause()),
+		ResetType: ResetType{NGInterface: Ptr(ResetAllResetAll)},
 	}
 }
 
 func goldNGResetPart() *NGReset {
 	return &NGReset{
-		Cause: Ptr(Cause{Group: CauseGroupMisc, Value: CauseMiscOMIntervention}),
-		ResetType: ResetType{Part: UEAssociatedLogicalNGConnectionList{
+		Cause: Ptr(CauseMiscOMIntervention.Cause()),
+		ResetType: ResetType{PartOfNGInterface: &UEAssociatedLogicalNGConnectionList{
 			{AMFUENGAPID: Ptr(AMFUENGAPID(7)), RANUENGAPID: Ptr(RANUENGAPID(9))},
 			// An item may carry either identity alone.
 			{RANUENGAPID: Ptr(RANUENGAPID(11))},
@@ -96,20 +97,21 @@ func TestNGResetGoldenDecode(t *testing.T) {
 				t.Fatalf("parse: %v", err)
 			}
 
-			if deref(msg.Cause) != deref(tt.want.Cause) {
+			if !deref(msg.Cause).Equal(deref(tt.want.Cause)) {
 				t.Errorf("cause = %v, want %v", deref(msg.Cause), deref(tt.want.Cause))
 			}
 
-			if msg.ResetType.All != tt.want.ResetType.All {
-				t.Fatalf("All = %v, want %v", msg.ResetType.All, tt.want.ResetType.All)
+			if (msg.ResetType.NGInterface == nil) != (tt.want.ResetType.NGInterface == nil) {
+				t.Fatalf("NGInterface = %v, want %v", msg.ResetType.NGInterface, tt.want.ResetType.NGInterface)
 			}
 
-			if len(msg.ResetType.Part) != len(tt.want.ResetType.Part) {
-				t.Fatalf("Part = %+v, want %d items", msg.ResetType.Part, len(tt.want.ResetType.Part))
+			gotPart, wantPart := deref(msg.ResetType.PartOfNGInterface), deref(tt.want.ResetType.PartOfNGInterface)
+			if len(gotPart) != len(wantPart) {
+				t.Fatalf("Part = %+v, want %d items", gotPart, len(wantPart))
 			}
 
-			for i, item := range msg.ResetType.Part {
-				w := tt.want.ResetType.Part[i]
+			for i, item := range gotPart {
+				w := wantPart[i]
 				if deref(item.AMFUENGAPID) != deref(w.AMFUENGAPID) || deref(item.RANUENGAPID) != deref(w.RANUENGAPID) {
 					t.Errorf("item %d = %+v, want %+v", i, item, w)
 				}
@@ -172,36 +174,40 @@ func TestNGResetAcknowledgeEmpty(t *testing.T) {
 	}
 }
 
-// TS 38.413 §9.3.1.16 closes ResetType with a choice-Extensions alternative
-// rather than an extension marker, so selecting it must be an explicit error
-// and not a zero ResetType that reads as "reset the whole interface".
-func TestResetTypeChoiceExtensionIsRejected(t *testing.T) {
+func TestResetTypeChoiceExtensionIsPreserved(t *testing.T) {
 	w := per.NewWriter()
 	enc := per.Aligned
 
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, resetTypeAlternatives-1, resetTypeChoiceExtensions); err != nil {
+	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, 2, 2); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := encodeContainerField(w, enc, ieField{
-		id:   IDResetType,
-		crit: CriticalityReject,
-		raw:  []byte{0x00},
-	}); err != nil {
+	if err := encodeContainerField(w, ieField{ID: 9999, Criticality: CriticalityReject, Value: apimpl.RawValue([]byte{0x00})}); err != nil {
 		t.Fatal(err)
 	}
 
-	got, err := unmarshalPERValue[ResetType](perBytes(w))
-	if err == nil {
-		t.Fatalf("decoded choice-Extensions as %+v, want an error", got)
+	wire := perBytes(w)
+
+	got, err := unmarshalPERValue[ResetType](wire)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
 	}
 
-	if !strings.Contains(err.Error(), "unsupported ResetType alternative") {
-		t.Errorf("error = %q, want it to name the unsupported alternative", err)
+	if got.NGInterface != nil || got.PartOfNGInterface != nil || got.ChoiceExtension == nil {
+		t.Fatalf("ResetType = %+v, want only the raw choice-Extensions", got)
 	}
 
-	if got.All || got.Part != nil {
-		t.Errorf("ResetType = %+v, want it left untouched", got)
+	if d := ap.Diagnose[ProtocolIEID](&got); len(d.IEs) != 1 || d.IEs[0].Criticality != CriticalityReject {
+		t.Errorf("diagnostics = %+v", d.IEs)
+	}
+
+	w2 := per.NewWriter()
+	if err := got.MarshalPER(w2, enc); err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(perBytes(w2), wire) {
+		t.Errorf("re-encode = % x, want % x", perBytes(w2), wire)
 	}
 }
 
@@ -209,7 +215,7 @@ func TestResetTypeChoiceExtensionIsRejected(t *testing.T) {
 // SIZE(1..maxnoofNGConnectionsToReset), so an empty one cannot be encoded.
 func TestResetTypeRejectsEmptyPart(t *testing.T) {
 	w := per.NewWriter()
-	if err := (ResetType{Part: UEAssociatedLogicalNGConnectionList{}}).MarshalPER(w, per.Aligned); err == nil {
+	if err := (&ResetType{PartOfNGInterface: &UEAssociatedLogicalNGConnectionList{}}).MarshalPER(w, per.Aligned); err == nil {
 		t.Fatal("encode accepted an empty partOfNG-Interface list")
 	}
 }

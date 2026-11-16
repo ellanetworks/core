@@ -139,3 +139,15 @@ func assertStatusTransferRelayed(mst *s1ap.MMEStatusTransfer) error {
 
 	return nil
 }
+
+func ueMMEID(ids s1ap.UES1APIDs) int64 {
+	mme, _ := ids.MMEID()
+
+	return int64(mme)
+}
+
+func ueS1APIDs(ids s1ap.UES1APIDs) (int64, int64) {
+	enb, _ := ids.ENBID()
+
+	return ueMMEID(ids), int64(enb)
+}

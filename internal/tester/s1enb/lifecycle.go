@@ -129,7 +129,7 @@ func (e *ENB) serviceRequest(ue *UE, guti *eps.EPSMobileIdentity, answeringPage 
 		return nil, fmt.Errorf("s1enb: service request requires the UE's GUTI")
 	}
 
-	enbUEID := e.AllocateENBUEID()
+	enbUEID := e.AllocateENBUEIDFor(ue)
 
 	sr, err := ue.buildServiceRequest()
 	if err != nil {
@@ -201,7 +201,7 @@ func (e *ENB) PeriodicTrackingAreaUpdate(ue *UE, guti *eps.EPSMobileIdentity, ti
 		return fmt.Errorf("s1enb: tracking area update requires the UE's GUTI")
 	}
 
-	enbUEID := e.AllocateENBUEID()
+	enbUEID := e.AllocateENBUEIDFor(ue)
 
 	tau, err := ue.buildTrackingAreaUpdateRequest(eps.EPSUpdateTypePeriodic, false, guti)
 	if err != nil {
@@ -240,7 +240,7 @@ func (e *ENB) TrackingAreaUpdateWithBearerStatus(ue *UE, guti *eps.EPSMobileIden
 		return nil, fmt.Errorf("s1enb: tracking area update requires the UE's GUTI")
 	}
 
-	enbUEID := e.AllocateENBUEID()
+	enbUEID := e.AllocateENBUEIDFor(ue)
 
 	tau, err := ue.buildTrackingAreaUpdateRequestWithBearerStatus(eps.EPSUpdateTypeTA, false, guti, status)
 	if err != nil {
@@ -297,11 +297,12 @@ func (e *ENB) completeContextRelease(enbUEID int64, timeout time.Duration) error
 	// The MME may address the UE by the pair or by the MME UE S1AP ID alone
 	// (TS 36.413 §9.1.4.6); only the pair names an eNB UE this simulator can
 	// answer for.
-	if !cmd.UES1APIDs.Pair {
+	pair := cmd.UES1APIDs.UES1APIDPair
+	if pair == nil {
 		return fmt.Errorf("UE Context Release Command carries no eNB UE S1AP ID")
 	}
 
-	e.dropCapabilityReport(int64(cmd.UES1APIDs.ENBUES1APID))
+	e.dropCapabilityReport(int64(pair.ENBUES1APID))
 
-	return e.SendUEContextReleaseComplete(int64(cmd.UES1APIDs.MMEUES1APID), int64(cmd.UES1APIDs.ENBUES1APID))
+	return e.SendUEContextReleaseComplete(int64(pair.MMEUES1APID), int64(pair.ENBUES1APID))
 }

@@ -81,5 +81,10 @@ func handleModifyIndicationTransfer(b []byte) (AnchorBinding, []int64, error) {
 		qfis = append(qfis, int64(item.QosFlowIdentifier))
 	}
 
-	return anchorFromGTPTunnel(transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel), qfis, nil
+	anchor, err := anchorFromGTPTunnel(transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation)
+	if err != nil {
+		return AnchorBinding{}, nil, err
+	}
+
+	return anchor, qfis, nil
 }

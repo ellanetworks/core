@@ -29,22 +29,22 @@ func TestNGRANIdentityToNGAP(t *testing.T) {
 		{
 			name: "gNB",
 			in:   interworking.NGRANIdentity{Kind: interworking.NGRANNodeGNB, PlmnID: plmn, ID: 0x1a2b3c, Bits: 24},
-			want: ngap.GlobalRANNodeID{Kind: ngap.RANNodeIDGNB, PLMNIdentity: encoded, Value: 0x1a2b3c, Bits: 24},
+			want: ngap.NewGlobalGNBID(encoded, 0x1a2b3c, 24),
 		},
 		{
 			name: "short macro ng-eNB",
 			in:   interworking.NGRANIdentity{Kind: interworking.NGRANNodeNgENB, PlmnID: plmn, ID: 0x201, Bits: 18},
-			want: ngap.GlobalRANNodeID{Kind: ngap.RANNodeIDShortMacroNgENB, PLMNIdentity: encoded, Value: 0x201, Bits: 18},
+			want: ngap.NewGlobalNgENBID(encoded, ngap.NgENBID{ShortMacroNgENBID: new(ngap.ShortMacroNgENBID(0x201))}),
 		},
 		{
 			name: "macro ng-eNB",
 			in:   interworking.NGRANIdentity{Kind: interworking.NGRANNodeNgENB, PlmnID: plmn, ID: 0x201, Bits: 20},
-			want: ngap.GlobalRANNodeID{Kind: ngap.RANNodeIDMacroNgENB, PLMNIdentity: encoded, Value: 0x201, Bits: 20},
+			want: ngap.NewGlobalNgENBID(encoded, ngap.NgENBID{MacroNgENBID: new(ngap.MacroNgENBID(0x201))}),
 		},
 		{
 			name: "long macro ng-eNB",
 			in:   interworking.NGRANIdentity{Kind: interworking.NGRANNodeNgENB, PlmnID: plmn, ID: 0x201, Bits: 21},
-			want: ngap.GlobalRANNodeID{Kind: ngap.RANNodeIDLongMacroNgENB, PLMNIdentity: encoded, Value: 0x201, Bits: 21},
+			want: ngap.NewGlobalNgENBID(encoded, ngap.NgENBID{LongMacroNgENBID: new(ngap.LongMacroNgENBID(0x201))}),
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -53,7 +53,7 @@ func TestNGRANIdentityToNGAP(t *testing.T) {
 				t.Fatalf("NGRANIdentityToNGAP: %v", err)
 			}
 
-			if got != tc.want {
+			if !got.Equal(tc.want) {
 				t.Fatalf("node id = %+v, want %+v", got, tc.want)
 			}
 		})

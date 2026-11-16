@@ -354,6 +354,9 @@ func (amf *AMF) reachForSMS(ctx context.Context, ue *UeContext) error {
 
 		state, changed := ue.watchState()
 
+		conn := ue.Conn()
+		releasing := conn != nil && amf.ReleaseClaimed(conn)
+
 		switch {
 		case state == Deregistered:
 			return smsf.ErrNotRegisteredForSMS
@@ -364,12 +367,30 @@ func (amf *AMF) reachForSMS(ctx context.Context, ue *UeContext) error {
 			case <-ctx.Done():
 				return ctx.Err()
 			}
-		case ue.Conn() != nil && !ue.SMSOverNAS():
+		case conn != nil && !ue.SMSOverNAS():
 			return smsf.ErrNotRegisteredForSMS
-		case ue.Conn() != nil:
+		case conn != nil && !releasing:
 			return nil
 		case paged:
 			return smsf.ErrUnreachable
+		}
+
+		if releasing {
+			_, err := amf.holdUntilReleased(ctx, ue, conn, &MTRequest{Req: models.N1N2MessageTransferRequest{N1Class: models.N1ClassSMS}, Signalling: true})
+
+			switch {
+			case err == nil:
+				paged = true
+			case errors.Is(err, errUEConnected):
+			default:
+				select {
+				case <-time.After(smsTemporaryRejectBackoff):
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+
+			continue
 		}
 
 		if err := guardIdlePaging(ue); err != nil {

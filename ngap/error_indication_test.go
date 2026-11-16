@@ -21,7 +21,7 @@ func goldErrorIndication() *ErrorIndication {
 		// The maximum AMF-UE-NGAP-ID exercises the 40-bit width end to end.
 		AMFUENGAPID: Ptr(AMFUENGAPID(1099511627775)),
 		RANUENGAPID: Ptr(RANUENGAPID(9)),
-		Cause:       Ptr(Cause{Group: CauseGroupProtocol, Value: CauseProtocolAbstractSyntaxErrorReject}),
+		Cause:       Ptr(CauseProtocolAbstractSyntaxErrorReject.Cause()),
 	}
 }
 
@@ -92,7 +92,7 @@ func TestErrorIndicationGoldenDecode(t *testing.T) {
 		t.Errorf("UE ids = %v/%v", msg.AMFUENGAPID, msg.RANUENGAPID)
 	}
 
-	if deref(msg.Cause) != deref(want.Cause) {
+	if !deref(msg.Cause).Equal(deref(want.Cause)) {
 		t.Errorf("cause = %v, want %v", deref(msg.Cause), deref(want.Cause))
 	}
 

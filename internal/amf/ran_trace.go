@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/tracing"
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/per/ap"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -198,7 +199,12 @@ func (a *AMF) traceActivation(id tracing.RANTraceID, conn NGAPWriter) (*ngap.Tra
 		return nil, fmt.Errorf("RAN trace is not enabled")
 	}
 
-	tce, err := tracing.TCEAddress(conn)
+	addr, err := tracing.TCEAddress(conn)
+	if err != nil {
+		return nil, err
+	}
+
+	tce, err := ap.TransportLayerAddressFrom(addr)
 	if err != nil {
 		return nil, err
 	}
@@ -207,6 +213,6 @@ func (a *AMF) traceActivation(id tracing.RANTraceID, conn NGAPWriter) (*ngap.Tra
 		NGRANTraceID:                   ngap.NGRANTraceID(id),
 		InterfacesToTrace:              ranTraceInterfaces,
 		TraceDepth:                     ngap.TraceDepthMinimum,
-		TraceCollectionEntityIPAddress: ngap.TransportLayerAddress(tce.Unmap().AsSlice()),
+		TraceCollectionEntityIPAddress: tce,
 	}, nil
 }

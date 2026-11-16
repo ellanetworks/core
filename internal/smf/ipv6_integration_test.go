@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/nas/fgs"
 	libngap "github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 // buildPDUSessionEstRequestWithType builds a NAS PDU Session Establishment
@@ -68,8 +69,8 @@ func ipv6Fakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {
 func buildPDUSessionResourceSetupResponseTransferIPv6(teid uint32, ip net.IP) ([]byte, error) {
 	transfer := libngap.PDUSessionResourceSetupResponseTransfer{
 		DLQosFlowPerTNLInformation: libngap.QosFlowPerTNLInformation{
-			UPTransportLayerInformation: libngap.UPTransportLayerInformation{GTPTunnel: libngap.GTPTunnel{
-				TransportLayerAddress: libngap.TransportLayerAddress(ip.To16()),
+			UPTransportLayerInformation: libngap.UPTransportLayerInformation{GTPTunnel: &libngap.GTPTunnel{
+				TransportLayerAddress: ap.TransportLayerAddressFromOctets(ip.To16()),
 				GTPTEID:               libngap.GTPTEID(teid),
 			}},
 			AssociatedQosFlowList: libngap.AssociatedQosFlowList{{QosFlowIdentifier: 1}},

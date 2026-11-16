@@ -15,24 +15,7 @@ type NotifySourceNGRANNode uint8
 
 const (
 	NotifySourceNGRANNodeNotifySource NotifySourceNGRANNode = iota
-
-	notifySourceNGRANNodeRootCount = 1
 )
-
-func (n NotifySourceNGRANNode) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, notifySourceNGRANNodeRootCount, int64(n), "NotifySourceNGRANNode")
-}
-
-func (n *NotifySourceNGRANNode) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, notifySourceNGRANNodeRootCount, "NotifySourceNGRANNode")
-	if err != nil {
-		return err
-	}
-
-	*n = NotifySourceNGRANNode(idx)
-
-	return nil
-}
 
 // TS 38.413 §9.2.3.7. The target NG-RAN node reports that the UE arrived.
 // TS 36.413 §9.1.5.7 carries the same report but locates the UE with a separate
@@ -48,25 +31,25 @@ type HandoverNotify struct {
 
 var handoverNotifyIEs = []ieSpec[HandoverNotify]{
 	{
-		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *HandoverNotify, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.AMFUENGAPID)
+		ID: IDAMFUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *HandoverNotify, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.AMFUENGAPID)
 		},
-		encode: func(m *HandoverNotify) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
+		Encode: func(m *HandoverNotify) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *HandoverNotify, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.RANUENGAPID)
+		ID: IDRANUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *HandoverNotify, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.RANUENGAPID)
 		},
-		encode: func(m *HandoverNotify) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
+		Encode: func(m *HandoverNotify) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
-		id: IDUserLocationInformation, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *HandoverNotify, raw []byte, enc per.Encoding) error {
+		ID: IDUserLocationInformation, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *HandoverNotify, r *per.Reader, enc per.Encoding) error {
 			var v UserLocationInformation
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -74,7 +57,7 @@ var handoverNotifyIEs = []ieSpec[HandoverNotify]{
 
 			return nil
 		},
-		encode: func(m *HandoverNotify) (per.Marshaler, bool) {
+		Encode: func(m *HandoverNotify) (per.Marshaler, bool) {
 			if m.UserLocationInformation == nil {
 				return nil, false
 			}
@@ -83,11 +66,11 @@ var handoverNotifyIEs = []ieSpec[HandoverNotify]{
 		},
 	},
 	{
-		id: IDNotifySourceNGRANNode, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *HandoverNotify, raw []byte, enc per.Encoding) error {
+		ID: IDNotifySourceNGRANNode, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *HandoverNotify, r *per.Reader, enc per.Encoding) error {
 			var v NotifySourceNGRANNode
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -95,7 +78,7 @@ var handoverNotifyIEs = []ieSpec[HandoverNotify]{
 
 			return nil
 		},
-		encode: func(m *HandoverNotify) (per.Marshaler, bool) {
+		Encode: func(m *HandoverNotify) (per.Marshaler, bool) {
 			if m.NotifySourceNGRANNode == nil {
 				return nil, false
 			}
@@ -127,4 +110,8 @@ func (m *HandoverNotify) Marshal() ([]byte, error) {
 
 func ParseHandoverNotify(value []byte) (*HandoverNotify, error) {
 	return parseMessageBody[HandoverNotify](ProcHandoverNotification, TriggeringInitiatingMessage, handoverNotifyIEs, value)
+}
+
+func DecodeHandoverNotify(value []byte) (*HandoverNotify, error) {
+	return decodeMessageBody[HandoverNotify](ProcHandoverNotification, handoverNotifyIEs, value)
 }

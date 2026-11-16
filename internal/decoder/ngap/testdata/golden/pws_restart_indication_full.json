@@ -1,0 +1,106 @@
+{
+  "summary": "PWSRestartIndication",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 34,
+    "label": "PWSRestartIndication",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 1,
+    "label": "ignore",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 16,
+          "label": "CellIDListForRestart",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "nr_cgi_list": [
+            {
+              "plmn_id": {
+                "mcc": "001",
+                "mnc": "01"
+              },
+              "nr_cell_identity": "123456789"
+            }
+          ]
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 27,
+          "label": "GlobalRANNodeID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "plmn_identity": {
+            "mcc": "001",
+            "mnc": "01"
+          },
+          "global_gnb_id": "000001"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 104,
+          "label": "TAIListForRestart",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "plmn_id": {
+              "mcc": "001",
+              "mnc": "01"
+            },
+            "tac": "000001"
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 23,
+          "label": "EmergencyAreaIDListForRestart",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          "010203"
+        ]
+      }
+    ]
+  }
+}

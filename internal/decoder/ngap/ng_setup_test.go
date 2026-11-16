@@ -228,7 +228,7 @@ func TestDecodeNGAPMessage_NGSetupResponse(t *testing.T) {
 		t.Errorf("Criticality = %v, want reject", item1.Criticality)
 	}
 
-	servedGUAMIList, ok := item1.Value.([]Guami)
+	servedGUAMIList, ok := item1.Value.([]ServedGUAMI)
 	if !ok {
 		t.Fatalf("expected ServedGUAMIList, got %T", item1.Value)
 	}

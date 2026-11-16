@@ -23,9 +23,9 @@ import (
 // appendPathSwitchReleasedItem records a PDU session the core could not switch in the
 // PATH SWITCH REQUEST ACKNOWLEDGE PDU Session Resource Released List so the NG-RAN
 // releases it; a session left unswitched has no downlink path (TS 38.413 §8.4.4.2).
-func appendPathSwitchReleasedItem(ctx context.Context, ueConn *amf.UeConn, list *ngap.PDUSessionResourceReleasedListPSAck, pduSessionID uint8, causeValue int) {
+func appendPathSwitchReleasedItem(ctx context.Context, ueConn *amf.UeConn, list *ngap.PDUSessionResourceReleasedListPSAck, pduSessionID uint8, causeValue ngap.CauseRadioNetwork) {
 	transfer, err := (&ngap.PathSwitchRequestUnsuccessfulTransfer{
-		Cause: ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: causeValue},
+		Cause: causeValue.Cause(),
 	}).Marshal()
 	if err != nil {
 		ueConn.Log(ctx).Error("failed to build PathSwitchRequestUnsuccessfulTransfer", zap.Error(err), logger.PDUSessionID(pduSessionID))
@@ -169,7 +169,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	amfUe.TraceConnection(ctx)
 }
 
-func pathSwitchFailureCause(amfUe *amf.UeContext, pduSessionID uint8) int {
+func pathSwitchFailureCause(amfUe *amf.UeContext, pduSessionID uint8) ngap.CauseRadioNetwork {
 	if _, known := amfUe.SmContextFindByPDUSessionID(pduSessionID); !known {
 		return ngap.CauseRadioNetworkUnknownPDUSessionID
 	}
@@ -219,8 +219,8 @@ func verifyUESecurityCapabilitiesOnPathSwitch(
 // negotiate E-UTRA algorithms with the UE, so the verify path compares only the
 // 5G NR columns.
 func ngapToNasUESecurityCapability(received *ngap.UESecurityCapabilities) *fgs.UESecurityCapability {
-	enc := byte(received.NREncryptionAlgorithms >> 8)
-	integ := byte(received.NRIntegrityProtectionAlgorithms >> 8)
+	enc := byte(received.NREncryptionAlgorithms.Uint16() >> 8)
+	integ := byte(received.NRIntegrityProtectionAlgorithms.Uint16() >> 8)
 
 	return &fgs.UESecurityCapability{
 		EA: nas.AlgorithmSet((enc>>7&1)<<6 | (enc>>6&1)<<5 | (enc>>5&1)<<4),

@@ -17,24 +17,7 @@ const (
 	TimeToWaitV10s
 	TimeToWaitV20s
 	TimeToWaitV60s
-
-	timeToWaitRootCount = 6
 )
-
-func (t TimeToWait) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, timeToWaitRootCount, int64(t), "TimeToWait")
-}
-
-func (t *TimeToWait) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, timeToWaitRootCount, "TimeToWait")
-	if err != nil {
-		return err
-	}
-
-	*t = TimeToWait(idx)
-
-	return nil
-}
 
 // TS 36.413 §9.1.8.6.
 type S1SetupFailure struct {
@@ -47,11 +30,11 @@ type S1SetupFailure struct {
 
 var s1SetupFailureIEs = []ieSpec[S1SetupFailure]{
 	{
-		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *S1SetupFailure, raw []byte, enc per.Encoding) error {
+		ID: IDCause, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *S1SetupFailure, r *per.Reader, enc per.Encoding) error {
 			var v Cause
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -59,7 +42,7 @@ var s1SetupFailureIEs = []ieSpec[S1SetupFailure]{
 
 			return nil
 		},
-		encode: func(m *S1SetupFailure) (per.Marshaler, bool) {
+		Encode: func(m *S1SetupFailure) (per.Marshaler, bool) {
 			if m.Cause == nil {
 				return nil, false
 			}
@@ -68,11 +51,11 @@ var s1SetupFailureIEs = []ieSpec[S1SetupFailure]{
 		},
 	},
 	{
-		id: IDTimeToWait, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *S1SetupFailure, raw []byte, enc per.Encoding) error {
+		ID: IDTimeToWait, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *S1SetupFailure, r *per.Reader, enc per.Encoding) error {
 			var ttw TimeToWait
 
-			if err := perIEDecode(raw, &ttw); err != nil {
+			if err := decodeIE(r, &ttw); err != nil {
 				return err
 			}
 
@@ -80,7 +63,7 @@ var s1SetupFailureIEs = []ieSpec[S1SetupFailure]{
 
 			return nil
 		},
-		encode: func(m *S1SetupFailure) (per.Marshaler, bool) {
+		Encode: func(m *S1SetupFailure) (per.Marshaler, bool) {
 			if m.TimeToWait == nil {
 				return nil, false
 			}
@@ -89,11 +72,11 @@ var s1SetupFailureIEs = []ieSpec[S1SetupFailure]{
 		},
 	},
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *S1SetupFailure, raw []byte, enc per.Encoding) error {
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *S1SetupFailure, r *per.Reader, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
-			if err := perIEDecode(raw, &cd); err != nil {
+			if err := decodeIE(r, &cd); err != nil {
 				return err
 			}
 
@@ -101,7 +84,7 @@ var s1SetupFailureIEs = []ieSpec[S1SetupFailure]{
 
 			return nil
 		},
-		encode: func(m *S1SetupFailure) (per.Marshaler, bool) {
+		Encode: func(m *S1SetupFailure) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -133,4 +116,8 @@ func (m *S1SetupFailure) Marshal() ([]byte, error) {
 
 func ParseS1SetupFailure(value []byte) (*S1SetupFailure, error) {
 	return parseMessageBody[S1SetupFailure](ProcS1Setup, TriggeringUnsuccessfulOutcome, s1SetupFailureIEs, value)
+}
+
+func DecodeS1SetupFailure(value []byte) (*S1SetupFailure, error) {
+	return decodeMessageBody[S1SetupFailure](ProcS1Setup, s1SetupFailureIEs, value)
 }

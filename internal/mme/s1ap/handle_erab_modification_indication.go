@@ -16,7 +16,7 @@ import (
 // causeERABModOmittedERAB is the UE Context Release cause when an E-RAB
 // Modification Indication omits an established E-RAB (TS 36.413 §8.2.4.4): no
 // specific radio-network cause applies, so "unspecified".
-var causeERABModOmittedERAB = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnspecified}
+var causeERABModOmittedERAB = s1ap.CauseRadioNetworkUnspecified.Cause()
 
 // handleERABModificationIndication relocates the downlink S1-U endpoint of the
 // UE's established E-RABs to the addresses the eNB reports (the DC / secondary-node

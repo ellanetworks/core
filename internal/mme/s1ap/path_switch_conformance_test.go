@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/eps"
+	"github.com/ellanetworks/core/per/ap"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -103,7 +104,7 @@ func pathSwitchUEWithSecondPDN(t *testing.T, m *mme.MME) (*mme.UeContext, *mme.P
 func switchedDLItemFor(ebi uint8, teid uint32) s1ap.ERABToBeSwitchedDLItem {
 	return s1ap.ERABToBeSwitchedDLItem{
 		ERABID:                s1ap.ERABID(ebi),
-		TransportLayerAddress: s1ap.TransportLayerAddress{10, 4, 0, 2},
+		TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 2}),
 		GTPTEID:               s1ap.GTPTEID(teid),
 	}
 }

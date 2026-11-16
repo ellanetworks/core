@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -20,7 +19,7 @@ func buildPaging(value []byte) (S1APMessageValue, string) {
 
 	tais := make([]TAI, 0, len(m.TAIList))
 	for _, t := range m.TAIList {
-		tais = append(tais, tai(t))
+		tais = append(tais, tai(t.TAI))
 	}
 
 	var ies []IE
@@ -29,8 +28,15 @@ func buildPaging(value []byte) (S1APMessageValue, string) {
 		ies = append(ies, ie(s1ap.IDUEIdentityIndexValue, s1ap.CriticalityIgnore, *m.UEIdentityIndexValue))
 	}
 
-	if m.STMSI != nil {
-		ies = append(ies, ie(s1ap.IDUEPagingID, s1ap.CriticalityIgnore, stmsi(*m.STMSI)))
+	if p := m.UEPagingID; p != nil {
+		switch {
+		case p.STMSI != nil:
+			ies = append(ies, ie(s1ap.IDUEPagingID, s1ap.CriticalityIgnore, stmsi(*p.STMSI)))
+		case p.IMSI != nil:
+			ies = append(ies, ie(s1ap.IDUEPagingID, s1ap.CriticalityIgnore, hex.EncodeToString(*p.IMSI)))
+		case p.Ext != nil:
+			ies = append(ies, ie(s1ap.IDUEPagingID, s1ap.CriticalityIgnore, rawIEValue{Hex: hex.EncodeToString([]byte(p.Ext.Value))}))
+		}
 	}
 
 	if m.PagingDRX != nil {
@@ -45,18 +51,33 @@ func buildPaging(value []byte) (S1APMessageValue, string) {
 
 	if m.PagingPriority != nil {
 		pr := *m.PagingPriority
-		ies = append(ies, ie(s1ap.IDPagingPriority, s1ap.CriticalityIgnore, utils.NamedEnum(uint8(pr), pr.Name())))
+		ies = append(ies, ie(s1ap.IDPagingPriority, s1ap.CriticalityIgnore, namedEnum(uint8(pr), pr.Name())))
 	}
 
 	if len(m.UERadioCapabilityForPaging) > 0 {
 		ies = append(ies, ie(s1ap.IDUERadioCapabilityForPaging, s1ap.CriticalityIgnore, hex.EncodeToString(m.UERadioCapabilityForPaging)))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDCSGIdList, s1ap.CriticalityIgnore, m.CSGIdList},
+		{s1ap.IDAssistanceDataForPaging, s1ap.CriticalityIgnore, m.AssistanceDataForPaging},
+		{s1ap.IDPagingeDRXInformation, s1ap.CriticalityIgnore, m.PagingeDRXInformation},
+		{s1ap.IDExtendedUEIdentityIndexValue, s1ap.CriticalityIgnore, m.ExtendedUEIdentityIndexValue},
+		{s1ap.IDNBIoTPagingeDRXInformation, s1ap.CriticalityIgnore, m.NBIoTPagingeDRXInformation},
+		{s1ap.IDNBIoTUEIdentityIndexValue, s1ap.CriticalityIgnore, m.NBIoTUEIdentityIndexValue},
+		{s1ap.IDEnhancedCoverageRestricted, s1ap.CriticalityIgnore, m.EnhancedCoverageRestricted},
+		{s1ap.IDCEModeBRestricted, s1ap.CriticalityIgnore, m.CEModeBRestricted},
+		{s1ap.IDDataSize, s1ap.CriticalityIgnore, m.DataSize},
+		{s1ap.IDWUSAssistanceInformation, s1ap.CriticalityIgnore, m.WUSAssistanceInformation},
+		{s1ap.IDNBIoTPagingDRX, s1ap.CriticalityIgnore, m.NBIoTPagingDRX},
+		{s1ap.IDPagingCause, s1ap.CriticalityIgnore, m.PagingCause},
+	})
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	mtmsi := "?"
-	if m.STMSI != nil {
-		mtmsi = strconv.FormatUint(uint64(m.STMSI.MTMSI), 10)
+	if m.UEPagingID != nil && m.UEPagingID.STMSI != nil {
+		mtmsi = strconv.FormatUint(uint64(m.UEPagingID.STMSI.MTMSI), 10)
 	}
 
 	return S1APMessageValue{IEs: ies}, fmt.Sprintf("Paging (M-TMSI %s, %d TAI)", mtmsi, len(m.TAIList))

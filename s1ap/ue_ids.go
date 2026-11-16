@@ -22,13 +22,13 @@ func PeekMMEUES1APID(pdu PDU) (MMEUES1APID, bool) {
 	}
 
 	for _, f := range fields {
-		if f.id != IDMMEUES1APID && f.id != IDSourceMMEUES1APID {
+		if f.ID != IDMMEUES1APID && f.ID != IDSourceMMEUES1APID {
 			continue
 		}
 
 		var id MMEUES1APID
 
-		if err := perIEDecode(f.value, &id); err != nil {
+		if err := perIEDecode(f.Value, &id); err != nil {
 			return 0, false
 		}
 

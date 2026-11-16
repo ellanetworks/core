@@ -90,6 +90,10 @@ func buildERABReleaseResponse(value []byte) (S1APMessageValue, string) {
 		ies = append(ies, ie(s1ap.IDUserLocationInformation, s1ap.CriticalityIgnore, userLocationInformation(*m.UserLocationInformation)))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDSecondaryRATDataUsageReportList, s1ap.CriticalityIgnore, m.SecondaryRATDataUsageReportList},
+	})
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, fmt.Sprintf("E-RAB Release Response (MME-UE %s, eNB-UE %s, %d E-RAB)", ueIDText(m.MMEUES1APID), ueIDText(m.ENBUES1APID), len(m.ERABReleased))
@@ -115,6 +119,10 @@ func buildERABReleaseIndication(value []byte) (S1APMessageValue, string) {
 	if m.UserLocationInformation != nil {
 		ies = append(ies, ie(s1ap.IDUserLocationInformation, s1ap.CriticalityIgnore, userLocationInformation(*m.UserLocationInformation)))
 	}
+
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDSecondaryRATDataUsageReportList, s1ap.CriticalityIgnore, m.SecondaryRATDataUsageReportList},
+	})
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 

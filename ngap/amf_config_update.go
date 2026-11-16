@@ -11,26 +11,32 @@ type AMFConfigurationUpdate struct {
 	AMFName             *string
 	ServedGUAMIList     ServedGUAMIList
 	RelativeAMFCapacity *uint8
+	PLMNSupportList     PLMNSupportList
+
+	AMFTNLAssociationToAddList    AMFTNLAssociationToAddList
+	AMFTNLAssociationToRemoveList AMFTNLAssociationToRemoveList
+	AMFTNLAssociationToUpdateList AMFTNLAssociationToUpdateList
+	ExtendedAMFName               *ExtendedAMFName
 
 	messageMeta
 }
 
 var aMFConfigurationUpdateIEs = []ieSpec[AMFConfigurationUpdate]{
 	{
-		id: IDAMFName, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *AMFConfigurationUpdate, raw []byte, enc per.Encoding) error {
+		ID: IDAMFName, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *AMFConfigurationUpdate, r *per.Reader, enc per.Encoding) error {
 			var (
 				err error
 				n   Name
 			)
-			if err = perIEDecode(raw, &n); err == nil {
+			if err = decodeIE(r, &n); err == nil {
 				name := string(n)
 				m.AMFName = &name
 			}
 
 			return err
 		},
-		encode: func(m *AMFConfigurationUpdate) (per.Marshaler, bool) {
+		Encode: func(m *AMFConfigurationUpdate) (per.Marshaler, bool) {
 			if m.AMFName == nil {
 				return nil, false
 			}
@@ -39,11 +45,11 @@ var aMFConfigurationUpdateIEs = []ieSpec[AMFConfigurationUpdate]{
 		},
 	},
 	{
-		id: IDServedGUAMIList, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *AMFConfigurationUpdate, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ServedGUAMIList)
+		ID: IDServedGUAMIList, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *AMFConfigurationUpdate, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.ServedGUAMIList)
 		},
-		encode: func(m *AMFConfigurationUpdate) (per.Marshaler, bool) {
+		Encode: func(m *AMFConfigurationUpdate) (per.Marshaler, bool) {
 			if len(m.ServedGUAMIList) == 0 {
 				return nil, false
 			}
@@ -52,9 +58,9 @@ var aMFConfigurationUpdateIEs = []ieSpec[AMFConfigurationUpdate]{
 		},
 	},
 	{
-		id: IDRelativeAMFCapacity, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *AMFConfigurationUpdate, raw []byte, enc per.Encoding) error {
-			v, err := per.DecodeInteger(per.NewReader(raw), enc, relativeAMFCapacityBounds)
+		ID: IDRelativeAMFCapacity, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *AMFConfigurationUpdate, r *per.Reader, enc per.Encoding) error {
+			v, err := per.DecodeInteger(r, enc, relativeAMFCapacityBounds)
 			if err != nil {
 				return err
 			}
@@ -64,7 +70,7 @@ var aMFConfigurationUpdateIEs = []ieSpec[AMFConfigurationUpdate]{
 
 			return nil
 		},
-		encode: func(m *AMFConfigurationUpdate) (per.Marshaler, bool) {
+		Encode: func(m *AMFConfigurationUpdate) (per.Marshaler, bool) {
 			if m.RelativeAMFCapacity == nil {
 				return nil, false
 			}
@@ -72,6 +78,79 @@ var aMFConfigurationUpdateIEs = []ieSpec[AMFConfigurationUpdate]{
 			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
 				return per.EncodeInteger(w, enc, relativeAMFCapacityBounds, int64(*m.RelativeAMFCapacity))
 			}), true
+		},
+	},
+	{
+		ID: IDPLMNSupportList, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *AMFConfigurationUpdate, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.PLMNSupportList)
+		},
+		Encode: func(m *AMFConfigurationUpdate) (per.Marshaler, bool) {
+			if len(m.PLMNSupportList) == 0 {
+				return nil, false
+			}
+
+			return m.PLMNSupportList, true
+		},
+	},
+	{
+		ID: IDAMFTNLAssociationToAddList, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *AMFConfigurationUpdate, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.AMFTNLAssociationToAddList)
+		},
+		Encode: func(m *AMFConfigurationUpdate) (per.Marshaler, bool) {
+			if len(m.AMFTNLAssociationToAddList) == 0 {
+				return nil, false
+			}
+
+			return m.AMFTNLAssociationToAddList, true
+		},
+	},
+	{
+		ID: IDAMFTNLAssociationToRemoveList, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *AMFConfigurationUpdate, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.AMFTNLAssociationToRemoveList)
+		},
+		Encode: func(m *AMFConfigurationUpdate) (per.Marshaler, bool) {
+			if len(m.AMFTNLAssociationToRemoveList) == 0 {
+				return nil, false
+			}
+
+			return m.AMFTNLAssociationToRemoveList, true
+		},
+	},
+	{
+		ID: IDAMFTNLAssociationToUpdateList, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *AMFConfigurationUpdate, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.AMFTNLAssociationToUpdateList)
+		},
+		Encode: func(m *AMFConfigurationUpdate) (per.Marshaler, bool) {
+			if len(m.AMFTNLAssociationToUpdateList) == 0 {
+				return nil, false
+			}
+
+			return m.AMFTNLAssociationToUpdateList, true
+		},
+	},
+	{
+		ID: IDExtendedAMFName, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *AMFConfigurationUpdate, r *per.Reader, enc per.Encoding) error {
+			var v ExtendedAMFName
+
+			if err := decodeIE(r, &v); err != nil {
+				return err
+			}
+
+			m.ExtendedAMFName = &v
+
+			return nil
+		},
+		Encode: func(m *AMFConfigurationUpdate) (per.Marshaler, bool) {
+			if m.ExtendedAMFName == nil {
+				return nil, false
+			}
+
+			return m.ExtendedAMFName, true
 		},
 	},
 }
@@ -100,19 +179,51 @@ func ParseAMFConfigurationUpdate(value []byte) (*AMFConfigurationUpdate, error) 
 	return parseMessageBody[AMFConfigurationUpdate](ProcAMFConfigurationUpdate, TriggeringInitiatingMessage, aMFConfigurationUpdateIEs, value)
 }
 
+func DecodeAMFConfigurationUpdate(value []byte) (*AMFConfigurationUpdate, error) {
+	return decodeMessageBody[AMFConfigurationUpdate](ProcAMFConfigurationUpdate, aMFConfigurationUpdateIEs, value)
+}
+
 type AMFConfigurationUpdateAcknowledge struct {
-	CriticalityDiagnostics *CriticalityDiagnostics
+	AMFTNLAssociationSetupList         AMFTNLAssociationSetupList
+	AMFTNLAssociationFailedToSetupList TNLAssociationList
+	CriticalityDiagnostics             *CriticalityDiagnostics
 
 	messageMeta
 }
 
 var aMFConfigurationUpdateAcknowledgeIEs = []ieSpec[AMFConfigurationUpdateAcknowledge]{
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *AMFConfigurationUpdateAcknowledge, raw []byte, enc per.Encoding) error {
+		ID: IDAMFTNLAssociationSetupList, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *AMFConfigurationUpdateAcknowledge, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.AMFTNLAssociationSetupList)
+		},
+		Encode: func(m *AMFConfigurationUpdateAcknowledge) (per.Marshaler, bool) {
+			if len(m.AMFTNLAssociationSetupList) == 0 {
+				return nil, false
+			}
+
+			return m.AMFTNLAssociationSetupList, true
+		},
+	},
+	{
+		ID: IDAMFTNLAssociationFailedToSetupList, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *AMFConfigurationUpdateAcknowledge, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.AMFTNLAssociationFailedToSetupList)
+		},
+		Encode: func(m *AMFConfigurationUpdateAcknowledge) (per.Marshaler, bool) {
+			if len(m.AMFTNLAssociationFailedToSetupList) == 0 {
+				return nil, false
+			}
+
+			return m.AMFTNLAssociationFailedToSetupList, true
+		},
+	},
+	{
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *AMFConfigurationUpdateAcknowledge, r *per.Reader, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
-			if err := perIEDecode(raw, &cd); err != nil {
+			if err := decodeIE(r, &cd); err != nil {
 				return err
 			}
 
@@ -120,7 +231,7 @@ var aMFConfigurationUpdateAcknowledgeIEs = []ieSpec[AMFConfigurationUpdateAcknow
 
 			return nil
 		},
-		encode: func(m *AMFConfigurationUpdateAcknowledge) (per.Marshaler, bool) {
+		Encode: func(m *AMFConfigurationUpdateAcknowledge) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -154,6 +265,10 @@ func ParseAMFConfigurationUpdateAcknowledge(value []byte) (*AMFConfigurationUpda
 	return parseMessageBody[AMFConfigurationUpdateAcknowledge](ProcAMFConfigurationUpdate, TriggeringSuccessfulOutcome, aMFConfigurationUpdateAcknowledgeIEs, value)
 }
 
+func DecodeAMFConfigurationUpdateAcknowledge(value []byte) (*AMFConfigurationUpdateAcknowledge, error) {
+	return decodeMessageBody[AMFConfigurationUpdateAcknowledge](ProcAMFConfigurationUpdate, aMFConfigurationUpdateAcknowledgeIEs, value)
+}
+
 type AMFConfigurationUpdateFailure struct {
 	Cause                  *Cause
 	TimeToWait             *TimeToWait
@@ -164,11 +279,11 @@ type AMFConfigurationUpdateFailure struct {
 
 var aMFConfigurationUpdateFailureIEs = []ieSpec[AMFConfigurationUpdateFailure]{
 	{
-		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *AMFConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
+		ID: IDCause, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *AMFConfigurationUpdateFailure, r *per.Reader, enc per.Encoding) error {
 			var v Cause
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -176,7 +291,7 @@ var aMFConfigurationUpdateFailureIEs = []ieSpec[AMFConfigurationUpdateFailure]{
 
 			return nil
 		},
-		encode: func(m *AMFConfigurationUpdateFailure) (per.Marshaler, bool) {
+		Encode: func(m *AMFConfigurationUpdateFailure) (per.Marshaler, bool) {
 			if m.Cause == nil {
 				return nil, false
 			}
@@ -185,11 +300,11 @@ var aMFConfigurationUpdateFailureIEs = []ieSpec[AMFConfigurationUpdateFailure]{
 		},
 	},
 	{
-		id: IDTimeToWait, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *AMFConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
+		ID: IDTimeToWait, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *AMFConfigurationUpdateFailure, r *per.Reader, enc per.Encoding) error {
 			var ttw TimeToWait
 
-			if err := perIEDecode(raw, &ttw); err != nil {
+			if err := decodeIE(r, &ttw); err != nil {
 				return err
 			}
 
@@ -197,7 +312,7 @@ var aMFConfigurationUpdateFailureIEs = []ieSpec[AMFConfigurationUpdateFailure]{
 
 			return nil
 		},
-		encode: func(m *AMFConfigurationUpdateFailure) (per.Marshaler, bool) {
+		Encode: func(m *AMFConfigurationUpdateFailure) (per.Marshaler, bool) {
 			if m.TimeToWait == nil {
 				return nil, false
 			}
@@ -206,11 +321,11 @@ var aMFConfigurationUpdateFailureIEs = []ieSpec[AMFConfigurationUpdateFailure]{
 		},
 	},
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *AMFConfigurationUpdateFailure, raw []byte, enc per.Encoding) error {
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *AMFConfigurationUpdateFailure, r *per.Reader, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
-			if err := perIEDecode(raw, &cd); err != nil {
+			if err := decodeIE(r, &cd); err != nil {
 				return err
 			}
 
@@ -218,7 +333,7 @@ var aMFConfigurationUpdateFailureIEs = []ieSpec[AMFConfigurationUpdateFailure]{
 
 			return nil
 		},
-		encode: func(m *AMFConfigurationUpdateFailure) (per.Marshaler, bool) {
+		Encode: func(m *AMFConfigurationUpdateFailure) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -250,4 +365,8 @@ func (m *AMFConfigurationUpdateFailure) Marshal() ([]byte, error) {
 
 func ParseAMFConfigurationUpdateFailure(value []byte) (*AMFConfigurationUpdateFailure, error) {
 	return parseMessageBody[AMFConfigurationUpdateFailure](ProcAMFConfigurationUpdate, TriggeringUnsuccessfulOutcome, aMFConfigurationUpdateFailureIEs, value)
+}
+
+func DecodeAMFConfigurationUpdateFailure(value []byte) (*AMFConfigurationUpdateFailure, error) {
+	return decodeMessageBody[AMFConfigurationUpdateFailure](ProcAMFConfigurationUpdate, aMFConfigurationUpdateFailureIEs, value)
 }

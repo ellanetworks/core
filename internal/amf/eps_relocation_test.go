@@ -260,7 +260,7 @@ func TestENBIdentityFromNGAP(t *testing.T) {
 	got, err := amf.ENBIdentityFromNGAP(ngap.TargeteNBID{
 		GlobalENBID: ngap.GlobalNgENBID{
 			PLMNIdentity: plmn,
-			NgENBID:      ngap.NgENBID{Kind: ngap.NgENBIDMacro, Value: 0x1234},
+			NgENBID:      ngap.NgENBID{MacroNgENBID: new(ngap.MacroNgENBID(0x1234))},
 		},
 		SelectedEPSTAI: ngap.EPSTAI{PLMNIdentity: sharedPLMN, TAC: 7},
 	})
@@ -283,7 +283,7 @@ func TestENBIdentityFromNGAP(t *testing.T) {
 
 func TestENBIdentityFromNGAPRejectsAnUnknownKind(t *testing.T) {
 	if _, err := amf.ENBIdentityFromNGAP(ngap.TargeteNBID{
-		GlobalENBID: ngap.GlobalNgENBID{NgENBID: ngap.NgENBID{Kind: 99}},
+		GlobalENBID: ngap.GlobalNgENBID{NgENBID: ngap.NgENBID{ChoiceExtension: &ngap.SingleContainer{ID: 99}}},
 	}); err == nil {
 		t.Fatal("an unknown ng-eNB identity kind must be refused")
 	}

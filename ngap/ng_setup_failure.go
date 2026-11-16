@@ -17,24 +17,7 @@ const (
 	TimeToWaitV10s
 	TimeToWaitV20s
 	TimeToWaitV60s
-
-	timeToWaitRootCount = 6
 )
-
-func (t TimeToWait) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, timeToWaitRootCount, int64(t), "TimeToWait")
-}
-
-func (t *TimeToWait) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, timeToWaitRootCount, "TimeToWait")
-	if err != nil {
-		return err
-	}
-
-	*t = TimeToWait(idx)
-
-	return nil
-}
 
 // TS 38.413 §9.2.6.3.
 type NGSetupFailure struct {
@@ -47,11 +30,11 @@ type NGSetupFailure struct {
 
 var nGSetupFailureIEs = []ieSpec[NGSetupFailure]{
 	{
-		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *NGSetupFailure, raw []byte, enc per.Encoding) error {
+		ID: IDCause, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *NGSetupFailure, r *per.Reader, enc per.Encoding) error {
 			var v Cause
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -59,7 +42,7 @@ var nGSetupFailureIEs = []ieSpec[NGSetupFailure]{
 
 			return nil
 		},
-		encode: func(m *NGSetupFailure) (per.Marshaler, bool) {
+		Encode: func(m *NGSetupFailure) (per.Marshaler, bool) {
 			if m.Cause == nil {
 				return nil, false
 			}
@@ -68,11 +51,11 @@ var nGSetupFailureIEs = []ieSpec[NGSetupFailure]{
 		},
 	},
 	{
-		id: IDTimeToWait, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *NGSetupFailure, raw []byte, enc per.Encoding) error {
+		ID: IDTimeToWait, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *NGSetupFailure, r *per.Reader, enc per.Encoding) error {
 			var ttw TimeToWait
 
-			if err := perIEDecode(raw, &ttw); err != nil {
+			if err := decodeIE(r, &ttw); err != nil {
 				return err
 			}
 
@@ -80,7 +63,7 @@ var nGSetupFailureIEs = []ieSpec[NGSetupFailure]{
 
 			return nil
 		},
-		encode: func(m *NGSetupFailure) (per.Marshaler, bool) {
+		Encode: func(m *NGSetupFailure) (per.Marshaler, bool) {
 			if m.TimeToWait == nil {
 				return nil, false
 			}
@@ -89,11 +72,11 @@ var nGSetupFailureIEs = []ieSpec[NGSetupFailure]{
 		},
 	},
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *NGSetupFailure, raw []byte, enc per.Encoding) error {
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *NGSetupFailure, r *per.Reader, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
-			if err := perIEDecode(raw, &cd); err != nil {
+			if err := decodeIE(r, &cd); err != nil {
 				return err
 			}
 
@@ -101,7 +84,7 @@ var nGSetupFailureIEs = []ieSpec[NGSetupFailure]{
 
 			return nil
 		},
-		encode: func(m *NGSetupFailure) (per.Marshaler, bool) {
+		Encode: func(m *NGSetupFailure) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -133,4 +116,8 @@ func (m *NGSetupFailure) Marshal() ([]byte, error) {
 
 func ParseNGSetupFailure(value []byte) (*NGSetupFailure, error) {
 	return parseMessageBody[NGSetupFailure](ProcNGSetup, TriggeringUnsuccessfulOutcome, nGSetupFailureIEs, value)
+}
+
+func DecodeNGSetupFailure(value []byte) (*NGSetupFailure, error) {
+	return decodeMessageBody[NGSetupFailure](ProcNGSetup, nGSetupFailureIEs, value)
 }

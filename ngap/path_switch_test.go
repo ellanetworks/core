@@ -10,12 +10,7 @@ import (
 )
 
 func pathSwitchULI() UserLocationInformation {
-	return UserLocationInformation{
-		Kind:         UserLocationNR,
-		PLMNIdentity: PLMNIdentity{0x02, 0xf8, 0x39},
-		CellIdentity: 1,
-		TAI:          TAI{PLMNIdentity: PLMNIdentity{0x02, 0xf8, 0x39}, TAC: 1},
-	}
+	return UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: PLMNIdentity{0x02, 0xf8, 0x39}, NRCellIdentity: NRCellIdentity(1)}, TAI: TAI{PLMNIdentity: PLMNIdentity{0x02, 0xf8, 0x39}, TAC: 1}}}
 }
 
 const goldenPathSwitchRequest = "001900430000050055000200020064000200010079400f4002f839000000001002" +
@@ -23,8 +18,8 @@ const goldenPathSwitchRequest = "001900430000050055000200020064000200010079400f4
 
 func TestPathSwitchRequestGolden(t *testing.T) {
 	transfer, err := (&PathSwitchRequestTransfer{
-		DLNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: GTPTunnel{
-			TransportLayerAddress: TransportLayerAddress{192, 168, 1, 1}, GTPTEID: 1,
+		DLNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: &GTPTunnel{
+			TransportLayerAddress: tlaOf(192, 168, 1, 1), GTPTEID: 1,
 		}},
 		QosFlowAccepted: QosFlowAcceptedList{{QosFlowIdentifier: 1}},
 	}).Marshal()
@@ -33,7 +28,7 @@ func TestPathSwitchRequestGolden(t *testing.T) {
 	}
 
 	uli := pathSwitchULI()
-	caps := UESecurityCapabilities{NREncryptionAlgorithms: 0x8000, NRIntegrityProtectionAlgorithms: 0x8000}
+	caps := UESecurityCapabilities{NREncryptionAlgorithms: SecurityAlgorithmsFrom(0x8000), NRIntegrityProtectionAlgorithms: SecurityAlgorithmsFrom(0x8000)}
 
 	in := PathSwitchRequest{
 		RANUENGAPID: 2, SourceAMFUENGAPID: 1,
@@ -67,7 +62,7 @@ func TestPathSwitchRequestGolden(t *testing.T) {
 	}
 
 	if out.RANUENGAPID != 2 || out.SourceAMFUENGAPID != 1 ||
-		out.UserLocationInformation == nil || out.UserLocationInformation.TAI.TAC != 1 ||
+		out.UserLocationInformation == nil || out.UserLocationInformation.NR == nil || out.UserLocationInformation.NR.TAI.TAC != 1 ||
 		len(out.PDUSessionResourceToBeSwitchedDLList) != 1 || out.PDUSessionResourceToBeSwitchedDLList[0].PDUSessionID != 5 {
 		t.Fatalf("round trip %+v", out)
 	}
@@ -132,7 +127,7 @@ const goldenPathSwitchRequestFailure = "40190019000003000a4002000100554002000200
 // PathSwitchRequestUnsuccessfulTransfer.
 func TestPathSwitchRequestFailureGolden(t *testing.T) {
 	transfer, err := (&PathSwitchRequestUnsuccessfulTransfer{
-		Cause: Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnknownPDUSessionID},
+		Cause: CauseRadioNetworkUnknownPDUSessionID.Cause(),
 	}).Marshal()
 	if err != nil {
 		t.Fatal(err)
@@ -178,7 +173,7 @@ func TestPathSwitchRequestFailureGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if released.Cause.Group != CauseGroupRadioNetwork || released.Cause.Value != CauseRadioNetworkUnknownPDUSessionID {
+	if !released.Cause.Equal(CauseRadioNetworkUnknownPDUSessionID.Cause()) {
 		t.Errorf("nested cause %+v", released.Cause)
 	}
 }
@@ -224,8 +219,8 @@ func TestPathSwitchRequestAcknowledgeRefusesMissingMandatoryIEs(t *testing.T) {
 // decode still collected.
 func TestPathSwitchSessionsSurviveRejection(t *testing.T) {
 	transfer, err := (&PathSwitchRequestTransfer{
-		DLNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: GTPTunnel{
-			TransportLayerAddress: TransportLayerAddress{192, 168, 1, 1}, GTPTEID: 1,
+		DLNGUUPTNLInformation: UPTransportLayerInformation{GTPTunnel: &GTPTunnel{
+			TransportLayerAddress: tlaOf(192, 168, 1, 1), GTPTEID: 1,
 		}},
 		QosFlowAccepted: QosFlowAcceptedList{{QosFlowIdentifier: 1}},
 	}).Marshal()
@@ -234,15 +229,15 @@ func TestPathSwitchSessionsSurviveRejection(t *testing.T) {
 	}
 
 	uli := pathSwitchULI()
-	caps := UESecurityCapabilities{NREncryptionAlgorithms: 0x8000, NRIntegrityProtectionAlgorithms: 0x8000}
+	caps := UESecurityCapabilities{NREncryptionAlgorithms: SecurityAlgorithmsFrom(0x8000), NRIntegrityProtectionAlgorithms: SecurityAlgorithmsFrom(0x8000)}
 	sessions := PDUSessionResourceToBeSwitchedDLList{{PDUSessionID: 5, Transfer: transfer}}
 
 	fields := []ieField{
-		{id: IDRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(2)},
-		{id: IDSourceAMFUENGAPID, crit: CriticalityReject, val: AMFUENGAPID(1)},
-		{id: IDUserLocationInformation, crit: CriticalityIgnore, val: &uli},
-		{id: IDUESecurityCapabilities, crit: CriticalityIgnore, val: &caps},
-		{id: IDPDUSessionResourceToBeSwitchedDLList, crit: CriticalityReject, val: sessions},
+		{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: RANUENGAPID(2)},
+		{ID: IDSourceAMFUENGAPID, Criticality: CriticalityReject, Value: AMFUENGAPID(1)},
+		{ID: IDUserLocationInformation, Criticality: CriticalityIgnore, Value: &uli},
+		{ID: IDUESecurityCapabilities, Criticality: CriticalityIgnore, Value: &caps},
+		{ID: IDPDUSessionResourceToBeSwitchedDLList, Criticality: CriticalityReject, Value: sessions},
 	}
 
 	// §10.3.6: the same IE twice is a falsely constructed message.
@@ -272,9 +267,9 @@ func TestPathSwitchSessionsAbsent(t *testing.T) {
 	uli := pathSwitchULI()
 
 	value := container(t,
-		ieField{id: IDRANUENGAPID, crit: CriticalityReject, val: RANUENGAPID(2)},
-		ieField{id: IDSourceAMFUENGAPID, crit: CriticalityReject, val: AMFUENGAPID(1)},
-		ieField{id: IDUserLocationInformation, crit: CriticalityIgnore, val: &uli},
+		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: RANUENGAPID(2)},
+		ieField{ID: IDSourceAMFUENGAPID, Criticality: CriticalityReject, Value: AMFUENGAPID(1)},
+		ieField{ID: IDUserLocationInformation, Criticality: CriticalityIgnore, Value: &uli},
 	)
 
 	_, err := ParsePathSwitchRequest(value)
@@ -287,4 +282,35 @@ func TestPathSwitchSessionsAbsent(t *testing.T) {
 	if got := ase.PathSwitchSessions(); got != nil {
 		t.Fatalf("PathSwitchSessions = %+v, want nil", got)
 	}
+}
+
+func pathSwitchRequestAcknowledgeWireCases(t *testing.T) []wireCase {
+	t.Helper()
+
+	transfer, err := (&PathSwitchRequestAcknowledgeTransfer{}).Marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m := &PathSwitchRequestAcknowledge{
+		AMFUENGAPID: Ptr(AMFUENGAPID(1)), RANUENGAPID: Ptr(RANUENGAPID(2)),
+		SecurityContext:                SecurityContext{NextHopChainingCount: 1},
+		PDUSessionResourceSwitchedList: PDUSessionResourceSwitchedList{{PDUSessionID: 5, Transfer: transfer}},
+		AllowedNSSAI:                   AllowedNSSAI{{SNSSAI: SNSSAI{SST: 1}}},
+		AMFUENGAPID2:                   Ptr(AMFUENGAPID(0x0102030405)),
+	}
+
+	return []wireCase{{
+		name:  "PathSwitchRequestAcknowledgeAMFUENGAPID2AfterUnmodeledIE",
+		pdu:   insertRawIEs(t, marshalT(t, m), 5, rawUnknownIE(40001, 0x00)),
+		parse: func(v []byte) (any, error) { return ParsePathSwitchRequestAcknowledge(v) },
+		check: func(t *testing.T, a any) {
+			t.Helper()
+
+			m := a.(*PathSwitchRequestAcknowledge)
+			if deref(m.AMFUENGAPID2) != 0x0102030405 || len(m.UnknownIEs()) != 1 {
+				t.Fatalf("AMF UE NGAP ID 2 = %v, unknown IEs %+v", m.AMFUENGAPID2, m.UnknownIEs())
+			}
+		},
+	}}
 }

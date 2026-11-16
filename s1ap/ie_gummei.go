@@ -52,21 +52,22 @@ func (c *MMECode) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 // GUMMEI ::= SEQUENCE { pLMN-Identity, mME-Group-ID, mME-Code, iE-Extensions
 // OPTIONAL } (extensible) (TS 36.413).
 type GUMMEI struct {
-	_            [0]struct{} `per:"extseq"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 	PLMNIdentity PLMNIdentity
 	MMEGroupID   MMEGroupID
 	MMECode      MMECode
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // ServedGUMMEIsItem ::= SEQUENCE { servedPLMNs, servedGroupIDs, servedMMECs,
 // iE-Extensions OPTIONAL } (extensible).
 type ServedGUMMEIsItem struct {
-	_              [0]struct{}    `per:"extseq"`
-	ServedPLMNs    []PLMNIdentity `per:"SEQUENCE-OF,size:1..32"`
-	ServedGroupIDs []MMEGroupID   `per:"SEQUENCE-OF,size:1..65535"`
-	ServedMMECs    []MMECode      `per:"SEQUENCE-OF,size:1..256"`
-	_              ieExtensions   `per:",skip"`
+	extensions     per.ExtensionAdditions `per:",extraw"`
+	ServedPLMNs    []PLMNIdentity         `per:"SEQUENCE-OF,size:1..32"`
+	ServedGroupIDs []MMEGroupID           `per:"SEQUENCE-OF,size:1..65535"`
+	ServedMMECs    []MMECode              `per:"SEQUENCE-OF,size:1..256"`
+	GUMMEIType     *GUMMEIType            `per:",extie:IDGUMMEIType,crit:ignore"`
+	iEExtensions   extensionMeta          `per:",exttable"`
 }
 
 // ServedGUMMEIs ::= SEQUENCE (SIZE(1..maxnoofRATs)) OF ServedGUMMEIsItem.

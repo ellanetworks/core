@@ -1,0 +1,139 @@
+{
+  "summary": "RerouteNASRequest, RAN-UE=5, AMF-UE=7",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 36,
+    "label": "RerouteNASRequest",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 85,
+          "label": "RAN-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 5
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 10,
+          "label": "AMF-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 7
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 42,
+          "label": "NGAP-Message",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "hex": "000f4000"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 3,
+          "label": "AMFSetID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": "004"
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 0,
+          "label": "AllowedNSSAI",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "sst": 1
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 171,
+          "label": "SourceToTarget-AMFInformationReroute",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "rejected_nssai_in_plmn": {
+            "hex": "0100000000000000000000000000000000000000000000000000000000000000"
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 414,
+          "label": "Partially-Allowed-NSSAI",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": [
+          {
+            "sst": 2
+          }
+        ]
+      }
+    ]
+  }
+}

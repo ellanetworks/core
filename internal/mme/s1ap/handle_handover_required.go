@@ -60,6 +60,14 @@ func handleHandoverRequired(ctx context.Context, m *mme.MME, radio *mme.Radio, v
 		return
 	}
 
+	if req.TargetID.TargeteNBID == nil {
+		logger.From(ctx, logger.MmeLog).Warn("intra-LTE Handover Required whose target is not an eNB",
+			logger.MMEUeS1apID(uint32(req.MMEUES1APID)))
+		mme.SendHandoverPreparationFailure(ctx, m, radio.Conn, req.MMEUES1APID, req.ENBUES1APID, causeUnknownTargetID)
+
+		return
+	}
+
 	targetID, err := mme.RanNodeID(req.TargetID.TargeteNBID.GlobalENBID)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("Handover Required for a target eNB that cannot be decoded",

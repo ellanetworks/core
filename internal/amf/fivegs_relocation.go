@@ -32,12 +32,15 @@ var (
 )
 
 var (
-	causeRelocationExpiry    = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkTNGRelocOverallExpiry}
-	causeRelocationCancelled = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHandoverCancelled}
+	causeRelocationExpiry    = ngap.CauseRadioNetworkTNGRelocOverallExpiry.Cause()
+	causeRelocationCancelled = ngap.CauseRadioNetworkHandoverCancelled.Cause()
 )
 
 func NGRANIdentityToNGAP(target interworking.NGRANIdentity) (ngap.GlobalRANNodeID, error) {
-	var kind ngap.RANNodeIDKind
+	plmn, err := util.PLMNToNGAP(target.PlmnID)
+	if err != nil {
+		return ngap.GlobalRANNodeID{}, err
+	}
 
 	switch target.Kind {
 	case interworking.NGRANNodeGNB:
@@ -45,33 +48,17 @@ func NGRANIdentityToNGAP(target interworking.NGRANIdentity) (ngap.GlobalRANNodeI
 			return ngap.GlobalRANNodeID{}, fmt.Errorf("amf: no gNB identity is %d bits wide", target.Bits)
 		}
 
-		kind = ngap.RANNodeIDGNB
+		return ngap.NewGlobalGNBID(plmn, target.ID, int(target.Bits)), nil
 	case interworking.NGRANNodeNgENB:
-		k, ok := map[uint8]ngap.RANNodeIDKind{
-			18: ngap.RANNodeIDShortMacroNgENB,
-			20: ngap.RANNodeIDMacroNgENB,
-			21: ngap.RANNodeIDLongMacroNgENB,
-		}[target.Bits]
+		id, ok := ngap.NgENBIDOfBits(target.ID, int(target.Bits))
 		if !ok {
 			return ngap.GlobalRANNodeID{}, fmt.Errorf("amf: no ng-eNB identity is %d bits wide", target.Bits)
 		}
 
-		kind = k
+		return ngap.NewGlobalNgENBID(plmn, id), nil
 	default:
 		return ngap.GlobalRANNodeID{}, fmt.Errorf("amf: unknown NG-RAN node kind %d", target.Kind)
 	}
-
-	plmn, err := util.PLMNToNGAP(target.PlmnID)
-	if err != nil {
-		return ngap.GlobalRANNodeID{}, err
-	}
-
-	return ngap.GlobalRANNodeID{
-		Kind:         kind,
-		PLMNIdentity: plmn,
-		Value:        target.ID,
-		Bits:         int(target.Bits),
-	}, nil
 }
 
 func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.FiveGSRelocationRequest) (interworking.FiveGSRelocationResponse, error) {
@@ -120,10 +107,7 @@ func (a *AMF) ForwardRelocation(ctx context.Context, req interworking.FiveGSRelo
 	}
 
 	if !subscriberProfile.Allow5G {
-		return none, interworking.TargetRefusal{Cause: s1ap.Cause{
-			Group: s1ap.CauseGroupRadioNetwork,
-			Value: s1ap.CauseRadioNetworkHOTargetNotAllowed,
-		}}
+		return none, interworking.TargetRefusal{Cause: s1ap.CauseRadioNetworkHOTargetNotAllowed.Cause()}
 	}
 
 	snssaiList := subscriberProfile.AllowedNssai
@@ -175,10 +159,7 @@ func (a *AMF) arrivingProfile(ctx context.Context, ue *UeContext, transferred mo
 	if err := a.AdmitVisitor(ctx, ue); err != nil {
 		var r *Rejection
 		if errors.As(err, &r) {
-			return nil, fmt.Errorf("%w: %w", r, interworking.TargetRefusal{Cause: s1ap.Cause{
-				Group: s1ap.CauseGroupRadioNetwork,
-				Value: s1ap.CauseRadioNetworkHOTargetNotAllowed,
-			}})
+			return nil, fmt.Errorf("%w: %w", r, interworking.TargetRefusal{Cause: s1ap.CauseRadioNetworkHOTargetNotAllowed.Cause()})
 		}
 
 		return nil, fmt.Errorf("amf: admit the roaming visitor: %w", err)

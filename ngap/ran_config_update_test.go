@@ -27,12 +27,7 @@ func goldRANConfigUpdate() *RANConfigurationUpdate {
 			}},
 		}},
 		DefaultPagingDRX: Ptr(PagingDRXv128),
-		GlobalRANNodeID: Ptr(GlobalRANNodeID{
-			Kind:         RANNodeIDGNB,
-			PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10},
-			Value:        0x000102,
-			Bits:         24,
-		}),
+		GlobalRANNodeID:  Ptr(NewGlobalGNBID(PLMNIdentity{0x00, 0xf1, 0x10}, 0x000102, 24)),
 	}
 }
 
@@ -48,7 +43,7 @@ func TestRANConfigurationUpdateGoldenEncode(t *testing.T) {
 		{
 			"failure",
 			(&RANConfigurationUpdateFailure{
-				Cause:      Ptr(Cause{Group: CauseGroupMisc, Value: CauseMiscUnknownPLMNOrSNPN}),
+				Cause:      Ptr(CauseMiscUnknownPLMNOrSNPN.Cause()),
 				TimeToWait: Ptr(TimeToWaitV10s),
 			}).Marshal,
 			goldenRANConfigUpdateFailure,
@@ -103,7 +98,7 @@ func TestRANConfigurationUpdateGoldenDecode(t *testing.T) {
 		t.Fatal("GlobalRANNodeID = nil")
 	}
 
-	if got := *msg.GlobalRANNodeID; got != deref(want.GlobalRANNodeID) {
+	if got := *msg.GlobalRANNodeID; !got.Equal(deref(want.GlobalRANNodeID)) {
 		t.Errorf("GlobalRANNodeID = %+v, want %+v", got, deref(want.GlobalRANNodeID))
 	}
 }
@@ -168,8 +163,8 @@ func TestRANConfigurationUpdateFailureGoldenDecode(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	want := Cause{Group: CauseGroupMisc, Value: CauseMiscUnknownPLMNOrSNPN}
-	if deref(msg.Cause) != want {
+	want := CauseMiscUnknownPLMNOrSNPN.Cause()
+	if !deref(msg.Cause).Equal(want) {
 		t.Errorf("cause = %v, want %v", deref(msg.Cause), want)
 	}
 
@@ -185,7 +180,7 @@ func TestRANConfigurationUpdateFailureMissingCause(t *testing.T) {
 		t.Error("Marshal() = nil error, want a required-IE error for the absent Cause")
 	}
 
-	value := container(t, ieField{id: IDTimeToWait, crit: CriticalityIgnore, val: TimeToWaitV10s})
+	value := container(t, ieField{ID: IDTimeToWait, Criticality: CriticalityIgnore, Value: TimeToWaitV10s})
 
 	msg, err := ParseRANConfigurationUpdateFailure(value)
 	if err != nil {
@@ -201,7 +196,7 @@ func TestRANConfigurationUpdateFailureMissingCause(t *testing.T) {
 	var reported bool
 
 	for _, ie := range diag.IEs {
-		if ie.ID == IDCause && ie.TypeOfError == TypeOfErrorMissing {
+		if ie.ID == IDCause && typeOfError(ie) == TypeOfErrorMissing {
 			reported = true
 		}
 	}

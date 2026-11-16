@@ -215,10 +215,7 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected SecurityKey=%s, got %s", expectedKey, securityKey)
 	}
 
-	// The library does not model Mobility Restriction List — this AMF never
-	// sends it — so it is preserved and rendered as an unmodeled IE, after every
-	// modeled one, rather than decoded in place.
-	item6 := ngapMsg.Value.IEs[6]
+	item6 := ngapMsg.Value.IEs[7]
 
 	if item6.ID.Value != int64(lib.IDNASPDU) {
 		t.Errorf("IE id = %d, want %d", item6.ID.Value, lib.IDNASPDU)
@@ -240,20 +237,20 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Errorf("expected RawHex=%s, got %s", expectedHex, nasPdu.RawHex)
 	}
 
-	var unmodeled *IE
+	var mrl *IE
 
 	for i := range ngapMsg.Value.IEs {
 		if ngapMsg.Value.IEs[i].ID.Value == int64(lib.IDMobilityRestrictionList) {
-			unmodeled = &ngapMsg.Value.IEs[i]
+			mrl = &ngapMsg.Value.IEs[i]
 		}
 	}
 
-	if unmodeled == nil {
-		t.Fatal("Mobility Restriction List was dropped; it must be preserved as an unmodeled IE")
+	if mrl == nil {
+		t.Fatal("Mobility Restriction List was dropped")
 	}
 
-	if _, ok := unmodeled.Value.(rawIEValue); !ok {
-		t.Errorf("unmodeled IE value = %T, want rawIEValue", unmodeled.Value)
+	if _, ok := mrl.Value.(MobilityRestrictionList); !ok {
+		t.Errorf("Mobility Restriction List value = %T, want MobilityRestrictionList", mrl.Value)
 	}
 }
 

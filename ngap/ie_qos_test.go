@@ -5,10 +5,11 @@ package ngap
 
 import (
 	"encoding/hex"
-	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 const (
@@ -44,7 +45,7 @@ func TestAllocationAndRetentionPriorityGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out != in {
+	if !out.Equal(in) {
 		t.Fatalf("round trip %+v, want %+v", out, in)
 	}
 }
@@ -148,20 +149,20 @@ func TestQosGoldens(t *testing.T) {
 		{"MaximumDataBurstVolumeRoot", mdbv4095, goldenMaximumDataBurstVolumeRoot},
 		{"MaximumDataBurstVolumeExt", MaximumDataBurstVolume(100000), goldenMaximumDataBurstVolumeExt},
 		{"QosCharacteristicsNonDynamic", &QosCharacteristics{
-			Kind: QosCharacteristicsNonDynamic5QI, NonDynamic5QI: NonDynamic5QIDescriptor{FiveQI: 9},
+			NonDynamic5QI: &NonDynamic5QIDescriptor{FiveQI: 9},
 		}, goldenQosCharacteristicsNonDynamic},
 		{"QosCharacteristicsDynamic", &QosCharacteristics{
-			Kind: QosCharacteristicsDynamic5QI, Dynamic5QI: dyn,
+			Dynamic5QI: &dyn,
 		}, goldenQosCharacteristicsDynamic},
 		{"QosFlowLevelQosParametersMin", &QosFlowLevelQosParameters{
 			QosCharacteristics: QosCharacteristics{
-				Kind: QosCharacteristicsNonDynamic5QI, NonDynamic5QI: NonDynamic5QIDescriptor{FiveQI: 9},
+				NonDynamic5QI: &NonDynamic5QIDescriptor{FiveQI: 9},
 			},
 			AllocationAndRetentionPriority: arp,
 		}, goldenQosFlowLevelQosParametersMin},
 		{"QosFlowLevelQosParametersFull", &QosFlowLevelQosParameters{
 			QosCharacteristics: QosCharacteristics{
-				Kind: QosCharacteristicsDynamic5QI, Dynamic5QI: dyn,
+				Dynamic5QI: &dyn,
 			},
 			AllocationAndRetentionPriority: arp,
 			ReflectiveQosAttribute:         &reflective,
@@ -208,30 +209,39 @@ func TestDynamic5QIRoundTrip(t *testing.T) {
 	}
 
 	if out.PriorityLevelQos != in.PriorityLevelQos || out.PacketDelayBudget != in.PacketDelayBudget ||
-		out.PacketErrorRate != in.PacketErrorRate || *out.FiveQI != fiveQI ||
+		!out.PacketErrorRate.Equal(in.PacketErrorRate) || *out.FiveQI != fiveQI ||
 		*out.DelayCritical != delayCritical || *out.AveragingWindow != avg ||
 		*out.MaximumDataBurstVolume != mdbv {
 		t.Fatalf("round trip %+v, want %+v", out, in)
 	}
 }
 
-// PriorityLevelQos is (1..127): zero is below the lower bound and must not
-// encode as if it were the first root value.
-func TestPriorityLevelQosRejectsZero(t *testing.T) {
-	w := per.NewWriter()
-	if err := PriorityLevelQos(0).MarshalPER(w, per.Aligned); err == nil {
-		t.Fatal("encoded a PriorityLevelQos of 0")
+func TestQosCharacteristicsRejectsNoAlternative(t *testing.T) {
+	if err := (&QosCharacteristics{}).MarshalPER(per.NewWriter(), per.Aligned); err == nil {
+		t.Error("encoded a QosCharacteristics with no alternative")
 	}
 }
 
-func TestQosCharacteristicsRejectsUnknownKind(t *testing.T) {
-	// Kind 2 is the choice-Extensions index: encoding it would emit that index
-	// with a Dynamic5QI body. A far-out-of-range kind would pass a weaker guard.
-	for _, kind := range []QosCharacteristicsKind{qosCharacteristicsChoiceExtensions, 7} {
-		w := per.NewWriter()
-		if err := (QosCharacteristics{Kind: kind}).MarshalPER(w, per.Aligned); err == nil {
-			t.Errorf("encoded QosCharacteristics kind %d", kind)
-		}
+func TestQosCharacteristicsKeepsChoiceExtension(t *testing.T) {
+	in := QosCharacteristics{ChoiceExtension: &SingleContainer{ID: 999, Criticality: CriticalityIgnore, Value: "\x01"}}
+
+	b, err := per.Marshal(&in, per.Aligned)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var out QosCharacteristics
+	if err := per.Unmarshal(b, &out); err != nil {
+		t.Fatalf("decode is lenient, got %v", err)
+	}
+
+	if out.ChoiceExtension == nil || *out.ChoiceExtension != *in.ChoiceExtension {
+		t.Fatalf("choice-Extensions = %+v, want %+v", out.ChoiceExtension, in.ChoiceExtension)
+	}
+
+	d := ap.Diagnose[ProtocolIEID](&out)
+	if len(d.IEs) != 1 || d.IEs[0].ID != 999 || d.IEs[0].Kind != ap.KindNotComprehended {
+		t.Fatalf("diagnostics = %+v, want the unknown alternative", d.IEs)
 	}
 }
 
@@ -265,7 +275,7 @@ func TestQosFlowListGoldens(t *testing.T) {
 
 	qp := QosFlowLevelQosParameters{
 		QosCharacteristics: QosCharacteristics{
-			Kind: QosCharacteristicsNonDynamic5QI, NonDynamic5QI: NonDynamic5QIDescriptor{FiveQI: 9},
+			NonDynamic5QI: &NonDynamic5QIDescriptor{FiveQI: 9},
 		},
 		AllocationAndRetentionPriority: AllocationAndRetentionPriority{
 			PriorityLevelARP:        1,
@@ -276,15 +286,15 @@ func TestQosFlowListGoldens(t *testing.T) {
 
 	tnl := QosFlowPerTNLInformation{
 		UPTransportLayerInformation: UPTransportLayerInformation{
-			GTPTunnel: GTPTunnel{
-				TransportLayerAddress: TransportLayerAddress{192, 168, 1, 1},
+			GTPTunnel: &GTPTunnel{
+				TransportLayerAddress: tlaOf(192, 168, 1, 1),
 				GTPTEID:               1,
 			},
 		},
 		AssociatedQosFlowList: AssociatedQosFlowList{{QosFlowIdentifier: 3}},
 	}
 
-	cause := Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified}
+	cause := CauseRadioNetworkUnspecified.Cause()
 
 	for _, c := range []struct {
 		name   string
@@ -342,15 +352,15 @@ func TestQosFlowListsRejectOversizedAndEmpty(t *testing.T) {
 		QosFlowIdentifier: 1,
 		QosFlowLevelQosParameters: QosFlowLevelQosParameters{
 			QosCharacteristics: QosCharacteristics{
-				Kind: QosCharacteristicsNonDynamic5QI, NonDynamic5QI: NonDynamic5QIDescriptor{FiveQI: 9},
+				NonDynamic5QI: &NonDynamic5QIDescriptor{FiveQI: 9},
 			},
 			AllocationAndRetentionPriority: AllocationAndRetentionPriority{PriorityLevelARP: 1},
 		},
 	}
 
 	tnl := QosFlowPerTNLInformationItem{QosFlowPerTNLInformation: QosFlowPerTNLInformation{
-		UPTransportLayerInformation: UPTransportLayerInformation{GTPTunnel: GTPTunnel{
-			TransportLayerAddress: TransportLayerAddress{192, 168, 1, 1}, GTPTEID: 1,
+		UPTransportLayerInformation: UPTransportLayerInformation{GTPTunnel: &GTPTunnel{
+			TransportLayerAddress: tlaOf(192, 168, 1, 1), GTPTEID: 1,
 		}},
 		AssociatedQosFlowList: AssociatedQosFlowList{{QosFlowIdentifier: 3}},
 	}}
@@ -484,7 +494,7 @@ func TestPDUSessionTypeRootCount(t *testing.T) {
 		{PDUSessionTypeUnstructured, "40"},
 	} {
 		w := per.NewWriter()
-		if err := per.EncodeEnumerated(w, per.Aligned, pduSessionTypeRootCount, true, int64(c.v)); err != nil {
+		if err := per.EncodeEnumerated(w, per.Aligned, int64(len(enumPDUSessionType.Root)), true, int64(c.v)); err != nil {
 			t.Fatal(err)
 		}
 
@@ -494,38 +504,25 @@ func TestPDUSessionTypeRootCount(t *testing.T) {
 	}
 }
 
-func TestNetworkInstanceRejectsZero(t *testing.T) {
-	w := per.NewWriter()
-	if err := NetworkInstance(0).MarshalPER(w, per.Aligned); err == nil {
-		t.Fatal("encoded a NetworkInstance of 0, lower bound is 1")
-	}
-}
-
-// The ENUMERATED root counts are inlined into per_gen.go from the struct tags,
-// so these constants document rather than drive. They cannot be pinned by a
-// golden either: counts 3 and 4 share an X.691 §11.5.7.1 row, so every root
-// value encodes identically under both, and a decoder built one wider simply
-// reads fewer bits and misparses downstream instead of erroring. Pinning the
-// values against the ASN.1 module is what is left.
 func TestQosEnumRootCountsMatchSpec(t *testing.T) {
 	for _, c := range []struct {
 		name string
-		got  int
-		want int
+		got  int64
+		want int64
 	}{
-		{"Pre-emptionCapability", preemptionCapabilityRootCount, 2},
-		{"Pre-emptionVulnerability", preemptionVulnerabilityRootCount, 2},
-		{"NotificationControl", notificationControlRootCount, 1},
-		{"DelayCritical", delayCriticalRootCount, 2},
-		{"ReflectiveQosAttribute", reflectiveQosAttributeRootCount, 1},
-		{"AdditionalQosFlowInformation", additionalQosFlowInformationRootCount, 1},
-		{"QosFlowMappingIndication", qosFlowMappingIndicationRootCount, 2},
-		{"PDUSessionType", pduSessionTypeRootCount, 5},
-		{"IntegrityProtectionIndication", integrityProtectionIndicationRootCount, 3},
-		{"ConfidentialityProtectionIndication", confidentialityProtectionIndicationRootCount, 3},
-		{"IntegrityProtectionResult", integrityProtectionResultRootCount, 2},
-		{"ConfidentialityProtectionResult", confidentialityProtectionResultRootCount, 2},
-		{"MaximumIntegrityProtectedDataRate", maximumIntegrityProtectedDataRateRootCount, 2},
+		{"Pre-emptionCapability", int64(len(enumPreemptionCapability.Root)), 2},
+		{"Pre-emptionVulnerability", int64(len(enumPreemptionVulnerability.Root)), 2},
+		{"NotificationControl", int64(len(enumNotificationControl.Root)), 1},
+		{"DelayCritical", int64(len(enumDelayCritical.Root)), 2},
+		{"ReflectiveQosAttribute", int64(len(enumReflectiveQosAttribute.Root)), 1},
+		{"AdditionalQosFlowInformation", int64(len(enumAdditionalQosFlowInformation.Root)), 1},
+		{"QosFlowMappingIndication", int64(len(enumQosFlowMappingIndication.Root)), 2},
+		{"PDUSessionType", int64(len(enumPDUSessionType.Root)), 5},
+		{"IntegrityProtectionIndication", int64(len(enumIntegrityProtectionIndication.Root)), 3},
+		{"ConfidentialityProtectionIndication", int64(len(enumConfidentialityProtectionIndication.Root)), 3},
+		{"IntegrityProtectionResult", int64(len(enumIntegrityProtectionResult.Root)), 2},
+		{"ConfidentialityProtectionResult", int64(len(enumConfidentialityProtectionResult.Root)), 2},
+		{"MaximumIntegrityProtectedDataRate", int64(len(enumMaximumIntegrityProtectedDataRate.Root)), 2},
 	} {
 		if c.got != c.want {
 			t.Errorf("%s root count is %d, TS 38.413 ASN.1 says %d", c.name, c.got, c.want)
@@ -556,13 +553,12 @@ func TestExtensibleIntConsumesExtensionValue(t *testing.T) {
 
 	var pdb PacketDelayBudget
 
-	err := pdb.UnmarshalPER(r, per.Aligned)
-	if err == nil {
-		t.Fatal("extension value decoded as a root value")
+	if err := pdb.UnmarshalPER(r, per.Aligned); err != nil {
+		t.Fatal(err)
 	}
 
-	if !errors.Is(err, errNotComprehended) {
-		t.Fatalf("err = %v, want errNotComprehended so criticality decides", err)
+	if pdb != 1024 || !pdb.Diagnose(&ap.Diagnosis[ProtocolIEID]{}) {
+		t.Fatalf("PacketDelayBudget = %d, want 1024 kept and reported not comprehended", pdb)
 	}
 
 	// The payload for the next field is only reachable if the extension value
@@ -577,28 +573,45 @@ func TestExtensibleIntConsumesExtensionValue(t *testing.T) {
 	}
 }
 
-// 3GPP defines no extension addition for these constraints, so there is no
-// legal out-of-root value to send.
-func TestExtensibleIntRefusesOutOfRootOnEncode(t *testing.T) {
-	w := per.NewWriter()
-	if err := PacketDelayBudget(1024).MarshalPER(w, per.Aligned); err == nil {
-		t.Error("encoded a PacketDelayBudget above the root with no addition defined")
-	}
+func TestExtensibleIntOutOfRootValuesRoundTripAndAreNotComprehended(t *testing.T) {
+	for _, v := range []interface {
+		per.Marshaler
+		ap.Diagnosable[ProtocolIEID]
+	}{
+		PriorityLevelQos(0),
+		NetworkInstance(0),
+		PacketDelayBudget(1024),
+		DRBID(0),
+		FiveQI(255),
+		MaximumDataBurstVolume(2000001),
+	} {
+		w := per.NewWriter()
+		if err := v.MarshalPER(w, per.Aligned); err != nil {
+			t.Fatalf("%T(%v): %v", v, v, err)
+		}
 
-	if n := len(perBytes(w)); n != 0 {
-		t.Errorf("wrote %d bytes on a refused encode, want none", n)
+		out := reflect.New(reflect.TypeOf(v))
+
+		if err := out.Interface().(per.Unmarshaler).UnmarshalPER(per.NewReader(perBytes(w)), per.Aligned); err != nil {
+			t.Fatalf("%T: decode: %v", v, err)
+		}
+
+		if got := out.Elem().Interface(); got != v {
+			t.Errorf("%T round trip = %v, want %v", v, got, v)
+		}
+
+		_, isFiveQI := v.(FiveQI)
+		if got := v.Diagnose(&ap.Diagnosis[ProtocolIEID]{}); got == isFiveQI {
+			t.Errorf("%T(%v).Diagnose() = %v", v, v, got)
+		}
 	}
 }
 
-// MaximumDataBurstVolume ::= INTEGER (0..4095, ..., 4096..2000000): the
-// extension branch is unconstrained on the wire, so both ends need bounding.
-func TestMaximumDataBurstVolumeIsBounded(t *testing.T) {
-	w := per.NewWriter()
-	if err := MaximumDataBurstVolume(2000001).MarshalPER(w, per.Aligned); err == nil {
-		t.Error("encoded a value above the extension range ceiling")
+func TestMaximumDataBurstVolumeExtensionRange(t *testing.T) {
+	if MaximumDataBurstVolume(2000000).Diagnose(&ap.Diagnosis[ProtocolIEID]{}) {
+		t.Error("the top of the extension range is a known value")
 	}
 
-	// Extension bit, one length octet, then 0xff — two's complement -1.
 	neg := per.NewWriter()
 	neg.WriteBit(true)
 	neg.AlignToByte()

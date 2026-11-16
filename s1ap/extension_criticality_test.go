@@ -4,10 +4,13 @@
 package s1ap
 
 import (
+	"bytes"
 	"errors"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // A real reject-criticality SupportedTAs-Item extension this version does not
@@ -56,11 +59,11 @@ func extendedTAI(t *testing.T, crit Criticality) []byte {
 // extension's id rather than the container's.
 func TestRejectExtensionInsideIgnoreIERejects(t *testing.T) {
 	_, err := ParseUplinkNASTransport(container(t,
-		ieField{id: IDMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
-		ieField{id: IDENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(2)},
-		ieField{id: IDNASPDU, crit: CriticalityReject, val: NASPDU{0x7e, 0x00}},
-		ieField{id: IDEUTRANCGI, crit: CriticalityIgnore, val: &EUTRANCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0x0abcde1}},
-		ieField{id: IDTAI, crit: CriticalityIgnore, raw: extendedTAI(t, CriticalityReject)},
+		ieField{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: MMEUES1APID(1)},
+		ieField{ID: IDENBUES1APID, Criticality: CriticalityReject, Value: ENBUES1APID(2)},
+		ieField{ID: IDNASPDU, Criticality: CriticalityReject, Value: NASPDU{0x7e, 0x00}},
+		ieField{ID: IDEUTRANCGI, Criticality: CriticalityIgnore, Value: &EUTRANCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0x0abcde1}},
+		ieField{ID: IDTAI, Criticality: CriticalityIgnore, Value: apimpl.RawValue(extendedTAI(t, CriticalityReject))},
 	))
 
 	var ase *AbstractSyntaxError
@@ -84,11 +87,11 @@ func TestRejectExtensionInsideIgnoreIERejects(t *testing.T) {
 // §10.3.4.2: an ignore extension is skipped and its IE still delivered.
 func TestIgnoreExtensionKeepsItsIE(t *testing.T) {
 	msg, err := ParseUplinkNASTransport(container(t,
-		ieField{id: IDMMEUES1APID, crit: CriticalityReject, val: MMEUES1APID(1)},
-		ieField{id: IDENBUES1APID, crit: CriticalityReject, val: ENBUES1APID(2)},
-		ieField{id: IDNASPDU, crit: CriticalityReject, val: NASPDU{0x7e, 0x00}},
-		ieField{id: IDEUTRANCGI, crit: CriticalityIgnore, val: &EUTRANCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0x0abcde1}},
-		ieField{id: IDTAI, crit: CriticalityIgnore, raw: extendedTAI(t, CriticalityIgnore)},
+		ieField{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: MMEUES1APID(1)},
+		ieField{ID: IDENBUES1APID, Criticality: CriticalityReject, Value: ENBUES1APID(2)},
+		ieField{ID: IDNASPDU, Criticality: CriticalityReject, Value: NASPDU{0x7e, 0x00}},
+		ieField{ID: IDEUTRANCGI, Criticality: CriticalityIgnore, Value: &EUTRANCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, CellID: 0x0abcde1}},
+		ieField{ID: IDTAI, Criticality: CriticalityIgnore, Value: apimpl.RawValue(extendedTAI(t, CriticalityIgnore))},
 	))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -103,77 +106,66 @@ func TestIgnoreExtensionKeepsItsIE(t *testing.T) {
 	}
 }
 
-// erabHOReqExtensions encodes a ProtocolExtensionContainer for
-// ERABToBeSetupItemHOReq holding one unmodeled extension, optionally followed
-// by the modeled id-Data-Forwarding-Not-Possible.
-func erabHOReqExtensions(t *testing.T, unmodeledCrit Criticality, withModeled bool) []byte {
+func erabHOReqWithUnknownExtension(t *testing.T, crit Criticality) []byte {
 	t.Helper()
 
-	count := int64(1)
-	if withModeled {
-		count = 2
+	in := ERABToBeSetupItemHOReq{
+		ERABID:                    1,
+		TransportLayerAddress:     tlaOf(10, 0, 0, 1),
+		GTPTEID:                   1,
+		QoS:                       ERABLevelQoSParameters{QCI: 9},
+		DataForwardingNotPossible: Ptr(DataForwardingNotPossibleTrue),
+	}
+	in.iEExtensions.Append(ap.Field[ProtocolIEID]{ID: idRATType, Criticality: crit, Value: []byte{0x00}})
+
+	b, err := per.Marshal(&in, per.Aligned)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	w := per.NewWriter()
-
-	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 1, maxProtocolExtensions, count); err != nil {
-		t.Fatalf("ext count: %v", err)
-	}
-
-	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, maxProtocolIEs, int64(idRATType)); err != nil {
-		t.Fatalf("ext id: %v", err)
-	}
-
-	if err := per.EncodeEnumerated(w, per.Aligned, criticalityRootCount, false, int64(unmodeledCrit)); err != nil {
-		t.Fatalf("ext criticality: %v", err)
-	}
-
-	if err := per.EncodeOpenTypeBytes(w, per.Aligned, []byte{0x00}); err != nil {
-		t.Fatalf("ext value: %v", err)
-	}
-
-	if withModeled {
-		if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, maxProtocolIEs, int64(IDDataForwardingNotPossible)); err != nil {
-			t.Fatalf("modeled ext id: %v", err)
-		}
-
-		if err := per.EncodeEnumerated(w, per.Aligned, criticalityRootCount, false, int64(CriticalityIgnore)); err != nil {
-			t.Fatalf("modeled ext criticality: %v", err)
-		}
-
-		if err := per.EncodeOpenTypeBytes(w, per.Aligned, []byte{0x00}); err != nil {
-			t.Fatalf("modeled ext value: %v", err)
-		}
-	}
-
-	w.AlignToByte()
-
-	return w.Bytes()
+	return b
 }
 
 func TestERABToBeSetupItemHOReqUnmodeledRejectExtension(t *testing.T) {
-	var ext ERABToBeSetupItemHOReqExtIEs
+	in := erabHOReqWithUnknownExtension(t, CriticalityReject)
 
-	err := ext.UnmarshalPER(per.NewReader(erabHOReqExtensions(t, CriticalityReject, false)), per.Aligned)
-
-	var nc *notComprehendedIE
-	if !errors.As(err, &nc) {
-		t.Fatalf("err = %v, want the extension not comprehended", err)
+	var item ERABToBeSetupItemHOReq
+	if err := item.UnmarshalPER(per.NewReader(in), per.Aligned); err != nil {
+		t.Fatalf("decode is lenient, got %v", err)
 	}
 
-	if nc.ID != idRATType {
-		t.Errorf("reported id = %d, want %d", nc.ID, idRATType)
+	if item.DataForwardingNotPossible == nil {
+		t.Fatal("Data Forwarding Not Possible: got absent, want present alongside the unknown extension")
+	}
+
+	d := ap.Diagnose[ProtocolIEID](&item)
+	if len(d.IEs) != 1 || d.IEs[0].ID != idRATType || d.IEs[0].Criticality != CriticalityReject || d.IEs[0].Kind != ap.KindNotComprehended {
+		t.Fatalf("diagnostics = %+v, want the reject extension not comprehended", d.IEs)
+	}
+
+	var ase *ap.AbstractSyntaxError[ProtocolIEID]
+	if !errors.As(d.Check(), &ase) {
+		t.Fatalf("Check() = %v, want the reject extension to reject", d.Check())
+	}
+
+	out, err := per.Marshal(&item, per.Aligned)
+	if err != nil || !bytes.Equal(out, in) {
+		t.Fatalf("re-encode = %x, %v; want %x", out, err, in)
 	}
 }
 
 func TestERABToBeSetupItemHOReqUnmodeledIgnoreExtension(t *testing.T) {
-	var ext ERABToBeSetupItemHOReqExtIEs
+	var item ERABToBeSetupItemHOReq
 
-	if err := ext.UnmarshalPER(per.NewReader(erabHOReqExtensions(t, CriticalityIgnore, true)), per.Aligned); err != nil {
+	if err := item.UnmarshalPER(per.NewReader(erabHOReqWithUnknownExtension(t, CriticalityIgnore)), per.Aligned); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 
-	if ext.DataForwardingNotPossible == nil {
+	if item.DataForwardingNotPossible == nil {
 		t.Fatal("Data Forwarding Not Possible: got absent, want present alongside the ignored extension")
+	}
+
+	if err := ap.Diagnose[ProtocolIEID](&item).Check(); err != nil {
+		t.Fatalf("Check() = %v, want an ignore extension to pass", err)
 	}
 }

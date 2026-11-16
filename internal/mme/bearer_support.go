@@ -49,8 +49,8 @@ type bearerStore interface {
 // §9.2.1.40, TS 33.401).
 func S1apSecurityCapabilities(uecap eps.UENetworkCapability) s1ap.UESecurityCapabilities {
 	return s1ap.UESecurityCapabilities{
-		EncryptionAlgorithms:          uint16(uecap.EEA<<1) << 8,
-		IntegrityProtectionAlgorithms: uint16(uecap.EIA<<1) << 8,
+		EncryptionAlgorithms:          s1ap.SecurityAlgorithms{Value: uint16(uecap.EEA<<1) << 8},
+		IntegrityProtectionAlgorithms: s1ap.SecurityAlgorithms{Value: uint16(uecap.EIA<<1) << 8},
 	}
 }
 

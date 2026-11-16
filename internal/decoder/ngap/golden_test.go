@@ -14,6 +14,7 @@ import (
 
 	lib "github.com/ellanetworks/core/ngap"
 	"github.com/ellanetworks/core/nrppa"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 // Regenerate with: go test ./internal/decoder/ngap/ -run TestDecoderGolden -update
@@ -91,7 +92,7 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 
 	psReqTransfer, err := (&lib.PathSwitchRequestTransfer{
 		DLNGUUPTNLInformation: lib.UPTransportLayerInformation{
-			GTPTunnel: lib.GTPTunnel{TransportLayerAddress: lib.TransportLayerAddress{10, 45, 0, 1}, GTPTEID: 0x21},
+			GTPTunnel: &lib.GTPTunnel{TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 45, 0, 1}), GTPTEID: 0x21},
 		},
 		QosFlowAccepted: lib.QosFlowAcceptedList{{QosFlowIdentifier: 1}},
 	}).Marshal()
@@ -101,7 +102,7 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 
 	psAckTransfer, err := (&lib.PathSwitchRequestAcknowledgeTransfer{
 		ULNGUUPTNLInformation: &lib.UPTransportLayerInformation{
-			GTPTunnel: lib.GTPTunnel{TransportLayerAddress: lib.TransportLayerAddress{10, 46, 0, 1}, GTPTEID: 0x31},
+			GTPTunnel: &lib.GTPTunnel{TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 46, 0, 1}), GTPTEID: 0x31},
 		},
 	}).Marshal()
 	if err != nil {
@@ -109,28 +110,24 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 	}
 
 	psFailTransfer, err := (&lib.PathSwitchRequestUnsuccessfulTransfer{
-		Cause: lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 0},
+		Cause: lib.CauseRadioNetwork(0).Cause(),
 	}).Marshal()
 	if err != nil {
 		t.Fatalf("build Path Switch Request Unsuccessful Transfer: %v", err)
 	}
 
 	corpus["path_switch_request_full"] = mustMarshal(t, &lib.PathSwitchRequest{
-		RANUENGAPID:       3,
-		SourceAMFUENGAPID: 7,
-		UserLocationInformation: &lib.UserLocationInformation{
-			Kind:         lib.UserLocationNR,
-			PLMNIdentity: testPLMN,
-			CellIdentity: 0x000000010,
-			TAI:          testTAI,
-		},
+		RANUENGAPID:             3,
+		SourceAMFUENGAPID:       7,
+		UserLocationInformation: &lib.UserLocationInformation{NR: &lib.UserLocationInformationNR{NRCGI: lib.NRCGI{PLMNIdentity: testPLMN, NRCellIdentity: lib.NRCellIdentity(0x000000010)}, TAI: testTAI}},
 		UESecurityCapabilities: &lib.UESecurityCapabilities{
-			NREncryptionAlgorithms: 0xe000, NRIntegrityProtectionAlgorithms: 0xe000,
-			EUTRAEncryptionAlgorithms: 0xe000, EUTRAIntegrityProtectionAlgorithms: 0xe000,
+			NREncryptionAlgorithms: lib.SecurityAlgorithmsFrom(0xe000), NRIntegrityProtectionAlgorithms: lib.SecurityAlgorithmsFrom(0xe000),
+			EUTRAEncryptionAlgorithms: lib.SecurityAlgorithmsFrom(0xe000), EUTRAIntegrityProtectionAlgorithms: lib.SecurityAlgorithmsFrom(0xe000),
 		},
 		PDUSessionResourceToBeSwitchedDLList: lib.PDUSessionResourceToBeSwitchedDLList{
 			{PDUSessionID: 1, Transfer: psReqTransfer},
 		},
+		SourceAMFGUAMI: &lib.GUAMI{PLMNIdentity: testPLMN, AMFRegionID: 0xca, AMFSetID: 0x3f8, AMFPointer: 0x01},
 	})
 
 	corpus["path_switch_request_acknowledge_full"] = mustMarshal(t, &lib.PathSwitchRequestAcknowledge{
@@ -153,21 +150,16 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 	})
 
 	corpus["ue_context_modification_response_full"] = mustMarshal(t, &lib.UEContextModificationResponse{
-		AMFUENGAPID: lib.Ptr(lib.AMFUENGAPID(7)),
-		RANUENGAPID: lib.Ptr(lib.RANUENGAPID(3)),
-		UserLocationInformation: &lib.UserLocationInformation{
-			Kind:         lib.UserLocationNR,
-			PLMNIdentity: testPLMN,
-			CellIdentity: 0x000000010,
-			TAI:          testTAI,
-		},
-		CriticalityDiagnostics: &lib.CriticalityDiagnostics{ProcedureCode: lib.Ptr(lib.ProcUEContextModification)},
+		AMFUENGAPID:             lib.Ptr(lib.AMFUENGAPID(7)),
+		RANUENGAPID:             lib.Ptr(lib.RANUENGAPID(3)),
+		UserLocationInformation: &lib.UserLocationInformation{NR: &lib.UserLocationInformationNR{NRCGI: lib.NRCGI{PLMNIdentity: testPLMN, NRCellIdentity: lib.NRCellIdentity(0x000000010)}, TAI: testTAI}},
+		CriticalityDiagnostics:  &lib.CriticalityDiagnostics{ProcedureCode: lib.Ptr(lib.ProcUEContextModification)},
 	})
 
 	corpus["ue_context_modification_failure_full"] = mustMarshal(t, &lib.UEContextModificationFailure{
 		AMFUENGAPID: lib.Ptr(lib.AMFUENGAPID(7)),
 		RANUENGAPID: lib.Ptr(lib.RANUENGAPID(3)),
-		Cause:       &lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: lib.CauseRadioNetworkUnspecified},
+		Cause:       new(lib.CauseRadioNetworkUnspecified.Cause()),
 	})
 
 	corpus["path_switch_request_failure_full"] = mustMarshal(t, &lib.PathSwitchRequestFailure{
@@ -185,14 +177,13 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 			QosFlowIdentifier: 1,
 			QosFlowLevelQosParameters: &lib.QosFlowLevelQosParameters{
 				QosCharacteristics: lib.QosCharacteristics{
-					Kind:          lib.QosCharacteristicsNonDynamic5QI,
-					NonDynamic5QI: lib.NonDynamic5QIDescriptor{FiveQI: 9},
+					NonDynamic5QI: &lib.NonDynamic5QIDescriptor{FiveQI: 9},
 				},
 				AllocationAndRetentionPriority: lib.AllocationAndRetentionPriority{PriorityLevelARP: 8},
 			},
 		}},
 		QosFlowToRelease: lib.QosFlowListWithCause{
-			{QosFlowIdentifier: 2, Cause: lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 0}},
+			{QosFlowIdentifier: 2, Cause: lib.CauseRadioNetwork(0).Cause()},
 		},
 	}).Marshal()
 	if err != nil {
@@ -201,11 +192,11 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 
 	modRespTransfer, err := (&lib.PDUSessionResourceModifyResponseTransfer{
 		DLNGUUPTNLInformation: &lib.UPTransportLayerInformation{
-			GTPTunnel: lib.GTPTunnel{TransportLayerAddress: lib.TransportLayerAddress{10, 45, 0, 1}, GTPTEID: 0x41},
+			GTPTunnel: &lib.GTPTunnel{TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 45, 0, 1}), GTPTEID: 0x41},
 		},
 		QosFlowAddOrModifyResponse: lib.QosFlowAddOrModifyResponseList{{QosFlowIdentifier: 1}},
 		QosFlowFailedToAddOrModify: lib.QosFlowListWithCause{
-			{QosFlowIdentifier: 2, Cause: lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 0}},
+			{QosFlowIdentifier: 2, Cause: lib.CauseRadioNetwork(0).Cause()},
 		},
 	}).Marshal()
 	if err != nil {
@@ -215,7 +206,7 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 	modIndTransfer, err := (&lib.PDUSessionResourceModifyIndicationTransfer{
 		DLQosFlowPerTNLInformation: lib.QosFlowPerTNLInformation{
 			UPTransportLayerInformation: lib.UPTransportLayerInformation{
-				GTPTunnel: lib.GTPTunnel{TransportLayerAddress: lib.TransportLayerAddress{10, 46, 0, 1}, GTPTEID: 0x51},
+				GTPTunnel: &lib.GTPTunnel{TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 46, 0, 1}), GTPTEID: 0x51},
 			},
 			AssociatedQosFlowList: lib.AssociatedQosFlowList{{QosFlowIdentifier: 1}},
 		},
@@ -227,7 +218,7 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 	modCfmTransfer, err := (&lib.PDUSessionResourceModifyConfirmTransfer{
 		QosFlowModifyConfirm: lib.QosFlowModifyConfirmList{{QosFlowIdentifier: 1}},
 		ULNGUUPTNLInformation: lib.UPTransportLayerInformation{
-			GTPTunnel: lib.GTPTunnel{TransportLayerAddress: lib.TransportLayerAddress{10, 47, 0, 1}, GTPTEID: 0x61},
+			GTPTunnel: &lib.GTPTunnel{TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 47, 0, 1}), GTPTEID: 0x61},
 		},
 	}).Marshal()
 	if err != nil {
@@ -235,7 +226,7 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 	}
 
 	modFailTransfer, err := (&lib.PDUSessionResourceModifyIndicationUnsuccessfulTransfer{
-		Cause: lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 0},
+		Cause: lib.CauseRadioNetwork(0).Cause(),
 	}).Marshal()
 	if err != nil {
 		t.Fatalf("build Modify Indication Unsuccessful Transfer: %v", err)
@@ -285,7 +276,7 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 
 	hoCommandTransfer, err := (&lib.HandoverCommandTransfer{
 		DLForwardingUPTNLInformation: &lib.UPTransportLayerInformation{
-			GTPTunnel: lib.GTPTunnel{TransportLayerAddress: lib.TransportLayerAddress{10, 45, 0, 9}, GTPTEID: 0x71},
+			GTPTunnel: &lib.GTPTunnel{TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 45, 0, 9}), GTPTEID: 0x71},
 		},
 		QosFlowToBeForwarded: lib.QosFlowToBeForwardedList{{QosFlowIdentifier: 1}},
 	}).Marshal()
@@ -295,7 +286,7 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 
 	hoAckTransfer, err := (&lib.HandoverRequestAcknowledgeTransfer{
 		DLNGUUPTNLInformation: lib.UPTransportLayerInformation{
-			GTPTunnel: lib.GTPTunnel{TransportLayerAddress: lib.TransportLayerAddress{10, 46, 0, 9}, GTPTEID: 0x81},
+			GTPTunnel: &lib.GTPTunnel{TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 46, 0, 9}), GTPTEID: 0x81},
 		},
 		SecurityResult:       &lib.SecurityResult{IntegrityProtectionResult: lib.IntegrityProtectionPerformed},
 		QosFlowSetupResponse: lib.QosFlowListWithDataForwarding{{QosFlowIdentifier: 1}},
@@ -305,14 +296,14 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 	}
 
 	hoAllocFailTransfer, err := (&lib.HandoverResourceAllocationUnsuccessfulTransfer{
-		Cause: lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 0},
+		Cause: lib.CauseRadioNetwork(0).Cause(),
 	}).Marshal()
 	if err != nil {
 		t.Fatalf("build Handover Resource Allocation Unsuccessful Transfer: %v", err)
 	}
 
 	hoPrepFailTransfer, err := (&lib.HandoverPreparationUnsuccessfulTransfer{
-		Cause: lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 0},
+		Cause: lib.CauseRadioNetwork(0).Cause(),
 	}).Marshal()
 	if err != nil {
 		t.Fatalf("build Handover Preparation Unsuccessful Transfer: %v", err)
@@ -320,15 +311,14 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 
 	hoSetupTransfer, err := (&lib.PDUSessionResourceSetupRequestTransfer{
 		ULNGUUPTNLInformation: lib.UPTransportLayerInformation{
-			GTPTunnel: lib.GTPTunnel{TransportLayerAddress: lib.TransportLayerAddress{10, 47, 0, 9}, GTPTEID: 0x91},
+			GTPTunnel: &lib.GTPTunnel{TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 47, 0, 9}), GTPTEID: 0x91},
 		},
 		PDUSessionType: lib.PDUSessionTypeIPv4,
 		QosFlowSetupRequest: lib.QosFlowSetupRequestList{{
 			QosFlowIdentifier: 1,
 			QosFlowLevelQosParameters: lib.QosFlowLevelQosParameters{
 				QosCharacteristics: lib.QosCharacteristics{
-					Kind:          lib.QosCharacteristicsNonDynamic5QI,
-					NonDynamic5QI: lib.NonDynamic5QIDescriptor{FiveQI: 9},
+					NonDynamic5QI: &lib.NonDynamic5QIDescriptor{FiveQI: 9},
 				},
 				AllocationAndRetentionPriority: lib.AllocationAndRetentionPriority{PriorityLevelARP: 8},
 			},
@@ -342,16 +332,16 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		AMFUENGAPID:  7,
 		RANUENGAPID:  3,
 		HandoverType: lib.HandoverTypeIntra5GS,
-		Cause:        &lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 16},
+		Cause:        new(lib.CauseRadioNetwork(16).Cause()),
 		TargetID: lib.TargetID{TargetRANNodeID: &lib.TargetRANNodeID{
-			GlobalRANNodeID: lib.GlobalRANNodeID{Kind: lib.RANNodeIDGNB, PLMNIdentity: testPLMN, Value: 2, Bits: 22},
+			GlobalRANNodeID: lib.NewGlobalGNBID(testPLMN, 2, 22),
 			SelectedTAI:     testTAI,
 		}},
 		DirectForwardingPathAvailability: lib.Ptr(lib.DirectForwardingPathAvailable),
 		PDUSessionResourceListHORqd: lib.PDUSessionResourceListHORqd{
 			{PDUSessionID: 1, Transfer: hoRequiredTransfer},
 		},
-		SourceToTargetTransparentContainer: lib.SourceToTargetTransparentContainer{0x01, 0x02},
+		SourceToTargetTransparentContainer: testSourceNGRANContainer(t),
 	})
 
 	corpus["handover_command_full"] = mustMarshal(t, &lib.HandoverCommand{
@@ -368,30 +358,32 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 	corpus["handover_preparation_failure_full"] = mustMarshal(t, &lib.HandoverPreparationFailure{
 		AMFUENGAPID:            lib.Ptr(lib.AMFUENGAPID(7)),
 		RANUENGAPID:            lib.Ptr(lib.RANUENGAPID(3)),
-		Cause:                  &lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 0},
+		Cause:                  new(lib.CauseRadioNetwork(0).Cause()),
 		CriticalityDiagnostics: &lib.CriticalityDiagnostics{ProcedureCode: lib.Ptr(lib.ProcHandoverPreparation)},
 	})
 
 	corpus["handover_request_full"] = mustMarshal(t, &lib.HandoverRequest{
 		AMFUENGAPID:               7,
 		HandoverType:              lib.HandoverTypeIntra5GS,
-		Cause:                     &lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 16},
+		Cause:                     new(lib.CauseRadioNetwork(16).Cause()),
 		UEAggregateMaximumBitRate: lib.UEAggregateMaximumBitRate{DL: 200000000, UL: 100000000},
 		UESecurityCapabilities: lib.UESecurityCapabilities{
-			NREncryptionAlgorithms: 0xe000, NRIntegrityProtectionAlgorithms: 0xe000,
-			EUTRAEncryptionAlgorithms: 0xe000, EUTRAIntegrityProtectionAlgorithms: 0xe000,
+			NREncryptionAlgorithms: lib.SecurityAlgorithmsFrom(0xe000), NRIntegrityProtectionAlgorithms: lib.SecurityAlgorithmsFrom(0xe000),
+			EUTRAEncryptionAlgorithms: lib.SecurityAlgorithmsFrom(0xe000), EUTRAIntegrityProtectionAlgorithms: lib.SecurityAlgorithmsFrom(0xe000),
 		},
 		SecurityContext:                    lib.SecurityContext{NextHopChainingCount: 1, NextHopNH: lib.SecurityKey{0x0a}},
 		NewSecurityContextInd:              lib.Ptr(lib.NewSecurityContextIndTrue),
 		PDUSessionResourceSetupListHOReq:   lib.PDUSessionResourceSetupListHOReq{{PDUSessionID: 1, SNSSAI: lib.SNSSAI{SST: 1}, Transfer: hoSetupTransfer}},
 		AllowedNSSAI:                       lib.AllowedNSSAI{{SNSSAI: lib.SNSSAI{SST: 1}}},
-		SourceToTargetTransparentContainer: lib.SourceToTargetTransparentContainer{0x05, 0x06},
+		SourceToTargetTransparentContainer: testSourceNGRANContainer(t),
 		MobilityRestrictionList: &lib.MobilityRestrictionList{
 			ServingPLMN:     testPLMN,
 			EquivalentPLMNs: lib.EquivalentPLMNs{testPLMN},
-			RATRestrictions: lib.RATRestrictions{{PLMNIdentity: testPLMN, RATRestrictionInformation: lib.RATRestrictionEUTRA}},
+			RATRestrictions: lib.RATRestrictions{{PLMNIdentity: testPLMN, RATRestrictionInformation: lib.RATRestrictionInformationFrom(lib.RATRestrictionEUTRA)}},
 		},
-		GUAMI: lib.GUAMI{PLMNIdentity: testPLMN, AMFRegionID: 1, AMFSetID: 1, AMFPointer: 0},
+		GUAMI:           lib.GUAMI{PLMNIdentity: testPLMN, AMFRegionID: 1, AMFSetID: 1, AMFPointer: 0},
+		AMFUENGAPID2:    lib.Ptr(lib.AMFUENGAPID(9)),
+		TargetRANNodeID: new(lib.NewGlobalGNBID(testPLMN, 2, 22)),
 	})
 
 	corpus["handover_request_acknowledge_full"] = mustMarshal(t, &lib.HandoverRequestAcknowledge{
@@ -406,22 +398,20 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 
 	corpus["handover_failure_full"] = mustMarshal(t, &lib.HandoverFailure{
 		AMFUENGAPID:            lib.Ptr(lib.AMFUENGAPID(7)),
-		Cause:                  &lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 0},
+		Cause:                  new(lib.CauseRadioNetwork(0).Cause()),
 		CriticalityDiagnostics: &lib.CriticalityDiagnostics{ProcedureCode: lib.Ptr(lib.ProcHandoverResourceAllocation)},
 	})
 
 	corpus["handover_notify_full"] = mustMarshal(t, &lib.HandoverNotify{
-		AMFUENGAPID: 7,
-		RANUENGAPID: 3,
-		UserLocationInformation: &lib.UserLocationInformation{
-			Kind: lib.UserLocationNR, PLMNIdentity: testPLMN, CellIdentity: 0x10, TAI: testTAI,
-		},
-		NotifySourceNGRANNode: lib.Ptr(lib.NotifySourceNGRANNodeNotifySource),
+		AMFUENGAPID:             7,
+		RANUENGAPID:             3,
+		UserLocationInformation: &lib.UserLocationInformation{NR: &lib.UserLocationInformationNR{NRCGI: lib.NRCGI{PLMNIdentity: testPLMN, NRCellIdentity: lib.NRCellIdentity(0x10)}, TAI: testTAI}},
+		NotifySourceNGRANNode:   lib.Ptr(lib.NotifySourceNGRANNodeNotifySource),
 	})
 
 	corpus["handover_cancel_full"] = mustMarshal(t, &lib.HandoverCancel{
 		AMFUENGAPID: 7, RANUENGAPID: 3,
-		Cause: &lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 0},
+		Cause: new(lib.CauseRadioNetwork(0).Cause()),
 	})
 
 	corpus["handover_cancel_acknowledge_full"] = mustMarshal(t, &lib.HandoverCancelAcknowledge{
@@ -434,10 +424,10 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		RANNodeName:      lib.Ptr("gnb01"),
 		SupportedTAList:  lib.SupportedTAList{{TAC: 1, BroadcastPLMNList: lib.BroadcastPLMNList{{PLMNIdentity: testPLMN, TAISliceSupportList: lib.SliceSupportList{{SNSSAI: lib.SNSSAI{SST: 1}}}}}}},
 		DefaultPagingDRX: lib.Ptr(lib.PagingDRXv128),
-		GlobalRANNodeID:  &lib.GlobalRANNodeID{Kind: lib.RANNodeIDGNB, PLMNIdentity: testPLMN, Value: 1, Bits: 22},
+		GlobalRANNodeID:  new(lib.NewGlobalGNBID(testPLMN, 1, 22)),
 		NGRANTNLAssociationToRemoveList: lib.NGRANTNLAssociationToRemoveList{{
-			TNLAssociationTransportLayerAddress:    lib.CPTransportLayerInformation{EndpointIPAddress: lib.TransportLayerAddress{10, 0, 0, 1}},
-			TNLAssociationTransportLayerAddressAMF: &lib.CPTransportLayerInformation{EndpointIPAddress: lib.TransportLayerAddress{10, 0, 0, 2}},
+			TNLAssociationTransportLayerAddress:    lib.CPTransportLayerInformation{EndpointIPAddress: lib.Ptr(ap.TransportLayerAddressFromOctets([]byte{10, 0, 0, 1}))},
+			TNLAssociationTransportLayerAddressAMF: &lib.CPTransportLayerInformation{EndpointIPAddress: lib.Ptr(ap.TransportLayerAddressFromOctets([]byte{10, 0, 0, 2}))},
 		}},
 	})
 
@@ -446,7 +436,7 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 	})
 
 	corpus["ran_configuration_update_failure_full"] = mustMarshal(t, &lib.RANConfigurationUpdateFailure{
-		Cause:                  &lib.Cause{Group: lib.CauseGroupMisc, Value: 3},
+		Cause:                  new(lib.CauseMisc(3).Cause()),
 		TimeToWait:             lib.Ptr(lib.TimeToWaitV10s),
 		CriticalityDiagnostics: &lib.CriticalityDiagnostics{ProcedureCode: lib.Ptr(lib.ProcRANConfigurationUpdate)},
 	})
@@ -468,13 +458,13 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 	})
 
 	corpus["ng_reset_all_full"] = mustMarshal(t, &lib.NGReset{
-		Cause:     &lib.Cause{Group: lib.CauseGroupMisc, Value: 3},
-		ResetType: lib.ResetType{All: true},
+		Cause:     new(lib.CauseMisc(3).Cause()),
+		ResetType: lib.ResetType{NGInterface: new(lib.ResetAllResetAll)},
 	})
 
 	corpus["ng_reset_part_full"] = mustMarshal(t, &lib.NGReset{
-		Cause: &lib.Cause{Group: lib.CauseGroupTransport, Value: 0},
-		ResetType: lib.ResetType{Part: lib.UEAssociatedLogicalNGConnectionList{
+		Cause: new(lib.CauseTransport(0).Cause()),
+		ResetType: lib.ResetType{PartOfNGInterface: &lib.UEAssociatedLogicalNGConnectionList{
 			{AMFUENGAPID: lib.Ptr(lib.AMFUENGAPID(7)), RANUENGAPID: lib.Ptr(lib.RANUENGAPID(3))},
 			{RANUENGAPID: lib.Ptr(lib.RANUENGAPID(4))},
 		}},
@@ -491,13 +481,13 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		AMFUENGAPID: 7,
 		RANUENGAPID: 3,
 		NASPDU:      lib.NASPDU{0x7e, 0x00, 0x44},
-		Cause:       &lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 27},
+		Cause:       new(lib.CauseRadioNetwork(27).Cause()),
 	})
 
 	corpus["paging_full"] = mustMarshal(t, &lib.Paging{
-		FiveGSTMSI:       &lib.FiveGSTMSI{AMFSetID: 1, AMFPointer: 2, FiveGTMSI: 0x01020304},
+		UEPagingIdentity: &lib.UEPagingIdentity{FiveGSTMSI: &lib.FiveGSTMSI{AMFSetID: 1, AMFPointer: 2, FiveGTMSI: 0x01020304}},
 		PagingDRX:        lib.Ptr(lib.PagingDRXv128),
-		TAIListForPaging: []lib.TAI{testTAI},
+		TAIListForPaging: lib.TAIListForPaging{{TAI: testTAI}},
 		PagingPriority:   lib.Ptr(lib.PagingPriority(0)),
 		UERadioCapabilityForPaging: &lib.UERadioCapabilityForPaging{
 			NR: lib.Ptr(lib.UERadioCapabilityForPagingOfNR{0xab, 0xcd}),
@@ -511,8 +501,8 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		GUAMI:        lib.GUAMI{PLMNIdentity: testPLMN, AMFRegionID: 2, AMFSetID: 1, AMFPointer: 0},
 		AllowedNSSAI: lib.AllowedNSSAI{{SNSSAI: lib.SNSSAI{SST: 1}}},
 		UESecurityCapabilities: lib.UESecurityCapabilities{
-			NREncryptionAlgorithms: 0xc000, NRIntegrityProtectionAlgorithms: 0xc000,
-			EUTRAEncryptionAlgorithms: 0xc000, EUTRAIntegrityProtectionAlgorithms: 0xc000,
+			NREncryptionAlgorithms: lib.SecurityAlgorithmsFrom(0xc000), NRIntegrityProtectionAlgorithms: lib.SecurityAlgorithmsFrom(0xc000),
+			EUTRAEncryptionAlgorithms: lib.SecurityAlgorithmsFrom(0xc000), EUTRAIntegrityProtectionAlgorithms: lib.SecurityAlgorithmsFrom(0xc000),
 		},
 		SecurityKey:       lib.SecurityKey{},
 		UERadioCapability: lib.UERadioCapability{0x01},
@@ -524,7 +514,7 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 	corpus["error_indication_full"] = mustMarshal(t, &lib.ErrorIndication{
 		AMFUENGAPID:            lib.Ptr(lib.AMFUENGAPID(1)),
 		RANUENGAPID:            lib.Ptr(lib.RANUENGAPID(2)),
-		Cause:                  &lib.Cause{Group: lib.CauseGroupProtocol, Value: 0},
+		Cause:                  new(lib.CauseProtocol(0).Cause()),
 		CriticalityDiagnostics: testDiagnostics(),
 		FiveGSTMSI:             &lib.FiveGSTMSI{AMFSetID: 1, AMFPointer: 2, FiveGTMSI: 0x01020304},
 	})
@@ -539,15 +529,15 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 		},
 	})
 
-	corpus["location_report_full"] = mustMarshal(t, &lib.LocationReport{
+	corpus["ue_tnla_binding_release_request"] = mustMarshal(t, &lib.UETNLABindingReleaseRequest{
 		AMFUENGAPID: 1,
 		RANUENGAPID: 2,
-		UserLocationInformation: &lib.UserLocationInformation{
-			Kind:         lib.UserLocationNR,
-			PLMNIdentity: testPLMN,
-			CellIdentity: 0x000000010,
-			TAI:          testTAI,
-		},
+	})
+
+	corpus["location_report_full"] = mustMarshal(t, &lib.LocationReport{
+		AMFUENGAPID:             1,
+		RANUENGAPID:             2,
+		UserLocationInformation: &lib.UserLocationInformation{NR: &lib.UserLocationInformationNR{NRCGI: lib.NRCGI{PLMNIdentity: testPLMN, NRCellIdentity: lib.NRCellIdentity(0x000000010)}, TAI: testTAI}},
 		UEPresenceInAreaOfInterestList: lib.UEPresenceInAreaOfInterestList{{
 			LocationReportingReferenceID: 1,
 			UEPresence:                   lib.UEPresenceIn,
@@ -584,6 +574,14 @@ func goldenCorpus(t *testing.T) map[string][]byte {
 	corpus["uplink_non_ue_associated_nrppa_transport"] = mustMarshal(t, &lib.UplinkNonUEAssociatedNRPPaTransport{
 		RoutingID: lib.RoutingID{0x03}, NRPPaPDU: nrppaPDU,
 	})
+
+	for name, b := range pwsOverloadCorpus(t) {
+		corpus[name] = b
+	}
+
+	for name, b := range extensionIEsCorpus(t) {
+		corpus[name] = b
+	}
 
 	return corpus
 }
@@ -645,7 +643,7 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			lib.ProcUplinkNASTransport, lib.ProcInitialContextSetup,
 			lib.ProcPDUSessionResourceSetup, lib.ProcUEContextReleaseRequest,
 			lib.ProcUEContextRelease, lib.ProcUEContextModification, lib.ProcPDUSessionResourceRelease,
-			lib.ProcUERadioCapabilityInfoIndication, lib.ProcAMFStatusIndication,
+			lib.ProcUERadioCapabilityInfoIndication, lib.ProcUETNLABindingRelease, lib.ProcAMFStatusIndication,
 			lib.ProcPaging, lib.ProcDownlinkUEAssociatedNRPPaTransport,
 			lib.ProcUplinkUEAssociatedNRPPaTransport,
 			lib.ProcDownlinkNonUEAssociatedNRPPaTransport,
@@ -658,6 +656,9 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			lib.ProcUplinkRANStatusTransfer, lib.ProcDownlinkRANStatusTransfer,
 			lib.ProcHandoverPreparation, lib.ProcHandoverResourceAllocation,
 			lib.ProcHandoverNotification, lib.ProcHandoverCancel,
+			lib.ProcOverloadStart, lib.ProcOverloadStop, lib.ProcWriteReplaceWarning,
+			lib.ProcPWSCancel, lib.ProcPWSRestartIndication, lib.ProcPWSFailureIndication,
+			lib.ProcRerouteNASRequest,
 		},
 		"SuccessfulOutcome": {
 			lib.ProcNGSetup, lib.ProcInitialContextSetup, lib.ProcPDUSessionResourceSetup,
@@ -666,6 +667,7 @@ func TestGoldenCoversEveryRenderedProcedure(t *testing.T) {
 			lib.ProcPDUSessionResourceModify, lib.ProcPDUSessionResourceModifyIndication,
 			lib.ProcRANConfigurationUpdate, lib.ProcHandoverPreparation,
 			lib.ProcHandoverResourceAllocation, lib.ProcHandoverCancel,
+			lib.ProcWriteReplaceWarning, lib.ProcPWSCancel,
 		},
 		"UnsuccessfulOutcome": {
 			lib.ProcNGSetup, lib.ProcInitialContextSetup, lib.ProcUEContextModification, lib.ProcPathSwitchRequest, lib.ProcRANConfigurationUpdate,

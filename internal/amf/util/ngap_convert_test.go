@@ -16,31 +16,25 @@ import (
 func TestRANNodeIDToModels(t *testing.T) {
 	tests := []struct {
 		name      string
-		kind      ngap.RANNodeIDKind
-		value     uint32
+		id        ngap.GlobalRANNodeID
 		bits      int
 		wantGNB   string
 		wantNgENB string
 		wantN3IWF string
 	}{
-		{name: "gNB 22 bits", kind: ngap.RANNodeIDGNB, value: 0x3fabcd, bits: 22, wantGNB: "3fabcd"},
-		{name: "gNB 24 bits", kind: ngap.RANNodeIDGNB, value: 0x000102, bits: 24, wantGNB: "000102"},
-		{name: "gNB 28 bits", kind: ngap.RANNodeIDGNB, value: 0xabcdef1, bits: 28, wantGNB: "abcdef1"},
-		{name: "gNB 32 bits", kind: ngap.RANNodeIDGNB, value: 0xdeadbeef, bits: 32, wantGNB: "deadbeef"},
-		{name: "macro ng-eNB", kind: ngap.RANNodeIDMacroNgENB, value: 0xabcde, bits: 20, wantNgENB: "MacroNGeNB-abcde"},
-		{name: "short macro ng-eNB", kind: ngap.RANNodeIDShortMacroNgENB, value: 0x3abcd, bits: 18, wantNgENB: "SMacroNGeNB-3abcd"},
-		{name: "long macro ng-eNB", kind: ngap.RANNodeIDLongMacroNgENB, value: 0x1abcde, bits: 21, wantNgENB: "LMacroNGeNB-1abcde"},
-		{name: "N3IWF", kind: ngap.RANNodeIDN3IWF, value: 0xbeef, bits: 16, wantN3IWF: "beef"},
+		{name: "gNB 22 bits", id: ngap.NewGlobalGNBID(ngap.PLMNIdentity{0x02, 0xf8, 0x39}, 0x3fabcd, 22), bits: 22, wantGNB: "3fabcd"},
+		{name: "gNB 24 bits", id: ngap.NewGlobalGNBID(ngap.PLMNIdentity{0x02, 0xf8, 0x39}, 0x000102, 24), bits: 24, wantGNB: "000102"},
+		{name: "gNB 28 bits", id: ngap.NewGlobalGNBID(ngap.PLMNIdentity{0x02, 0xf8, 0x39}, 0xabcdef1, 28), bits: 28, wantGNB: "abcdef1"},
+		{name: "gNB 32 bits", id: ngap.NewGlobalGNBID(ngap.PLMNIdentity{0x02, 0xf8, 0x39}, 0xdeadbeef, 32), bits: 32, wantGNB: "deadbeef"},
+		{name: "macro ng-eNB", id: ngap.NewGlobalNgENBID(ngap.PLMNIdentity{0x02, 0xf8, 0x39}, ngap.NgENBID{MacroNgENBID: new(ngap.MacroNgENBID(0xabcde))}), bits: 20, wantNgENB: "MacroNGeNB-abcde"},
+		{name: "short macro ng-eNB", id: ngap.NewGlobalNgENBID(ngap.PLMNIdentity{0x02, 0xf8, 0x39}, ngap.NgENBID{ShortMacroNgENBID: new(ngap.ShortMacroNgENBID(0x3abcd))}), bits: 18, wantNgENB: "SMacroNGeNB-3abcd"},
+		{name: "long macro ng-eNB", id: ngap.NewGlobalNgENBID(ngap.PLMNIdentity{0x02, 0xf8, 0x39}, ngap.NgENBID{LongMacroNgENBID: new(ngap.LongMacroNgENBID(0x1abcde))}), bits: 21, wantNgENB: "LMacroNGeNB-1abcde"},
+		{name: "N3IWF", id: ngap.NewGlobalN3IWFID(ngap.PLMNIdentity{0x02, 0xf8, 0x39}, 0xbeef), bits: 16, wantN3IWF: "beef"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := util.RANNodeIDToModels(ngap.GlobalRANNodeID{
-				Kind:         tt.kind,
-				PLMNIdentity: ngap.PLMNIdentity{0x02, 0xf8, 0x39},
-				Value:        tt.value,
-				Bits:         tt.bits,
-			})
+			got, err := util.RANNodeIDToModels(tt.id)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -172,28 +166,22 @@ func TestSecurityCapabilitiesToNGAP(t *testing.T) {
 		{
 			name: "nil capability",
 			in:   nil,
-			want: ngap.UESecurityCapabilities{},
+			want: secCaps(0, 0, 0, 0),
 		},
 		{
 			name: "the null algorithms alone leave every bitmap zero",
 			in:   &fgs.UESecurityCapability{EA: nas.Algorithms(0), IA: nas.Algorithms(0)},
-			want: ngap.UESecurityCapabilities{},
+			want: secCaps(0, 0, 0, 0),
 		},
 		{
 			name: "5G-EA1 and 5G-IA2 take the first and second bits",
 			in:   &fgs.UESecurityCapability{EA: nas.Algorithms(1), IA: nas.Algorithms(2)},
-			want: ngap.UESecurityCapabilities{
-				NREncryptionAlgorithms:          0x8000,
-				NRIntegrityProtectionAlgorithms: 0x4000,
-			},
+			want: secCaps(0x8000, 0x4000, 0, 0),
 		},
 		{
 			name: "the seventh algorithm reaches the seventh bit",
 			in:   &fgs.UESecurityCapability{EA: nas.Algorithms(7), IA: nas.Algorithms(7)},
-			want: ngap.UESecurityCapabilities{
-				NREncryptionAlgorithms:          0x0200,
-				NRIntegrityProtectionAlgorithms: 0x0200,
-			},
+			want: secCaps(0x0200, 0x0200, 0, 0),
 		},
 		{
 			name: "every algorithm the bitmaps carry",
@@ -201,10 +189,7 @@ func TestSecurityCapabilitiesToNGAP(t *testing.T) {
 				EA: nas.Algorithms(0, 1, 2, 3, 4, 5, 6, 7),
 				IA: nas.Algorithms(0, 1, 2, 3, 4, 5, 6, 7),
 			},
-			want: ngap.UESecurityCapabilities{
-				NREncryptionAlgorithms:          0xfe00,
-				NRIntegrityProtectionAlgorithms: 0xfe00,
-			},
+			want: secCaps(0xfe00, 0xfe00, 0, 0),
 		},
 		{
 			name: "a UE supporting S1 mode carries its EPS algorithms too",
@@ -215,12 +200,7 @@ func TestSecurityCapabilitiesToNGAP(t *testing.T) {
 				EEA:    nas.Algorithms(1, 3),
 				EIA:    nas.Algorithms(2),
 			},
-			want: ngap.UESecurityCapabilities{
-				NREncryptionAlgorithms:             0xc000,
-				NRIntegrityProtectionAlgorithms:    0x4000,
-				EUTRAEncryptionAlgorithms:          0xa000,
-				EUTRAIntegrityProtectionAlgorithms: 0x4000,
-			},
+			want: secCaps(0xc000, 0x4000, 0xa000, 0x4000),
 		},
 		{
 			name: "a UE without S1 mode advertises no EPS algorithms",
@@ -230,10 +210,7 @@ func TestSecurityCapabilitiesToNGAP(t *testing.T) {
 				EEA: nas.Algorithms(1, 2, 3),
 				EIA: nas.Algorithms(1, 2, 3),
 			},
-			want: ngap.UESecurityCapabilities{
-				NREncryptionAlgorithms:          0x8000,
-				NRIntegrityProtectionAlgorithms: 0x8000,
-			},
+			want: secCaps(0x8000, 0x8000, 0, 0),
 		},
 	}
 
@@ -243,5 +220,14 @@ func TestSecurityCapabilitiesToNGAP(t *testing.T) {
 				t.Fatalf("got %+v, want %+v", got, tt.want)
 			}
 		})
+	}
+}
+
+func secCaps(nrEA, nrIA, eutraEA, eutraIA uint16) ngap.UESecurityCapabilities {
+	return ngap.UESecurityCapabilities{
+		NREncryptionAlgorithms:             ngap.SecurityAlgorithmsFrom(nrEA),
+		NRIntegrityProtectionAlgorithms:    ngap.SecurityAlgorithmsFrom(nrIA),
+		EUTRAEncryptionAlgorithms:          ngap.SecurityAlgorithmsFrom(eutraEA),
+		EUTRAIntegrityProtectionAlgorithms: ngap.SecurityAlgorithmsFrom(eutraIA),
 	}
 }

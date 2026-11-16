@@ -25,9 +25,9 @@ func buildPaging(value []byte) NGAPMessageValue {
 
 	var ies []IE
 
-	if m.FiveGSTMSI != nil {
+	if m.UEPagingIdentity != nil && m.UEPagingIdentity.FiveGSTMSI != nil {
 		ies = append(ies, ie(ngap.IDUEPagingIdentity, ngap.CriticalityIgnore,
-			UEPagingIdentity{FiveGSTMSI: buildFiveGSTMSI(*m.FiveGSTMSI)}))
+			UEPagingIdentity{FiveGSTMSI: buildFiveGSTMSI(*m.UEPagingIdentity.FiveGSTMSI)}))
 	}
 
 	if m.PagingDRX != nil {
@@ -37,7 +37,7 @@ func buildPaging(value []byte) NGAPMessageValue {
 	if m.TAIListForPaging != nil {
 		tais := make([]TAI, 0, len(m.TAIListForPaging))
 		for _, item := range m.TAIListForPaging {
-			tais = append(tais, tai(item))
+			tais = append(tais, tai(item.TAI))
 		}
 
 		ies = append(ies, ie(ngap.IDTAIListForPaging, ngap.CriticalityIgnore, tais))
@@ -57,6 +57,21 @@ func buildPaging(value []byte) NGAPMessageValue {
 		o := *m.PagingOrigin
 		ies = append(ies, ie(ngap.IDPagingOrigin, ngap.CriticalityIgnore, utils.NamedEnum(uint8(o), o.Name())))
 	}
+
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDAssistanceDataForPaging, ngap.CriticalityIgnore, m.AssistanceDataForPaging},
+		{ngap.IDNBIoTPagingeDRXInfo, ngap.CriticalityIgnore, m.NBIoTPagingeDRXInfo},
+		{ngap.IDNBIoTPagingDRX, ngap.CriticalityIgnore, m.NBIoTPagingDRX},
+		{ngap.IDEnhancedCoverageRestriction, ngap.CriticalityIgnore, m.EnhancedCoverageRestriction},
+		{ngap.IDWUSAssistanceInformation, ngap.CriticalityIgnore, m.WUSAssistanceInformation},
+		{ngap.IDEUTRAPagingeDRXInformation, ngap.CriticalityIgnore, m.EUTRAPagingeDRXInformation},
+		{ngap.IDCEmodeBrestricted, ngap.CriticalityIgnore, m.CEmodeBrestricted},
+		{ngap.IDNRPagingeDRXInformation, ngap.CriticalityIgnore, m.NRPagingeDRXInformation},
+		{ngap.IDPagingCause, ngap.CriticalityIgnore, m.PagingCause},
+		{ngap.IDPEIPSassistanceInformation, ngap.CriticalityIgnore, m.PEIPSassistanceInformation},
+		{ngap.IDLPWUSPSAssistanceInformation, ngap.CriticalityIgnore, m.LPWUSPSAssistanceInformation},
+		{ngap.IDLPWUSDisableIndication, ngap.CriticalityIgnore, m.LPWUSDisableIndication},
+	})
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }

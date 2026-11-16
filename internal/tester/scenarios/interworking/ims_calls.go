@@ -36,8 +36,8 @@ var (
 	imsFallbackHandoverCallee  = scenarios.IMSSubscriber("001018600000012", "+15558600012")
 	imsFallbackRedirectCaller  = scenarios.IMSSubscriber("001018600000013", "+15558600013")
 	imsFallbackRedirectCallee  = scenarios.IMSSubscriber("001018600000014", "+15558600014")
-	imsEPSFallbackCause        = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkIMSVoiceEPSFallbackTriggered}
-	imsRedirectionCause        = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkRedirection}
+	imsEPSFallbackCause        = ngap.CauseRadioNetworkIMSVoiceEPSFallbackTriggered.Cause()
+	imsRedirectionCause        = ngap.CauseRadioNetworkRedirection.Cause()
 	imsFallbackRequestDeadline = 10 * time.Second
 )
 
@@ -418,8 +418,19 @@ func awaitNGContextReleased(g *gnb.GnodeB, amfUEID int64) error {
 		return fmt.Errorf("parse UE Context Release Command: %w", err)
 	}
 
-	if int64(cmd.UENGAPIDs.AMFUENGAPID) != amfUEID {
-		return fmt.Errorf("the AMF released AMF UE NGAP ID %d, want %d", cmd.UENGAPIDs.AMFUENGAPID, amfUEID)
+	var released ngap.AMFUENGAPID
+
+	switch ids := cmd.UENGAPIDs; {
+	case ids.UENGAPIDPair != nil:
+		released = ids.UENGAPIDPair.AMFUENGAPID
+	case ids.AMFUENGAPID != nil:
+		released = *ids.AMFUENGAPID
+	default:
+		return errors.New("the UE Context Release Command names no AMF UE NGAP ID")
+	}
+
+	if int64(released) != amfUEID {
+		return fmt.Errorf("the AMF released AMF UE NGAP ID %d, want %d", released, amfUEID)
 	}
 
 	if _, err := g.WaitForMessage(gnb.Initiating, ngap.ProcPDUSessionResourceRelease, 0); err == nil {

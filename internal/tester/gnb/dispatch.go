@@ -250,8 +250,8 @@ func frameRANUEID(f SCTPFrame) (int64, bool) {
 			return 0, false
 		}
 
-		if m.UENGAPIDs.Pair {
-			return int64(m.UENGAPIDs.RANUENGAPID), true
+		if p := m.UENGAPIDs.UENGAPIDPair; p != nil {
+			return int64(p.RANUENGAPID), true
 		}
 
 		return 0, false

@@ -65,19 +65,19 @@ func nrppaTransportIEs[M any](
 ) []ieSpec[M] {
 	return []ieSpec[M]{
 		{
-			id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, amf(m)) },
-			encode: func(m *M) (per.Marshaler, bool) { return amf(m), true },
+			ID: IDAMFUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+			Decode: func(m *M, r *per.Reader, enc per.Encoding) error { return decodeIE(r, amf(m)) },
+			Encode: func(m *M) (per.Marshaler, bool) { return amf(m), true },
 		},
 		{
-			id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, ran(m)) },
-			encode: func(m *M) (per.Marshaler, bool) { return ran(m), true },
+			ID: IDRANUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+			Decode: func(m *M, r *per.Reader, enc per.Encoding) error { return decodeIE(r, ran(m)) },
+			Encode: func(m *M) (per.Marshaler, bool) { return ran(m), true },
 		},
 		{
-			id: IDRoutingID, presence: presenceMandatory, crit: CriticalityReject,
-			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, routing(m)) },
-			encode: func(m *M) (per.Marshaler, bool) {
+			ID: IDRoutingID, Presence: presenceMandatory, Criticality: CriticalityReject,
+			Decode: func(m *M, r *per.Reader, enc per.Encoding) error { return decodeIE(r, routing(m)) },
+			Encode: func(m *M) (per.Marshaler, bool) {
 				if *routing(m) == nil {
 					return nil, false
 				}
@@ -86,9 +86,9 @@ func nrppaTransportIEs[M any](
 			},
 		},
 		{
-			id: IDNRPPaPDU, presence: presenceMandatory, crit: CriticalityReject,
-			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, pdu(m)) },
-			encode: func(m *M) (per.Marshaler, bool) {
+			ID: IDNRPPaPDU, Presence: presenceMandatory, Criticality: CriticalityReject,
+			Decode: func(m *M, r *per.Reader, enc per.Encoding) error { return decodeIE(r, pdu(m)) },
+			Encode: func(m *M) (per.Marshaler, bool) {
 				if *pdu(m) == nil {
 					return nil, false
 				}
@@ -141,6 +141,10 @@ func ParseDownlinkUEAssociatedNRPPaTransport(value []byte) (*DownlinkUEAssociate
 	return parseMessageBody[DownlinkUEAssociatedNRPPaTransport](ProcDownlinkUEAssociatedNRPPaTransport, TriggeringInitiatingMessage, downlinkUEAssociatedNRPPaTransportIEs, value)
 }
 
+func DecodeDownlinkUEAssociatedNRPPaTransport(value []byte) (*DownlinkUEAssociatedNRPPaTransport, error) {
+	return decodeMessageBody[DownlinkUEAssociatedNRPPaTransport](ProcDownlinkUEAssociatedNRPPaTransport, downlinkUEAssociatedNRPPaTransportIEs, value)
+}
+
 // TS 38.413 §9.2.9.2.
 type UplinkUEAssociatedNRPPaTransport struct {
 	AMFUENGAPID AMFUENGAPID
@@ -171,6 +175,10 @@ func ParseUplinkUEAssociatedNRPPaTransport(value []byte) (*UplinkUEAssociatedNRP
 	return parseMessageBody[UplinkUEAssociatedNRPPaTransport](ProcUplinkUEAssociatedNRPPaTransport, TriggeringInitiatingMessage, uplinkUEAssociatedNRPPaTransportIEs, value)
 }
 
+func DecodeUplinkUEAssociatedNRPPaTransport(value []byte) (*UplinkUEAssociatedNRPPaTransport, error) {
+	return decodeMessageBody[UplinkUEAssociatedNRPPaTransport](ProcUplinkUEAssociatedNRPPaTransport, uplinkUEAssociatedNRPPaTransportIEs, value)
+}
+
 // The non-UE-associated pair carries only the routing id and the payload: with
 // no UE context, there are no UE NGAP IDs to name.
 func nonUEAssociatedNRPPaTransportIEs[M any](
@@ -179,9 +187,9 @@ func nonUEAssociatedNRPPaTransportIEs[M any](
 ) []ieSpec[M] {
 	return []ieSpec[M]{
 		{
-			id: IDRoutingID, presence: presenceMandatory, crit: CriticalityReject,
-			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, routing(m)) },
-			encode: func(m *M) (per.Marshaler, bool) {
+			ID: IDRoutingID, Presence: presenceMandatory, Criticality: CriticalityReject,
+			Decode: func(m *M, r *per.Reader, enc per.Encoding) error { return decodeIE(r, routing(m)) },
+			Encode: func(m *M) (per.Marshaler, bool) {
 				if *routing(m) == nil {
 					return nil, false
 				}
@@ -190,9 +198,9 @@ func nonUEAssociatedNRPPaTransportIEs[M any](
 			},
 		},
 		{
-			id: IDNRPPaPDU, presence: presenceMandatory, crit: CriticalityReject,
-			decode: func(m *M, raw []byte, enc per.Encoding) error { return perIEDecode(raw, pdu(m)) },
-			encode: func(m *M) (per.Marshaler, bool) {
+			ID: IDNRPPaPDU, Presence: presenceMandatory, Criticality: CriticalityReject,
+			Decode: func(m *M, r *per.Reader, enc per.Encoding) error { return decodeIE(r, pdu(m)) },
+			Encode: func(m *M) (per.Marshaler, bool) {
 				if *pdu(m) == nil {
 					return nil, false
 				}
@@ -257,6 +265,10 @@ func ParseDownlinkNonUEAssociatedNRPPaTransport(value []byte) (*DownlinkNonUEAss
 	return parseMessageBody[DownlinkNonUEAssociatedNRPPaTransport](ProcDownlinkNonUEAssociatedNRPPaTransport, TriggeringInitiatingMessage, downlinkNonUEAssociatedNRPPaTransportIEs, value)
 }
 
+func DecodeDownlinkNonUEAssociatedNRPPaTransport(value []byte) (*DownlinkNonUEAssociatedNRPPaTransport, error) {
+	return decodeMessageBody[DownlinkNonUEAssociatedNRPPaTransport](ProcDownlinkNonUEAssociatedNRPPaTransport, downlinkNonUEAssociatedNRPPaTransportIEs, value)
+}
+
 func (m *UplinkNonUEAssociatedNRPPaTransport) Marshal() ([]byte, error) {
 	w := per.NewWriter()
 
@@ -275,4 +287,8 @@ func (m *UplinkNonUEAssociatedNRPPaTransport) Marshal() ([]byte, error) {
 
 func ParseUplinkNonUEAssociatedNRPPaTransport(value []byte) (*UplinkNonUEAssociatedNRPPaTransport, error) {
 	return parseMessageBody[UplinkNonUEAssociatedNRPPaTransport](ProcUplinkNonUEAssociatedNRPPaTransport, TriggeringInitiatingMessage, uplinkNonUEAssociatedNRPPaTransportIEs, value)
+}
+
+func DecodeUplinkNonUEAssociatedNRPPaTransport(value []byte) (*UplinkNonUEAssociatedNRPPaTransport, error) {
+	return decodeMessageBody[UplinkNonUEAssociatedNRPPaTransport](ProcUplinkNonUEAssociatedNRPPaTransport, uplinkNonUEAssociatedNRPPaTransportIEs, value)
 }

@@ -154,7 +154,7 @@ func unsuccessfulTransfer(t *testing.T) ngap.TransferContainer {
 	t.Helper()
 
 	b, err := (&ngap.HandoverResourceAllocationUnsuccessfulTransfer{
-		Cause: ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkRadioResourcesNotAvailable},
+		Cause: ngap.CauseRadioNetworkRadioResourcesNotAvailable.Cause(),
 	}).Marshal()
 	if err != nil {
 		t.Fatalf("marshal Handover Resource Allocation Unsuccessful Transfer: %v", err)
@@ -274,7 +274,7 @@ func TestN2HandoverCommandReportsEveryUnadmittedSession(t *testing.T) {
 
 			want := causeHOFailureInTarget
 			if tt.failed != nil {
-				want = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkRadioResourcesNotAvailable}
+				want = ngap.CauseRadioNetworkRadioResourcesNotAvailable.Cause()
 			}
 
 			assertToReleaseCause(t, cmd, 2, want)
@@ -344,7 +344,7 @@ func assertToReleaseCause(t *testing.T, cmd *ngap.HandoverCommand, pduSessionID 
 			t.Fatalf("to-release transfer for PDU session %d does not decode: %v", pduSessionID, err)
 		}
 
-		if transfer.Cause != want {
+		if !transfer.Cause.Equal(want) {
 			t.Errorf("to-release cause for PDU session %d = %+v, want %+v", pduSessionID, transfer.Cause, want)
 		}
 
@@ -561,7 +561,7 @@ func TestN2HandoverFailureWithoutRanUeNgapIDFailsPreparation(t *testing.T) {
 	env.required(t, 1)
 
 	req := env.handoverRequest(t)
-	cause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkRadioResourcesNotAvailable}
+	cause := ngap.CauseRadioNetworkRadioResourcesNotAvailable.Cause()
 
 	HandleHandoverFailure(context.Background(), env.amf, env.targetRan, &ngap.HandoverFailure{
 		AMFUENGAPID: ngap.Ptr(req.AMFUENGAPID),
@@ -574,7 +574,7 @@ func TestN2HandoverFailureWithoutRanUeNgapIDFailsPreparation(t *testing.T) {
 	}
 
 	got := env.source.SentHandoverPreparationFailures[0]
-	if got.Cause == nil || *got.Cause != cause {
+	if got.Cause == nil || !got.Cause.Equal(cause) {
 		t.Errorf("preparation failure cause = %+v, want the target's %+v", got.Cause, cause)
 	}
 }
@@ -626,8 +626,8 @@ func TestN2HandoverNotifyCompletesEachSessionAndReleasesTheSource(t *testing.T) 
 
 	cmd := env.source.SentUEContextReleaseCommands[0]
 
-	want := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkSuccessfulHandover}
-	if cmd.Cause == nil || *cmd.Cause != want {
+	want := ngap.CauseRadioNetworkSuccessfulHandover.Cause()
+	if cmd.Cause == nil || !cmd.Cause.Equal(want) {
 		t.Errorf("source release cause = %+v, want successful-handover", cmd.Cause)
 	}
 }
@@ -681,7 +681,7 @@ func TestN2HandoverCancelReleasesTargetAndAcknowledges(t *testing.T) {
 	env.required(t, 1)
 	env.acknowledge(t, []uint8{1}, nil)
 
-	cause := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkTNGRelocOverallExpiry}
+	cause := ngap.CauseRadioNetworkTNGRelocOverallExpiry.Cause()
 
 	HandleHandoverCancel(context.Background(), env.amf, env.sourceRan, &ngap.HandoverCancel{
 		AMFUENGAPID: ngap.AMFUENGAPID(env.sourceUe.AmfUeNgapID),

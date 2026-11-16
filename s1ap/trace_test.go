@@ -17,7 +17,7 @@ func goldenTraceActivation() TraceActivation {
 		EUTRANTraceID:                  goldenTraceID,
 		InterfacesToTrace:              InterfaceToTraceS1MME | InterfaceToTraceX2 | InterfaceToTraceUu | InterfaceToTraceF1C | InterfaceToTraceE1,
 		TraceDepth:                     TraceDepthMinimum,
-		TraceCollectionEntityIPAddress: TransportLayerAddress{10, 0, 0, 1},
+		TraceCollectionEntityIPAddress: tlaOf(10, 0, 0, 1),
 	}
 }
 
@@ -56,7 +56,7 @@ func TestTraceStartGolden(t *testing.T) {
 
 	got := *out.TraceActivation
 	if got.EUTRANTraceID != ta.EUTRANTraceID || got.InterfacesToTrace != ta.InterfacesToTrace ||
-		got.TraceDepth != ta.TraceDepth || hex.EncodeToString(got.TraceCollectionEntityIPAddress) != "0a000001" {
+		got.TraceDepth != ta.TraceDepth || got.TraceCollectionEntityIPAddress != ta.TraceCollectionEntityIPAddress {
 		t.Fatalf("round trip TraceActivation %+v, want %+v", got, ta)
 	}
 }
@@ -70,7 +70,7 @@ func TestTraceStartRequiresTraceActivation(t *testing.T) {
 }
 
 func TestTraceFailureIndicationRoundTrip(t *testing.T) {
-	cause := Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkHandoverCancelled}
+	cause := CauseRadioNetworkHandoverCancelled.Cause()
 	id := goldenTraceID
 
 	in := TraceFailureIndication{MMEUES1APID: 1, ENBUES1APID: 2, EUTRANTraceID: &id, Cause: &cause}
@@ -96,7 +96,7 @@ func TestTraceFailureIndicationRoundTrip(t *testing.T) {
 	}
 
 	if out.MMEUES1APID != 1 || out.ENBUES1APID != 2 || out.EUTRANTraceID == nil || *out.EUTRANTraceID != goldenTraceID ||
-		out.Cause == nil || *out.Cause != cause {
+		out.Cause == nil || !out.Cause.Equal(cause) {
 		t.Fatalf("decoded %+v", out)
 	}
 }
@@ -125,12 +125,12 @@ func TestPeekMMEUES1APIDRejectsNilAndReadsSourceID(t *testing.T) {
 		SourceMMEUES1APID: 77,
 		ERABToBeSwitchedDL: []ERABToBeSwitchedDLItem{{
 			ERABID:                5,
-			TransportLayerAddress: TransportLayerAddress{10, 1, 2, 3},
+			TransportLayerAddress: tlaOf(10, 1, 2, 3),
 			GTPTEID:               1,
 		}},
 		EUTRANCGI:              &EUTRANCGI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}},
 		TAI:                    &TAI{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1},
-		UESecurityCapabilities: &UESecurityCapabilities{EncryptionAlgorithms: 0xc000, IntegrityProtectionAlgorithms: 0xc000},
+		UESecurityCapabilities: &UESecurityCapabilities{EncryptionAlgorithms: SecurityAlgorithms{Value: 0xc000}, IntegrityProtectionAlgorithms: SecurityAlgorithms{Value: 0xc000}},
 	}).Marshal()
 	if err != nil {
 		t.Fatal(err)
@@ -156,16 +156,16 @@ func TestHandoverRequestTraceActivationRoundTrip(t *testing.T) {
 	in := &HandoverRequest{
 		MMEUES1APID:  7,
 		HandoverType: HandoverTypeIntraLTE,
-		Cause:        Ptr(Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkHandoverCancelled}),
+		Cause:        Ptr(CauseRadioNetworkHandoverCancelled.Cause()),
 		UEAMBR:       UEAggregateMaximumBitRate{DL: 1_000_000, UL: 500_000},
 		ERABToBeSetup: []ERABToBeSetupItemHOReq{{
 			ERABID:                5,
-			TransportLayerAddress: TransportLayerAddress{10, 1, 2, 3},
+			TransportLayerAddress: tlaOf(10, 1, 2, 3),
 			GTPTEID:               0x01020304,
 			QoS:                   ERABLevelQoSParameters{QCI: 9, ARP: AllocationAndRetentionPriority{PriorityLevel: 15}},
 		}},
 		SourceToTarget:         TransparentContainer{0xaa, 0xbb},
-		UESecurityCapabilities: UESecurityCapabilities{EncryptionAlgorithms: 0xc000, IntegrityProtectionAlgorithms: 0xc000},
+		UESecurityCapabilities: UESecurityCapabilities{EncryptionAlgorithms: SecurityAlgorithms{Value: 0xc000}, IntegrityProtectionAlgorithms: SecurityAlgorithms{Value: 0xc000}},
 		TraceActivation:        &ta,
 	}
 

@@ -31,6 +31,13 @@ func buildENBConfigurationUpdate(value []byte) (S1APMessageValue, string) {
 		ies = append(ies, ie(s1ap.IDDefaultPagingDRX, s1ap.CriticalityIgnore, pagingDRXToEnum(*m.DefaultPagingDRX)))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDCSGIdList, s1ap.CriticalityReject, m.CSGIdList},
+		{s1ap.IDNBIoTDefaultPagingDRX, s1ap.CriticalityIgnore, m.NBIoTDefaultPagingDRX},
+		{s1ap.IDConnectedengNBToAddList, s1ap.CriticalityIgnore, m.ConnectedengNBToAddList},
+		{s1ap.IDConnectedengNBToRemoveList, s1ap.CriticalityIgnore, m.ConnectedengNBToRemoveList},
+	})
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	if name == "" {

@@ -5,6 +5,7 @@ package ngap
 
 import (
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // PDUSessionResourceSetupItemSUReq ::= SEQUENCE { pDUSessionID,
@@ -12,12 +13,13 @@ import (
 // iE-Extensions OPTIONAL } (extensible). Its own ASN.1 type, so it stays
 // distinct from the identically shaped CxtReq item.
 type PDUSessionResourceSetupItemSUReq struct {
-	_            [0]struct{} `per:"extseq"`
-	PDUSessionID PDUSessionID
-	NASPDU       *NASPDU `per:",optional"`
-	SNSSAI       SNSSAI
-	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	PDUSessionID                          PDUSessionID
+	NASPDU                                *NASPDU `per:",optional"`
+	SNSSAI                                SNSSAI
+	Transfer                              TransferContainer
+	PduSessionExpectedUEActivityBehaviour *ExpectedUEActivityBehaviour `per:",extie:IDPduSessionExpectedUEActivityBehaviour,crit:ignore"`
+	iEExtensions                          extensionMeta                `per:",exttable"`
+	extensions                            per.ExtensionAdditions       `per:",extraw"`
 }
 
 // PDUSessionResourceSetupListSUReq ::= SEQUENCE (SIZE(1..maxnoofPDUSessions))
@@ -28,10 +30,10 @@ type PDUSessionResourceSetupListSUReq []PDUSessionResourceSetupItemSUReq
 // pDUSessionResourceSetupResponseTransfer, iE-Extensions OPTIONAL }
 // (extensible).
 type PDUSessionResourceSetupItemSURes struct {
-	_            [0]struct{} `per:"extseq"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // PDUSessionResourceSetupListSURes ::= SEQUENCE (SIZE(1..maxnoofPDUSessions))
@@ -42,10 +44,10 @@ type PDUSessionResourceSetupListSURes []PDUSessionResourceSetupItemSURes
 // pDUSessionResourceSetupUnsuccessfulTransfer, iE-Extensions OPTIONAL }
 // (extensible).
 type PDUSessionResourceFailedToSetupItemSURes struct {
-	_            [0]struct{} `per:"extseq"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 	PDUSessionID PDUSessionID
 	Transfer     TransferContainer
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // PDUSessionResourceFailedToSetupListSURes ::= SEQUENCE
@@ -57,10 +59,10 @@ type PDUSessionResourceFailedToSetupListSURes []PDUSessionResourceFailedToSetupI
 // TS 38.413 §9.3.4.16. Carried in the Failed to Setup lists of both the setup
 // response and the initial context setup response.
 type PDUSessionResourceSetupUnsuccessfulTransfer struct {
-	_                      [0]struct{} `per:"extseq"`
+	extensions             per.ExtensionAdditions `per:",extraw"`
 	Cause                  Cause
 	CriticalityDiagnostics *CriticalityDiagnostics `per:",optional"`
-	_                      ieExtensions            `per:",skip"`
+	iEExtensions           extensionMeta           `per:",exttable"`
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.
@@ -79,13 +81,15 @@ func (t *PDUSessionResourceSetupUnsuccessfulTransfer) Marshal() (TransferContain
 // ParsePDUSessionResourceSetupUnsuccessfulTransfer decodes the transfer an
 // NG-RAN node returns for a session it could not set up.
 func ParsePDUSessionResourceSetupUnsuccessfulTransfer(b TransferContainer) (*PDUSessionResourceSetupUnsuccessfulTransfer, error) {
-	var t PDUSessionResourceSetupUnsuccessfulTransfer
+	return parseTransfer[PDUSessionResourceSetupUnsuccessfulTransfer](b)
+}
 
-	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
-		return nil, err
-	}
+func DecodePDUSessionResourceSetupUnsuccessfulTransfer(b TransferContainer) (*PDUSessionResourceSetupUnsuccessfulTransfer, error) {
+	return decodeTransfer[PDUSessionResourceSetupUnsuccessfulTransfer](b)
+}
 
-	return &t, nil
+func (t *PDUSessionResourceSetupUnsuccessfulTransfer) Diagnostics() Diagnostics {
+	return diagnosticsOf(t)
 }
 
 // TS 38.413 §9.2.1.1.
@@ -97,31 +101,34 @@ type PDUSessionResourceSetupRequest struct {
 	NASPDU                    *NASPDU
 	PDUSessionResourceSetup   PDUSessionResourceSetupListSUReq
 	UEAggregateMaximumBitRate *UEAggregateMaximumBitRate
+	RANPagingPriority         *RANPagingPriority
+	UESliceMaximumBitRateList UESliceMaximumBitRateList
 
 	messageMeta
 }
 
 var pDUSessionResourceSetupRequestIEs = []ieSpec[PDUSessionResourceSetupRequest]{
 	{
-		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceSetupRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.AMFUENGAPID)
+		ID: IDAMFUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceSetupRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.AMFUENGAPID)
 		},
-		encode: func(m *PDUSessionResourceSetupRequest) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
+		Encode: func(m *PDUSessionResourceSetupRequest) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceSetupRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.RANUENGAPID)
+		ID: IDRANUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceSetupRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.RANUENGAPID)
 		},
-		encode: func(m *PDUSessionResourceSetupRequest) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
+		Encode: func(m *PDUSessionResourceSetupRequest) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
+	apimpl.OptionalIE(IDRANPagingPriority, CriticalityIgnore, func(m *PDUSessionResourceSetupRequest) **RANPagingPriority { return &m.RANPagingPriority }),
 	{
-		id: IDNASPDU, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceSetupRequest, raw []byte, enc per.Encoding) error {
+		ID: IDNASPDU, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceSetupRequest, r *per.Reader, enc per.Encoding) error {
 			var v NASPDU
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -129,7 +136,7 @@ var pDUSessionResourceSetupRequestIEs = []ieSpec[PDUSessionResourceSetupRequest]
 
 			return nil
 		},
-		encode: func(m *PDUSessionResourceSetupRequest) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceSetupRequest) (per.Marshaler, bool) {
 			if m.NASPDU == nil {
 				return nil, false
 			}
@@ -138,11 +145,11 @@ var pDUSessionResourceSetupRequestIEs = []ieSpec[PDUSessionResourceSetupRequest]
 		},
 	},
 	{
-		id: IDPDUSessionResourceSetupListSUReq, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceSetupRequest, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.PDUSessionResourceSetup)
+		ID: IDPDUSessionResourceSetupListSUReq, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceSetupRequest, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.PDUSessionResourceSetup)
 		},
-		encode: func(m *PDUSessionResourceSetupRequest) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceSetupRequest) (per.Marshaler, bool) {
 			if m.PDUSessionResourceSetup == nil {
 				return nil, false
 			}
@@ -151,11 +158,11 @@ var pDUSessionResourceSetupRequestIEs = []ieSpec[PDUSessionResourceSetupRequest]
 		},
 	},
 	{
-		id: IDUEAggregateMaximumBitRate, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *PDUSessionResourceSetupRequest, raw []byte, enc per.Encoding) error {
+		ID: IDUEAggregateMaximumBitRate, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *PDUSessionResourceSetupRequest, r *per.Reader, enc per.Encoding) error {
 			var v UEAggregateMaximumBitRate
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -163,7 +170,7 @@ var pDUSessionResourceSetupRequestIEs = []ieSpec[PDUSessionResourceSetupRequest]
 
 			return nil
 		},
-		encode: func(m *PDUSessionResourceSetupRequest) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceSetupRequest) (per.Marshaler, bool) {
 			if m.UEAggregateMaximumBitRate == nil {
 				return nil, false
 			}
@@ -171,6 +178,9 @@ var pDUSessionResourceSetupRequestIEs = []ieSpec[PDUSessionResourceSetupRequest]
 			return m.UEAggregateMaximumBitRate, true
 		},
 	},
+	apimpl.ListIE(IDUESliceMaximumBitRateList, CriticalityIgnore, func(m *PDUSessionResourceSetupRequest) *UESliceMaximumBitRateList {
+		return &m.UESliceMaximumBitRateList
+	}),
 }
 
 func (m *PDUSessionResourceSetupRequest) encodeBody(w *per.Writer, enc per.Encoding) error {
@@ -197,6 +207,10 @@ func ParsePDUSessionResourceSetupRequest(value []byte) (*PDUSessionResourceSetup
 	return parseMessageBody[PDUSessionResourceSetupRequest](ProcPDUSessionResourceSetup, TriggeringInitiatingMessage, pDUSessionResourceSetupRequestIEs, value)
 }
 
+func DecodePDUSessionResourceSetupRequest(value []byte) (*PDUSessionResourceSetupRequest, error) {
+	return decodeMessageBody[PDUSessionResourceSetupRequest](ProcPDUSessionResourceSetup, pDUSessionResourceSetupRequestIEs, value)
+}
+
 // TS 38.413 §9.2.1.2.
 type PDUSessionResourceSetupResponse struct {
 	AMFUENGAPID              *AMFUENGAPID
@@ -211,11 +225,11 @@ type PDUSessionResourceSetupResponse struct {
 
 var pDUSessionResourceSetupResponseIEs = []ieSpec[PDUSessionResourceSetupResponse]{
 	{
-		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *PDUSessionResourceSetupResponse, raw []byte, enc per.Encoding) error {
+		ID: IDAMFUENGAPID, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *PDUSessionResourceSetupResponse, r *per.Reader, enc per.Encoding) error {
 			var v AMFUENGAPID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -223,7 +237,7 @@ var pDUSessionResourceSetupResponseIEs = []ieSpec[PDUSessionResourceSetupRespons
 
 			return nil
 		},
-		encode: func(m *PDUSessionResourceSetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceSetupResponse) (per.Marshaler, bool) {
 			if m.AMFUENGAPID == nil {
 				return nil, false
 			}
@@ -232,11 +246,11 @@ var pDUSessionResourceSetupResponseIEs = []ieSpec[PDUSessionResourceSetupRespons
 		},
 	},
 	{
-		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *PDUSessionResourceSetupResponse, raw []byte, enc per.Encoding) error {
+		ID: IDRANUENGAPID, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *PDUSessionResourceSetupResponse, r *per.Reader, enc per.Encoding) error {
 			var v RANUENGAPID
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -244,7 +258,7 @@ var pDUSessionResourceSetupResponseIEs = []ieSpec[PDUSessionResourceSetupRespons
 
 			return nil
 		},
-		encode: func(m *PDUSessionResourceSetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceSetupResponse) (per.Marshaler, bool) {
 			if m.RANUENGAPID == nil {
 				return nil, false
 			}
@@ -253,11 +267,11 @@ var pDUSessionResourceSetupResponseIEs = []ieSpec[PDUSessionResourceSetupRespons
 		},
 	},
 	{
-		id: IDPDUSessionResourceSetupListSURes, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *PDUSessionResourceSetupResponse, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.PDUSessionResourceSetup)
+		ID: IDPDUSessionResourceSetupListSURes, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *PDUSessionResourceSetupResponse, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.PDUSessionResourceSetup)
 		},
-		encode: func(m *PDUSessionResourceSetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceSetupResponse) (per.Marshaler, bool) {
 			if m.PDUSessionResourceSetup == nil {
 				return nil, false
 			}
@@ -266,11 +280,11 @@ var pDUSessionResourceSetupResponseIEs = []ieSpec[PDUSessionResourceSetupRespons
 		},
 	},
 	{
-		id: IDPDUSessionResourceFailedToSetupListSURes, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *PDUSessionResourceSetupResponse, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.PDUSessionResourceFailed)
+		ID: IDPDUSessionResourceFailedToSetupListSURes, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *PDUSessionResourceSetupResponse, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.PDUSessionResourceFailed)
 		},
-		encode: func(m *PDUSessionResourceSetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceSetupResponse) (per.Marshaler, bool) {
 			if m.PDUSessionResourceFailed == nil {
 				return nil, false
 			}
@@ -279,11 +293,11 @@ var pDUSessionResourceSetupResponseIEs = []ieSpec[PDUSessionResourceSetupRespons
 		},
 	},
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *PDUSessionResourceSetupResponse, raw []byte, enc per.Encoding) error {
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *PDUSessionResourceSetupResponse, r *per.Reader, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
 
-			if err := perIEDecode(raw, &cd); err != nil {
+			if err := decodeIE(r, &cd); err != nil {
 				return err
 			}
 
@@ -291,7 +305,7 @@ var pDUSessionResourceSetupResponseIEs = []ieSpec[PDUSessionResourceSetupRespons
 
 			return nil
 		},
-		encode: func(m *PDUSessionResourceSetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceSetupResponse) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -300,11 +314,11 @@ var pDUSessionResourceSetupResponseIEs = []ieSpec[PDUSessionResourceSetupRespons
 		},
 	},
 	{
-		id: IDUserLocationInformation, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *PDUSessionResourceSetupResponse, raw []byte, enc per.Encoding) error {
+		ID: IDUserLocationInformation, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *PDUSessionResourceSetupResponse, r *per.Reader, enc per.Encoding) error {
 			var uli UserLocationInformation
 
-			if err := perIEDecode(raw, &uli); err != nil {
+			if err := decodeIE(r, &uli); err != nil {
 				return err
 			}
 
@@ -312,7 +326,7 @@ var pDUSessionResourceSetupResponseIEs = []ieSpec[PDUSessionResourceSetupRespons
 
 			return nil
 		},
-		encode: func(m *PDUSessionResourceSetupResponse) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceSetupResponse) (per.Marshaler, bool) {
 			if m.UserLocationInformation == nil {
 				return nil, false
 			}
@@ -346,30 +360,17 @@ func ParsePDUSessionResourceSetupResponse(value []byte) (*PDUSessionResourceSetu
 	return parseMessageBody[PDUSessionResourceSetupResponse](ProcPDUSessionResourceSetup, TriggeringSuccessfulOutcome, pDUSessionResourceSetupResponseIEs, value)
 }
 
+func DecodePDUSessionResourceSetupResponse(value []byte) (*PDUSessionResourceSetupResponse, error) {
+	return decodeMessageBody[PDUSessionResourceSetupResponse](ProcPDUSessionResourceSetup, pDUSessionResourceSetupResponseIEs, value)
+}
+
 // DataForwardingNotPossible ::= ENUMERATED { data-forwarding-not-possible,
 // ... }.
 type DataForwardingNotPossible uint8
 
 const (
 	DataForwardingNotPossibleTrue DataForwardingNotPossible = iota
-
-	dataForwardingNotPossibleRootCount = 1
 )
-
-func (d DataForwardingNotPossible) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, dataForwardingNotPossibleRootCount, int64(d), "DataForwardingNotPossible")
-}
-
-func (d *DataForwardingNotPossible) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, dataForwardingNotPossibleRootCount, "DataForwardingNotPossible")
-	if err != nil {
-		return err
-	}
-
-	*d = DataForwardingNotPossible(idx)
-
-	return nil
-}
 
 // PDUSessionResourceSetupRequestTransfer ::= SEQUENCE { protocolIEs
 // ProtocolIE-Container } (extensible) — TS 38.413 §9.3.4.1. Unlike the
@@ -377,26 +378,33 @@ func (d *DataForwardingNotPossible) UnmarshalPER(r *per.Reader, enc per.Encoding
 // it carries per-IE criticality and reuses the message-body engine. The SMF
 // builds it; the NG-RAN node consumes it.
 type PDUSessionResourceSetupRequestTransfer struct {
-	PDUSessionAggregateMaximumBitRate *PDUSessionAggregateMaximumBitRate
-	ULNGUUPTNLInformation             UPTransportLayerInformation
-	AdditionalULNGUUPTNLInformation   UPTransportLayerInformationList
-	DataForwardingNotPossible         *DataForwardingNotPossible
-	PDUSessionType                    PDUSessionType
-	SecurityIndication                *SecurityIndication
-	NetworkInstance                   *NetworkInstance
-	QosFlowSetupRequest               QosFlowSetupRequestList
-	DirectForwardingPathAvailability  *DirectForwardingPathAvailability
+	PDUSessionAggregateMaximumBitRate        *PDUSessionAggregateMaximumBitRate
+	ULNGUUPTNLInformation                    UPTransportLayerInformation
+	AdditionalULNGUUPTNLInformation          UPTransportLayerInformationList
+	DataForwardingNotPossible                *DataForwardingNotPossible
+	PDUSessionType                           PDUSessionType
+	SecurityIndication                       *SecurityIndication
+	NetworkInstance                          *NetworkInstance
+	QosFlowSetupRequest                      QosFlowSetupRequestList
+	DirectForwardingPathAvailability         *DirectForwardingPathAvailability
+	RedundantULNGUUPTNLInformation           *UPTransportLayerInformation
+	AdditionalRedundantULNGUUPTNLInformation UPTransportLayerInformationList
+	CommonNetworkInstance                    CommonNetworkInstance
+	RedundantCommonNetworkInstance           CommonNetworkInstance
+	RedundantPDUSessionInformation           *RedundantPDUSessionInformation
+	MBSSessionSetupRequestList               MBSSessionSetupRequestList
+	DownlinkTLContainer                      TLContainer
 
 	messageMeta
 }
 
 var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetupRequestTransfer]{
 	{
-		id: IDPDUSessionAggregateMaximumBitRate, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
+		ID: IDPDUSessionAggregateMaximumBitRate, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceSetupRequestTransfer, r *per.Reader, enc per.Encoding) error {
 			var v PDUSessionAggregateMaximumBitRate
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -404,7 +412,7 @@ var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetup
 
 			return nil
 		},
-		encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
 			if m.PDUSessionAggregateMaximumBitRate == nil {
 				return nil, false
 			}
@@ -413,20 +421,20 @@ var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetup
 		},
 	},
 	{
-		id: IDULNGUUPTNLInformation, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ULNGUUPTNLInformation)
+		ID: IDULNGUUPTNLInformation, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceSetupRequestTransfer, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.ULNGUUPTNLInformation)
 		},
-		encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
 			return &m.ULNGUUPTNLInformation, true
 		},
 	},
 	{
-		id: IDAdditionalULNGUUPTNLInformation, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.AdditionalULNGUUPTNLInformation)
+		ID: IDAdditionalULNGUUPTNLInformation, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceSetupRequestTransfer, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.AdditionalULNGUUPTNLInformation)
 		},
-		encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
 			if m.AdditionalULNGUUPTNLInformation == nil {
 				return nil, false
 			}
@@ -435,11 +443,11 @@ var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetup
 		},
 	},
 	{
-		id: IDDataForwardingNotPossible, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
+		ID: IDDataForwardingNotPossible, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceSetupRequestTransfer, r *per.Reader, enc per.Encoding) error {
 			var d DataForwardingNotPossible
 
-			if err := perIEDecode(raw, &d); err != nil {
+			if err := decodeIE(r, &d); err != nil {
 				return err
 			}
 
@@ -447,7 +455,7 @@ var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetup
 
 			return nil
 		},
-		encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
 			if m.DataForwardingNotPossible == nil {
 				return nil, false
 			}
@@ -456,20 +464,20 @@ var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetup
 		},
 	},
 	{
-		id: IDPDUSessionType, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.PDUSessionType)
+		ID: IDPDUSessionType, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceSetupRequestTransfer, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.PDUSessionType)
 		},
-		encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
 			return &m.PDUSessionType, true
 		},
 	},
 	{
-		id: IDSecurityIndication, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
+		ID: IDSecurityIndication, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceSetupRequestTransfer, r *per.Reader, enc per.Encoding) error {
 			var v SecurityIndication
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -477,7 +485,7 @@ var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetup
 
 			return nil
 		},
-		encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
 			if m.SecurityIndication == nil {
 				return nil, false
 			}
@@ -486,11 +494,11 @@ var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetup
 		},
 	},
 	{
-		id: IDNetworkInstance, presence: presenceOptional, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
+		ID: IDNetworkInstance, Presence: presenceOptional, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceSetupRequestTransfer, r *per.Reader, enc per.Encoding) error {
 			var v NetworkInstance
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -498,7 +506,7 @@ var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetup
 
 			return nil
 		},
-		encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
 			if m.NetworkInstance == nil {
 				return nil, false
 			}
@@ -507,11 +515,11 @@ var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetup
 		},
 	},
 	{
-		id: IDQosFlowSetupRequestList, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.QosFlowSetupRequest)
+		ID: IDQosFlowSetupRequestList, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *PDUSessionResourceSetupRequestTransfer, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.QosFlowSetupRequest)
 		},
-		encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
 			if m.QosFlowSetupRequest == nil {
 				return nil, false
 			}
@@ -519,12 +527,15 @@ var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetup
 			return m.QosFlowSetupRequest, true
 		},
 	},
+	apimpl.ListIE(IDCommonNetworkInstance, CriticalityIgnore, func(m *PDUSessionResourceSetupRequestTransfer) *CommonNetworkInstance {
+		return &m.CommonNetworkInstance
+	}),
 	{
-		id: IDDirectForwardingPathAvailability, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *PDUSessionResourceSetupRequestTransfer, raw []byte, enc per.Encoding) error {
+		ID: IDDirectForwardingPathAvailability, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *PDUSessionResourceSetupRequestTransfer, r *per.Reader, enc per.Encoding) error {
 			var v DirectForwardingPathAvailability
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -532,7 +543,7 @@ var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetup
 
 			return nil
 		},
-		encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
+		Encode: func(m *PDUSessionResourceSetupRequestTransfer) (per.Marshaler, bool) {
 			if m.DirectForwardingPathAvailability == nil {
 				return nil, false
 			}
@@ -540,6 +551,22 @@ var pDUSessionResourceSetupRequestTransferIEs = []ieSpec[PDUSessionResourceSetup
 			return m.DirectForwardingPathAvailability, true
 		},
 	},
+	apimpl.OptionalIE(IDRedundantULNGUUPTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceSetupRequestTransfer) **UPTransportLayerInformation {
+		return &m.RedundantULNGUUPTNLInformation
+	}),
+	apimpl.ListIE(IDAdditionalRedundantULNGUUPTNLInformation, CriticalityIgnore, func(m *PDUSessionResourceSetupRequestTransfer) *UPTransportLayerInformationList {
+		return &m.AdditionalRedundantULNGUUPTNLInformation
+	}),
+	apimpl.ListIE(IDRedundantCommonNetworkInstance, CriticalityIgnore, func(m *PDUSessionResourceSetupRequestTransfer) *CommonNetworkInstance {
+		return &m.RedundantCommonNetworkInstance
+	}),
+	apimpl.OptionalIE(IDRedundantPDUSessionInformation, CriticalityIgnore, func(m *PDUSessionResourceSetupRequestTransfer) **RedundantPDUSessionInformation {
+		return &m.RedundantPDUSessionInformation
+	}),
+	apimpl.ListIE(IDMBSSessionSetupRequestList, CriticalityIgnore, func(m *PDUSessionResourceSetupRequestTransfer) *MBSSessionSetupRequestList {
+		return &m.MBSSessionSetupRequestList
+	}),
+	apimpl.ListIE(IDDownlinkTLContainer, CriticalityIgnore, func(m *PDUSessionResourceSetupRequestTransfer) *TLContainer { return &m.DownlinkTLContainer }),
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.
@@ -562,18 +589,33 @@ func ParsePDUSessionResourceSetupRequestTransfer(b TransferContainer) (*PDUSessi
 	return parseMessageBody[PDUSessionResourceSetupRequestTransfer](ProcPDUSessionResourceSetup, TriggeringInitiatingMessage, pDUSessionResourceSetupRequestTransferIEs, b)
 }
 
+func DecodePDUSessionResourceSetupRequestTransfer(b TransferContainer) (*PDUSessionResourceSetupRequestTransfer, error) {
+	return decodeMessageBody[PDUSessionResourceSetupRequestTransfer](ProcPDUSessionResourceSetup, pDUSessionResourceSetupRequestTransferIEs, b)
+}
+
 // PDUSessionResourceSetupResponseTransfer ::= SEQUENCE {
 // dLQosFlowPerTNLInformation, additionalDLQosFlowPerTNLInformation OPTIONAL,
 // securityResult OPTIONAL, qosFlowFailedToSetupList OPTIONAL, iE-Extensions
 // OPTIONAL } (extensible) — TS 38.413 §9.3.4.2. A plain SEQUENCE, unlike the
 // request transfer. The NG-RAN node builds it; the SMF consumes it.
 type PDUSessionResourceSetupResponseTransfer struct {
-	_                                    [0]struct{} `per:"extseq"`
-	DLQosFlowPerTNLInformation           QosFlowPerTNLInformation
-	AdditionalDLQosFlowPerTNLInformation QosFlowPerTNLInformationList `per:",optional"`
-	SecurityResult                       *SecurityResult              `per:",optional"`
-	QosFlowFailedToSetup                 QosFlowListWithCause         `per:",optional"`
-	_                                    ieExtensions                 `per:",skip"`
+	DLQosFlowPerTNLInformation                       QosFlowPerTNLInformation
+	AdditionalDLQosFlowPerTNLInformation             QosFlowPerTNLInformationList                     `per:",optional"`
+	SecurityResult                                   *SecurityResult                                  `per:",optional"`
+	QosFlowFailedToSetup                             QosFlowListWithCause                             `per:",optional"`
+	RedundantDLQosFlowPerTNLInformation              *QosFlowPerTNLInformation                        `per:",extie:IDRedundantDLQosFlowPerTNLInformation,crit:ignore"`
+	AdditionalRedundantDLQosFlowPerTNLInformation    QosFlowPerTNLInformationList                     `per:",extie:IDAdditionalRedundantDLQosFlowPerTNLInformation,crit:ignore"`
+	UsedRSNInformation                               *RedundantPDUSessionInformation                  `per:",extie:IDUsedRSNInformation,crit:ignore"`
+	GlobalRANNodeID                                  *GlobalRANNodeID                                 `per:",extie:IDGlobalRANNodeID,crit:ignore"`
+	MBSSupportIndicator                              *MBSSupportIndicator                             `per:",extie:IDMBSSupportIndicator,crit:ignore"`
+	MBSSessionSetupResponseList                      MBSSessionSetupResponseList                      `per:",extie:IDMBSSessionSetupResponseList,crit:ignore"`
+	MBSSessionFailedtoSetupList                      MBSSessionFailedtoSetupList                      `per:",extie:IDMBSSessionFailedtoSetupList,crit:ignore"`
+	QoSFlowTSCList                                   QoSFlowTSCList                                   `per:",extie:IDQoSFlowTSCList,crit:ignore"`
+	UplinkTLContainer                                *TLContainer                                     `per:",extie:IDUplinkTLContainer,crit:ignore"`
+	ECNMarkingorCongestionInformationReportingStatus ECNMarkingorCongestionInformationReportingStatus `per:",extie:IDECNMarkingorCongestionInformationReportingStatus,crit:ignore"`
+	PDUSetbasedHandlingIndicator                     *PDUSetbasedHandlingIndicator                    `per:",extie:IDPDUSetbasedHandlingIndicator,crit:ignore"`
+	iEExtensions                                     extensionMeta                                    `per:",exttable"`
+	extensions                                       per.ExtensionAdditions                           `per:",extraw"`
 }
 
 // Marshal encodes the transfer for the OCTET STRING that carries it.
@@ -592,11 +634,11 @@ func (t *PDUSessionResourceSetupResponseTransfer) Marshal() (TransferContainer, 
 // ParsePDUSessionResourceSetupResponseTransfer decodes the transfer an NG-RAN
 // node returns for a session it set up.
 func ParsePDUSessionResourceSetupResponseTransfer(b TransferContainer) (*PDUSessionResourceSetupResponseTransfer, error) {
-	var t PDUSessionResourceSetupResponseTransfer
-
-	if err := t.UnmarshalPER(per.NewReader(b), per.Aligned); err != nil {
-		return nil, err
-	}
-
-	return &t, nil
+	return parseTransfer[PDUSessionResourceSetupResponseTransfer](b)
 }
+
+func DecodePDUSessionResourceSetupResponseTransfer(b TransferContainer) (*PDUSessionResourceSetupResponseTransfer, error) {
+	return decodeTransfer[PDUSessionResourceSetupResponseTransfer](b)
+}
+
+func (t *PDUSessionResourceSetupResponseTransfer) Diagnostics() Diagnostics { return diagnosticsOf(t) }

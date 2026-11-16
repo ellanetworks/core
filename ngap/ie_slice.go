@@ -3,6 +3,33 @@
 
 package ngap
 
+import "github.com/ellanetworks/core/per"
+
+const maxnoofRequestedSNSSAIs = 8
+
+type RequestedNSSAIItem struct {
+	SNSSAI       SNSSAI
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+}
+
+type RequestedNSSAI []RequestedNSSAIItem
+
+func (l RequestedNSSAI) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofRequestedSNSSAIs, []RequestedNSSAIItem(l))
+}
+
+func (l *RequestedNSSAI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[RequestedNSSAIItem](r, enc, 1, maxnoofRequestedSNSSAIs)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
 // TS 38.413, NGAP-Constants.
 const (
 	maxnoofSliceItems     = 1024
@@ -24,18 +51,18 @@ type SD [3]byte
 // S-NSSAI ::= SEQUENCE { sST, sD OPTIONAL, iE-Extensions OPTIONAL }
 // (extensible) — TS 38.413 §9.3.1.24.
 type SNSSAI struct {
-	_   [0]struct{} `per:"extseq"`
-	SST SST
-	SD  *SD          `per:",optional"`
-	_   ieExtensions `per:",skip"`
+	SST          SST
+	SD           *SD                    `per:",optional"`
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // SliceSupportItem ::= SEQUENCE { s-NSSAI, iE-Extensions OPTIONAL }
 // (extensible).
 type SliceSupportItem struct {
-	_      [0]struct{} `per:"extseq"`
-	SNSSAI SNSSAI
-	_      ieExtensions `per:",skip"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+	SNSSAI       SNSSAI
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // SliceSupportList ::= SEQUENCE (SIZE(1..maxnoofSliceItems)) OF
@@ -45,9 +72,9 @@ type SliceSupportList []SliceSupportItem
 // AllowedNSSAIItem ::= SEQUENCE { s-NSSAI, iE-Extensions OPTIONAL }
 // (extensible).
 type AllowedNSSAIItem struct {
-	_      [0]struct{} `per:"extseq"`
-	SNSSAI SNSSAI
-	_      ieExtensions `per:",skip"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+	SNSSAI       SNSSAI
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // AllowedNSSAI ::= SEQUENCE (SIZE(1..maxnoofAllowedS-NSSAIs)) OF

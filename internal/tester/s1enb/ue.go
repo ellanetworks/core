@@ -77,6 +77,7 @@ type UE struct {
 	sqn                       []byte
 	resyncs                   int
 	resyncPending             bool
+	selectedPLMN              *s1ap.PLMNIdentity
 }
 
 func (e *ENB) NewUE(imsi string, k, opc [16]byte) *UE {
@@ -152,8 +153,8 @@ func (ue *UE) UseUnknownGUTI() {
 // octet is shifted left, matching how the MME stored them at attach.
 func (ue *UE) S1APSecurityCapabilities() s1ap.UESecurityCapabilities {
 	return s1ap.UESecurityCapabilities{
-		EncryptionAlgorithms:          uint16(ue.netCapEEA<<1) << 8,
-		IntegrityProtectionAlgorithms: uint16(ue.netCapEIA<<1) << 8,
+		EncryptionAlgorithms:          s1ap.SecurityAlgorithms{Value: uint16(ue.netCapEEA<<1) << 8},
+		IntegrityProtectionAlgorithms: s1ap.SecurityAlgorithms{Value: uint16(ue.netCapEIA<<1) << 8},
 	}
 }
 

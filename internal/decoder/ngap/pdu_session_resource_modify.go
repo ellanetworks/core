@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/ngap"
 )
 
@@ -23,14 +24,28 @@ type QosFlowWithCause struct {
 type QosFlowAddOrModifyRequest struct {
 	QosFlow *QosFlowSetupRequest `json:"qos_flow,omitempty"`
 
-	QosFlowIdentifier int64  `json:"qos_flow_identifier"`
-	ERABID            *uint8 `json:"erab_id,omitempty"`
+	QosFlowIdentifier     int64      `json:"qos_flow_identifier"`
+	ERABID                *uint8     `json:"erab_id,omitempty"`
+	ULNGUUPTNLInformation *GTPTunnel `json:"ul_ng_u_up_tnl_information,omitempty"`
+}
+
+type QosFlowAddOrModifyResponse struct {
+	QosFlowIdentifier     int64      `json:"qos_flow_identifier"`
+	DLNGUUPTNLInformation *GTPTunnel `json:"dl_ng_u_up_tnl_information,omitempty"`
+}
+
+type UserPlaneFailureIndication struct {
+	UserPlaneFailureType  utils.EnumField `json:"user_plane_failure_type"`
+	ULNGUUPTNLInformation GTPTunnel       `json:"ul_ng_u_up_tnl_information"`
+	DLNGUUPTNLInformation GTPTunnel       `json:"dl_ng_u_up_tnl_information"`
 }
 
 // ULNGUUPTNLModify pairs the uplink and downlink endpoints a session moves to.
 type ULNGUUPTNLModify struct {
-	ULNGUUPTNLInformation GTPTunnel `json:"ul_ng_u_up_tnl_information"`
-	DLNGUUPTNLInformation GTPTunnel `json:"dl_ng_u_up_tnl_information"`
+	ULNGUUPTNLInformation          GTPTunnel  `json:"ul_ng_u_up_tnl_information"`
+	DLNGUUPTNLInformation          GTPTunnel  `json:"dl_ng_u_up_tnl_information"`
+	RedundantULNGUUPTNLInformation *GTPTunnel `json:"redundant_ul_ng_u_up_tnl_information,omitempty"`
+	RedundantDLNGUUPTNLInformation *GTPTunnel `json:"redundant_dl_ng_u_up_tnl_information,omitempty"`
 }
 
 // QosFlowPerTNLInformation is a tunnel endpoint and the QoS flows carried on it
@@ -43,38 +58,55 @@ type QosFlowPerTNLInformation struct {
 // PDUSessionResourceModifyRequestTransferDecoded is the per-session transfer the
 // AMF sends to change a session (TS 38.413 §9.3.4.3).
 type PDUSessionResourceModifyRequestTransferDecoded struct {
-	MaximumBitRate                  *MaximumBitRate             `json:"maximum_bit_rate,omitempty"`
-	ULNGUUPTNLModify                []ULNGUUPTNLModify          `json:"ul_ng_u_up_tnl_modify,omitempty"`
-	NetworkInstance                 *uint16                     `json:"network_instance,omitempty"`
-	QosFlowAddOrModifyRequest       []QosFlowAddOrModifyRequest `json:"qos_flow_add_or_modify_request,omitempty"`
-	QosFlowToRelease                []QosFlowWithCause          `json:"qos_flow_to_release,omitempty"`
-	AdditionalULNGUUPTNLInformation []GTPTunnel                 `json:"additional_ul_ng_u_up_tnl_information,omitempty"`
+	MaximumBitRate                           *MaximumBitRate             `json:"maximum_bit_rate,omitempty"`
+	ULNGUUPTNLModify                         []ULNGUUPTNLModify          `json:"ul_ng_u_up_tnl_modify,omitempty"`
+	NetworkInstance                          *uint16                     `json:"network_instance,omitempty"`
+	QosFlowAddOrModifyRequest                []QosFlowAddOrModifyRequest `json:"qos_flow_add_or_modify_request,omitempty"`
+	QosFlowToRelease                         []QosFlowWithCause          `json:"qos_flow_to_release,omitempty"`
+	AdditionalULNGUUPTNLInformation          []GTPTunnel                 `json:"additional_ul_ng_u_up_tnl_information,omitempty"`
+	AdditionalRedundantULNGUUPTNLInformation []GTPTunnel                 `json:"additional_redundant_ul_ng_u_up_tnl_information,omitempty"`
+	RedundantULNGUUPTNLInformation           *GTPTunnel                  `json:"redundant_ul_ng_u_up_tnl_information,omitempty"`
+	UserPlaneFailureIndication               *UserPlaneFailureIndication `json:"user_plane_failure_indication,omitempty"`
+	SecurityIndication                       *SecurityIndication         `json:"security_indication,omitempty"`
+	CommonNetworkInstance                    any                         `json:"common_network_instance,omitempty"`
+	RedundantCommonNetworkInstance           any                         `json:"redundant_common_network_instance,omitempty"`
+	MBSSessionSetuporModifyRequestList       any                         `json:"mbs_session_setupor_modify_request_list,omitempty"`
+	MBSSessionToReleaseList                  any                         `json:"mbs_session_to_release_list,omitempty"`
 }
 
 // PDUSessionResourceModifyResponseTransferDecoded is what the RAN reports back
 // per session (TS 38.413 §9.3.4.4).
 type PDUSessionResourceModifyResponseTransferDecoded struct {
-	DLNGUUPTNLInformation                *GTPTunnel                 `json:"dl_ng_u_up_tnl_information,omitempty"`
-	ULNGUUPTNLInformation                *GTPTunnel                 `json:"ul_ng_u_up_tnl_information,omitempty"`
-	QosFlowAddOrModifyResponse           []int64                    `json:"qos_flow_add_or_modify_response,omitempty"`
-	AdditionalDLQosFlowPerTNLInformation []QosFlowPerTNLInformation `json:"additional_dl_qos_flow_per_tnl_information,omitempty"`
-	QosFlowFailedToAddOrModify           []QosFlowWithCause         `json:"qos_flow_failed_to_add_or_modify,omitempty"`
+	DLNGUUPTNLInformation                         *GTPTunnel                   `json:"dl_ng_u_up_tnl_information,omitempty"`
+	ULNGUUPTNLInformation                         *GTPTunnel                   `json:"ul_ng_u_up_tnl_information,omitempty"`
+	QosFlowAddOrModifyResponse                    []QosFlowAddOrModifyResponse `json:"qos_flow_add_or_modify_response,omitempty"`
+	AdditionalDLQosFlowPerTNLInformation          []QosFlowPerTNLInformation   `json:"additional_dl_qos_flow_per_tnl_information,omitempty"`
+	QosFlowFailedToAddOrModify                    []QosFlowWithCause           `json:"qos_flow_failed_to_add_or_modify,omitempty"`
+	AdditionalNGUUPTNLInformation                 []ULNGUUPTNLModify           `json:"additional_ng_u_up_tnl_information,omitempty"`
+	RedundantDLNGUUPTNLInformation                *GTPTunnel                   `json:"redundant_dl_ng_u_up_tnl_information,omitempty"`
+	RedundantULNGUUPTNLInformation                *GTPTunnel                   `json:"redundant_ul_ng_u_up_tnl_information,omitempty"`
+	AdditionalRedundantDLQosFlowPerTNLInformation []QosFlowPerTNLInformation   `json:"additional_redundant_dl_qos_flow_per_tnl_information,omitempty"`
+	AdditionalRedundantNGUUPTNLInformation        []ULNGUUPTNLModify           `json:"additional_redundant_ng_u_up_tnl_information,omitempty"`
 }
 
 // PDUSessionResourceModifyIndicationTransferDecoded is the RAN-initiated
 // indication's per-session transfer (TS 38.413 §9.3.4.6).
 type PDUSessionResourceModifyIndicationTransferDecoded struct {
-	DLQosFlowPerTNLInformation           QosFlowPerTNLInformation   `json:"dl_qos_flow_per_tnl_information"`
-	AdditionalDLQosFlowPerTNLInformation []QosFlowPerTNLInformation `json:"additional_dl_qos_flow_per_tnl_information,omitempty"`
+	DLQosFlowPerTNLInformation                    QosFlowPerTNLInformation   `json:"dl_qos_flow_per_tnl_information"`
+	AdditionalDLQosFlowPerTNLInformation          []QosFlowPerTNLInformation `json:"additional_dl_qos_flow_per_tnl_information,omitempty"`
+	RedundantDLQosFlowPerTNLInformation           *QosFlowPerTNLInformation  `json:"redundant_dl_qos_flow_per_tnl_information,omitempty"`
+	AdditionalRedundantDLQosFlowPerTNLInformation []QosFlowPerTNLInformation `json:"additional_redundant_dl_qos_flow_per_tnl_information,omitempty"`
 }
 
 // PDUSessionResourceModifyConfirmTransferDecoded is the AMF's confirmation of a
 // RAN-initiated modification (TS 38.413 §9.3.4.7).
 type PDUSessionResourceModifyConfirmTransferDecoded struct {
-	QosFlowModifyConfirm          []int64            `json:"qos_flow_modify_confirm,omitempty"`
-	ULNGUUPTNLInformation         GTPTunnel          `json:"ul_ng_u_up_tnl_information"`
-	AdditionalNGUUPTNLInformation []ULNGUUPTNLModify `json:"additional_ng_u_up_tnl_information,omitempty"`
-	QosFlowFailedToModify         []QosFlowWithCause `json:"qos_flow_failed_to_modify,omitempty"`
+	QosFlowModifyConfirm                   []int64            `json:"qos_flow_modify_confirm,omitempty"`
+	ULNGUUPTNLInformation                  GTPTunnel          `json:"ul_ng_u_up_tnl_information"`
+	AdditionalNGUUPTNLInformation          []ULNGUUPTNLModify `json:"additional_ng_u_up_tnl_information,omitempty"`
+	QosFlowFailedToModify                  []QosFlowWithCause `json:"qos_flow_failed_to_modify,omitempty"`
+	RedundantULNGUUPTNLInformation         *GTPTunnel         `json:"redundant_ul_ng_u_up_tnl_information,omitempty"`
+	AdditionalRedundantNGUUPTNLInformation []ULNGUUPTNLModify `json:"additional_redundant_ng_u_up_tnl_information,omitempty"`
 }
 
 // ModifySession is one PDU session in a modify list: its id, and whichever
@@ -82,6 +114,7 @@ type PDUSessionResourceModifyConfirmTransferDecoded struct {
 type ModifySession struct {
 	PDUSessionID int64   `json:"pdu_session_id"`
 	NASPDU       *NASPDU `json:"nas_pdu,omitempty"`
+	SNSSAI       *SNSSAI `json:"snssai,omitempty"`
 
 	ModifyRequestTransfer    *PDUSessionResourceModifyRequestTransferDecoded    `json:"modify_request_transfer,omitempty"`
 	ModifyResponseTransfer   *PDUSessionResourceModifyResponseTransferDecoded   `json:"modify_response_transfer,omitempty"`
@@ -138,8 +171,10 @@ func libPDUSessionResourceModifyRequestTransfer(raw ngap.TransferContainer) (any
 
 	for _, m := range t.ULNGUUPTNLModify {
 		out.ULNGUUPTNLModify = append(out.ULNGUUPTNLModify, ULNGUUPTNLModify{
-			ULNGUUPTNLInformation: libGTPTunnel(m.ULNGUUPTNLInformation),
-			DLNGUUPTNLInformation: libGTPTunnel(m.DLNGUUPTNLInformation),
+			ULNGUUPTNLInformation:          libGTPTunnel(m.ULNGUUPTNLInformation),
+			DLNGUUPTNLInformation:          libGTPTunnel(m.DLNGUUPTNLInformation),
+			RedundantULNGUUPTNLInformation: optionalGTPTunnel(m.RedundantULNGUUPTNLInformation),
+			RedundantDLNGUUPTNLInformation: optionalGTPTunnel(m.RedundantDLNGUUPTNLInformation),
 		})
 	}
 
@@ -164,6 +199,8 @@ func libPDUSessionResourceModifyRequestTransfer(raw ngap.TransferContainer) (any
 			entry.ERABID = &id
 		}
 
+		entry.ULNGUUPTNLInformation = optionalGTPTunnel(f.ULNGUUPTNLInformation)
+
 		out.QosFlowAddOrModifyRequest = append(out.QosFlowAddOrModifyRequest, entry)
 	}
 
@@ -172,6 +209,23 @@ func libPDUSessionResourceModifyRequestTransfer(raw ngap.TransferContainer) (any
 	for _, item := range t.AdditionalULNGUUPTNLInformation {
 		out.AdditionalULNGUUPTNLInformation = append(out.AdditionalULNGUUPTNLInformation, libGTPTunnel(item.NGUUPTNLInformation))
 	}
+
+	out.AdditionalRedundantULNGUUPTNLInformation = gtpTunnelList(t.AdditionalRedundantULNGUUPTNLInformation)
+	out.RedundantULNGUUPTNLInformation = optionalGTPTunnel(t.RedundantULNGUUPTNLInformation)
+
+	if u := t.UserPlaneFailureIndication; u != nil {
+		out.UserPlaneFailureIndication = &UserPlaneFailureIndication{
+			UserPlaneFailureType:  utils.NamedEnum(uint8(u.UserPlaneFailureType), u.UserPlaneFailureType.Name()),
+			ULNGUUPTNLInformation: libGTPTunnel(u.ULNGUUPTNLInformation),
+			DLNGUUPTNLInformation: libGTPTunnel(u.DLNGUUPTNLInformation),
+		}
+	}
+
+	out.SecurityIndication = securityIndication(t.SecurityIndication)
+	out.CommonNetworkInstance = renderPresent(t.CommonNetworkInstance)
+	out.RedundantCommonNetworkInstance = renderPresent(t.RedundantCommonNetworkInstance)
+	out.MBSSessionSetuporModifyRequestList = renderPresent(t.MBSSessionSetuporModifyRequestList)
+	out.MBSSessionToReleaseList = renderPresent(t.MBSSessionToReleaseList)
 
 	return out, nil
 }
@@ -198,8 +252,17 @@ func libPDUSessionResourceModifyResponseTransfer(raw ngap.TransferContainer) (an
 	}
 
 	for _, f := range t.QosFlowAddOrModifyResponse {
-		out.QosFlowAddOrModifyResponse = append(out.QosFlowAddOrModifyResponse, int64(f.QosFlowIdentifier))
+		out.QosFlowAddOrModifyResponse = append(out.QosFlowAddOrModifyResponse, QosFlowAddOrModifyResponse{
+			QosFlowIdentifier:     int64(f.QosFlowIdentifier),
+			DLNGUUPTNLInformation: optionalGTPTunnel(f.DLNGUUPTNLInformation),
+		})
 	}
+
+	out.AdditionalNGUUPTNLInformation = gtpTunnelPairs(t.AdditionalNGUUPTNLInformation)
+	out.RedundantDLNGUUPTNLInformation = optionalGTPTunnel(t.RedundantDLNGUUPTNLInformation)
+	out.RedundantULNGUUPTNLInformation = optionalGTPTunnel(t.RedundantULNGUUPTNLInformation)
+	out.AdditionalRedundantDLQosFlowPerTNLInformation = qosFlowPerTNLInformationList(t.AdditionalRedundantDLQosFlowPerTNLInformation)
+	out.AdditionalRedundantNGUUPTNLInformation = gtpTunnelPairs(t.AdditionalRedundantNGUUPTNLInformation)
 
 	return out, nil
 }
@@ -210,10 +273,18 @@ func libPDUSessionResourceModifyIndicationTransfer(raw ngap.TransferContainer) (
 		return nil, err
 	}
 
-	return &PDUSessionResourceModifyIndicationTransferDecoded{
-		DLQosFlowPerTNLInformation:           qosFlowPerTNLInformation(t.DLQosFlowPerTNLInformation),
-		AdditionalDLQosFlowPerTNLInformation: qosFlowPerTNLInformationList(t.AdditionalDLQosFlowPerTNLInformation),
-	}, nil
+	out := &PDUSessionResourceModifyIndicationTransferDecoded{
+		DLQosFlowPerTNLInformation:                    qosFlowPerTNLInformation(t.DLQosFlowPerTNLInformation),
+		AdditionalDLQosFlowPerTNLInformation:          qosFlowPerTNLInformationList(t.AdditionalDLQosFlowPerTNLInformation),
+		AdditionalRedundantDLQosFlowPerTNLInformation: qosFlowPerTNLInformationList(t.AdditionalRedundantDLQosFlowPerTNLInformation),
+	}
+
+	if t.RedundantDLQosFlowPerTNLInformation != nil {
+		q := qosFlowPerTNLInformation(*t.RedundantDLQosFlowPerTNLInformation)
+		out.RedundantDLQosFlowPerTNLInformation = &q
+	}
+
+	return out, nil
 }
 
 func libPDUSessionResourceModifyConfirmTransfer(raw ngap.TransferContainer) (any, error) {
@@ -231,12 +302,9 @@ func libPDUSessionResourceModifyConfirmTransfer(raw ngap.TransferContainer) (any
 		out.QosFlowModifyConfirm = append(out.QosFlowModifyConfirm, int64(f.QosFlowIdentifier))
 	}
 
-	for _, p := range t.AdditionalNGUUPTNLInformation {
-		out.AdditionalNGUUPTNLInformation = append(out.AdditionalNGUUPTNLInformation, ULNGUUPTNLModify{
-			ULNGUUPTNLInformation: libGTPTunnel(p.ULNGUUPTNLInformation),
-			DLNGUUPTNLInformation: libGTPTunnel(p.DLNGUUPTNLInformation),
-		})
-	}
+	out.AdditionalNGUUPTNLInformation = gtpTunnelPairs(t.AdditionalNGUUPTNLInformation)
+	out.RedundantULNGUUPTNLInformation = optionalGTPTunnel(t.RedundantULNGUUPTNLInformation)
+	out.AdditionalRedundantNGUUPTNLInformation = gtpTunnelPairs(t.AdditionalRedundantNGUUPTNLInformation)
 
 	return out, nil
 }
@@ -300,6 +368,11 @@ func buildPDUSessionResourceModifyRequest(value []byte) NGAPMessageValue {
 			s.NASPDU = &pdu
 		}
 
+		if it.SNSSAI != nil {
+			snssai := buildSNSSAIValue(*it.SNSSAI)
+			s.SNSSAI = &snssai
+		}
+
 		sessions = append(sessions, s)
 	}
 
@@ -308,6 +381,10 @@ func buildPDUSessionResourceModifyRequest(value []byte) NGAPMessageValue {
 		ie(ngap.IDRANUENGAPID, ngap.CriticalityReject, int64(m.RANUENGAPID)),
 		ie(ngap.IDPDUSessionResourceModifyListModReq, ngap.CriticalityReject, sessions),
 	}
+
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDRANPagingPriority, ngap.CriticalityIgnore, m.RANPagingPriority},
+	})
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }

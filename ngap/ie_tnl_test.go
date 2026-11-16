@@ -5,7 +5,6 @@ package ngap
 
 import (
 	"bytes"
-	"strings"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
@@ -14,14 +13,14 @@ import (
 func TestNGRANTNLAssociationToRemoveListRoundTrip(t *testing.T) {
 	in := NGRANTNLAssociationToRemoveList{
 		{
-			TNLAssociationTransportLayerAddress:    CPTransportLayerInformation{EndpointIPAddress: TransportLayerAddress{10, 3, 0, 3}},
-			TNLAssociationTransportLayerAddressAMF: &CPTransportLayerInformation{EndpointIPAddress: TransportLayerAddress{10, 3, 0, 2}},
+			TNLAssociationTransportLayerAddress:    CPTransportLayerInformation{EndpointIPAddress: Ptr(tlaOf(10, 3, 0, 3))},
+			TNLAssociationTransportLayerAddressAMF: &CPTransportLayerInformation{EndpointIPAddress: Ptr(tlaOf(10, 3, 0, 2))},
 		},
 		// The AMF-side address is optional; an item may name only its own.
 		{TNLAssociationTransportLayerAddress: CPTransportLayerInformation{
-			EndpointIPAddress: TransportLayerAddress{
+			EndpointIPAddress: Ptr(tlaOf(
 				0x20, 0x01, 0x0d, 0xb8, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x11,
-			},
+			)),
 		}},
 	}
 
@@ -40,8 +39,8 @@ func TestNGRANTNLAssociationToRemoveListRoundTrip(t *testing.T) {
 	}
 
 	for i := range in {
-		if !bytes.Equal(out[i].TNLAssociationTransportLayerAddress.EndpointIPAddress,
-			in[i].TNLAssociationTransportLayerAddress.EndpointIPAddress) {
+		if *out[i].TNLAssociationTransportLayerAddress.EndpointIPAddress !=
+			*in[i].TNLAssociationTransportLayerAddress.EndpointIPAddress {
 			t.Errorf("item %d address = %v, want %v",
 				i, out[i].TNLAssociationTransportLayerAddress.EndpointIPAddress,
 				in[i].TNLAssociationTransportLayerAddress.EndpointIPAddress)
@@ -52,7 +51,7 @@ func TestNGRANTNLAssociationToRemoveListRoundTrip(t *testing.T) {
 			t.Fatalf("item %d AMF address presence = %v, want %v", i, gotAMF, wantAMF)
 		}
 
-		if wantAMF != nil && !bytes.Equal(gotAMF.EndpointIPAddress, wantAMF.EndpointIPAddress) {
+		if wantAMF != nil && *gotAMF.EndpointIPAddress != *wantAMF.EndpointIPAddress {
 			t.Errorf("item %d AMF address = %v, want %v", i, gotAMF.EndpointIPAddress, wantAMF.EndpointIPAddress)
 		}
 	}
@@ -72,7 +71,7 @@ func TestNGRANTNLAssociationToRemoveItemPreambleHasNoExtensionBit(t *testing.T) 
 		return perBytes(w)
 	}
 
-	addr := CPTransportLayerInformation{EndpointIPAddress: TransportLayerAddress{10, 3, 0, 3}}
+	addr := CPTransportLayerInformation{EndpointIPAddress: Ptr(tlaOf(10, 3, 0, 3))}
 
 	without := encode(t, NGRANTNLAssociationToRemoveItem{TNLAssociationTransportLayerAddress: addr})
 	with := encode(t, NGRANTNLAssociationToRemoveItem{
@@ -90,26 +89,59 @@ func TestNGRANTNLAssociationToRemoveItemPreambleHasNoExtensionBit(t *testing.T) 
 	}
 }
 
-// §9.3.2.6 closes CPTransportLayerInformation with a choice-Extensions
-// alternative, so selecting it must error rather than yield a zero address.
-func TestCPTransportLayerInformationChoiceExtensionIsRejected(t *testing.T) {
+func TestCPTransportLayerInformationChoiceExtensions(t *testing.T) {
+	port := EndpointIPAddressAndPort{EndpointIPAddress: tlaOf(192, 0, 2, 1), PortNumber: 38470}
+
+	for _, c := range []struct {
+		name string
+		raw  []byte
+		want func(CPTransportLayerInformation) bool
+	}{
+		{"typed", ieRaw(t, &CPTransportLayerInformation{EndpointIPAddressAndPort: &port}), func(v CPTransportLayerInformation) bool {
+			return v.EndpointIPAddressAndPort != nil && v.ChoiceExtension == nil
+		}},
+		{"unknown", choiceExtensionValue(t, 2, 1, IDAMFUENGAPID), func(v CPTransportLayerInformation) bool {
+			return v.ChoiceExtension != nil && v.ChoiceExtension.ID == IDAMFUENGAPID
+		}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := unmarshalPERValue[CPTransportLayerInformation](c.raw)
+			if err != nil {
+				t.Fatalf("decode is lenient, got %v", err)
+			}
+
+			if !c.want(got) {
+				t.Fatalf("decoded %+v", got)
+			}
+
+			if !bytes.Equal(ieRaw(t, &got), c.raw) {
+				t.Fatal("did not re-encode byte-exact")
+			}
+		})
+	}
+}
+
+func TestCPTransportLayerInformationKeepsWireCriticality(t *testing.T) {
+	port := EndpointIPAddressAndPort{EndpointIPAddress: tlaOf(192, 0, 2, 1), PortNumber: 38470}
+
 	w := per.NewWriter()
-	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0,
-		cpTransportLayerInformationAlternatives-1, cpTransportLayerInformationChoiceExtensions); err != nil {
+	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, 1, 1); err != nil {
 		t.Fatal(err)
 	}
 
-	got, err := unmarshalPERValue[CPTransportLayerInformation](perBytes(w))
-	if err == nil {
-		t.Fatalf("decoded choice-Extensions as %+v, want an error", got)
+	if err := encodeContainerField(w, ieField{ID: IDEndpointIPAddressAndPort, Criticality: CriticalityIgnore, Value: &port}); err != nil {
+		t.Fatal(err)
 	}
 
-	if !strings.Contains(err.Error(), "CPTransportLayerInformation alternative") {
-		t.Errorf("error = %q, want it to name the unsupported alternative", err)
+	raw := perBytes(w)
+
+	got, err := unmarshalPERValue[CPTransportLayerInformation](raw)
+	if err != nil || got.EndpointIPAddressAndPort == nil {
+		t.Fatalf("decoded %+v, %v; want the typed alternative", got, err)
 	}
 
-	if got.EndpointIPAddress != nil {
-		t.Errorf("EndpointIPAddress = %v, want it left untouched", got.EndpointIPAddress)
+	if !bytes.Equal(ieRaw(t, &got), raw) {
+		t.Fatal("the peer's criticality was not kept")
 	}
 }
 

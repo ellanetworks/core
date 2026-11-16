@@ -26,26 +26,26 @@ type ENBStatusTransfer struct {
 
 var eNBStatusTransferIEs = []ieSpec[ENBStatusTransfer]{
 	{
-		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *ENBStatusTransfer, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.MMEUES1APID)
+		ID: IDMMEUES1APID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *ENBStatusTransfer, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.MMEUES1APID)
 		},
-		encode: func(m *ENBStatusTransfer) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+		Encode: func(m *ENBStatusTransfer) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *ENBStatusTransfer, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ENBUES1APID)
+		ID: IDENBUES1APID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *ENBStatusTransfer, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.ENBUES1APID)
 		},
-		encode: func(m *ENBStatusTransfer) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+		Encode: func(m *ENBStatusTransfer) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: IDENBStatusTransferTransparentContainer, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *ENBStatusTransfer, raw []byte, enc per.Encoding) error {
-			m.Container = StatusTransferContainer(raw)
+		ID: IDENBStatusTransferTransparentContainer, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *ENBStatusTransfer, r *per.Reader, enc per.Encoding) error {
+			m.Container = StatusTransferContainer(restOctets(r))
 			return nil
 		},
-		encode: func(m *ENBStatusTransfer) (per.Marshaler, bool) {
+		Encode: func(m *ENBStatusTransfer) (per.Marshaler, bool) {
 			if m.Container == nil {
 				return nil, false
 			}
@@ -79,6 +79,10 @@ func ParseENBStatusTransfer(value []byte) (*ENBStatusTransfer, error) {
 	return parseMessageBody[ENBStatusTransfer](ProcENBStatusTransfer, TriggeringInitiatingMessage, eNBStatusTransferIEs, value)
 }
 
+func DecodeENBStatusTransfer(value []byte) (*ENBStatusTransfer, error) {
+	return decodeMessageBody[ENBStatusTransfer](ProcENBStatusTransfer, eNBStatusTransferIEs, value)
+}
+
 // TS 36.413 §9.1.5.14.
 type MMEStatusTransfer struct {
 	MMEUES1APID MMEUES1APID
@@ -90,26 +94,26 @@ type MMEStatusTransfer struct {
 
 var mMEStatusTransferIEs = []ieSpec[MMEStatusTransfer]{
 	{
-		id: IDMMEUES1APID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *MMEStatusTransfer, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.MMEUES1APID)
+		ID: IDMMEUES1APID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *MMEStatusTransfer, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.MMEUES1APID)
 		},
-		encode: func(m *MMEStatusTransfer) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
+		Encode: func(m *MMEStatusTransfer) (per.Marshaler, bool) { return &m.MMEUES1APID, true },
 	},
 	{
-		id: IDENBUES1APID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *MMEStatusTransfer, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ENBUES1APID)
+		ID: IDENBUES1APID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *MMEStatusTransfer, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.ENBUES1APID)
 		},
-		encode: func(m *MMEStatusTransfer) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
+		Encode: func(m *MMEStatusTransfer) (per.Marshaler, bool) { return &m.ENBUES1APID, true },
 	},
 	{
-		id: IDENBStatusTransferTransparentContainer, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *MMEStatusTransfer, raw []byte, enc per.Encoding) error {
-			m.Container = StatusTransferContainer(raw)
+		ID: IDENBStatusTransferTransparentContainer, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *MMEStatusTransfer, r *per.Reader, enc per.Encoding) error {
+			m.Container = StatusTransferContainer(restOctets(r))
 			return nil
 		},
-		encode: func(m *MMEStatusTransfer) (per.Marshaler, bool) {
+		Encode: func(m *MMEStatusTransfer) (per.Marshaler, bool) {
 			if m.Container == nil {
 				return nil, false
 			}
@@ -141,4 +145,8 @@ func (m *MMEStatusTransfer) Marshal() ([]byte, error) {
 
 func ParseMMEStatusTransfer(value []byte) (*MMEStatusTransfer, error) {
 	return parseMessageBody[MMEStatusTransfer](ProcMMEStatusTransfer, TriggeringInitiatingMessage, mMEStatusTransferIEs, value)
+}
+
+func DecodeMMEStatusTransfer(value []byte) (*MMEStatusTransfer, error) {
+	return decodeMessageBody[MMEStatusTransfer](ProcMMEStatusTransfer, mMEStatusTransferIEs, value)
 }

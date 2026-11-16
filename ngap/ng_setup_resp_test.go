@@ -76,3 +76,33 @@ func TestNGSetupResponseReencodeStable(t *testing.T) {
 		t.Fatalf("re-encode unstable:\n  b1 % x\n  b2 % x", b1, b2)
 	}
 }
+
+func goldNGSetupResponseExtendedAMFName() *NGSetupResponse {
+	m := goldResponse()
+	m.ServedGUAMIList[0].ExtendedBackupAMFName = &ExtendedAMFName{
+		AMFNameVisibleString: Ptr(AMFNameVisibleString("ella-amf-backup-extended")),
+	}
+	m.ExtendedAMFName = &ExtendedAMFName{
+		AMFNameVisibleString: Ptr(AMFNameVisibleString("ella-amf-extended")),
+		AMFNameUTF8String:    Ptr(AMFNameUTF8String("ella-amf-ü")),
+	}
+
+	return m
+}
+
+func nGSetupResponseGoldenCases() []goldenRoundTrip {
+	return []goldenRoundTrip{
+		{
+			"NGSetupResponseExtendedAMFName",
+			goldNGSetupResponseExtendedAMFName(),
+			func(v []byte) (any, error) { return ParseNGSetupResponse(v) },
+			"201500740000050001000a0380656c6c612d616d6600600028002002f839020043000001ba401a40b8656c6c612d616d662d6261636b75702d657874656e64656400564001ff0050000b0002f839000010080102030112401f6080656c6c612d616d662d657874656e6465640b656c6c612d616d662dc3bc",
+		},
+	}
+}
+
+func TestNGSetupResponseExtendedAMFNameGolden(t *testing.T) {
+	for _, c := range nGSetupResponseGoldenCases() {
+		t.Run(c.name, func(t *testing.T) { checkGoldenRoundTrip(t, c) })
+	}
+}

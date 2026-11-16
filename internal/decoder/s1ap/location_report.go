@@ -19,8 +19,8 @@ type RequestType struct {
 
 func requestType(r s1ap.RequestType) RequestType {
 	return RequestType{
-		EventType:  utils.NamedEnum(uint8(r.EventType), r.EventType.Name()),
-		ReportArea: utils.NamedEnum(uint8(r.ReportArea), r.ReportArea.Name()),
+		EventType:  namedEnum(uint8(r.EventType), r.EventType.Name()),
+		ReportArea: namedEnum(uint8(r.ReportArea), r.ReportArea.Name()),
 	}
 }
 
@@ -46,6 +46,11 @@ func buildLocationReport(value []byte) (S1APMessageValue, string) {
 	if m.RequestType != nil {
 		ies = append(ies, ie(s1ap.IDRequestType, s1ap.CriticalityIgnore, requestType(*m.RequestType)))
 	}
+
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDPSCellInformation, s1ap.CriticalityIgnore, m.PSCellInformation},
+		{s1ap.IDLTENTNTAIInformation, s1ap.CriticalityIgnore, m.LTENTNTAIInformation},
+	})
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 

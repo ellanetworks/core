@@ -37,7 +37,7 @@ func TestHandleInitialContextSetupFailure_UnknownAmfUeNgapID(t *testing.T) {
 	msg := &ngap.InitialContextSetupFailure{
 		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(999)),
 		RANUENGAPID: ngap.Ptr(ngap.RANUENGAPID(99)),
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified},
+		Cause:       new(ngap.CauseRadioNetworkUnspecified.Cause()),
 	}
 
 	HandleInitialContextSetupFailure(context.Background(), amfInstance, ran, msg)
@@ -56,7 +56,7 @@ func TestHandleInitialContextSetupFailure_NilUeContext(t *testing.T) {
 	msg := &ngap.InitialContextSetupFailure{
 		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(10)),
 		RANUENGAPID: ngap.Ptr(ngap.RANUENGAPID(1)),
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified},
+		Cause:       new(ngap.CauseRadioNetworkUnspecified.Cause()),
 	}
 
 	HandleInitialContextSetupFailure(context.Background(), amfInstance, ran, msg)
@@ -83,7 +83,7 @@ func TestHandleInitialContextSetupFailure_T3550Running(t *testing.T) {
 	msg := &ngap.InitialContextSetupFailure{
 		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(10)),
 		RANUENGAPID: ngap.Ptr(ngap.RANUENGAPID(1)),
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified},
+		Cause:       new(ngap.CauseRadioNetworkUnspecified.Cause()),
 	}
 
 	HandleInitialContextSetupFailure(context.Background(), amfInstance, ran, msg)
@@ -116,7 +116,7 @@ func TestHandleInitialContextSetupFailure_PDUSessionFailureForwardedToSmf(t *tes
 	msg := &ngap.InitialContextSetupFailure{
 		AMFUENGAPID:              ngap.Ptr(ngap.AMFUENGAPID(10)),
 		RANUENGAPID:              ngap.Ptr(ngap.RANUENGAPID(1)),
-		Cause:                    &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified},
+		Cause:                    new(ngap.CauseRadioNetworkUnspecified.Cause()),
 		PDUSessionResourceFailed: ngap.PDUSessionResourceFailedToSetupListCxtFail{{PDUSessionID: 1, Transfer: transfer}},
 	}
 
@@ -154,7 +154,7 @@ func TestHandleInitialContextSetupFailure_ReleasesNGRANStateForEverySession(t *t
 	msg := &ngap.InitialContextSetupFailure{
 		AMFUENGAPID:              ngap.Ptr(ngap.AMFUENGAPID(10)),
 		RANUENGAPID:              ngap.Ptr(ngap.RANUENGAPID(1)),
-		Cause:                    &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified},
+		Cause:                    new(ngap.CauseRadioNetworkUnspecified.Cause()),
 		PDUSessionResourceFailed: ngap.PDUSessionResourceFailedToSetupListCxtFail{{PDUSessionID: 1, Transfer: []byte{0xEE}}},
 	}
 
@@ -189,7 +189,7 @@ func TestHandleInitialContextSetupFailure_ReleasesNGRANStateWithoutAFailedList(t
 	msg := &ngap.InitialContextSetupFailure{
 		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(10)),
 		RANUENGAPID: ngap.Ptr(ngap.RANUENGAPID(1)),
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified},
+		Cause:       new(ngap.CauseRadioNetworkUnspecified.Cause()),
 	}
 
 	HandleInitialContextSetupFailure(context.Background(), amfInstance, ran, msg)
