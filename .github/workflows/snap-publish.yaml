@@ -11,6 +11,9 @@ on:
 
 jobs:
   publish-snap:
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     steps:
@@ -20,7 +23,7 @@ jobs:
         uses: actions/download-artifact@v8
         id: download
         with:
-          name: snap-amd64
+          name: snap-${{ matrix.arch }}
 
       - name: Determine snap file name
         id: find-snap

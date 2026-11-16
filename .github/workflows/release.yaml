@@ -37,3 +37,15 @@ jobs:
     needs: [snap-build, snap-strict-test]
     uses: ./.github/workflows/snap-publish.yaml
     secrets: inherit
+  binary-build:
+    uses: ./.github/workflows/binary-build.yaml
+  binary-publish:
+    if: github.event_name == 'release'
+    needs: [binary-build]
+    uses: ./.github/workflows/binary-publish.yaml
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    with:
+      tag: ${{ github.event.release.tag_name }}

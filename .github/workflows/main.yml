@@ -45,6 +45,8 @@ jobs:
     uses: ./.github/workflows/license-headers.yaml
   snap-build:
     uses: ./.github/workflows/snap-build.yaml
+  binary-build:
+    uses: ./.github/workflows/binary-build.yaml
   snap-strict-test:
     needs: [snap-build]
     uses: ./.github/workflows/snap-strict-test.yaml
