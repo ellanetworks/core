@@ -51,6 +51,12 @@ Create a backup with [Backup and Restore](backup_and_restore.md#backup).
 
         Reapply your changes to `core-<target-version>/k8s/core-ran-nad.yaml` and `core-<target-version>/k8s/core-configmap.yaml`.
 
+        Delete the StatefulSet, keeping its pod and volume:
+
+        ```bash
+        kubectl -n ella delete statefulset ella-core --cascade=orphan
+        ```
+
         Apply the manifests:
 
         ```bash
