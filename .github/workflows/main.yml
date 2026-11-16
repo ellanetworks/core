@@ -43,7 +43,10 @@ jobs:
     uses: ./.github/workflows/clang-tidy.yaml
   license-headers:
     uses: ./.github/workflows/license-headers.yaml
+  snap-build:
+    uses: ./.github/workflows/snap-build.yaml
   snap-strict-test:
+    needs: [snap-build]
     uses: ./.github/workflows/snap-strict-test.yaml
   image-build:
     uses: ./.github/workflows/image-build.yaml
@@ -59,6 +62,12 @@ jobs:
     if: github.event_name == 'push'
     needs: [image-build, ui-e2e, integration-tests]
     uses: ./.github/workflows/image-publish.yaml
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
     with:
       kind: main
     secrets: inherit

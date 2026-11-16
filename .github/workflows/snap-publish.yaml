@@ -20,7 +20,7 @@ jobs:
         uses: actions/download-artifact@v8
         id: download
         with:
-          name: snap
+          name: snap-amd64
 
       - name: Determine snap file name
         id: find-snap

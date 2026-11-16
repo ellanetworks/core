@@ -7,35 +7,19 @@ on:
   workflow_call:
 
 jobs:
-  snap-build:
-    runs-on: ubuntu-26.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Build snap
-        uses: snapcore/action-build@3bdaa03e1ba6bf59a65f84a751d943d549a54e79 #v1.3.0
-        id: build
-
-      - name: Upload the snap
-        uses: actions/upload-artifact@v7
-        with:
-          name: ella-core-snap
-          path: ${{ steps.build.outputs.snap }}
-
   snap-install:
-    needs: snap-build
     strategy:
       fail-fast: false
       matrix:
+        arch: [amd64, arm64]
         attach_mode: [xdp-generic, tcx]
-    runs-on: ubuntu-26.04
+    runs-on: ${{ (matrix.arch == 'arm64' && 'ubuntu-26.04-arm') || 'ubuntu-26.04' }}
     timeout-minutes: 30
     steps:
       - name: Download the snap
         uses: actions/download-artifact@v8
         with:
-          name: ella-core-snap
+          name: snap-${{ matrix.arch }}
 
       - name: Install the snap under strict confinement
         run: |
