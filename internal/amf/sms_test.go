@@ -284,7 +284,7 @@ func TestAUEBeingReleasedIsPagedForSMSOnceTheReleaseCompletes(t *testing.T) {
 	connectSMSUE(t, a, ue, sender)
 
 	ueConn := ue.Conn()
-	a.ReleaseOnRANRequest(t.Context(), ueConn, ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUserInactivity}, nil)
+	a.ReleaseOnRANRequest(t.Context(), ueConn, ngap.CauseRadioNetworkUserInactivity.Cause(), nil)
 
 	done := make(chan error, 1)
 

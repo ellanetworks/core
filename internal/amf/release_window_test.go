@@ -42,7 +42,7 @@ func releasingUE(t *testing.T, imsi string) (*amf.AMF, *amf.UeContext, *amf.UeCo
 	}})
 
 	amfInstance.ReleaseOnRANRequest(t.Context(), ueConn,
-		ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUserInactivity}, nil)
+		ngap.CauseRadioNetworkUserInactivity.Cause(), nil)
 
 	if !amfInstance.ReleaseClaimed(ueConn) {
 		t.Fatal("expected a UE Context Release Command in flight")
