@@ -41,6 +41,9 @@ type testerEnv struct {
 	// TesterContainer is the resolved name of the sidecar container
 	// hosting core-tester.
 	TesterContainer string
+
+	ScenarioTimeout time.Duration
+	Quiet           bool
 }
 
 // testerGNB captures one gNB's addresses as seen from inside the compose
@@ -84,7 +87,7 @@ func setupTesterEnv(ctx context.Context, t *testing.T, overlays ...string) *test
 		for _, overlay := range overlays {
 			if overlay == jaegerOverlay {
 				services = append(services, "jaeger")
-			} else if !slices.Contains(services, "smsc") {
+			} else if overlay != scaleDiskOverlay && !slices.Contains(services, "smsc") {
 				services = append(services, "smsc", "ims")
 			}
 		}
@@ -223,12 +226,21 @@ func (e *testerEnv) RunScenario(ctx context.Context, t *testing.T, scenario stri
 
 	argv = append(argv, "--ella-api-address", APIAddress())
 	argv = append(argv, "--ella-api-token", e.Client.GetToken())
-	argv = append(argv, "--verbose")
+
+	if !e.Quiet {
+		argv = append(argv, "--verbose")
+	}
+
 	argv = append(argv, extraArgs...)
 
 	QuietLogf(t, tr, "running: %s", strings.Join(argv, " "))
 
-	out, err := e.dc.Exec(ctx, e.TesterContainer, argv, false, 5*time.Minute, quietLogWriter{tr})
+	timeout := e.ScenarioTimeout
+	if timeout == 0 {
+		timeout = 5 * time.Minute
+	}
+
+	out, err := e.dc.Exec(ctx, e.TesterContainer, argv, false, timeout, quietLogWriter{tr})
 	if err != nil {
 		setFailureReason(tr, fmt.Sprintf("scenario %q failed: %v", scenario, err))
 		t.Fatalf("scenario %q failed: %v", scenario, err)

@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"net/netip"
+	"sync"
 
 	bpf "github.com/cilium/ebpf"
 	"github.com/ellanetworks/core/internal/logger"
@@ -19,6 +20,57 @@ const (
 	natPurgeAttempts  = 3
 )
 
+type natPurger struct {
+	mu      sync.Mutex
+	running bool
+	pending map[uint32][]chan struct{}
+}
+
+func (p *natPurger) purge(addr uint32, purgeSet func(map[uint32]struct{})) {
+	done := make(chan struct{})
+
+	p.mu.Lock()
+
+	if p.pending == nil {
+		p.pending = make(map[uint32][]chan struct{})
+	}
+
+	p.pending[addr] = append(p.pending[addr], done)
+
+	if p.running {
+		p.mu.Unlock()
+		<-done
+
+		return
+	}
+
+	p.running = true
+
+	for len(p.pending) > 0 {
+		batch := p.pending
+		p.pending = make(map[uint32][]chan struct{})
+		p.mu.Unlock()
+
+		addrs := make(map[uint32]struct{}, len(batch))
+		for a := range batch {
+			addrs[a] = struct{}{}
+		}
+
+		purgeSet(addrs)
+
+		for _, waiters := range batch {
+			for _, w := range waiters {
+				close(w)
+			}
+		}
+
+		p.mu.Lock()
+	}
+
+	p.running = false
+	p.mu.Unlock()
+}
+
 // purgeNATConntrack removes every nat_ct entry belonging to ueIP; the IP
 // allocator reissues the lowest free address, so no state may outlive the
 // session.
@@ -28,8 +80,11 @@ func (conn *SessionEngine) purgeNATConntrack(ueIP netip.Addr) {
 	}
 
 	addr4 := ueIP.As4()
-	ueAddr := binary.NativeEndian.Uint32(addr4[:])
 
+	conn.natPurge.purge(binary.NativeEndian.Uint32(addr4[:]), conn.purgeNATAddresses)
+}
+
+func (conn *SessionEngine) purgeNATAddresses(addrs map[uint32]struct{}) {
 	var (
 		keys   = make([]ebpf.N3N6EntrypointFiveTuple, natPurgeBatchSize)
 		values = make([]ebpf.N3N6EntrypointNatEntry, natPurgeBatchSize)
@@ -47,7 +102,10 @@ func (conn *SessionEngine) purgeNATConntrack(ueIP netip.Addr) {
 			n, err := conn.BpfObjects.NatCt.BatchLookup(&cursor, keys, values, nil)
 
 			for i := 0; i < n; i++ {
-				if keys[i].Saddr == ueAddr || values[i].Peer.Saddr == ueAddr {
+				_, outbound := addrs[keys[i].Saddr]
+				_, inbound := addrs[values[i].Peer.Saddr]
+
+				if outbound || inbound {
 					matched = append(matched, keys[i])
 				}
 			}
@@ -71,8 +129,8 @@ func (conn *SessionEngine) purgeNATConntrack(ueIP netip.Addr) {
 				logger.UpfLog.Warn("NAT conntrack purge delete failed", zap.Error(err))
 			}
 
-			logger.UpfLog.Debug("Purged NAT conntrack entries for released UE address",
-				zap.String("ue_ip", ueIP.String()), zap.Int("count", count))
+			logger.UpfLog.Debug("Purged NAT conntrack entries for released UE addresses",
+				zap.Int("addresses", len(addrs)), zap.Int("count", count))
 
 			// A complete scan whose every match was deleted needs
 			// no confirming pass.
@@ -83,8 +141,8 @@ func (conn *SessionEngine) purgeNATConntrack(ueIP netip.Addr) {
 
 		if attempt == natPurgeAttempts {
 			if scanErr != nil || len(matched) > 0 {
-				logger.UpfLog.Error("NAT conntrack purge unconfirmed; a reallocation of this address may inherit its flows",
-					zap.String("ue_ip", ueIP.String()), zap.Int("last_round", len(matched)), zap.Error(scanErr))
+				logger.UpfLog.Error("NAT conntrack purge unconfirmed; a reallocation of these addresses may inherit their flows",
+					zap.Int("addresses", len(addrs)), zap.Int("last_round", len(matched)), zap.Error(scanErr))
 			}
 
 			return

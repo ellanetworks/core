@@ -21,18 +21,21 @@ import (
 const (
 	DefaultMaxSessions = 2000
 
-	natEntriesPerSession  = 200
-	flowEntriesPerSession = 100
-	natEntriesMin         = 256 << 10
-	flowEntriesMin        = 128 << 10
-	natEntriesMax         = 16 << 20
-	flowEntriesMax        = 8 << 20
+	maxTableEntries  = 1 << 24
+	MaxSessionsLimit = maxTableEntries / MaxSessionQERs
+
+	natEntriesPerConnection = 2
+	natEntriesPerSession    = 200
+	flowEntriesPerSession   = 100
+	natEntriesMin           = 256 << 10
+	flowEntriesMin          = 128 << 10
+	natEntriesMax           = maxTableEntries
+	flowEntriesMax          = 8 << 20
 
 	perSessionPoolFactor = 8
 
-	natBytesPerEntry       = 112
-	flowBytesPerEntry      = 163
-	hashBucketBytes        = 16
+	htabBucketBytes        = 16
+	htabElemHeaderBytes    = 48
 	memoryWarnRatioPercent = 25
 )
 
@@ -97,18 +100,69 @@ func (s MapSizing) apply(spec *ebpf.CollectionSpec) error {
 	return nil
 }
 
-func (s MapSizing) ProjectedBytes() uint64 {
-	total := uint64(s.NATEntries)*natBytesPerEntry + uint64(s.FlowEntries)*flowBytesPerEntry
+func (s MapSizing) clamped() bool {
+	return uint64(s.NATEntries) < uint64(s.MaxSessions)*natEntriesPerSession ||
+		uint64(s.FlowEntries) < uint64(s.MaxSessions)*flowEntriesPerSession
+}
+
+func (s MapSizing) natConnectionsPerSession() uint32 {
+	return s.NATEntries / natEntriesPerConnection / s.MaxSessions
+}
+
+func (s MapSizing) flowsPerSession() uint32 {
+	return s.FlowEntries / s.MaxSessions
+}
+
+func (s MapSizing) ProjectedBytes(spec *ebpf.CollectionSpec, possibleCPUs int) uint64 {
+	total := uint64(0)
 
 	for name, n := range s.maxEntries() {
-		if name == "nat_ct" || name == "flow_stats" {
-			continue
+		if m, ok := spec.Maps[name]; ok {
+			total += startupBytes(m, n, uint64(possibleCPUs))
 		}
-
-		total += roundUpPow2(n) * hashBucketBytes
 	}
 
 	return total
+}
+
+func startupBytes(m *ebpf.MapSpec, entries uint32, cpus uint64) uint64 {
+	switch m.Type {
+	case ebpf.Hash, ebpf.LRUHash, ebpf.PerCPUHash, ebpf.LRUCPUHash:
+	default:
+		return 0
+	}
+
+	total := roundUpPow2(entries) * htabBucketBytes
+	if m.Flags&unix.BPF_F_NO_PREALLOC != 0 {
+		return total
+	}
+
+	lru := m.Type == ebpf.LRUHash || m.Type == ebpf.LRUCPUHash
+	percpu := m.Type == ebpf.PerCPUHash || m.Type == ebpf.LRUCPUHash
+	value := roundUp8(m.ValueSize)
+
+	elem := htabElemHeaderBytes + roundUp8(m.KeySize)
+	if percpu {
+		elem += 8
+	} else {
+		elem += value
+	}
+
+	n := uint64(entries)
+	if !lru && !percpu {
+		n += cpus
+	}
+
+	total += elem * n
+	if percpu {
+		total += value * cpus * uint64(entries)
+	}
+
+	return total
+}
+
+func roundUp8(n uint32) uint64 {
+	return (uint64(n) + 7) &^ 7
 }
 
 func roundUpPow2(n uint32) uint64 {
@@ -119,13 +173,13 @@ func roundUpPow2(n uint32) uint64 {
 	return 1 << bits.Len32(n-1)
 }
 
-func (s MapSizing) wrapCreateError(err error) error {
+func (s MapSizing) wrapCreateError(err error, projected uint64) error {
 	if !errors.Is(err, unix.ENOMEM) && !errors.Is(err, unix.E2BIG) {
 		return err
 	}
 
 	return fmt.Errorf("create datapath maps for %d sessions (nat_ct %d entries, flow_stats %d entries, about %d MiB): %w; raise the memory limit",
-		s.MaxSessions, s.NATEntries, s.FlowEntries, s.ProjectedBytes()>>20, err)
+		s.MaxSessions, s.NATEntries, s.FlowEntries, projected>>20, err)
 }
 
 var HostMemory = os.DirFS("/")
@@ -136,13 +190,13 @@ const (
 	cgroupRootPath = "sys/fs/cgroup"
 )
 
-func (s MapSizing) MemoryCheck(host fs.FS) (limit uint64, warn bool) {
+func MemoryCheck(host fs.FS, projected uint64) (limit uint64, warn bool) {
 	limit = availableMemoryLimit(host)
 	if limit == 0 {
 		return 0, false
 	}
 
-	return limit, s.ProjectedBytes()*100 > limit*memoryWarnRatioPercent
+	return limit, projected*100 > limit*memoryWarnRatioPercent
 }
 
 func availableMemoryLimit(host fs.FS) uint64 {
@@ -190,20 +244,34 @@ func cgroupMemoryMax(host fs.FS) uint64 {
 			continue
 		}
 
-		memoryMax, err := fs.ReadFile(host, path.Join(cgroupRootPath, rel, "memory.max"))
-		if err != nil {
-			return 0
-		}
+		limit := uint64(0)
 
-		n, err := strconv.ParseUint(strings.TrimSpace(string(memoryMax)), 10, 64)
-		if err != nil {
-			return 0
-		}
+		for dir := path.Clean("/" + rel); ; dir = path.Dir(dir) {
+			if n := cgroupDirMemoryMax(host, dir); n != 0 && (limit == 0 || n < limit) {
+				limit = n
+			}
 
-		return n
+			if dir == "/" {
+				return limit
+			}
+		}
 	}
 
 	return 0
+}
+
+func cgroupDirMemoryMax(host fs.FS, dir string) uint64 {
+	memoryMax, err := fs.ReadFile(host, path.Join(cgroupRootPath, dir, "memory.max"))
+	if err != nil {
+		return 0
+	}
+
+	n, err := strconv.ParseUint(strings.TrimSpace(string(memoryMax)), 10, 64)
+	if err != nil {
+		return 0
+	}
+
+	return n
 }
 
 func mapsMemlock(maps N3N6EntrypointMaps) uint64 {

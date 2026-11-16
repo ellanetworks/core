@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/netutil"
+	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/vishvananda/netlink"
 	"gopkg.in/yaml.v2"
 )
@@ -156,7 +157,8 @@ type XDPYaml struct {
 }
 
 type DatapathYaml struct {
-	AttachMode string `yaml:"attach-mode"`
+	AttachMode  string `yaml:"attach-mode"`
+	MaxSessions *int   `yaml:"max-sessions"`
 }
 
 type SystemLoggingYaml struct {
@@ -263,7 +265,8 @@ type Interfaces struct {
 type Datapath struct {
 	// AttachMode is one of the Datapath* mechanisms, or DatapathChain when
 	// the operator did not pin one.
-	AttachMode string
+	AttachMode  string
+	MaxSessions uint32
 }
 
 type AuditLogging struct {
@@ -461,6 +464,13 @@ func Validate(filePath string) (Config, error) {
 	}
 
 	config.Datapath.AttachMode = attachMode
+
+	maxSessions, err := resolveMaxSessions(c.Datapath.MaxSessions)
+	if err != nil {
+		return Config{}, err
+	}
+
+	config.Datapath.MaxSessions = maxSessions
 
 	// Generic XDP attaches to the configured interface and lets the kernel
 	// tag; every other mechanism attaches to the VLAN master, since native
@@ -749,6 +759,18 @@ var GetInterfaceNameFunc = func(address string) (string, error) {
 	}
 
 	return "", nil
+}
+
+func resolveMaxSessions(n *int) (uint32, error) {
+	if n == nil {
+		return 0, nil
+	}
+
+	if *n < 1 || *n > ebpf.MaxSessionsLimit {
+		return 0, fmt.Errorf("datapath.max-sessions must be between 1 and %d, got %d", ebpf.MaxSessionsLimit, *n)
+	}
+
+	return uint32(*n), nil
 }
 
 // resolveAttachMode reduces datapath.attach-mode and the deprecated
