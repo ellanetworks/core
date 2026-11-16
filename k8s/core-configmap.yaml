@@ -2,6 +2,8 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: core-config
+  labels:
+    app.kubernetes.io/name: ella-core
 data:
   config.yaml: |
     logging:

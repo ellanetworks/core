@@ -10,6 +10,6 @@ Ella Core runs on major Linux distributions including **Ubuntu**, **Ubuntu Core*
 |------------|----------|-------------|
 | **CPU** | 1 core | 4 cores |
 | **Memory** | 1 GB RAM | 8 GB RAM |
-| **Storage** | 10 GB disk space | 50 GB disk space |
+| **Storage** | 10 GB disk space | 1 TB disk space |
 
 See [connectivity reference](connectivity.md) for network interface requirements and configuration.
