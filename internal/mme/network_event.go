@@ -19,22 +19,40 @@ func AddrString(a net.Addr) string {
 	return a.String()
 }
 
-func (m *MME) enbIdentityByConn(conn *sctp.SCTPConn, messageType S1APProcedure) (string, string) {
+func (m *MME) enbIdentityByConn(conn *sctp.SCTPConn, messageType S1APProcedure) (string, string, string) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	s, ok := m.reg.Radio(conn)
 	if !ok {
-		return "", ""
+		return "", "", ""
 	}
+
+	id, _ := s.IDKey()
 
 	if messageType == S1APProcedureS1SetupResponse || messageType == S1APProcedureS1SetupFailure {
-		return s.name, s.setupRef
+		return s.name, s.setupRef, id
 	}
 
-	ref, _ := s.IDKey()
+	return s.name, id, id
+}
 
-	return s.name, ref
+func (m *MME) radioIDByConn(conn S1APWriter) string {
+	if conn == nil {
+		return ""
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	r, ok := m.reg.Radio(conn)
+	if !ok {
+		return ""
+	}
+
+	id, _ := r.IDKey()
+
+	return id
 }
 
 func (m *MME) setSetupRef(conn *sctp.SCTPConn, ref string) {
@@ -68,7 +86,7 @@ func (m *MME) logNetworkEvent(ctx context.Context, conn S1APWriter, messageType 
 		return
 	}
 
-	name, connRef := m.enbIdentityByConn(sc, messageType)
+	name, connRef, radioID := m.enbIdentityByConn(sc, messageType)
 	if ref == "" {
 		ref = connRef
 	}
@@ -82,6 +100,7 @@ func (m *MME) logNetworkEvent(ctx context.Context, conn S1APWriter, messageType 
 		AddrString(sc.RemoteAddr()),
 		name,
 		ref,
+		radioID,
 		raw,
 	)
 }
