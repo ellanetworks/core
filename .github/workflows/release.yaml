@@ -6,9 +6,6 @@ permissions:
   security-events: write
 
 on:
-  push:
-    tags:
-      - 'v*'
   release:
     types: [published]
   workflow_dispatch: {}
@@ -19,6 +16,12 @@ jobs:
   image-publish:
     needs: [image-build]
     uses: ./.github/workflows/image-publish.yaml
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
     with:
       kind: release
     secrets: inherit
@@ -27,7 +30,22 @@ jobs:
     uses: ./.github/workflows/image-scan.yaml
   snap-build:
     uses: ./.github/workflows/snap-build.yaml
-  snap-publish:
+  snap-strict-test:
     needs: [snap-build]
+    uses: ./.github/workflows/snap-strict-test.yaml
+  snap-publish:
+    needs: [snap-build, snap-strict-test]
     uses: ./.github/workflows/snap-publish.yaml
     secrets: inherit
+  binary-build:
+    uses: ./.github/workflows/binary-build.yaml
+  binary-publish:
+    if: github.event_name == 'release'
+    needs: [binary-build]
+    uses: ./.github/workflows/binary-publish.yaml
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    with:
+      tag: ${{ github.event.release.tag_name }}

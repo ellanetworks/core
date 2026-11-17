@@ -26,6 +26,27 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
     sudo snap start --enable ella-core.cored
     ```
 
+=== "Binary"
+
+    Download and extract Ella Core (replace `amd64` with `arm64` on arm64 hosts):
+
+    ```bash
+    curl -L https://github.com/ellanetworks/core/releases/download/v1.22.0/ella-core-v1.22.0-linux-amd64.tar.gz | tar xz
+    cd ella-core-v1.22.0-linux-amd64
+    ```
+
+    Configure Ella Core:
+
+    ```bash
+    vim core.yaml
+    ```
+
+    Start Ella Core:
+
+    ```bash
+    sudo ./core --config core.yaml
+    ```
+
 === "Source"
 
     Install the required dependencies:
