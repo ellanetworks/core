@@ -72,9 +72,6 @@ These metrics are used to monitor the health of the system and the performance o
 | app_radio_events_dropped_total | Radio events not written to the database because the write buffer was full. | Counter |
 
 !!! note
-    The series of a radio in `app_radio_signaling_messages_total` and `app_radio_registration_attempts_total` are removed when the radio leaves the [radio inventory](api/radios.md) of this node. A radio that returns starts new series at zero.
-
-!!! note
     When clustering is enabled, Ella Core also exports the full [hashicorp/raft](https://github.com/hashicorp/raft) metrics suite (prefix `raft_`).
 
 ## 2. Logs
