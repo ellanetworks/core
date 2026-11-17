@@ -34,7 +34,7 @@ func (c *UeConn) SendGuardedDownlink(ctx context.Context, name string, nas []byt
 	}
 
 	c.ArmNASGuard(ctx, name, nas, eps.SHTPlain)
-	c.SendDownlinkNASTransport(ctx, nas)
+	c.SendPlainNAS(ctx, nas)
 }
 
 func (c *UeConn) SendGuardedProtected(ctx context.Context, name string, plain []byte, sht eps.SecurityHeaderType) error {
@@ -189,7 +189,7 @@ func (c *UeConn) retransmitNASGuard(link trace.SpanContext, ue *UeContext, name 
 		zap.String("procedure", name), zap.Int("attempt", int(attempt)))
 
 	if sht == eps.SHTPlain {
-		c.SendDownlinkNASTransport(ctx, plain)
+		c.SendPlainNAS(ctx, plain)
 
 		return
 	}

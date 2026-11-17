@@ -84,7 +84,9 @@ func RegisterMetrics() {
 		Buckets: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5},
 	}, []string{"interface"})
 
-	prometheus.MustRegister(signalingMessages, registrationAttempts, usageBytesDropped, peerRequests, peerDuration)
+	nasMessages = newNASMessages()
+
+	prometheus.MustRegister(signalingMessages, nasMessages, registrationAttempts, usageBytesDropped, peerRequests, peerDuration)
 
 	for _, iface := range []string{PeerN32, PeerS6a} {
 		peerDuration.WithLabelValues(iface)

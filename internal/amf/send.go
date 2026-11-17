@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/guard"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas"
@@ -316,7 +317,7 @@ func SendStatus5GMM(ctx context.Context, ue *UeConn, cause fgs.GMMCause) {
 			return
 		}
 
-		if err := ue.SendDownlinkNASTransport(ctx, pdu); err != nil {
+		if err := ue.SendPlainNAS(ctx, pdu); err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("failed to send 5GMM STATUS", zap.Error(err))
 		}
 
@@ -692,6 +693,12 @@ func downlinkNASTransportBytes(amfID ngap.AMFUENGAPID, ranID ngap.RANUENGAPID, n
 	}
 
 	return msg.Marshal()
+}
+
+func (ueConn *UeConn) SendPlainNAS(ctx context.Context, plain []byte) error {
+	metrics.NASMessage5G(metrics.DirectionOutbound, plain)
+
+	return ueConn.SendDownlinkNASTransport(ctx, plain)
 }
 
 func (ueConn *UeConn) SendDownlinkNASTransport(ctx context.Context, nasPdu []byte) error {

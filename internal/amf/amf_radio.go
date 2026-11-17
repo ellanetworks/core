@@ -163,23 +163,25 @@ func (a *AMF) radioFor(conn NGAPWriter) *Radio {
 	return radio
 }
 
-// radioIdentityByConn returns the node name and ref for a connection, or "" for
-// each one the radio has not given yet. An NG Setup outcome carries the ref of the
-// NG Setup Request it answers.
-func (a *AMF) radioIdentityByConn(conn NGAPWriter, messageType NGAPProcedure) (string, string) {
+// radioIdentityByConn returns the node name, the ref and the radio's own ID for a
+// connection, or "" for each one the radio has not given yet. An NG Setup outcome
+// carries the ref of the NG Setup Request it answers.
+func (a *AMF) radioIdentityByConn(conn NGAPWriter, messageType NGAPProcedure) (string, string, string) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
 	r, ok := a.reg.Radio(conn)
 	if !ok {
-		return "", ""
+		return "", "", ""
 	}
+
+	id := radioIDOf(r)
 
 	if messageType == NGAPProcedureNGSetupResponse || messageType == NGAPProcedureNGSetupFailure {
-		return r.name, r.setupRef
+		return r.name, r.setupRef, id
 	}
 
-	return r.name, radioIDOf(r)
+	return r.name, id, id
 }
 
 func (a *AMF) setSetupRef(conn NGAPWriter, ref string) {

@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
@@ -20,13 +21,27 @@ import (
 // HandleNAS is the MME's EMM entry point for an inbound NAS message on a UE
 // connection.
 func HandleNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pdu []byte) {
-	dispositionForNAS(ctx, m, conn, pdu).Finalize(ctx, egress{conn: conn})
+	disposition, plain := receiveNAS(ctx, m, conn, pdu)
+
+	if plain != nil {
+		metrics.NASMessage4G(metrics.DirectionInbound, plain)
+	} else {
+		metrics.NASPDU4G(metrics.DirectionInbound, pdu)
+	}
+
+	disposition.Finalize(ctx, egress{conn: conn})
 }
 
 // dispositionForNAS resolves an inbound NAS PDU to the single outcome the finalizer applies:
 // a message the MME cannot process draws the STATUS the spec mandates or an audited silence,
 // never a bare drop.
 func dispositionForNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pdu []byte) nasreply.Disposition {
+	disposition, _ := receiveNAS(ctx, m, conn, pdu)
+
+	return disposition
+}
+
+func receiveNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pdu []byte) (nasreply.Disposition, []byte) {
 	ue := conn.UeContext()
 	if ue == nil {
 		switch peekEMMMessageType(pdu) {
@@ -36,30 +51,30 @@ func dispositionForNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pdu []
 		case eps.MsgTrackingAreaUpdateRequest:
 			resolved, plain := recoverContextFrom5GS(ctx, m, conn, pdu)
 			if resolved == nil {
-				return nasreply.Silent(nasreply.ReasonNoContext)
+				return nasreply.Silent(nasreply.ReasonNoContext), nil
 			}
 
 			if resolved.Conn() != conn {
-				return nasreply.Silent(nasreply.ReasonNoContext)
+				return nasreply.Silent(nasreply.ReasonNoContext), nil
 			}
 
-			return HandleEmmMessage(ctx, m, resolved, conn, plain, true)
+			return HandleEmmMessage(ctx, m, resolved, conn, plain, true), plain
 		default:
-			return nasreply.Silent(nasreply.ReasonNoContext)
+			return nasreply.Silent(nasreply.ReasonNoContext), nil
 		}
 	}
 
 	if !ue.Secured() {
 		resolved, drop := resolveAttachContext(ctx, m, ue, conn, pdu)
 		if drop {
-			return nasreply.Silent(nasreply.ReasonUnspecified)
+			return nasreply.Silent(nasreply.ReasonUnspecified), nil
 		}
 
 		ue = resolved
 	}
 
 	if ue.Conn() != conn {
-		return nasreply.Silent(nasreply.ReasonNoContext)
+		return nasreply.Silent(nasreply.ReasonNoContext), nil
 	}
 
 	ueConn := conn
@@ -70,20 +85,20 @@ func dispositionForNAS(ctx context.Context, m *mme.MME, conn *mme.UeConn, pdu []
 	pd, err := eps.PeekProtocolDiscriminator(pdu)
 	if err != nil {
 		logger.From(ctx, logger.MmeLog).Warn("failed to read NAS protocol discriminator", zap.Error(err))
-		return nasreply.Silent(nasreply.ReasonTooShort)
+		return nasreply.Silent(nasreply.ReasonTooShort), nil
 	}
 
 	if pd != eps.PDEMM {
 		logger.From(ctx, logger.MmeLog).Debug("ignoring standalone ESM NAS message")
-		return nasreply.Silent(nasreply.ReasonOutOfState)
+		return nasreply.Silent(nasreply.ReasonOutOfState), nil
 	}
 
 	result, err := mme.DecodeNASMessageOn(ue, ueConn, pdu)
 	if err != nil {
-		return mme.DispositionForDecodeError(err)
+		return mme.DispositionForDecodeError(err), nil
 	}
 
-	return HandleEmmMessage(ctx, m, ue, ueConn, result.Plain, result.IntegrityVerified)
+	return HandleEmmMessage(ctx, m, ue, ueConn, result.Plain, result.IntegrityVerified), result.Plain
 }
 
 // HandleEmmMessage routes a plain NAS message to its procedure handler and reports the single
