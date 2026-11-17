@@ -45,7 +45,7 @@ Map groups at the identity provider to roles so that their members get a role, a
 Link a user who has a password to their account at the identity provider.
 
 1. Log in to Ella Core with the password.
-2. Go to **Profile** and click **Link** next to the identity provider.
+2. Go to **Profile** and click **Link** *display name* **account**.
 3. Log in at the identity provider.
 
 ## Unlink a user
