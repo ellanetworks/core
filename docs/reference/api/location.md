@@ -26,15 +26,6 @@ This path returns a subscriber's current location.
     - `nr` (array of strings, optional): Used when the serving cell is NR. Each entry must be one of `cell-ID`, `sS-RSRP`, `sS-RSRQ`, `cSI-RSRP`, `cSI-RSRQ`, `angleOfArrivalNR`, `timingAdvanceNR`, or `uE-Rx-Tx-Time-Diff`. No duplicates allowed.
     - `eutra` (array of strings, optional): Used when the serving cell is E-UTRA. Each entry must be one of `cell-ID`, `angleOfArrival`, `timingAdvanceType1`, `timingAdvanceType2`, `rSRP`, or `rSRQ`. No duplicates allowed.
 
-### Responses
-
-| Status | Condition                                 |
-| ------ | ----------------------------------------- |
-| `200`  | Returns a location estimate.              |
-| `403`  | The subscriber is a [roamer](../../explanation/roaming.md#roamers). |
-| `404`  | Subscriber not registered, or no estimate. |
-| `504`  | Location request timed out.               |
-
 ### Sample Response
 
 ```json
@@ -156,18 +147,6 @@ This path starts periodic location reporting for a subscriber (TS 23.273 deferre
 - `method` (string, optional): `cell_id`, `ecid`, or `gnss`. Defaults to `cell_id`.
 - `mode` (string, optional): `network_based` or `ue_assisted` for `ecid`; `standalone` for `gnss`. Defaults to every mode supported by `method`.
 - `measurement_quantities` (object, optional): As in [Locate a Subscriber](#locate-a-subscriber).
-
-### Responses
-
-| Status | Condition                                                  |
-| ------ | ---------------------------------------------------------- |
-| `201`  | Returns the deferred location request.                     |
-| `400`  | Invalid parameters.                                        |
-| `403`  | The subscriber is a [roamer](../../explanation/roaming.md#roamers). |
-| `404`  | Subscriber not registered on this node.                    |
-| `409`  | The subscriber already has an active deferred location request. |
-| `501`  | `ldr_type` is not supported.                               |
-| `503`  | Deferred location requests are unavailable.                |
 
 ### Sample Request
 

@@ -25,14 +25,6 @@ This path returns the list of roamers, ordered by IMSI.
 | `data_network` | query | str  |         |             | Filter by data network name, through the roaming partner's profile. |
 | `search`       | query | str  |         | ≤ 254 chars | Filter by IMSI or MSISDN substring.                                  |
 
-### Responses
-
-| Status | Condition |
-| ------ | --------- |
-| `200`  | Returns the roamers. |
-| `400`  | Invalid parameters. |
-| `404`  | The roaming partner, radio or data network does not exist. |
-
 ### Sample Response
 
 ```json
@@ -74,14 +66,6 @@ This path returns the details of a specific roamer, with its registrations and s
 ### Parameters
 
 None
-
-### Responses
-
-| Status | Condition |
-| ------ | --------- |
-| `200`  | Returns the roamer. |
-| `400`  | Invalid IMSI. |
-| `404`  | The roamer does not exist. |
 
 ### Sample Response
 
@@ -139,15 +123,6 @@ This path deregisters a roamer on the node that serves it and purges it at its h
 ### Parameters
 
 None
-
-### Responses
-
-| Status | Condition |
-| ------ | --------- |
-| `200`  | The roamer is deregistered. |
-| `400`  | Invalid IMSI. |
-| `404`  | The roamer does not exist. |
-| `409`  | The roamer was not deregistered within one minute. |
 
 ### Sample Response
 

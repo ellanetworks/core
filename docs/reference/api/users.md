@@ -53,19 +53,12 @@ This path creates a new system user. At most 50 users.
 ### Parameters
 
 - `email` (string): The email of the user.
-- `password` (string, optional): The password of the user. Without it, the user logs in only through the [identity provider](oidc.md).
+- `password` (string, optional): The password of the user.
 - `role_id` (int): The role ID of the user. Allowed values:
     - 1 (admin): Administrator user with full access to network and system resources.
     - 2 (read only): Read-only user with only read access to network resources.
     - 3 (network manager): Network manager user with full access to network resources.
-- `role_pinned` (boolean, optional): Keep the role whatever the user's [groups](oidc.md#group-roles). Default `false`.
-
-### Response Codes
-
-| Code  | Description |
-| ----- | ----------- |
-| `201` | Created. |
-| `400` | Invalid field, 50 users exist, or a user has the email, in any case. |
+- `role_pinned` (boolean, optional): Keep the role whatever the user's groups. Default `false`.
 
 ### Sample Response
 
@@ -91,13 +84,7 @@ This path sets the role of a user. A role change ends the user's sessions. An Ad
     - 1 (admin): Administrator user with full access to network and system resources.
     - 2 (read only): Read-only user with only read access to network resources.
     - 3 (network manager): Network manager user with full access to network resources.
-- `role_pinned` (boolean, optional): Keep the role whatever the user's [groups](oidc.md#group-roles). Without it, the current value is kept.
-
-### Response Codes
-
-| Code  | Description |
-| ----- | ----------- |
-| `409` | The role comes from the user's [groups](oidc.md#group-roles) and `role_pinned` is not `true`, or the user is the last Admin with a password. |
+- `role_pinned` (boolean, optional): Keep the role whatever the user's groups. Without it, the current value is kept.
 
 ### Sample Response
 
@@ -141,7 +128,7 @@ None
 | -------------- | ------- | ----------- |
 | `email`        | string  | Email address. |
 | `role_id`      | int     | `1` Admin, `2` Read Only, `3` Network Manager. |
-| `role_pinned`  | boolean | The role is kept whatever the user's [groups](oidc.md#group-roles). |
+| `role_pinned`  | boolean | The role is kept whatever the user's groups. |
 | `password_set` | boolean | The user has a password. |
 | `oidc_linked`  | boolean | The user is linked to an account at the current [identity provider](oidc.md). |
 
@@ -158,12 +145,6 @@ This path deletes a user from Ella Core, with its sessions and API tokens. An Ad
 ### Parameters
 
 None
-
-### Response Codes
-
-| Code  | Description |
-| ----- | ----------- |
-| `409` | The user is the last Admin with a password. |
 
 ### Sample Response
 
@@ -187,12 +168,6 @@ This path updates the password of the currently authenticated user. After a succ
 
 - `current_password` (string): The user's current password.
 - `password` (string): The new password.
-
-### Response Codes
-
-| Code  | Description |
-| ----- | ----------- |
-| `409` | The user has no password. |
 
 ### Sample Response
 
@@ -228,7 +203,7 @@ This path updates the password of a specific system user. After a successful pas
 
 ## Remove a User's Password
 
-This path removes the password of a user, who can then log in only through the [identity provider](oidc.md). It ends the user's sessions. An Admin cannot remove its own password, and the last Admin with a password keeps it.
+This path removes the password of a user and ends their sessions.
 
 | Method | Path                             |
 | ------ | -------------------------------- |
@@ -237,12 +212,6 @@ This path removes the password of a user, who can then log in only through the [
 ### Parameters
 
 None
-
-### Response Codes
-
-| Code  | Description |
-| ----- | ----------- |
-| `409` | The user has no password, or is the last Admin with a password. |
 
 ### Sample Response
 
@@ -256,7 +225,7 @@ None
 
 ## Unlink a User
 
-This path unlinks a user from their account at the identity provider, and ends the sessions started through it. Their next login through the identity provider links them again by email. An Admin cannot unlink itself.
+This path unlinks a user from the identity provider and ends their single sign-on sessions.
 
 | Method | Path                         |
 | ------ | ---------------------------- |
@@ -265,12 +234,6 @@ This path unlinks a user from their account at the identity provider, and ends t
 ### Parameters
 
 None
-
-### Response Codes
-
-| Code  | Description |
-| ----- | ----------- |
-| `404` | No user has the email, or the user is not linked to the current identity provider. |
 
 ### Sample Response
 

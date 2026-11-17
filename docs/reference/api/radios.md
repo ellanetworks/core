@@ -12,7 +12,6 @@ The Radio API provides endpoints to view information about radios and to forget 
 
 This path returns the list of radios in the inventory.
 
-
 | Method | Path             |
 | ------ | ---------------- |
 | GET    | `/api/v1/ran/radios` |
@@ -163,14 +162,6 @@ Requires the admin role.
 | ----- | ------ | ----------- |
 | `ref` | string | Radio identity, as returned in a radio's `ref` field: `{type}:{mcc}-{mnc}:{id}`, the id in lower-case hexadecimal and carrying `@{bitLength}` for a gNB. For example `gNB:001-01:00002a@24` or `eNB:001-01:MacroeNB-00008`. |
 
-### Response Codes
-
-| Code  | Description |
-| ----- | ----------- |
-| `200` | The radio was forgotten. |
-| `404` | No offline radio carries that identifier. |
-| `409` | The radio is online. |
-
 ### Sample Response
 
 ```json
@@ -300,7 +291,6 @@ This path returns a specific radio event by its ID.
     }
 }
 ```
-
 
 ## Update Radio Event Retention Policy
 

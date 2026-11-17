@@ -37,9 +37,15 @@ GET /api/v1/openapi.yaml  # Unauthenticated
 - 201 - Created.
 - 400 - Bad request.
 - 401 - Unauthorized.
+- 403 - Forbidden.
+- 404 - Not found.
+- 409 - Conflict.
 - 429 - Too many requests.
 - 500 - Internal server error.
-- 502 - The identity provider cannot be reached or used. See [Test an Identity Provider](oidc.md#test-an-identity-provider).
+- 501 - Not implemented.
+- 502 - Bad gateway.
+- 503 - Service unavailable.
+- 504 - Gateway timeout.
 
 ## Client
 
