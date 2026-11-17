@@ -701,6 +701,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	smfInstance.StartUsageCollection()
 
+	wg.Go(func() {
+		smfInstance.RunStaleLeaseReleaser(ctx, &smfOwnedLeases{db: dbInstance}, smf.StaleLeaseReleaseInterval)
+	})
+
 	defer func() {
 		// Each shutdown step gets its own timeout so that a slow step
 		// does not starve subsequent ones.

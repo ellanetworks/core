@@ -653,3 +653,30 @@ type smfSubscriptions struct {
 func (s smfSubscriptions) N26Allowed(ctx context.Context, imsi string) (bool, error) {
 	return s.n26.Allowed(ctx, imsi)
 }
+
+type smfOwnedLeases struct {
+	db *db.Database
+}
+
+func (a *smfOwnedLeases) ListOwnedLeases(ctx context.Context) ([]smf.OwnedLease, error) {
+	leases, err := a.db.ListActiveLeasesByNode(ctx, a.db.RaftID())
+	if err != nil {
+		return nil, err
+	}
+
+	owned := make([]smf.OwnedLease, 0, len(leases))
+
+	for _, l := range leases {
+		if l.SessionID == nil {
+			continue
+		}
+
+		owned = append(owned, smf.OwnedLease{PoolID: l.PoolID, PoolType: l.PoolType, IMSI: l.IMSI, SessionID: *l.SessionID})
+	}
+
+	return owned, nil
+}
+
+func (a *smfOwnedLeases) ReleaseOwnedLease(ctx context.Context, lease smf.OwnedLease) (netip.Addr, error) {
+	return a.db.ReleaseIPLease(ctx, lease.PoolID, lease.PoolType, lease.IMSI, lease.SessionID, a.db.RaftID())
+}
