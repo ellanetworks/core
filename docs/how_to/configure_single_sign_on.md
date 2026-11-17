@@ -4,7 +4,7 @@ description: Step-by-step instructions to let users log in to Ella Core through 
 
 # Configure Single Sign-On
 
-This guide lets users log in to the Ella Core UI through an OpenID Connect identity provider. It gives the steps for Keycloak; other providers are set up the same way.
+This guide lets users log in to the Ella Core UI through an OpenID Connect identity provider.
 
 ## Prerequisites
 
@@ -54,7 +54,7 @@ In the UI, go to **Single Sign-On** and, in **Provider**, click **Edit**. Set:
 | **Client secret** | The secret from step 1 |
 | **Display name** | The name on the login button, such as `Keycloak` |
 | **Scopes** | `openid email profile` |
-| **Session lifetime** | `24` hours, or less to end access sooner after offboarding |
+| **Session lifetime** | `24` hours |
 | **Trust email addresses from this provider** | Off, unless the provider does not send `email_verified` |
 
 Check that the **Redirect URL** under the external URL is the one registered in step 1.
@@ -67,7 +67,7 @@ In the dialog, click **Test**. Fix the issuer URL or the CA certificate until it
 
 On the **Single Sign-On** page, turn on **Enabled**.
 
-To turn it off, turn off **Enabled** and click **Disable**. Everyone who logged in with single sign-on is logged out.
+To turn it off, turn off **Enabled** and click **Disable**.
 
 ## 5. Log in
 
@@ -75,4 +75,4 @@ To turn it off, turn off **Enabled** and click **Disable**. Everyone who logged 
 2. In a private browser window, open `https://core.example.com`, and click **Log in with** your display name.
 3. Log in at the identity provider. Ella Core opens.
 
-If the login page shows an error, the `auth_oidc_login` [audit log](../reference/api/audit_logs.md) gives the reason.
+If the login page shows an error, check the `auth_oidc_login` [audit log](../reference/api/audit_logs.md).
