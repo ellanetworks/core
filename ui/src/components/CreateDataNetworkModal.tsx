@@ -52,7 +52,7 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
       ipv4_pool: "10.45.0.0/22",
       ipv6_pool: "",
       dns: "8.8.8.8",
-      mtu: 1456,
+      mtu: 1400,
       ims: false,
     },
   });
