@@ -91,7 +91,7 @@ const (
 	UnlinkUserAction         = "unlink_user_oidc"
 )
 
-const lastPasswordAdmin = "At least one admin must keep a password"
+const lastPasswordAdmin = "At least one admin must keep a password" // #nosec: G101
 
 const (
 	MaxNumUsers     = 50
