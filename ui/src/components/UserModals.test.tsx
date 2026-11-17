@@ -150,7 +150,6 @@ describe("EditUserModal", () => {
   const initialData = {
     email: "ops@ellanetworks.com",
     role_id: RoleID.ReadOnly,
-    role_pinned: false,
     password_set: true,
     oidc_linked: false,
   };

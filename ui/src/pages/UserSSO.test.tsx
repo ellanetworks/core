@@ -207,6 +207,7 @@ describe("Users and single sign-on", () => {
       per_page: 100,
       total_count: 0,
     }));
+    api.get("/api/v1/auth/oidc", () => ({ enabled: false }));
     renderWithProviders(<Profile />, {
       initialEntries: ["/profile"],
       auth: { role: "Admin" },

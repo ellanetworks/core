@@ -228,7 +228,7 @@ export default function SingleSignOn() {
         <Tooltip title="Copy">
           <IconButton
             size="small"
-            aria-label={`Copy the ${label.toLowerCase()}`}
+            aria-label={`Copy the ${label.charAt(0).toLowerCase()}${label.slice(1)}`}
             onClick={() => void copy(url, label)}
           >
             <ContentCopyIcon fontSize="small" />

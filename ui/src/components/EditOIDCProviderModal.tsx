@@ -155,7 +155,7 @@ function RedirectURLField({ label, value }: { label: string; value: string }) {
               <Tooltip title="Copy">
                 <IconButton
                   edge="end"
-                  aria-label={`Copy the ${label.toLowerCase()}`}
+                  aria-label={`Copy the ${label.charAt(0).toLowerCase()}${label.slice(1)}`}
                   onClick={() => void copy(value, label)}
                 >
                   <ContentCopyIcon fontSize="small" />
