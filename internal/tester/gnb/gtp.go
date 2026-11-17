@@ -220,6 +220,13 @@ func (g *GnodeB) WatchTEID(teid uint32) {
 	}
 }
 
+func (g *GnodeB) SetDownlinkHook(hook func(teid uint32, packet []byte)) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.downlinkHook = hook
+}
+
 func (g *GnodeB) WatchedTEIDCount(teid uint32) int {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -404,7 +411,12 @@ func (g *GnodeB) GTPReader() { // nolint:gocognit
 
 				g.downlinkQFIs[teid][pscQFI(buf[:n])]++
 				g.countDownlinkUDPLocked(teid, gtpPayload(buf[:n]))
+				hook := g.downlinkHook
 				g.mu.Unlock()
+
+				if hook != nil {
+					hook(teid, gtpPayload(buf[:n]))
+				}
 
 				continue
 			}

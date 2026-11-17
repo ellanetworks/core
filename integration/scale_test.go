@@ -36,6 +36,9 @@ var (
 	scaleRadios      = scaleEnvInt("ELLA_SCALE_RADIOS", 10)
 	scaleConcurrency = scaleEnvInt("ELLA_SCALE_CONCURRENCY", 128)
 	scaleRATs        = scaleEnvString("ELLA_SCALE_RATS", "5g,4g")
+	scaleHold        = scaleEnvDuration("ELLA_SCALE_HOLD")
+	scalePing        = scaleEnvDuration("ELLA_SCALE_PING_INTERVAL")
+	scaleNATOff      = os.Getenv("ELLA_SCALE_NAT") == "off"
 )
 
 func scaleEnvInt(name string, def int) int {
@@ -45,6 +48,15 @@ func scaleEnvInt(name string, def int) int {
 	}
 
 	return v
+}
+
+func scaleEnvDuration(name string) time.Duration {
+	d, err := time.ParseDuration(os.Getenv(name))
+	if err != nil || d <= 0 {
+		return 0
+	}
+
+	return d
 }
 
 func scaleEnvString(name, def string) string {
@@ -70,14 +82,16 @@ func TestIntegrationScale1k(t *testing.T) {
 	}
 
 	env := setupTesterEnv(ctx, t, overlays...)
-	env.ScenarioTimeout = 5*time.Minute + time.Duration(scaleSubscribers)*10*time.Millisecond
+	env.ScenarioTimeout = 5*time.Minute + time.Duration(scaleSubscribers)*10*time.Millisecond + scaleHold
 	env.Quiet = scaleSubscribers > 1000
 
 	dataNetwork := fixture.DefaultDataNetworkSpec()
 	if scaleSubscribers > scaleLargePoolAbove {
 		dataNetwork.IPv4Pool = scaleLargeUEIPv4Pool
+	}
 
-		routeScalePoolToCore(ctx, t, env)
+	if scaleSubscribers > scaleLargePoolAbove || scaleNATOff {
+		routeScalePoolToCore(ctx, t, env, dataNetwork.IPv4Pool)
 	}
 
 	baseline := fixture.New(t, ctx, env.Client)
@@ -86,6 +100,12 @@ func TestIntegrationScale1k(t *testing.T) {
 	baseline.Slice(fixture.DefaultSliceSpec())
 	baseline.DataNetwork(dataNetwork)
 	baseline.Policy(fixture.DefaultPolicySpec())
+
+	if scaleNATOff {
+		if err := setNATOnAllDataNetworks(ctx, env.Client, false); err != nil {
+			t.Fatalf("disable NAT: %v", err)
+		}
+	}
 
 	provisionScaleSubscribers(ctx, t)
 
@@ -112,6 +132,14 @@ func TestIntegrationScale1k(t *testing.T) {
 				"--timeout", "2m",
 			}
 
+			if scaleHold > 0 {
+				args = append(args, "--hold", scaleHold.String())
+			}
+
+			if scalePing > 0 && tc.name == "5g" {
+				args = append(args, "--ping-interval", scalePing.String())
+			}
+
 			for i, addr := range radios {
 				args = append(args, "--gnb", fmt.Sprintf("scale-%s%d,n2=%s,n3=%s", tc.name, i, addr, addr))
 			}
@@ -121,7 +149,7 @@ func TestIntegrationScale1k(t *testing.T) {
 			rss, maps := peak()
 
 			for line := range strings.SplitSeq(out, "\n") {
-				for _, summary := range []string{"deregistration complete\t", "registration complete\t", "user plane probes complete\t", "over capacity rejected\t"} {
+				for _, summary := range []string{"deregistration complete\t", "registration complete\t", "user plane probes complete\t", "user plane traffic complete\t", "over capacity rejected\t"} {
 					if i := strings.Index(line, summary); i >= 0 {
 						t.Log(line[i:])
 
@@ -135,7 +163,7 @@ func TestIntegrationScale1k(t *testing.T) {
 	}
 }
 
-func routeScalePoolToCore(ctx context.Context, t *testing.T, env *testerEnv) {
+func routeScalePoolToCore(ctx context.Context, t *testing.T, env *testerEnv, pool string) {
 	t.Helper()
 
 	router, err := env.dc.ResolveComposeContainer(ctx, "core-tester", "router")
@@ -143,9 +171,9 @@ func routeScalePoolToCore(ctx context.Context, t *testing.T, env *testerEnv) {
 		t.Fatalf("resolve router container: %v", err)
 	}
 
-	argv := []string{"ip", "route", "replace", scaleLargeUEIPv4Pool, "dev", "n6", "via", "10.6.0.2"}
+	argv := []string{"ip", "route", "replace", pool, "dev", "n6", "via", "10.6.0.2"}
 	if _, err := env.dc.Exec(ctx, router, argv, false, 30*time.Second, nil); err != nil {
-		t.Fatalf("route %s to the core: %v", scaleLargeUEIPv4Pool, err)
+		t.Fatalf("route %s to the core: %v", pool, err)
 	}
 }
 
