@@ -13,9 +13,10 @@ import (
 const (
 	createOIDCSessionSQL  = "INSERT INTO " + SessionsTableName + " (id, user_id, token_hash, created_at, expires_at, method, identity_id) VALUES (?, ?, ?, ?, ?, ?, ?)"
 	trimUserSessionsSQL   = "DELETE FROM " + SessionsTableName + " WHERE user_id = ? AND id NOT IN (SELECT id FROM " + SessionsTableName + " WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT ?)"
-	setUserRoleFromGroups = "UPDATE " + UsersTableName + " SET roleID = ? WHERE id = ? AND NOT rolePinned"
+	setUserRoleFromGroups = "UPDATE " + UsersTableName + " SET roleID = ? WHERE id = ?"
 	deleteUsedStatesSQL   = "DELETE FROM " + OIDCUsedStatesTableName + " WHERE expiresAt <= ?"
 	insertUsedStateSQL    = "INSERT INTO " + OIDCUsedStatesTableName + " (stateHash, expiresAt) VALUES (?, ?)"
+	userExistsSQL         = "SELECT EXISTS (SELECT 1 FROM " + UsersTableName + " WHERE id = ?)"
 	identityOfSubjectSQL  = "SELECT id, userID FROM " + UserIdentitiesTableName + " WHERE issuer = ? AND subject = ?"
 	createOIDCUserSQL     = "INSERT INTO " + UsersTableName + " (id, email, roleID, hashedPassword) VALUES (?, ?, ?, '')"
 	usersByEmailNoCaseSQL = "SELECT " + userColumns + " FROM " + UsersTableName + " WHERE email = ? COLLATE NOCASE ORDER BY email = ? DESC, id LIMIT 2"
@@ -51,6 +52,16 @@ func (r OIDCLoginResult) RoleChanged() bool {
 	return !r.Created && r.User.RoleID != r.PreviousRole
 }
 
+type OIDCLink struct {
+	Issuer     string `json:"issuer"`
+	ClientID   string `json:"clientID"`
+	Subject    string `json:"subject"`
+	Email      string `json:"email"`
+	UserID     string `json:"userID"`
+	IdentityID string `json:"identityID"`
+	At         int64  `json:"at"`
+}
+
 type usedStatePayload struct {
 	StateHash []byte `json:"stateHash"`
 	ExpiresAt int64  `json:"expiresAt"`
@@ -62,6 +73,56 @@ func (db *Database) LogInWithOIDC(ctx context.Context, l *OIDCLogin) (_ OIDCLogi
 	defer func() { finish(err) }()
 
 	return opLogInWithOIDC.Invoke(ctx, db, l)
+}
+
+func (db *Database) LinkOIDCIdentity(ctx context.Context, l *OIDCLink) (err error) {
+	ctx, finish := startDBQuery(ctx, UserIdentitiesTableName, "INSERT")
+	defer func() { finish(err) }()
+
+	_, err = opLinkOIDCIdentity.Invoke(ctx, db, l)
+
+	return err
+}
+
+func (db *Database) applyLinkOIDCIdentity(ctx context.Context, l *OIDCLink) (any, error) {
+	if err := db.checkOIDCLogin(ctx, l.Issuer, l.ClientID); err != nil {
+		return nil, err
+	}
+
+	var identityID, userID string
+
+	err := db.runner(ctx).QueryRowContext(ctx, identityOfSubjectSQL, l.Issuer, l.Subject).Scan(&identityID, &userID)
+	if err == nil {
+		if userID != l.UserID {
+			return nil, ErrLinkedElsewhere
+		}
+
+		return nil, nil
+	}
+
+	if !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	var exists bool
+	if err := db.runner(ctx).QueryRowContext(ctx, userExistsSQL, l.UserID).Scan(&exists); err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	if !exists {
+		return nil, ErrNotFound
+	}
+
+	_, err = db.runner(ctx).ExecContext(ctx, createIdentitySQL, l.IdentityID, l.UserID, l.Issuer, l.Subject, l.Email, l.At, l.At)
+	if isUniqueNameError(err) {
+		return nil, ErrLinkedElsewhere
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("create identity: %w", err)
+	}
+
+	return nil, nil
 }
 
 func (db *Database) UseOIDCState(ctx context.Context, stateHash []byte, expiresAt, now int64) (err error) {
@@ -180,6 +241,10 @@ func (db *Database) findOIDCUser(ctx context.Context, l *OIDCLogin) (OIDCLoginRe
 	res.IdentityID = l.NewIdentityID
 
 	u, err := db.userOfEmail(ctx, l.LinkEmail)
+	if err == nil && u.HashedPassword != "" {
+		return OIDCLoginResult{}, ErrLinkRequired
+	}
+
 	if err == nil {
 		if err := db.createIdentity(ctx, res.IdentityID, u.ID, l); err != nil {
 			return OIDCLoginResult{}, err
@@ -256,7 +321,7 @@ func (db *Database) createIdentity(ctx context.Context, id, userID string, l *OI
 
 func (db *Database) syncRoleFromGroups(ctx context.Context, u User, l *OIDCLogin) (User, bool, error) {
 	switch {
-	case !l.MapsGroups || u.RolePinned:
+	case !l.MapsGroups:
 		return u, false, nil
 	case l.RoleID == 0:
 		return User{}, false, ErrNoRole

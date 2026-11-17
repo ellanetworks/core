@@ -45,6 +45,7 @@ var (
 	ErrNoRole                   = errors.New("the groups give no role")
 	ErrLinkedElsewhere          = errors.New("the user is linked to another identity")
 	ErrStateUsed                = errors.New("the login was already used")
+	ErrLinkRequired             = errors.New("the user has a password and must link the account from their profile")
 )
 
 func IsUnavailable(err error) bool {

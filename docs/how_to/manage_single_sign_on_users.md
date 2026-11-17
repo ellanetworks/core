@@ -1,5 +1,5 @@
 ---
-description: Step-by-step instructions to give, map, pin, unlink and remove the access of users who log in to Ella Core through single sign-on.
+description: Step-by-step instructions to give, map, link, unlink and remove the access of users who log in to Ella Core through single sign-on.
 ---
 
 # Manage Single Sign-On Users
@@ -14,7 +14,6 @@ Create a user so that they can log in through the identity provider.
     - **Email**: the user's email address at the identity provider
     - **Password**: off
     - **Role**: the user's role
-    - **Pin role**: checked to keep this role, if groups are mapped to roles
 2. Click **Create**.
 
 ## Map groups to roles
@@ -38,21 +37,20 @@ Map groups at the identity provider to roles so that their members get a role, a
 
 1. Go to **Single Sign-On** and, in **Roles from groups**, click **Edit**.
 2. Set **Groups claim** to `groups`.
-3. Click **Add group** for each group, and set the group and its role. Order the groups from most to least privileged.
+3. Click **Add group** for each group, and set the group and its role.
 4. Click **Update**.
 
-## Pin a user's role
+## Link a user who has a password
 
-Pin a user's role so that their groups at the identity provider do not change it.
+Link a user who has a password to their account at the identity provider.
 
-1. Go to **Users** and open the user.
-2. In **Account**, edit the role: choose the role, check **Pin role**, and click **Update**.
-
-To unpin, uncheck **Pin role**.
+1. Log in to Ella Core with the password.
+2. Go to **Profile** and click **Link** next to the identity provider.
+3. Log in at the identity provider.
 
 ## Unlink a user
 
-Unlink a user so that their next login links a new account at the identity provider.
+Unlink a user from their account at the identity provider.
 
 1. Go to **Users** and open the user.
 2. In **Account**, click **Unlink**, then **Unlink**.

@@ -44,10 +44,9 @@ const (
 type contextKey string
 
 const (
-	contextKeyUserID   contextKey = "userID"
-	contextKeyEmail    contextKey = "email"
-	contextKeyRoleID   contextKey = "roleID"
-	contextKeyAPIToken contextKey = "apiToken"
+	contextKeyUserID contextKey = "userID"
+	contextKeyEmail  contextKey = "email"
+	contextKeyRoleID contextKey = "roleID"
 )
 
 func isAPIToken(tok string) bool { return strings.HasPrefix(tok, "ellacore_") }
@@ -247,18 +246,8 @@ func Authenticate(jwtSecret *JWTSecret, store *db.Database, next http.Handler) h
 		}
 
 		ctx := putIdentity(r.Context(), uid, email, role)
-		ctx = context.WithValue(ctx, contextKeyAPIToken, isAPIToken(bearerToken(r)))
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
-}
-
-func bearerToken(r *http.Request) string {
-	scheme, token, ok := strings.Cut(r.Header.Get("Authorization"), " ")
-	if !ok || !strings.EqualFold(scheme, "Bearer") {
-		return ""
-	}
-
-	return strings.TrimSpace(token)
 }
 
 func getClaimsFromJWT(bearerToken string, jwtSecret []byte) (*claims, error) {

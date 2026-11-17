@@ -18,6 +18,7 @@ type OIDCSettings struct {
 	Enabled                bool            `json:"enabled"`
 	ExternalURL            string          `json:"external_url"`
 	RedirectURL            string          `json:"redirect_url"`
+	PostLogoutRedirectURL  string          `json:"post_logout_redirect_url"`
 	Issuer                 string          `json:"issuer"`
 	ClientID               string          `json:"client_id"`
 	ClientSecretSet        bool            `json:"client_secret_set"`

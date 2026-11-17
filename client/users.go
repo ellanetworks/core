@@ -29,15 +29,13 @@ type UpdateUserPasswordOptions struct {
 }
 
 type CreateUserOptions struct {
-	Email      string `json:"email"`
-	RoleID     RoleID `json:"role_id"`
-	Password   string `json:"password"`
-	RolePinned bool   `json:"role_pinned"`
+	Email    string `json:"email"`
+	RoleID   RoleID `json:"role_id"`
+	Password string `json:"password"`
 }
 
 type UpdateUserOptions struct {
-	RoleID     RoleID `json:"role_id"`
-	RolePinned *bool  `json:"role_pinned,omitempty"`
+	RoleID RoleID `json:"role_id"`
 }
 
 type GetUserOptions struct {
@@ -68,7 +66,6 @@ type APIToken struct {
 type User struct {
 	Email       string `json:"email"`
 	RoleID      RoleID `json:"role_id"`
-	RolePinned  bool   `json:"role_pinned"`
 	PasswordSet bool   `json:"password_set"`
 	OIDCLinked  bool   `json:"oidc_linked"`
 }
@@ -113,15 +110,13 @@ func (c *Client) ListUsers(ctx context.Context, p *ListParams) (*ListUsersRespon
 
 func (c *Client) CreateUser(ctx context.Context, opts *CreateUserOptions) error {
 	payload := struct {
-		Email      string `json:"email"`
-		Password   string `json:"password,omitempty"`
-		RoleID     RoleID `json:"role_id"`
-		RolePinned bool   `json:"role_pinned,omitempty"`
+		Email    string `json:"email"`
+		Password string `json:"password,omitempty"`
+		RoleID   RoleID `json:"role_id"`
 	}{
-		Email:      opts.Email,
-		Password:   opts.Password,
-		RoleID:     opts.RoleID,
-		RolePinned: opts.RolePinned,
+		Email:    opts.Email,
+		Password: opts.Password,
+		RoleID:   opts.RoleID,
 	}
 
 	var body bytes.Buffer
@@ -168,11 +163,9 @@ func (c *Client) GetUser(ctx context.Context, opts *GetUserOptions) (*User, erro
 // UpdateUserPassword.
 func (c *Client) UpdateUser(ctx context.Context, email string, opts *UpdateUserOptions) error {
 	payload := struct {
-		RoleID     RoleID `json:"role_id"`
-		RolePinned *bool  `json:"role_pinned,omitempty"`
+		RoleID RoleID `json:"role_id"`
 	}{
-		RoleID:     opts.RoleID,
-		RolePinned: opts.RolePinned,
+		RoleID: opts.RoleID,
 	}
 
 	var body bytes.Buffer

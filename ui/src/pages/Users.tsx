@@ -36,7 +36,6 @@ import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import { PRODUCT } from "@/utils/product";
 
 const roleSource = (user: APIUser, oidc?: OIDCSettings) => {
-  if (user.role_pinned) return " (pinned)";
   if (roleFromGroups(user, oidc)) return " (from groups)";
   return "";
 };

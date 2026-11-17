@@ -20,16 +20,14 @@ const UsersTableName = "users"
 const oidcSchema = 29
 
 const (
-	userColumnsPreV29 = "id, email, roleID, hashedPassword, FALSE, FALSE"
-	userColumns       = "id, email, roleID, hashedPassword, rolePinned, EXISTS (SELECT 1 FROM " + UserIdentitiesTableName + " i JOIN " +
+	userColumnsPreV29 = "id, email, roleID, hashedPassword, FALSE"
+	userColumns       = "id, email, roleID, hashedPassword, EXISTS (SELECT 1 FROM " + UserIdentitiesTableName + " i JOIN " +
 		OIDCSettingsTableName + " o ON o.issuer = i.issuer WHERE i.userID = " + UsersTableName + ".id)"
 )
 
 const (
 	createUserSQL        = "INSERT INTO " + UsersTableName + " (id, email, roleID, hashedPassword) VALUES (?, ?, ?, ?)"
-	createPinnedUserSQL  = "INSERT INTO " + UsersTableName + " (id, email, roleID, hashedPassword, rolePinned) VALUES (?, ?, ?, ?, ?)"
 	editUserSQL          = "UPDATE " + UsersTableName + " SET roleID=? WHERE email==?"
-	editUserRoleSQL      = "UPDATE " + UsersTableName + " SET roleID=?, rolePinned=? WHERE id==?"
 	editUserPasswordSQL  = "UPDATE " + UsersTableName + " SET hashedPassword=? WHERE email==?" // #nosec: G101
 	deleteUserSQL        = "DELETE FROM " + UsersTableName + " WHERE email==?"
 	countUsersSQL        = "SELECT COUNT(*) FROM " + UsersTableName
@@ -55,14 +53,7 @@ type User struct {
 	Email          string
 	RoleID         RoleID
 	HashedPassword string
-	RolePinned     bool
 	HasIdentity    bool
-}
-
-type userRolePayload struct {
-	Email      string `json:"email"`
-	RoleID     RoleID `json:"roleID"`
-	RolePinned bool   `json:"rolePinned"`
 }
 
 func (db *Database) userColumns(ctx context.Context) string {
@@ -134,10 +125,6 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (_ string, err e
 	ctx, finish := startDBQuery(ctx, UsersTableName, "INSERT")
 	defer func() { finish(err) }()
 
-	if user.RolePinned && !db.appliedSchemaAtLeast(ctx, oidcSchema) {
-		return "", ErrMigrationPending
-	}
-
 	if user.ID == "" {
 		id, err := uuid.NewV7()
 		if err != nil {
@@ -155,21 +142,11 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (_ string, err e
 }
 
 // UpdateUser updates a user's role with a span named "UPDATE users".
-func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID, rolePinned bool) (err error) {
+func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID) (err error) {
 	ctx, finish := startDBQuery(ctx, UsersTableName, "UPDATE")
 	defer func() { finish(err) }()
 
-	if !db.appliedSchemaAtLeast(ctx, oidcSchema) {
-		if rolePinned {
-			return ErrMigrationPending
-		}
-
-		_, err = opUpdateUser.Invoke(ctx, db, &User{Email: email, RoleID: roleID})
-
-		return err
-	}
-
-	_, err = opUpdateUserRole.Invoke(ctx, db, &userRolePayload{Email: email, RoleID: roleID, RolePinned: rolePinned})
+	_, err = opUpdateUser.Invoke(ctx, db, &User{Email: email, RoleID: roleID})
 
 	return err
 }
@@ -221,7 +198,7 @@ func (db *Database) CountUsers(ctx context.Context) (_ int, err error) {
 func scanUser(row scanner) (User, error) {
 	var v User
 
-	if err := row.Scan(&v.ID, &v.Email, &v.RoleID, &v.HashedPassword, &v.RolePinned, &v.HasIdentity); err != nil {
+	if err := row.Scan(&v.ID, &v.Email, &v.RoleID, &v.HashedPassword, &v.HasIdentity); err != nil {
 		return User{}, err
 	}
 
@@ -238,12 +215,7 @@ func (db *Database) applyCreateUser(ctx context.Context, u *User) (any, error) {
 		return nil, ErrAlreadyExists
 	}
 
-	query, args := createUserSQL, []any{u.ID, u.Email, u.RoleID, u.HashedPassword}
-	if u.RolePinned {
-		query, args = createPinnedUserSQL, append(args, u.RolePinned)
-	}
-
-	res, err := db.runner(ctx).ExecContext(ctx, query, args...)
+	res, err := db.runner(ctx).ExecContext(ctx, createUserSQL, u.ID, u.Email, u.RoleID, u.HashedPassword)
 	if err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -261,14 +233,10 @@ func (db *Database) applyCreateUser(ctx context.Context, u *User) (any, error) {
 }
 
 func (db *Database) applyUpdateUser(ctx context.Context, u *User) (any, error) {
-	return nil, db.setUserRole(ctx, u.Email, u.RoleID, nil)
+	return nil, db.setUserRole(ctx, u.Email, u.RoleID)
 }
 
-func (db *Database) applyUpdateUserRole(ctx context.Context, p *userRolePayload) (any, error) {
-	return nil, db.setUserRole(ctx, p.Email, p.RoleID, &p.RolePinned)
-}
-
-func (db *Database) setUserRole(ctx context.Context, email string, roleID RoleID, rolePinned *bool) error {
+func (db *Database) setUserRole(ctx context.Context, email string, roleID RoleID) error {
 	id, current, _, err := db.userOfEmailForUpdate(ctx, email)
 	if err != nil {
 		return err
@@ -280,13 +248,7 @@ func (db *Database) setUserRole(ctx context.Context, email string, roleID RoleID
 		}
 	}
 
-	if rolePinned == nil {
-		_, err = db.runner(ctx).ExecContext(ctx, editUserSQL, roleID, email)
-	} else {
-		_, err = db.runner(ctx).ExecContext(ctx, editUserRoleSQL, roleID, *rolePinned, id)
-	}
-
-	if err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, editUserSQL, roleID, email); err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
 

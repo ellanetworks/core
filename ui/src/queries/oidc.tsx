@@ -14,6 +14,7 @@ export interface OIDCSettings {
   enabled: boolean;
   external_url: string;
   redirect_url: string;
+  post_logout_redirect_url: string;
   issuer: string;
   client_id: string;
   client_secret_set: boolean;
@@ -71,7 +72,9 @@ export const MAX_URL_BYTES = 2048;
 export const MAX_CA_CERTIFICATE_BYTES = 64 * 1024;
 export const REQUIRED_SCOPES = ["openid", "email"];
 export const OIDC_LOGIN_PATH = "/api/v1/auth/oidc/login";
+export const OIDC_LINK_PATH = `${OIDC_LOGIN_PATH}?link=1`;
 export const OIDC_CALLBACK_PATH = "/api/v1/auth/oidc/callback";
+export const OIDC_POST_LOGOUT_PATH = "/login";
 
 export const getOIDC = (authToken: string) =>
   apiFetch<OIDCSettings>("/api/v1/oidc", { authToken });
@@ -114,8 +117,7 @@ export const currentUpdate = (settings: OIDCSettings): UpdateOIDCSettings => ({
 export const roleFromGroups = (user: APIUser, settings?: OIDCSettings) =>
   settings?.enabled === true &&
   settings.group_roles.length > 0 &&
-  user.oidc_linked &&
-  !user.role_pinned;
+  user.oidc_linked;
 
 const oidcLoginErrors: Record<string, string> = {
   rate_limited: "Too many login attempts. Try again in a minute.",
@@ -134,10 +136,45 @@ const oidcLoginErrors: Record<string, string> = {
   error: "Single sign-on failed. Try again, or contact an administrator.",
 };
 
-export const oidcLoginError = (code: string) =>
-  Object.hasOwn(oidcLoginErrors, code)
+export const oidcLoginError = (code: string, displayName?: string) => {
+  if (code === "link_required") {
+    return `This account has a password. Log in with it, then link your ${displayName || "identity provider"} account from your profile.`;
+  }
+  return Object.hasOwn(oidcLoginErrors, code)
     ? oidcLoginErrors[code]
     : oidcLoginErrors.error;
+};
+
+export const oidcLinkError = (code: string) =>
+  code === "linked_elsewhere"
+    ? "That account at your identity provider, or yours, is already linked."
+    : oidcLoginError(code);
+
+const LINKING_KEY = "core.oidcLinking";
+
+export function rememberLinking() {
+  try {
+    sessionStorage.setItem(LINKING_KEY, "1");
+  } catch {
+    return;
+  }
+}
+
+export function isLinking(): boolean {
+  try {
+    return sessionStorage.getItem(LINKING_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function forgetLinking() {
+  try {
+    sessionStorage.removeItem(LINKING_KEY);
+  } catch {
+    return;
+  }
+}
 
 const byteLength = (value: string) => new TextEncoder().encode(value).length;
 

@@ -25,7 +25,6 @@ export enum RoleID {
 export type APIUser = {
   email: string;
   role_id: RoleID;
-  role_pinned: boolean;
   password_set: boolean;
   oidc_linked: boolean;
 };
@@ -57,12 +56,11 @@ export const createUser = async (
   email: string,
   role_id: RoleID,
   password: string,
-  role_pinned?: boolean,
 ): Promise<void> => {
   await apiFetchVoid(`/api/v1/users`, {
     method: "POST",
     authToken,
-    body: { email, password, role_id, role_pinned },
+    body: { email, password, role_id },
   });
 };
 
@@ -94,12 +92,11 @@ export const updateUser = async (
   authToken: string,
   email: string,
   role_id: RoleID,
-  role_pinned?: boolean,
 ): Promise<void> => {
   await apiFetchVoid(`/api/v1/users/${email}`, {
     method: "PUT",
     authToken,
-    body: { role_id, role_pinned },
+    body: { role_id },
   });
 };
 

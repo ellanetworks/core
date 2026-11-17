@@ -47,6 +47,10 @@ type RefreshResponse struct {
 	Token string `json:"token"`
 }
 
+type LogoutResponse struct {
+	RedirectURL string `json:"redirect_url"`
+}
+
 type LookupTokenResponse struct {
 	Valid bool `json:"valid"`
 }
@@ -374,9 +378,9 @@ func LookupToken(dbInstance *db.Database, jwtSecret *JWTSecret) http.Handler {
 	})
 }
 
-func Logout(dbInstance *db.Database, secureCookie bool) http.Handler {
+func Logout(dbInstance *db.Database, oidcSettings OIDCSettings, secureCookie bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var userEmail string
+		var userEmail, redirectURL string
 
 		cookie, err := r.Cookie(SessionTokenCookieName)
 		if err == nil && cookie.Value != "" {
@@ -389,6 +393,12 @@ func Logout(dbInstance *db.Database, secureCookie bool) http.Handler {
 					user, userErr := dbInstance.GetUserByID(r.Context(), session.UserID)
 					if userErr == nil {
 						userEmail = user.Email
+					}
+
+					if session.Method == db.SessionOIDC {
+						if c, err := oidcSettings.Client(r.Context(), time.Now); err == nil {
+							redirectURL = c.LogoutURL()
+						}
 					}
 				}
 
@@ -412,6 +422,36 @@ func Logout(dbInstance *db.Database, secureCookie bool) http.Handler {
 
 		clearSessionCookie(w, secureCookie)
 
+		if redirectURL != "" {
+			writeResponse(r.Context(), w, LogoutResponse{RedirectURL: redirectURL}, http.StatusOK, logger.APILog)
+			return
+		}
+
 		w.WriteHeader(http.StatusNoContent)
 	})
+}
+
+func sessionFromCookie(r *http.Request, dbInstance *db.Database) (*db.Session, error) {
+	cookie, err := r.Cookie(SessionTokenCookieName)
+	if err != nil {
+		return nil, err
+	}
+
+	raw, err := base64.URLEncoding.DecodeString(cookie.Value)
+	if err != nil || len(raw) != TokenLength {
+		return nil, errors.New("invalid session token")
+	}
+
+	hashed := sha256.Sum256(raw)
+
+	s, err := awaitSessionByTokenHash(r.Context(), dbInstance, hashed[:])
+	if err != nil {
+		return nil, err
+	}
+
+	if time.Now().Unix() >= s.ExpiresAt {
+		return nil, errors.New("session expired")
+	}
+
+	return s, nil
 }

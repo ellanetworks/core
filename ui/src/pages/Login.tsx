@@ -216,7 +216,7 @@ const LoginPage = () => {
 
           {oidcError && (
             <Alert severity="error" sx={{ mt: 1 }}>
-              {oidcLoginError(oidcError)}
+              {oidcLoginError(oidcError, oidc.display_name)}
             </Alert>
           )}
           {oidc.enabled && (

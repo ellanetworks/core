@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -19,9 +20,10 @@ import (
 )
 
 const (
-	providerTTL = time.Hour
-	failureTTL  = 15 * time.Second
-	maxIssuedAt = 5 * time.Minute
+	providerTTL  = time.Hour
+	failureTTL   = 15 * time.Second
+	maxIssuedAt  = 5 * time.Minute
+	expiryLeeway = time.Minute
 )
 
 var (
@@ -103,7 +105,7 @@ func (l *Live) Client(ctx context.Context, now func() time.Time) (*Client, error
 			Scopes:       o.Scopes,
 		},
 		provider:  p.provider,
-		verifier:  p.provider.Verifier(&gooidc.Config{ClientID: o.ClientID, Now: now}),
+		verifier:  p.provider.Verifier(&gooidc.Config{ClientID: o.ClientID, Now: func() time.Time { return now().Add(-expiryLeeway) }}),
 		discovery: p.discovery,
 		now:       now,
 	}, nil
@@ -203,7 +205,7 @@ func (c *Client) Exchange(ctx context.Context, code, verifier, nonce string) (Cl
 		return Claims{}, fmt.Errorf("%w: the token response has no ID token", ErrToken)
 	}
 
-	fields, err := c.verify(ctx, raw, nonce)
+	fields, err := c.verify(ctx, raw, nonce, token.AccessToken)
 	if err != nil {
 		return Claims{}, err
 	}
@@ -221,10 +223,16 @@ func (c *Client) Exchange(ctx context.Context, code, verifier, nonce string) (Cl
 	return c.merge(cl, fields, info)
 }
 
-func (c *Client) verify(ctx context.Context, raw, nonce string) (map[string]json.RawMessage, error) {
+func (c *Client) verify(ctx context.Context, raw, nonce, accessToken string) (map[string]json.RawMessage, error) {
 	token, err := c.verifier.Verify(ctx, raw)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrToken, err)
+	}
+
+	if token.AccessTokenHash != "" {
+		if err := token.VerifyAccessToken(accessToken); err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrToken, err)
+		}
 	}
 
 	var fields map[string]json.RawMessage
@@ -386,14 +394,36 @@ func optional(fields map[string]json.RawMessage, name string, v any, kind error)
 	return nil
 }
 
+var rolePrivilege = map[db.RoleID]int{db.RoleReadOnly: 1, db.RoleNetworkManager: 2, db.RoleAdmin: 3}
+
+func (c *Client) LogoutURL() string {
+	if c.discovery.EndSessionEndpoint == "" {
+		return ""
+	}
+
+	u, err := url.Parse(c.discovery.EndSessionEndpoint)
+	if err != nil {
+		return ""
+	}
+
+	q := u.Query()
+	q.Set("client_id", c.settings.ClientID)
+	q.Set("post_logout_redirect_uri", PostLogoutRedirectURL(c.settings))
+	u.RawQuery = q.Encode()
+
+	return u.String()
+}
+
 func (c *Client) RoleFor(groups []string) (db.RoleID, bool) {
+	var role db.RoleID
+
 	for _, g := range c.settings.GroupRoles {
-		if slices.Contains(groups, g.Group) {
-			return g.RoleID, true
+		if slices.Contains(groups, g.Group) && rolePrivilege[g.RoleID] > rolePrivilege[role] {
+			role = g.RoleID
 		}
 	}
 
-	return 0, false
+	return role, role != 0
 }
 
 func (c *Client) MapsGroups() bool {

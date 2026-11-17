@@ -535,6 +535,7 @@ var forwardCodes = []struct {
 	{ellaraft.ForwardCodeNoRole, ErrNoRole},
 	{ellaraft.ForwardCodeLinkedElsewhere, ErrLinkedElsewhere},
 	{ellaraft.ForwardCodeStateUsed, ErrStateUsed},
+	{ellaraft.ForwardCodeLinkRequired, ErrLinkRequired},
 }
 
 func sentinelForForwardCode(code string) error {

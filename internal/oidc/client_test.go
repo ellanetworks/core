@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"slices"
 	"testing"
+
+	"github.com/ellanetworks/core/internal/db"
 )
 
 func fields(t *testing.T, s string) map[string]json.RawMessage {
@@ -144,5 +146,48 @@ func TestMergeUserInfo(t *testing.T) {
 			got.GroupsOverage != tc.want.GroupsOverage {
 			t.Errorf("%s: %+v, %v, want %+v", name, got, err, tc.want)
 		}
+	}
+}
+
+func TestRoleForGivesTheHighestRole(t *testing.T) {
+	c := &Client{settings: db.OIDC{GroupRoles: []db.GroupRole{
+		{Group: "viewers", RoleID: db.RoleReadOnly},
+		{Group: "noc", RoleID: db.RoleNetworkManager},
+		{Group: "admins", RoleID: db.RoleAdmin},
+	}}}
+
+	tests := []struct {
+		groups []string
+		want   db.RoleID
+		ok     bool
+	}{
+		{[]string{"viewers", "admins", "noc"}, db.RoleAdmin, true},
+		{[]string{"viewers", "noc"}, db.RoleNetworkManager, true},
+		{[]string{"viewers"}, db.RoleReadOnly, true},
+		{[]string{"guests"}, 0, false},
+		{nil, 0, false},
+	}
+
+	for _, tc := range tests {
+		if got, ok := c.RoleFor(tc.groups); got != tc.want || ok != tc.ok {
+			t.Errorf("RoleFor(%v) = %d, %t; want %d, %t", tc.groups, got, ok, tc.want, tc.ok)
+		}
+	}
+}
+
+func TestLogoutURL(t *testing.T) {
+	c := &Client{
+		settings:  db.OIDC{ExternalURL: "https://core.example.com", ClientID: "ella-core"},
+		discovery: Discovery{EndSessionEndpoint: "https://idp.example.com/logout?ui=1"},
+	}
+
+	if got, want := c.LogoutURL(), "https://idp.example.com/logout?client_id=ella-core&post_logout_redirect_uri=https%3A%2F%2Fcore.example.com%2Flogin&ui=1"; got != want {
+		t.Fatalf("LogoutURL() = %q, want %q", got, want)
+	}
+
+	c.discovery.EndSessionEndpoint = ""
+
+	if got := c.LogoutURL(); got != "" {
+		t.Fatalf("LogoutURL() without an end session endpoint = %q", got)
 	}
 }

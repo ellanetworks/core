@@ -21,12 +21,13 @@ const LoginLifetime = 10 * time.Minute
 var ErrLogin = errors.New("invalid or expired login")
 
 type Login struct {
-	State     string `json:"s"`
-	Nonce     string `json:"n"`
-	Verifier  string `json:"v"`
-	Issuer    string `json:"i"`
-	ClientID  string `json:"c"`
-	ExpiresAt int64  `json:"e"`
+	State      string `json:"s"`
+	Nonce      string `json:"n"`
+	Verifier   string `json:"v"`
+	Issuer     string `json:"i"`
+	ClientID   string `json:"c"`
+	ExpiresAt  int64  `json:"e"`
+	LinkUserID string `json:"u,omitempty"`
 }
 
 func (c *Client) NewLogin(now time.Time) Login {

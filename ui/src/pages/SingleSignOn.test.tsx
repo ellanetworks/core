@@ -16,6 +16,7 @@ const configured: OIDCSettings = {
   enabled: false,
   external_url: "https://core.example.com",
   redirect_url: "https://core.example.com/api/v1/auth/oidc/callback",
+  post_logout_redirect_url: "https://core.example.com/login",
   issuer: "https://idp.example.com/realms/core",
   client_id: "ella-core",
   client_secret_set: true,
@@ -35,6 +36,7 @@ const blank: OIDCSettings = {
   ...configured,
   external_url: "",
   redirect_url: "",
+  post_logout_redirect_url: "",
   issuer: "",
   client_id: "",
   client_secret_set: false,
@@ -67,19 +69,27 @@ const renderPage = () =>
 const dialog = (name: string) => screen.getByRole("dialog", { name });
 
 describe("Single sign-on", () => {
-  it("shows the settings and the redirect URL, never the secret", async () => {
+  it("shows the settings and the redirect URLs, never the secret", async () => {
     serve(configured);
     renderPage();
 
     const provider = await screen.findByRole("table", { name: "Provider" });
     expect(await within(provider).findByText("Keycloak")).toBeInTheDocument();
     expect(within(provider).getByText(configured.redirect_url)).toBeVisible();
+    expect(
+      within(provider).getByText(configured.post_logout_redirect_url),
+    ).toBeVisible();
+    expect(
+      within(provider).getByRole("button", {
+        name: "Copy the post-logout redirect URL",
+      }),
+    ).toBeVisible();
     expect(within(provider).getByText("Set")).toBeVisible();
     expect(within(provider).getByText("1 day")).toBeVisible();
     const groups = screen.getByRole("table", { name: "Roles from groups" });
-    expect(within(groups).getByText("1. admins → Admin")).toBeVisible();
+    expect(within(groups).getByText("admins → Admin")).toBeVisible();
     expect(
-      within(groups).getByText("2. operators → Network Manager"),
+      within(groups).getByText("operators → Network Manager"),
     ).toBeVisible();
     expect(
       screen.getByRole("link", { name: /Configure Single Sign-On/ }),
@@ -183,7 +193,7 @@ describe("Single sign-on", () => {
     });
   });
 
-  it("shows the redirect URL as the external URL is typed", async () => {
+  it("shows the redirect URLs as the external URL is typed", async () => {
     const user = userEvent.setup();
     serve(blank);
     renderPage();
@@ -203,6 +213,9 @@ describe("Single sign-on", () => {
     expect(
       within(edit).getByRole("textbox", { name: "Redirect URL" }),
     ).toHaveValue("https://core.example.com/api/v1/auth/oidc/callback");
+    expect(
+      within(edit).getByRole("textbox", { name: "Post-logout redirect URL" }),
+    ).toHaveValue("https://core.example.com/login");
   });
 
   it("needs the client secret again when the issuer or client ID changes", async () => {
@@ -332,14 +345,12 @@ describe("Single sign-on", () => {
       await screen.findByRole("button", { name: "Edit roles from groups" }),
     );
     const edit = dialog("Edit Roles from Groups");
-    await user.click(
-      within(edit).getByRole("button", { name: "Move group 2 up" }),
+    expect(edit).toHaveTextContent(
+      "A user in several mapped groups gets the highest of their roles.",
     );
-    await waitFor(() =>
-      expect(
-        within(edit).getByRole("button", { name: "Move group 1 down" }),
-      ).toHaveFocus(),
-    );
+    expect(
+      within(edit).queryByRole("button", { name: /Move group/ }),
+    ).not.toBeInTheDocument();
     await user.click(within(edit).getByRole("button", { name: "Add group" }));
     await user.type(
       within(edit).getByRole("textbox", { name: /Group 3/ }),
@@ -353,8 +364,8 @@ describe("Single sign-on", () => {
       client_secret: "",
       groups_claim: "groups",
       group_roles: [
-        { group: "operators", role_id: RoleID.NetworkManager },
         { group: "admins", role_id: RoleID.Admin },
+        { group: "operators", role_id: RoleID.NetworkManager },
         { group: "viewers", role_id: RoleID.ReadOnly },
       ],
     });

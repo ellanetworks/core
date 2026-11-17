@@ -23,7 +23,7 @@ func TestSingleSignOnBeforeAndAfterV29(t *testing.T) {
 	}
 
 	admin, err := d.GetUser(ctx, "admin@example.com")
-	if err != nil || admin.RolePinned || admin.HasIdentity {
+	if err != nil || admin.HasIdentity {
 		t.Fatalf("GetUser at schema 28 = %+v, %v", admin, err)
 	}
 
@@ -44,23 +44,19 @@ func TestSingleSignOnBeforeAndAfterV29(t *testing.T) {
 		t.Fatal("sessions are bound at schema 28")
 	}
 
-	if err := d.UpdateUser(ctx, "nm@example.com", RoleReadOnly, false); err != nil {
+	if err := d.UpdateUser(ctx, "nm@example.com", RoleReadOnly); err != nil {
 		t.Fatalf("UpdateUser at schema 28: %v", err)
 	}
 
-	if err := d.UpdateUser(ctx, "admin@example.com", RoleReadOnly, false); !errors.Is(err, ErrLastPasswordAdmin) {
+	if err := d.UpdateUser(ctx, "admin@example.com", RoleReadOnly); !errors.Is(err, ErrLastPasswordAdmin) {
 		t.Fatalf("demote the last password admin at schema 28: err = %v, want ErrLastPasswordAdmin", err)
 	}
 
 	writes := map[string]func() error{
-		"UpdateUser pinned": func() error { return d.UpdateUser(ctx, "nm@example.com", RoleAdmin, true) },
-		"CreateUser pinned": func() error {
-			_, err := d.CreateUser(ctx, &User{Email: "p@example.com", RoleID: RoleAdmin, RolePinned: true})
-			return err
-		},
-		"UpdateOIDC":   func() error { return d.UpdateOIDC(ctx, DefaultOIDC()) },
-		"UnlinkUser":   func() error { return d.UnlinkUser(ctx, "nm@example.com") },
-		"UseOIDCState": func() error { return d.UseOIDCState(ctx, make([]byte, 32), 1, 0) },
+		"LinkOIDCIdentity": func() error { return d.LinkOIDCIdentity(ctx, &OIDCLink{}) },
+		"UpdateOIDC":       func() error { return d.UpdateOIDC(ctx, DefaultOIDC()) },
+		"UnlinkUser":       func() error { return d.UnlinkUser(ctx, "nm@example.com") },
+		"UseOIDCState":     func() error { return d.UseOIDCState(ctx, make([]byte, 32), 1, 0) },
 		"LogInWithOIDC": func() error {
 			_, err := d.LogInWithOIDC(ctx, &OIDCLogin{})
 			return err
@@ -87,11 +83,7 @@ func TestSingleSignOnBeforeAndAfterV29(t *testing.T) {
 		t.Fatalf("migrated session = %+v, %v", s, err)
 	}
 
-	if u, err := d.GetUser(ctx, "nm@example.com"); err != nil || u.RolePinned || u.HasIdentity || u.RoleID != RoleReadOnly {
+	if u, err := d.GetUser(ctx, "nm@example.com"); err != nil || u.HasIdentity || u.RoleID != RoleReadOnly {
 		t.Fatalf("migrated user = %+v, %v", u, err)
-	}
-
-	if err := d.UpdateUser(ctx, "nm@example.com", RoleAdmin, true); err != nil {
-		t.Fatalf("UpdateUser pinned at schema 29: %v", err)
 	}
 }

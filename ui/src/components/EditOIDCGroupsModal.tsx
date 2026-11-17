@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect } from "react";
 import {
   Box,
   Button,
@@ -10,12 +10,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import {
-  Add as AddIcon,
-  ArrowDownward as ArrowDownwardIcon,
-  ArrowUpward as ArrowUpwardIcon,
-  Delete as DeleteIcon,
-} from "@mui/icons-material";
+import { Add as AddIcon, Delete as DeleteIcon } from "@mui/icons-material";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useFieldArray,
@@ -44,8 +39,6 @@ const ROLE_OPTIONS = [
   { value: RoleID.NetworkManager, label: roleIDToLabel(RoleID.NetworkManager) },
   { value: RoleID.ReadOnly, label: roleIDToLabel(RoleID.ReadOnly) },
 ] as const;
-
-type Direction = "up" | "down";
 
 interface FormValues {
   groupsClaim: string;
@@ -107,7 +100,7 @@ const EditOIDCGroupsModal: React.FC<EditOIDCGroupsModalProps> = ({
       rows: settings.group_roles.map((g) => ({ ...g })),
     },
   });
-  const { fields, append, remove, move } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "rows",
   });
@@ -118,35 +111,6 @@ const EditOIDCGroupsModal: React.FC<EditOIDCGroupsModalProps> = ({
       callback: () => void form.trigger(),
     });
   }, [form]);
-
-  const moveButtons = useRef(new Map<string, HTMLButtonElement | null>());
-  const pendingFocus = useRef<{ id: string; direction: Direction } | null>(
-    null,
-  );
-
-  useEffect(() => {
-    const target = pendingFocus.current;
-    if (!target) return;
-    pendingFocus.current = null;
-    const order: Direction[] =
-      target.direction === "up" ? ["up", "down"] : ["down", "up"];
-    for (const direction of order) {
-      const button = moveButtons.current.get(`${target.id}:${direction}`);
-      if (button && !button.disabled) {
-        button.focus();
-        return;
-      }
-    }
-  });
-
-  const moveRow = (i: number, direction: Direction) => {
-    pendingFocus.current = { id: fields[i].id, direction };
-    move(i, direction === "up" ? i - 1 : i + 1);
-  };
-  const moveButton =
-    (id: string, direction: Direction) => (node: HTMLButtonElement | null) => {
-      moveButtons.current.set(`${id}:${direction}`, node);
-    };
 
   const submit = async (values: FormValues) => {
     if (!accessToken) return false;
@@ -169,7 +133,7 @@ const EditOIDCGroupsModal: React.FC<EditOIDCGroupsModalProps> = ({
       onClose={onClose}
       onSuccess={onSuccess}
       title="Edit Roles from Groups"
-      description="Optional. Users in a mapped group are created at their first sign-in. The first matching group gives the role."
+      description="Optional. Users in a mapped group are created at their first sign-in. A user in several mapped groups gets the highest of their roles."
       form={form}
       onSubmit={submit}
       errorPrefix="Failed to update single sign-on"
@@ -216,30 +180,6 @@ const EditOIDCGroupsModal: React.FC<EditOIDCGroupsModalProps> = ({
             direction="row"
             sx={{ justifyContent: "flex-end", pt: { sm: 3 } }}
           >
-            <Tooltip title="Move up">
-              <span>
-                <IconButton
-                  ref={moveButton(field.id, "up")}
-                  aria-label={`Move group ${i + 1} up`}
-                  disabled={i === 0}
-                  onClick={() => moveRow(i, "up")}
-                >
-                  <ArrowUpwardIcon fontSize="small" />
-                </IconButton>
-              </span>
-            </Tooltip>
-            <Tooltip title="Move down">
-              <span>
-                <IconButton
-                  ref={moveButton(field.id, "down")}
-                  aria-label={`Move group ${i + 1} down`}
-                  disabled={i === fields.length - 1}
-                  onClick={() => moveRow(i, "down")}
-                >
-                  <ArrowDownwardIcon fontSize="small" />
-                </IconButton>
-              </span>
-            </Tooltip>
             <Tooltip title="Remove">
               <IconButton
                 aria-label={`Remove group ${i + 1}`}

@@ -216,6 +216,28 @@ export default function SingleSignOn() {
     </Button>
   );
 
+  const copyableURL = (url: string, label: string) => (
+    <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+      <Typography
+        variant="body2"
+        sx={{ fontFamily: "monospace", overflowWrap: "anywhere" }}
+      >
+        {url || "Set the external URL first."}
+      </Typography>
+      {url && (
+        <Tooltip title="Copy">
+          <IconButton
+            size="small"
+            aria-label={`Copy the ${label.toLowerCase()}`}
+            onClick={() => void copy(url, label)}
+          >
+            <ContentCopyIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      )}
+    </Stack>
+  );
+
   const onSaved = () =>
     showSnackbar("Single sign-on updated successfully.", "success");
 
@@ -281,33 +303,17 @@ export default function SingleSignOn() {
             {
               label: "Redirect URL",
               help: "Register this URL for the client at the identity provider.",
-              value: data && (
-                <Stack
-                  direction="row"
-                  spacing={1}
-                  sx={{ alignItems: "center" }}
-                >
-                  <Typography
-                    variant="body2"
-                    sx={{ fontFamily: "monospace", overflowWrap: "anywhere" }}
-                  >
-                    {data.redirect_url || "Set the external URL first."}
-                  </Typography>
-                  {data.redirect_url && (
-                    <Tooltip title="Copy">
-                      <IconButton
-                        size="small"
-                        aria-label="Copy the redirect URL"
-                        onClick={() =>
-                          void copy(data.redirect_url, "Redirect URL")
-                        }
-                      >
-                        <ContentCopyIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  )}
-                </Stack>
-              ),
+              value: data && copyableURL(data.redirect_url, "Redirect URL"),
+            },
+            {
+              label: "Post-logout redirect URL",
+              help: "Register this URL for the client at the identity provider.",
+              value:
+                data &&
+                copyableURL(
+                  data.post_logout_redirect_url,
+                  "Post-logout redirect URL",
+                ),
             },
             {
               label: "Scopes",
@@ -354,16 +360,16 @@ export default function SingleSignOn() {
             },
             {
               label: "Groups",
-              help: "The first matching group gives the role.",
+              help: "A user in several mapped groups gets the highest of their roles.",
               value:
                 data &&
                 (data.group_roles.length === 0 ? (
                   "None"
                 ) : (
                   <Stack spacing={0.5}>
-                    {data.group_roles.map((g, i) => (
+                    {data.group_roles.map((g) => (
                       <Typography key={g.group} variant="body2">
-                        {i + 1}. {g.group} → {roleIDToLabel(g.role_id)}
+                        {g.group} → {roleIDToLabel(g.role_id)}
                       </Typography>
                     ))}
                   </Stack>

@@ -49,6 +49,7 @@ type Discovery struct {
 	AuthorizationEndpoint   string
 	TokenEndpoint           string
 	UserInfoEndpoint        string
+	EndSessionEndpoint      string
 	JWKSURI                 string
 	SigningAlgorithms       []string
 	TokenEndpointAuthMethod string
@@ -70,6 +71,7 @@ type metadata struct {
 	AuthorizationEndpoint string   `json:"authorization_endpoint"`
 	TokenEndpoint         string   `json:"token_endpoint"`
 	UserInfoEndpoint      string   `json:"userinfo_endpoint"`
+	EndSessionEndpoint    string   `json:"end_session_endpoint"`
 	JWKSURI               string   `json:"jwks_uri"`
 	ResponseTypes         []string `json:"response_types_supported"`
 	SigningAlgorithms     []string `json:"id_token_signing_alg_values_supported"`
@@ -221,6 +223,10 @@ func (m metadata) check(issuer string) (Discovery, error) {
 		endpoints["userinfo_endpoint"] = m.UserInfoEndpoint
 	}
 
+	if m.EndSessionEndpoint != "" {
+		endpoints["end_session_endpoint"] = m.EndSessionEndpoint
+	}
+
 	for name, endpoint := range endpoints {
 		if u, err := url.Parse(endpoint); err != nil || u.Scheme != "https" || u.Host == "" {
 			return Discovery{}, fmt.Errorf("%s must be an https URL", name)
@@ -258,6 +264,7 @@ func (m metadata) check(issuer string) (Discovery, error) {
 		AuthorizationEndpoint:   m.AuthorizationEndpoint,
 		TokenEndpoint:           m.TokenEndpoint,
 		UserInfoEndpoint:        m.UserInfoEndpoint,
+		EndSessionEndpoint:      m.EndSessionEndpoint,
 		JWKSURI:                 m.JWKSURI,
 		SigningAlgorithms:       algorithms,
 		TokenEndpointAuthMethod: authMethod,

@@ -30,7 +30,6 @@ This path returns the list of system users.
             {
                 "email": "admin@ellanetworks.com",
                 "role_id": 1,
-                "role_pinned": false,
                 "password_set": true,
                 "oidc_linked": false
             }
@@ -58,7 +57,6 @@ This path creates a new system user. At most 50 users.
     - 1 (admin): Administrator user with full access to network and system resources.
     - 2 (read only): Read-only user with only read access to network resources.
     - 3 (network manager): Network manager user with full access to network resources.
-- `role_pinned` (boolean, optional): Keep the role whatever the user's groups. Default `false`.
 
 ### Sample Response
 
@@ -84,7 +82,6 @@ This path sets the role of a user. A role change ends the user's sessions. An Ad
     - 1 (admin): Administrator user with full access to network and system resources.
     - 2 (read only): Read-only user with only read access to network resources.
     - 3 (network manager): Network manager user with full access to network resources.
-- `role_pinned` (boolean, optional): Keep the role whatever the user's groups. Without it, the current value is kept.
 
 ### Sample Response
 
@@ -115,7 +112,6 @@ None
     "result": {
         "email": "admin@ellanetworks.com",
         "role_id": 1,
-        "role_pinned": false,
         "password_set": true,
         "oidc_linked": false
     }
@@ -128,7 +124,6 @@ None
 | -------------- | ------- | ----------- |
 | `email`        | string  | Email address. |
 | `role_id`      | int     | `1` Admin, `2` Read Only, `3` Network Manager. |
-| `role_pinned`  | boolean | The role is kept whatever the user's groups. |
 | `password_set` | boolean | The user has a password. |
 | `oidc_linked`  | boolean | The user is linked to an account at the current [identity provider](oidc.md). |
 

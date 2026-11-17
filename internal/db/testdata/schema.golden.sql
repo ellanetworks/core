@@ -311,7 +311,7 @@ CREATE TABLE "ue_registrations"(imsi TEXT NOT NULL CHECK(length(imsi)BETWEEN 6 A
 CREATE TABLE user_identities(id TEXT PRIMARY KEY,userID TEXT NOT NULL REFERENCES users(id)ON DELETE CASCADE,issuer TEXT NOT NULL CHECK(issuer != ''),subject TEXT NOT NULL CHECK(length(CAST(subject AS BLOB))BETWEEN 1 AND 255),email TEXT NOT NULL,createdAt INTEGER NOT NULL,lastLoginAt INTEGER NOT NULL,UNIQUE(issuer,subject),UNIQUE(userID,issuer));
 
 -- table users
-CREATE TABLE "users"(id TEXT PRIMARY KEY,email TEXT NOT NULL UNIQUE,roleID INTEGER NOT NULL,hashedPassword TEXT NOT NULL,rolePinned BOOLEAN NOT NULL DEFAULT FALSE);
+CREATE TABLE "users"(id TEXT PRIMARY KEY,email TEXT NOT NULL UNIQUE,roleID INTEGER NOT NULL,hashedPassword TEXT NOT NULL);
 
 -- table visitors
 CREATE TABLE visitors(imsi TEXT PRIMARY KEY CHECK(length(imsi)BETWEEN 6 AND 15 AND imsi NOT GLOB '*[^0-9]*'),partnerID TEXT NOT NULL REFERENCES roaming_partners(id)ON DELETE RESTRICT,msisdn TEXT NOT NULL DEFAULT '' CHECK(msisdn = '' OR(length(msisdn)BETWEEN 1 AND 15 AND msisdn NOT GLOB '*[^0-9]*')),since INTEGER NOT NULL,deregisterUntil INTEGER NOT NULL DEFAULT 0);

@@ -169,12 +169,17 @@ export default function DrawerLayout({
 
   const handleLogout = async () => {
     handleAccountClose();
+    let redirectURL: string | undefined;
     try {
-      await logout();
+      redirectURL = await logout();
     } catch {
     } finally {
       setAuthData(null);
-      navigate("/login", { replace: true });
+      if (redirectURL) {
+        window.location.assign(redirectURL);
+      } else {
+        navigate("/login", { replace: true });
+      }
     }
   };
 

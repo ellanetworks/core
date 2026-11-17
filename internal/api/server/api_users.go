@@ -24,15 +24,13 @@ import (
 )
 
 type CreateUserParams struct {
-	Email      string `json:"email"`
-	Password   string `json:"password"`
-	RoleID     RoleID `json:"role_id"`
-	RolePinned bool   `json:"role_pinned"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+	RoleID   RoleID `json:"role_id"`
 }
 
 type UpdateUserParams struct {
-	RoleID     RoleID `json:"role_id"`
-	RolePinned *bool  `json:"role_pinned"`
+	RoleID RoleID `json:"role_id"`
 }
 
 type UpdateUserPasswordParams struct {
@@ -47,7 +45,6 @@ type UpdateMyUserPasswordParams struct {
 type User struct {
 	Email       string `json:"email"`
 	RoleID      RoleID `json:"role_id"`
-	RolePinned  bool   `json:"role_pinned"`
 	PasswordSet bool   `json:"password_set"`
 	OIDCLinked  bool   `json:"oidc_linked"`
 }
@@ -272,7 +269,6 @@ func CreateUser(dbInstance *db.Database, bcryptCost int) http.Handler {
 			Email:          newUser.Email,
 			HashedPassword: hashedPassword,
 			RoleID:         db.RoleID(newUser.RoleID),
-			RolePinned:     newUser.RolePinned,
 		}
 
 		_, err = dbInstance.CreateUser(r.Context(), dbUser)
@@ -345,17 +341,12 @@ func UpdateUser(dbInstance *db.Database, oidcSettings OIDCSettings) http.Handler
 			return
 		}
 
-		pinned := targetUser.RolePinned
-		if updateUserParams.RolePinned != nil {
-			pinned = *updateUserParams.RolePinned
-		}
-
-		if db.RoleID(updateUserParams.RoleID) != targetUser.RoleID && !pinned && roleFromGroups(oidcSettings, targetUser) {
-			writeError(r.Context(), w, http.StatusConflict, "This user's role comes from their identity provider groups. Pin the role to change it.", nil, logger.APILog)
+		if db.RoleID(updateUserParams.RoleID) != targetUser.RoleID && roleFromGroups(oidcSettings, targetUser) {
+			writeError(r.Context(), w, http.StatusConflict, "This user's role comes from their identity provider groups", nil, logger.APILog)
 			return
 		}
 
-		err = dbInstance.UpdateUser(r.Context(), emailParam, db.RoleID(updateUserParams.RoleID), pinned)
+		err = dbInstance.UpdateUser(r.Context(), emailParam, db.RoleID(updateUserParams.RoleID))
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "User not found", nil, logger.APILog)
@@ -375,7 +366,7 @@ func UpdateUser(dbInstance *db.Database, oidcSettings OIDCSettings) http.Handler
 		writeResponse(r.Context(), w, SuccessResponse{Message: "User updated successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), UpdateUserAction, requester, getClientIP(r),
-			fmt.Sprintf("User updated user: %s with role: %d, pinned: %t", emailParam, updateUserParams.RoleID, pinned))
+			fmt.Sprintf("User updated user: %s with role: %d", emailParam, updateUserParams.RoleID))
 	})
 }
 

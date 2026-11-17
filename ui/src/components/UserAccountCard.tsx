@@ -28,6 +28,7 @@ interface UserAccountCardProps {
   onEdit?: () => void;
   fromGroups?: boolean;
   onUnlink?: () => void;
+  link?: { label: string; href: string; onClick?: () => void };
 }
 
 const InfoRow: React.FC<{ label: string; value?: React.ReactNode }> = ({
@@ -81,6 +82,7 @@ const UserAccountCard: React.FC<UserAccountCardProps> = ({
   onEdit,
   fromGroups = false,
   onUnlink,
+  link,
 }) => {
   const methods = signInMethods(user);
   return (
@@ -116,11 +118,6 @@ const UserAccountCard: React.FC<UserAccountCardProps> = ({
             color={roleChipColor(user.role_id)}
             variant="outlined"
           />
-          {user.role_pinned && (
-            <Tooltip title="Not updated from the user's groups.">
-              <Chip size="small" label="Pinned" sx={{ ml: 1 }} />
-            </Tooltip>
-          )}
           {fromGroups && (
             <Tooltip title="Updated from the user's groups at each login.">
               <Chip size="small" label="From groups" sx={{ ml: 1 }} />
@@ -128,14 +125,21 @@ const UserAccountCard: React.FC<UserAccountCardProps> = ({
           )}
           <Box sx={{ flex: 1 }} />
           {canEdit && onEdit && (
-            <IconButton
-              size="small"
-              onClick={onEdit}
-              aria-label="Edit role"
-              color="primary"
+            <Tooltip
+              title={fromGroups ? "The role comes from the user's groups." : ""}
             >
-              <EditIcon fontSize="small" />
-            </IconButton>
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={onEdit}
+                  aria-label="Edit role"
+                  color="primary"
+                  disabled={fromGroups}
+                >
+                  <EditIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
           )}
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", py: 0.75 }}>
@@ -169,6 +173,11 @@ const UserAccountCard: React.FC<UserAccountCardProps> = ({
           {onUnlink && user.oidc_linked && (
             <Button size="small" color="error" onClick={onUnlink}>
               Unlink
+            </Button>
+          )}
+          {link && !user.oidc_linked && (
+            <Button size="small" href={link.href} onClick={link.onClick}>
+              {link.label}
             </Button>
           )}
         </Box>

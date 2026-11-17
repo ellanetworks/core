@@ -80,6 +80,57 @@ func newLogin(t *testing.T, subject, email string) *db.OIDCLogin {
 	}
 }
 
+func link(t *testing.T, database *db.Database, userID, subject string) {
+	t.Helper()
+
+	if err := database.LinkOIDCIdentity(t.Context(), &db.OIDCLink{
+		Issuer: testIssuer, ClientID: testClientID, Subject: subject, Email: "linked@example.com", UserID: userID,
+		IdentityID: uuid.NewString(), At: time.Now().Unix(),
+	}); err != nil {
+		t.Fatalf("LinkOIDCIdentity: %v", err)
+	}
+}
+
+func TestOIDCLoginDoesNotLinkUsersWithAPassword(t *testing.T) {
+	database := setupTestDB(t)
+	enableOIDC(t, database)
+	u := createUser(t, database, "grace@example.com", db.RoleReadOnly, "hash")
+	other := createUser(t, database, "heidi@example.com", db.RoleReadOnly, "")
+
+	if _, err := database.LogInWithOIDC(t.Context(), newLogin(t, "sub-grace", "grace@example.com")); !errors.Is(err, db.ErrLinkRequired) {
+		t.Fatalf("login of a user with a password: got %v, want ErrLinkRequired", err)
+	}
+
+	link(t, database, u.ID, "sub-grace")
+	link(t, database, u.ID, "sub-grace")
+
+	res, err := database.LogInWithOIDC(t.Context(), newLogin(t, "sub-grace", "grace@example.com"))
+	if err != nil || res.User.ID != u.ID {
+		t.Fatalf("login after linking = %+v, %v", res, err)
+	}
+
+	err = database.LinkOIDCIdentity(t.Context(), &db.OIDCLink{
+		Issuer: testIssuer, ClientID: testClientID, Subject: "sub-grace", UserID: other.ID, IdentityID: uuid.NewString(),
+	})
+	if !errors.Is(err, db.ErrLinkedElsewhere) {
+		t.Fatalf("link an account linked to another user: got %v, want ErrLinkedElsewhere", err)
+	}
+
+	err = database.LinkOIDCIdentity(t.Context(), &db.OIDCLink{
+		Issuer: testIssuer, ClientID: testClientID, Subject: "sub-other", UserID: u.ID, IdentityID: uuid.NewString(),
+	})
+	if !errors.Is(err, db.ErrLinkedElsewhere) {
+		t.Fatalf("link a second account to a user: got %v, want ErrLinkedElsewhere", err)
+	}
+
+	err = database.LinkOIDCIdentity(t.Context(), &db.OIDCLink{
+		Issuer: testIssuer, ClientID: "another", Subject: "sub-x", UserID: other.ID, IdentityID: uuid.NewString(),
+	})
+	if !errors.Is(err, db.ErrOIDCChanged) {
+		t.Fatalf("link with another client: got %v, want ErrOIDCChanged", err)
+	}
+}
+
 func TestOIDCSettingsDefaultsAndUpdate(t *testing.T) {
 	database := setupTestDB(t)
 
@@ -108,7 +159,7 @@ func TestOIDCSettingsDefaultsAndUpdate(t *testing.T) {
 func TestOIDCLoginLinksExistingUserByEmailInAnyCase(t *testing.T) {
 	database := setupTestDB(t)
 	enableOIDC(t, database)
-	u := createUser(t, database, "Alice@Example.com", db.RoleNetworkManager, "hash")
+	u := createUser(t, database, "Alice@Example.com", db.RoleNetworkManager, "")
 
 	res, err := database.LogInWithOIDC(t.Context(), newLogin(t, "sub-alice", "alice@example.com"))
 	if err != nil {
@@ -153,7 +204,7 @@ func TestOIDCLoginLinksExistingUserByEmailInAnyCase(t *testing.T) {
 func TestOIDCLoginRefusals(t *testing.T) {
 	database := setupTestDB(t)
 	enableOIDC(t, database)
-	createUser(t, database, "bob@example.com", db.RoleReadOnly, "hash")
+	createUser(t, database, "bob@example.com", db.RoleReadOnly, "")
 
 	unverified := newLogin(t, "sub-x", "bob@example.com")
 	unverified.LinkEmail = ""
@@ -199,7 +250,7 @@ func TestOIDCLoginRefusals(t *testing.T) {
 func TestUserEmailsAreUniqueInAnyCase(t *testing.T) {
 	database := setupTestDB(t)
 	enableOIDC(t, database)
-	createUser(t, database, "carol@example.com", db.RoleReadOnly, "hash")
+	createUser(t, database, "carol@example.com", db.RoleReadOnly, "")
 
 	if _, err := database.CreateUser(t.Context(), &db.User{Email: "Carol@example.com", RoleID: db.RoleReadOnly, HashedPassword: "hash"}); !errors.Is(err, db.ErrAlreadyExists) {
 		t.Fatalf("CreateUser in another case: got %v, want ErrAlreadyExists", err)
@@ -260,20 +311,11 @@ func TestOIDCLoginGroupMappings(t *testing.T) {
 		t.Fatalf("role not synced: %+v", res)
 	}
 
-	if err := database.UpdateUser(t.Context(), "dave@example.com", db.RoleAdmin, true); err != nil {
-		t.Fatalf("UpdateUser: %v", err)
-	}
-
 	l = newLogin(t, "sub-dave", "dave@example.com")
-	l.MapsGroups, l.RoleID = true, db.RoleReadOnly
+	l.MapsGroups = true
 
-	res, err = database.LogInWithOIDC(t.Context(), l)
-	if err != nil {
-		t.Fatalf("LogInWithOIDC: %v", err)
-	}
-
-	if res.User.RoleID != db.RoleAdmin || res.RoleChanged() {
-		t.Fatalf("pinned role not kept: %+v", res)
+	if _, err := database.LogInWithOIDC(t.Context(), l); !errors.Is(err, db.ErrNoRole) {
+		t.Fatalf("login after leaving every mapped group: got %v, want ErrNoRole", err)
 	}
 
 	l = newLogin(t, "sub-erin", "erin@example.com")
@@ -287,7 +329,8 @@ func TestOIDCLoginGroupMappings(t *testing.T) {
 func TestOIDCLoginKeepsLastPasswordAdmin(t *testing.T) {
 	database := setupTestDB(t)
 	enableOIDC(t, database, db.GroupRole{Group: "noc", RoleID: db.RoleReadOnly})
-	createUser(t, database, "admin@example.com", db.RoleAdmin, "hash")
+	admin := createUser(t, database, "admin@example.com", db.RoleAdmin, "hash")
+	link(t, database, admin.ID, "sub-admin")
 
 	l := newLogin(t, "sub-admin", "admin@example.com")
 	l.MapsGroups, l.RoleID = true, db.RoleReadOnly
@@ -307,7 +350,7 @@ func TestLastPasswordAdminGuards(t *testing.T) {
 	createUser(t, database, "admin@example.com", db.RoleAdmin, "hash")
 	createUser(t, database, "sso-admin@example.com", db.RoleAdmin, "")
 
-	if err := database.UpdateUser(t.Context(), "admin@example.com", db.RoleReadOnly, false); !errors.Is(err, db.ErrLastPasswordAdmin) {
+	if err := database.UpdateUser(t.Context(), "admin@example.com", db.RoleReadOnly); !errors.Is(err, db.ErrLastPasswordAdmin) {
 		t.Fatalf("demote: got %v, want ErrLastPasswordAdmin", err)
 	}
 
@@ -323,7 +366,7 @@ func TestLastPasswordAdminGuards(t *testing.T) {
 		t.Fatalf("remove missing password: got %v, want ErrNoPassword", err)
 	}
 
-	if err := database.UpdateUser(t.Context(), "sso-admin@example.com", db.RoleReadOnly, false); err != nil {
+	if err := database.UpdateUser(t.Context(), "sso-admin@example.com", db.RoleReadOnly); err != nil {
 		t.Fatalf("demote passwordless admin: %v", err)
 	}
 
@@ -337,7 +380,7 @@ func TestLastPasswordAdminGuards(t *testing.T) {
 func TestDisablingOIDCAndUnlinkingEndOIDCSessions(t *testing.T) {
 	database := setupTestDB(t)
 	o := enableOIDC(t, database)
-	createUser(t, database, "frank@example.com", db.RoleReadOnly, "hash")
+	createUser(t, database, "frank@example.com", db.RoleReadOnly, "")
 
 	res, err := database.LogInWithOIDC(t.Context(), newLogin(t, "sub-frank", "frank@example.com"))
 	if err != nil {

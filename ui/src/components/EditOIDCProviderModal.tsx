@@ -44,6 +44,7 @@ import {
   MAX_VALUE_BYTES,
   MIN_SESSION_LIFETIME_SECONDS,
   OIDC_CALLBACK_PATH,
+  OIDC_POST_LOGOUT_PATH,
   OIDC_QUERY_KEY,
   scopesError,
   splitScopes,
@@ -136,11 +137,11 @@ function validate(
   };
 }
 
-function RedirectURLField({ value }: { value: string }) {
+function RedirectURLField({ label, value }: { label: string; value: string }) {
   const copy = useCopyToClipboard();
   return (
     <TextField
-      label="Redirect URL"
+      label={label}
       value={value}
       margin="normal"
       fullWidth
@@ -154,8 +155,8 @@ function RedirectURLField({ value }: { value: string }) {
               <Tooltip title="Copy">
                 <IconButton
                   edge="end"
-                  aria-label="Copy the redirect URL"
-                  onClick={() => void copy(value, "Redirect URL")}
+                  aria-label={`Copy the ${label.toLowerCase()}`}
+                  onClick={() => void copy(value, label)}
                 >
                   <ContentCopyIcon fontSize="small" />
                 </IconButton>
@@ -280,7 +281,16 @@ const EditOIDCProviderModal: React.FC<EditOIDCProviderModalProps> = ({
         helperText={`The https address users open ${PRODUCT.name} at.`}
       />
       {redirectOrigin !== "" && errors.externalURL === undefined && (
-        <RedirectURLField value={redirectOrigin + OIDC_CALLBACK_PATH} />
+        <>
+          <RedirectURLField
+            label="Redirect URL"
+            value={redirectOrigin + OIDC_CALLBACK_PATH}
+          />
+          <RedirectURLField
+            label="Post-logout redirect URL"
+            value={redirectOrigin + OIDC_POST_LOGOUT_PATH}
+          />
+        </>
       )}
       <TextControl<FormValues>
         name="issuer"

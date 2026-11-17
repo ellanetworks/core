@@ -11,7 +11,6 @@ import (
 
 func migrateV29(ctx context.Context, tx *sql.Tx) error {
 	stmts := []string{
-		fmt.Sprintf("ALTER TABLE %s ADD COLUMN rolePinned BOOLEAN NOT NULL DEFAULT FALSE", UsersTableName),
 		fmt.Sprintf(`CREATE TABLE %s (
 			id          TEXT    PRIMARY KEY,
 			userID      TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,

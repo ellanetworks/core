@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { setupApiServer, httpError } from "@/test/apiServer";
 import type { OIDCSettings } from "@/queries/oidc";
@@ -21,6 +21,7 @@ const oidc = (overrides: Partial<OIDCSettings> = {}): OIDCSettings => ({
   enabled: true,
   external_url: "https://core.example.com",
   redirect_url: "https://core.example.com/api/v1/auth/oidc/callback",
+  post_logout_redirect_url: "https://core.example.com/login",
   issuer: "https://idp.example.com/realms/core",
   client_id: "ella-core",
   client_secret_set: true,
@@ -37,7 +38,6 @@ const oidc = (overrides: Partial<OIDCSettings> = {}): OIDCSettings => ({
 const user = (overrides: Partial<APIUser> = {}): APIUser => ({
   email: "ops@ellanetworks.com",
   role_id: RoleID.NetworkManager,
-  role_pinned: false,
   password_set: true,
   oidc_linked: false,
   ...overrides,
@@ -71,14 +71,13 @@ const renderDetail = (email = "ops@ellanetworks.com") =>
 const dialog = () => screen.getByRole("dialog");
 
 describe("Users and single sign-on", () => {
-  it("lists how each user signs in, and pinned roles", async () => {
+  it("lists how each user signs in, and roles from groups", async () => {
     api.get("/api/v1/oidc", () => oidc());
     api.get("/api/v1/users", () => ({
       items: [
         user({ email: "a@example.com", oidc_linked: true }),
         user({
           email: "b@example.com",
-          role_pinned: true,
           password_set: false,
           oidc_linked: true,
         }),
@@ -101,7 +100,7 @@ describe("Users and single sign-on", () => {
     );
     expect(a).toHaveTextContent("Password, Single sign-on");
     const b = screen.getByText("b@example.com").closest('[role="row"]');
-    expect(b).toHaveTextContent("Network Manager (pinned)");
+    expect(b).toHaveTextContent("Network Manager (from groups)");
     expect(b).toHaveTextContent("Single sign-on");
     const c = screen.getByText("c@example.com").closest('[role="row"]');
     expect(c).toHaveTextContent("Single sign-on, not linked yet");
@@ -114,6 +113,17 @@ describe("Users and single sign-on", () => {
     expect(await screen.findByText("From groups")).toBeVisible();
     expect(screen.getByText("Single sign-on")).toBeVisible();
     expect(screen.getByRole("button", { name: "Unlink" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Edit role" })).toBeDisabled();
+  });
+
+  it("lets the role of a user whose role does not come from groups be edited", async () => {
+    serveDetail(user({ oidc_linked: true }), oidc({ group_roles: [] }));
+    renderDetail();
+
+    expect(
+      await screen.findByRole("button", { name: "Edit role" }),
+    ).toBeEnabled();
+    expect(screen.queryByText("From groups")).not.toBeInTheDocument();
   });
 
   it("removes a user's password", async () => {
@@ -227,7 +237,6 @@ describe("Users and single sign-on", () => {
       "new@example.com",
     );
     await u.click(await screen.findByRole("switch", { name: "Password" }));
-    await u.click(screen.getByRole("checkbox", { name: "Pin role" }));
     await waitFor(() =>
       expect(
         within(dialog()).getByRole("button", { name: "Create" }),
@@ -240,7 +249,6 @@ describe("Users and single sign-on", () => {
       email: "new@example.com",
       password: "",
       role_id: RoleID.Admin,
-      role_pinned: true,
     });
   });
 
@@ -257,15 +265,32 @@ describe("Users and single sign-on", () => {
     expect(
       screen.queryByRole("switch", { name: "Password" }),
     ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("checkbox", { name: "Pin role" }),
-    ).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Password/)).toBeRequired();
   });
 
-  it("pins a role from groups when it is changed", async () => {
-    const u = userEvent.setup();
+  it("does not let a role from groups be changed", async () => {
     api.get("/api/v1/oidc", () => oidc());
+    renderWithProviders(
+      <EditUserModal
+        open
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+        initialData={user({ oidc_linked: true })}
+      />,
+      { auth: {} },
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole("combobox", { name: /Role/ })).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      ),
+    );
+  });
+
+  it("changes the role of a user without group mapping", async () => {
+    const u = userEvent.setup();
+    api.get("/api/v1/oidc", () => oidc({ group_roles: [] }));
     api.put("/api/v1/users/:email", () => ({}));
     const onClose = vi.fn();
     renderWithProviders(
@@ -278,35 +303,120 @@ describe("Users and single sign-on", () => {
       { auth: {} },
     );
 
-    const pin = await screen.findByRole("checkbox", { name: "Pin role" });
-    expect(pin).not.toBeChecked();
+    await waitFor(() => expect(api.requests("/api/v1/oidc")).toHaveLength(1));
     await u.click(screen.getByRole("combobox", { name: /Role/ }));
     await u.click(await screen.findByRole("option", { name: "Read Only" }));
-    expect(pin).toBeChecked();
-    expect(pin).toBeDisabled();
     await u.click(within(dialog()).getByRole("button", { name: "Update" }));
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(api.lastRequest("/api/v1/users/ops@ellanetworks.com")?.body).toEqual(
-      { role_id: RoleID.ReadOnly, role_pinned: true },
+      { role_id: RoleID.ReadOnly },
     );
   });
 
-  it("does not offer pinning without group mapping", async () => {
-    api.get("/api/v1/oidc", () => oidc({ group_roles: [] }));
-    renderWithProviders(
-      <EditUserModal
-        open
-        onClose={vi.fn()}
-        onSuccess={vi.fn()}
-        initialData={user({ oidc_linked: true })}
-      />,
-      { auth: {} },
+  describe("linking from the profile", () => {
+    const serveProfile = (
+      me: APIUser,
+      sso: { enabled: boolean; display_name?: string } = {
+        enabled: true,
+        display_name: "Keycloak",
+      },
+    ) => {
+      api.get("/api/v1/users/me", () => me);
+      api.get("/api/v1/users/me/api-tokens", () => ({
+        items: [],
+        page: 1,
+        per_page: 100,
+        total_count: 0,
+      }));
+      api.get("/api/v1/auth/oidc", () => sso);
+    };
+
+    const Search = () => (
+      <span data-testid="search">{useLocation().search}</span>
     );
 
-    await waitFor(() => expect(api.requests("/api/v1/oidc")).toHaveLength(1));
-    expect(
-      screen.queryByRole("checkbox", { name: "Pin role" }),
-    ).not.toBeInTheDocument();
+    const renderProfile = (entry = "/profile") =>
+      renderWithProviders(
+        <Routes>
+          <Route
+            path="/profile"
+            element={
+              <>
+                <Profile />
+                <Search />
+              </>
+            }
+          />
+        </Routes>,
+        { initialEntries: [entry], auth: { role: "Admin" } },
+      );
+
+    afterEach(() => sessionStorage.clear());
+
+    it("offers to link an unlinked account", async () => {
+      const u = userEvent.setup();
+      serveProfile(user());
+      renderProfile();
+
+      const link = await screen.findByRole("link", {
+        name: "Link Keycloak account",
+      });
+      expect(link).toHaveAttribute("href", "/api/v1/auth/oidc/login?link=1");
+      link.addEventListener("click", (e) => e.preventDefault());
+      await u.click(link);
+      expect(sessionStorage.getItem("core.oidcLinking")).toBe("1");
+    });
+
+    it("does not offer a link to a linked account, or without single sign-on", async () => {
+      serveProfile(user({ oidc_linked: true }));
+      const { unmount } = renderProfile();
+      expect(await screen.findByText("Single sign-on")).toBeVisible();
+      expect(
+        screen.queryByRole("link", { name: /Link/ }),
+      ).not.toBeInTheDocument();
+      unmount();
+
+      serveProfile(user(), { enabled: false });
+      renderProfile();
+      expect(await screen.findByText("Password")).toBeVisible();
+      await waitFor(() =>
+        expect(api.requests("/api/v1/auth/oidc")).not.toHaveLength(0),
+      );
+      expect(
+        screen.queryByRole("link", { name: /Link/ }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("says the account was linked", async () => {
+      sessionStorage.setItem("core.oidcLinking", "1");
+      serveProfile(user({ oidc_linked: true }));
+      renderProfile();
+
+      expect(
+        await screen.findByText(
+          "Your account is linked. You can now log in with Keycloak.",
+        ),
+      ).toBeVisible();
+      expect(sessionStorage.getItem("core.oidcLinking")).toBeNull();
+    });
+
+    it("says why the link failed and cleans the address", async () => {
+      sessionStorage.setItem("core.oidcLinking", "1");
+      serveProfile(user());
+      renderProfile("/profile?error=linked_elsewhere");
+
+      expect(
+        await screen.findByText(
+          "That account at your identity provider, or yours, is already linked.",
+        ),
+      ).toBeVisible();
+      await waitFor(() =>
+        expect(screen.getByTestId("search")).toBeEmptyDOMElement(),
+      );
+      expect(
+        screen.queryByText(/Your account is linked/),
+      ).not.toBeInTheDocument();
+    });
   });
 });

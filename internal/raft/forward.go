@@ -103,6 +103,7 @@ const (
 	ForwardCodeNoRole          = "oidc_no_role"
 	ForwardCodeLinkedElsewhere = "oidc_linked_elsewhere"
 	ForwardCodeStateUsed       = "oidc_state_used"
+	ForwardCodeLinkRequired    = "oidc_link_required"
 	ForwardCodeTokenConsumed   = "join_token_consumed"      // #nosec G101 -- response code, not a credential
 	ForwardCodeTokenExpired    = "join_token_expired"       // #nosec G101 -- response code, not a credential
 	ForwardCodeTokenNodeMism   = "join_token_node_mismatch" // #nosec G101 -- response code, not a credential

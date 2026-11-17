@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React from "react";
-import { Controller, useForm, useWatch } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { useQuery } from "@tanstack/react-query";
 import { updateUser, RoleID, APIUser, roleIDToLabel } from "@/queries/users";
 import { getOIDC, OIDC_QUERY_KEY, roleFromGroups } from "@/queries/oidc";
@@ -10,7 +10,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
 import SelectControl from "@/components/form/SelectControl";
-import PinRoleField from "@/components/PinRoleField";
 
 interface EditUserModalProps {
   open: boolean;
@@ -22,7 +21,6 @@ interface EditUserModalProps {
 interface FormValues {
   email: string;
   role: RoleID;
-  pinned: boolean;
 }
 
 const ROLE_OPTIONS = [
@@ -49,24 +47,14 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
     values: {
       email: initialData.email,
       role: initialData.role_id,
-      pinned: initialData.role_pinned,
     },
   });
 
-  const role = useWatch({ control: form.control, name: "role" });
-  const pinnable =
-    (oidc?.group_roles.length ?? 0) > 0 || initialData.role_pinned;
-  const pinRequired =
-    roleFromGroups(initialData, oidc) && role !== initialData.role_id;
+  const fromGroups = roleFromGroups(initialData, oidc);
 
   const submit = async (values: FormValues) => {
     if (!accessToken) return false;
-    await updateUser(
-      accessToken,
-      values.email,
-      values.role,
-      pinnable ? values.pinned || pinRequired : undefined,
-    );
+    await updateUser(accessToken, values.email, values.role);
   };
 
   return (
@@ -88,20 +76,8 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         options={ROLE_OPTIONS}
         numeric
         autoFocus
+        disabled={fromGroups}
       />
-      {pinnable && (
-        <Controller
-          name="pinned"
-          control={form.control}
-          render={({ field }) => (
-            <PinRoleField
-              checked={field.value || pinRequired}
-              onChange={field.onChange}
-              required={pinRequired}
-            />
-          )}
-        />
-      )}
     </FormDialog>
   );
 };

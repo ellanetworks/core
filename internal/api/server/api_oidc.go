@@ -29,6 +29,7 @@ type OIDCSettingsResponse struct {
 	Enabled                bool            `json:"enabled"`
 	ExternalURL            string          `json:"external_url"`
 	RedirectURL            string          `json:"redirect_url"`
+	PostLogoutRedirectURL  string          `json:"post_logout_redirect_url"`
 	Issuer                 string          `json:"issuer"`
 	ClientID               string          `json:"client_id"`
 	ClientSecretSet        bool            `json:"client_secret_set"`
@@ -285,17 +286,6 @@ func UnlinkUser(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func NeedsLogin(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if apiToken, _ := r.Context().Value(contextKeyAPIToken).(bool); apiToken {
-			writeError(r.Context(), w, http.StatusForbidden, "This needs a login, not an API token", nil, logger.APILog)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}
-
 func otherUser(w http.ResponseWriter, r *http.Request) (string, bool) {
 	emailParam := r.PathValue("email")
 	if emailParam == "" {
@@ -315,7 +305,6 @@ func userResponse(u db.User) User {
 	return User{
 		Email:       u.Email,
 		RoleID:      RoleID(u.RoleID),
-		RolePinned:  u.RolePinned,
 		PasswordSet: u.HashedPassword != "",
 		OIDCLinked:  u.HasIdentity,
 	}
@@ -324,7 +313,7 @@ func userResponse(u db.User) User {
 func roleFromGroups(oidcSettings OIDCSettings, u *db.User) bool {
 	o := oidcSettings.Get()
 
-	return o.Enabled && len(o.GroupRoles) > 0 && u.HasIdentity && !u.RolePinned
+	return o.Enabled && len(o.GroupRoles) > 0 && u.HasIdentity
 }
 
 func oidcResponse(o db.OIDC) OIDCSettingsResponse {
@@ -349,6 +338,7 @@ func oidcResponse(o db.OIDC) OIDCSettingsResponse {
 
 	if o.ExternalURL != "" {
 		resp.RedirectURL = oidc.RedirectURL(o)
+		resp.PostLogoutRedirectURL = oidc.PostLogoutRedirectURL(o)
 	}
 
 	for _, g := range o.GroupRoles {

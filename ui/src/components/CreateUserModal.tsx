@@ -13,7 +13,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
 import SelectControl from "@/components/form/SelectControl";
-import PinRoleField from "@/components/PinRoleField";
 
 interface CreateUserModalProps {
   open: boolean;
@@ -33,7 +32,6 @@ const schema = yup.object({
         : s.optional(),
     ),
   role_id: yup.number<RoleID>().required(),
-  role_pinned: yup.boolean().required(),
 });
 
 type FormValues = yup.InferType<typeof schema>;
@@ -56,7 +54,6 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
     queryFn: () => getOIDC(accessToken!),
     enabled: authReady && !!accessToken,
   }).data;
-  const mapped = (oidc?.group_roles.length ?? 0) > 0;
   const ssoConfigured =
     oidc !== undefined && oidc.issuer !== "" && oidc.client_id !== "";
 
@@ -69,7 +66,6 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
       with_password: true,
       password: "",
       role_id: RoleID.Admin,
-      role_pinned: false,
     },
   });
 
@@ -86,7 +82,6 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
       values.email,
       values.role_id,
       needsPassword ? (values.password ?? "") : "",
-      mapped ? values.role_pinned : undefined,
     );
   };
 
@@ -145,15 +140,6 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({
         options={ROLE_OPTIONS}
         numeric
       />
-      {mapped && (
-        <Controller
-          name="role_pinned"
-          control={form.control}
-          render={({ field }) => (
-            <PinRoleField checked={field.value} onChange={field.onChange} />
-          )}
-        />
-      )}
     </FormDialog>
   );
 };

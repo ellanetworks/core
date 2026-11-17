@@ -45,6 +45,7 @@ const (
 	OIDCNoGroup          = "no_group"
 	OIDCGroupsOverage    = "groups_overage"
 	OIDCTooManyUsers     = "too_many_users"
+	OIDCLinkRequired     = "link_required"
 	OIDCError            = "error"
 )
 
@@ -81,32 +82,44 @@ func GetOIDCLogin(oidcSettings OIDCSettings) http.Handler {
 	})
 }
 
-func StartOIDCLogin(oidcSettings OIDCSettings, jwtSecret *JWTSecret, loginLimiter *ipRateLimiter) http.Handler {
+func StartOIDCLogin(dbInstance *db.Database, oidcSettings OIDCSettings, jwtSecret *JWTSecret, loginLimiter *ipRateLimiter) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 
+		link := r.URL.Query().Get("link") == "1"
+
 		if !loginLimiter.allow(getClientIP(r)) {
-			oidcDone(w, r, "", refuse(OIDCRateLimited, "too many login attempts"))
+			oidcDone(w, r, "", link, refuse(OIDCRateLimited, "too many login attempts"))
 			return
 		}
 
 		c, err := oidcSettings.Client(r.Context(), time.Now)
 		if err != nil {
-			oidcDone(w, r, "", refuse(OIDCUnavailable, "%v", err))
+			oidcDone(w, r, "", link, refuse(OIDCUnavailable, "%v", err))
 			return
 		}
 
 		key, err := oidcCookieKey(jwtSecret)
 		if err != nil {
-			oidcDone(w, r, "", err)
+			oidcDone(w, r, "", link, err)
 			return
 		}
 
 		l := c.NewLogin(time.Now())
 
+		if link {
+			s, err := sessionFromCookie(r, dbInstance)
+			if err != nil {
+				oidcDone(w, r, "", link, refuse(OIDCFailed, "no session to link: %v", err))
+				return
+			}
+
+			l.LinkUserID = s.UserID
+		}
+
 		value, err := oidc.Seal(key, OIDCLoginCookieName, l)
 		if err != nil {
-			oidcDone(w, r, "", err)
+			oidcDone(w, r, "", link, err)
 			return
 		}
 
@@ -132,65 +145,76 @@ func OIDCCallback(dbInstance *db.Database, oidcSettings OIDCSettings, jwtSecret 
 			SameSite: http.SameSiteLaxMode,
 		})
 
-		c, cl, err := oidcAuthenticate(r, dbInstance, oidcSettings, jwtSecret)
+		c, l, cl, err := oidcAuthenticate(r, dbInstance, oidcSettings, jwtSecret)
+		link := l.LinkUserID != ""
+
 		if err != nil {
-			oidcDone(w, r, "", err)
+			oidcDone(w, r, "", link, err)
+			return
+		}
+
+		if link {
+			email, err := oidcLink(r, dbInstance, c, l, cl)
+			oidcDone(w, r, email, link, err)
+
 			return
 		}
 
 		u, err := oidcLogIn(w, r, dbInstance, c, cl, secureCookie)
 		if err != nil {
-			oidcDone(w, r, actor(cl), err)
+			oidcDone(w, r, actor(cl), link, err)
 			return
 		}
 
-		oidcDone(w, r, u.Email, nil)
+		oidcDone(w, r, u.Email, link, nil)
 	})
 }
 
-func oidcAuthenticate(r *http.Request, dbInstance *db.Database, oidcSettings OIDCSettings, jwtSecret *JWTSecret) (*oidc.Client, oidc.Claims, error) {
+func oidcAuthenticate(r *http.Request, dbInstance *db.Database, oidcSettings OIDCSettings, jwtSecret *JWTSecret) (*oidc.Client, oidc.Login, oidc.Claims, error) {
+	var l oidc.Login
+
 	cookie, err := r.Cookie(OIDCLoginCookieName)
 	if err != nil {
-		return nil, oidc.Claims{}, refuse(OIDCFailed, "no login in progress")
+		return nil, l, oidc.Claims{}, refuse(OIDCFailed, "no login in progress")
 	}
 
 	key, err := oidcCookieKey(jwtSecret)
 	if err != nil {
-		return nil, oidc.Claims{}, err
+		return nil, l, oidc.Claims{}, err
 	}
 
-	l, err := oidc.Open(key, OIDCLoginCookieName, cookie.Value, time.Now())
+	l, err = oidc.Open(key, OIDCLoginCookieName, cookie.Value, time.Now())
 	if err != nil {
-		return nil, oidc.Claims{}, refuse(OIDCFailed, "%v", err)
+		return nil, l, oidc.Claims{}, refuse(OIDCFailed, "%v", err)
 	}
 
 	q := r.URL.Query()
 	if subtle.ConstantTimeCompare([]byte(q.Get("state")), []byte(l.State)) != 1 {
-		return nil, oidc.Claims{}, refuse(OIDCFailed, "the state does not match the login")
+		return nil, l, oidc.Claims{}, refuse(OIDCFailed, "the state does not match the login")
 	}
 
 	state := sha256.Sum256([]byte(l.State))
 
 	err = dbInstance.UseOIDCState(r.Context(), state[:], l.ExpiresAt, time.Now().Unix())
 	if errors.Is(err, db.ErrStateUsed) {
-		return nil, oidc.Claims{}, refuse(OIDCFailed, "the login was already used")
+		return nil, l, oidc.Claims{}, refuse(OIDCFailed, "the login was already used")
 	}
 
 	if err != nil {
-		return nil, oidc.Claims{}, err
+		return nil, l, oidc.Claims{}, err
 	}
 
 	c, err := oidcSettings.Client(r.Context(), time.Now)
 	if err != nil {
-		return nil, oidc.Claims{}, refuse(OIDCUnavailable, "%v", err)
+		return nil, l, oidc.Claims{}, refuse(OIDCUnavailable, "%v", err)
 	}
 
 	if !c.Owns(l) {
-		return nil, oidc.Claims{}, refuse(OIDCFailed, "the OIDC settings changed during the login")
+		return nil, l, oidc.Claims{}, refuse(OIDCFailed, "the OIDC settings changed during the login")
 	}
 
 	if err := c.CheckIssuer(q.Get("iss"), q.Has("iss")); err != nil {
-		return nil, oidc.Claims{}, refuse(OIDCFailed, "%v", err)
+		return nil, l, oidc.Claims{}, refuse(OIDCFailed, "%v", err)
 	}
 
 	if e := q.Get("error"); e != "" {
@@ -199,20 +223,56 @@ func oidcAuthenticate(r *http.Request, dbInstance *db.Database, oidcSettings OID
 			outcome = OIDCDenied
 		}
 
-		return nil, oidc.Claims{}, refuse(outcome, "the identity provider returned %s: %s", e, q.Get("error_description"))
+		return nil, l, oidc.Claims{}, refuse(outcome, "the identity provider returned %s: %s", e, q.Get("error_description"))
 	}
 
 	code := q.Get("code")
 	if code == "" {
-		return nil, oidc.Claims{}, refuse(OIDCFailed, "no authorization code")
+		return nil, l, oidc.Claims{}, refuse(OIDCFailed, "no authorization code")
 	}
 
 	cl, err := c.Exchange(r.Context(), code, l.Verifier, l.Nonce)
 	if err != nil {
-		return nil, oidc.Claims{}, refuse(OIDCFailed, "%v", err)
+		return nil, l, oidc.Claims{}, refuse(OIDCFailed, "%v", err)
 	}
 
-	return c, cl, nil
+	return c, l, cl, nil
+}
+
+func oidcLink(r *http.Request, dbInstance *db.Database, c *oidc.Client, l oidc.Login, cl oidc.Claims) (string, error) {
+	s, err := sessionFromCookie(r, dbInstance)
+	if err != nil || s.UserID != l.LinkUserID {
+		return "", refuse(OIDCFailed, "the session that started the link has ended")
+	}
+
+	u, err := dbInstance.GetUserByID(r.Context(), s.UserID)
+	if err != nil {
+		return "", refuse(OIDCFailed, "the user that started the link no longer exists")
+	}
+
+	o := c.Settings()
+
+	err = dbInstance.LinkOIDCIdentity(r.Context(), &db.OIDCLink{
+		Issuer: o.Issuer, ClientID: o.ClientID, Subject: cl.Subject, Email: cl.Email, UserID: u.ID, IdentityID: newID(),
+		At: time.Now().Unix(),
+	})
+
+	switch {
+	case errors.Is(err, db.ErrOIDCDisabled):
+		return u.Email, refuse(OIDCUnavailable, "%v", oidc.ErrDisabled)
+	case errors.Is(err, db.ErrOIDCChanged):
+		return u.Email, refuse(OIDCFailed, "the OIDC settings changed during the login")
+	case errors.Is(err, db.ErrLinkedElsewhere):
+		return u.Email, refuse(OIDCLinkedElsewhere, "the account at the identity provider, or %s, is already linked", u.Email)
+	case errors.Is(err, db.ErrNotFound):
+		return u.Email, refuse(OIDCFailed, "the user that started the link no longer exists")
+	case err != nil:
+		return u.Email, err
+	}
+
+	logger.LogAuditEvent(r.Context(), LinkUserAction, u.Email, getClientIP(r), "User linked to the identity provider account "+cl.Subject)
+
+	return u.Email, nil
 }
 
 func oidcLogIn(w http.ResponseWriter, r *http.Request, dbInstance *db.Database, c *oidc.Client, cl oidc.Claims, secureCookie bool) (db.User, error) {
@@ -276,6 +336,8 @@ func oidcLogIn(w http.ResponseWriter, r *http.Request, dbInstance *db.Database, 
 		return db.User{}, groupErr
 	case errors.Is(err, db.ErrLinkedElsewhere):
 		return db.User{}, refuse(OIDCLinkedElsewhere, "%s is linked to another account at the identity provider", email)
+	case errors.Is(err, db.ErrLinkRequired):
+		return db.User{}, refuse(OIDCLinkRequired, "%s has a password, so the account must be linked from the profile", email)
 	case errors.Is(err, db.ErrUserLimit):
 		return db.User{}, refuse(OIDCTooManyUsers, "%d users exist", MaxNumUsers)
 	case err != nil:
@@ -327,12 +389,16 @@ func groupRole(c *oidc.Client, cl oidc.Claims) (db.RoleID, error) {
 	return role, nil
 }
 
-func oidcDone(w http.ResponseWriter, r *http.Request, who string, err error) {
-	outcome, target := OIDCSuccess, "/"
+func oidcDone(w http.ResponseWriter, r *http.Request, who string, link bool, err error) {
+	outcome, target, failure := OIDCSuccess, "/", "/login?"
+	if link {
+		target, failure = "/profile", "/profile?"
+	}
 
 	var refusal oidcRefusal
 
 	switch {
+	case err == nil && link:
 	case err == nil:
 		logger.LogAuditEvent(r.Context(), OIDCLoginAction, who, getClientIP(r), "User logged in through OIDC")
 	case errors.As(err, &refusal):
@@ -348,7 +414,7 @@ func oidcDone(w http.ResponseWriter, r *http.Request, who string, err error) {
 	trackAuthAttempt("oidc", outcome == OIDCSuccess)
 
 	if outcome != OIDCSuccess {
-		target = "/login?" + url.Values{"error": {outcome}}.Encode()
+		target = failure + url.Values{"error": {outcome}}.Encode()
 	}
 
 	http.Redirect(w, r, target, http.StatusSeeOther)

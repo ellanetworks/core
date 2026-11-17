@@ -512,6 +512,12 @@ paths:
       description: Deletes the session and clears the session cookie.
       security: []
       responses:
+        "200":
+          description: Logged out of a single sign-on session. The browser continues to the identity provider's logout.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogoutResponseEnvelope"
         "204":
           description: Logged out.
 
@@ -569,8 +575,15 @@ paths:
       operationId: startOIDCLogin
       tags: [Authentication]
       summary: Sign in through the identity provider
-      description: Redirects the browser to the identity provider.
+      description: Redirects the browser to the identity provider. With link=1, links the identity provider account to the user of the session cookie.
       security: []
+      parameters:
+        - name: link
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ["1"]
       responses:
         "303":
           description: Redirect to the identity provider, or to /login?error=<error>.
@@ -592,7 +605,7 @@ paths:
       operationId: getOIDC
       tags: [Single Sign-On]
       summary: Get the OIDC settings
-      description: Returns the OIDC settings, without the client secret. Requires a login, not an API token.
+      description: Returns the OIDC settings, without the client secret.
       responses:
         "200":
           description: OIDC settings.
@@ -608,7 +621,7 @@ paths:
       operationId: updateOIDC
       tags: [Single Sign-On]
       summary: Update the OIDC settings
-      description: Replaces the OIDC settings. Disabling OIDC or changing the issuer ends every session started through the identity provider. Requires a login, not an API token.
+      description: Replaces the OIDC settings. Disabling OIDC or changing the issuer ends every session started through the identity provider.
       requestBody:
         required: true
         content:
@@ -634,7 +647,7 @@ paths:
       operationId: discoverOIDC
       tags: [Single Sign-On]
       summary: Test an identity provider
-      description: Checks that an identity provider can be used. Changes no setting. Requires a login, not an API token.
+      description: Checks that an identity provider can be used. Changes no setting.
       requestBody:
         required: true
         content:
@@ -826,7 +839,7 @@ paths:
       operationId: updateUser
       tags: [Users]
       summary: Update a user's role
-      description: Sets a user's role and whether it is pinned. A role change ends the user's sessions.
+      description: Sets a user's role. A role change ends the user's sessions.
       parameters:
         - $ref: "#/components/parameters/EmailPath"
       requestBody:
@@ -845,7 +858,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
-          description: The role comes from the user's groups and is not pinned, or the user is the last admin with a password.
+          description: The role comes from the user's groups, or the user is the last admin with a password.
           content:
             application/json:
               schema:
@@ -5102,16 +5115,13 @@ components:
           type: integer
           description: "1 = Admin, 2 = ReadOnly, 3 = NetworkManager."
           enum: [1, 2, 3]
-        role_pinned:
-          type: boolean
-          description: The role is kept whatever the user's groups at the identity provider.
         password_set:
           type: boolean
           description: The user has a password.
         oidc_linked:
           type: boolean
           description: The user is linked to an account at the current identity provider.
-      required: [email, role_id, role_pinned, password_set, oidc_linked]
+      required: [email, role_id, password_set, oidc_linked]
 
     UserResponseEnvelope:
       type: object
@@ -5154,9 +5164,6 @@ components:
           type: integer
           description: "1 = Admin, 2 = ReadOnly, 3 = NetworkManager."
           enum: [1, 2, 3]
-        role_pinned:
-          type: boolean
-          description: Keep the role whatever the user's groups at the identity provider.
 
     UpdateUserParams:
       type: object
@@ -5165,11 +5172,21 @@ components:
         role_id:
           type: integer
           enum: [1, 2, 3]
-        role_pinned:
-          type: ["boolean", "null"]
-          description: Keep the role whatever the user's groups at the identity provider. Without it, the current value is kept.
 
     # -- Single Sign-On --------------------------------------------------
+    LogoutResponse:
+      type: object
+      properties:
+        redirect_url:
+          type: string
+      required: [redirect_url]
+
+    LogoutResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/LogoutResponse"
+
     OIDCLoginResponse:
       type: object
       properties:
@@ -5204,6 +5221,8 @@ components:
           type: string
         redirect_url:
           type: string
+        post_logout_redirect_url:
+          type: string
         issuer:
           type: string
         client_id:
@@ -5228,7 +5247,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/OIDCGroupRole"
-      required: [enabled, external_url, redirect_url, issuer, client_id, client_secret_set, display_name, scopes, session_lifetime_seconds, trust_unverified_email, ca_certificate, groups_claim, group_roles]
+      required: [enabled, external_url, redirect_url, post_logout_redirect_url, issuer, client_id, client_secret_set, display_name, scopes, session_lifetime_seconds, trust_unverified_email, ca_certificate, groups_claim, group_roles]
 
     OIDCSettingsResponseEnvelope:
       type: object

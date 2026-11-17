@@ -4,7 +4,7 @@ description: RESTful API reference for configuring single sign-on through OpenID
 
 # Single Sign-On
 
-These paths require an Admin access token from [login](auth.md#log-in). API tokens are refused.
+These paths require Admin.
 
 ## Get the OIDC Settings
 
@@ -21,6 +21,7 @@ This path returns the OIDC settings.
 | `enabled`                  | boolean | Single sign-on is enabled. |
 | `external_url`             | string  | URL of Ella Core. |
 | `redirect_url`             | string  | Redirect URL to register at the identity provider. |
+| `post_logout_redirect_url` | string  | Post-logout redirect URL to register at the identity provider. |
 | `issuer`                   | string  | Issuer URL. |
 | `client_id`                | string  | Client ID. |
 | `client_secret_set`        | boolean | A client secret is stored. |
@@ -30,7 +31,7 @@ This path returns the OIDC settings.
 | `trust_unverified_email`   | boolean | Accept emails without `email_verified`. |
 | `ca_certificate`           | string  | PEM CA certificates of the identity provider. |
 | `groups_claim`             | string  | Claim holding the user's groups. |
-| `group_roles`              | array   | Ordered `group` to `role_id` mappings. |
+| `group_roles`              | array   | `group` to `role_id` mappings. The highest role among the user's groups applies. |
 
 ### Sample Response
 
@@ -40,6 +41,7 @@ This path returns the OIDC settings.
         "enabled": true,
         "external_url": "https://core.example.com",
         "redirect_url": "https://core.example.com/api/v1/auth/oidc/callback",
+        "post_logout_redirect_url": "https://core.example.com/login",
         "issuer": "https://idp.example.com/realms/ella",
         "client_id": "ella-core",
         "client_secret_set": true,

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import React, { useEffect, useState } from "react";
-import { Box, Typography, Skeleton } from "@mui/material";
+import { Alert, Box, Typography, Skeleton } from "@mui/material";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import EditMyUserPasswordModal from "@/components/EditMyUserPasswordModal";
 import { getLoggedInUser, type APIUser } from "@/queries/users";
@@ -13,7 +13,7 @@ import {
   type ListAPITokensResponse,
 } from "@/queries/api_tokens";
 import { useAuth } from "@/contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import UserAccountCard from "@/components/UserAccountCard";
 import UserPasswordCard from "@/components/UserPasswordCard";
@@ -22,6 +22,17 @@ import QueryState from "@/components/QueryState";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import PageTitle from "@/components/PageTitle";
 import { PRODUCT } from "@/utils/product";
+import {
+  forgetLinking,
+  getOIDCLogin,
+  isLinking,
+  OIDC_LINK_PATH,
+  oidcLinkError,
+  rememberLinking,
+  type OIDCLogin,
+} from "@/queries/oidc";
+
+type LinkResult = { error: string } | { linked: true } | null;
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -31,6 +42,37 @@ export default function Profile() {
   useEffect(() => {
     if (authReady && !accessToken) navigate("/login");
   }, [authReady, accessToken, navigate]);
+
+  const location = useLocation();
+  const [params, setParams] = useSearchParams();
+  const [linkResult, setLinkResult] = useState<LinkResult>(() => {
+    const error = params.get("error");
+    if (error) return { error };
+    return isLinking() ? { linked: true } : null;
+  });
+
+  useEffect(() => {
+    forgetLinking();
+    if (params.has("error")) {
+      setParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          next.delete("error");
+          return next;
+        },
+        { replace: true, state: location.state },
+      );
+    }
+  }, [params, setParams, location.state]);
+
+  const oidcLoginQuery = useQuery<OIDCLogin>({
+    queryKey: ["oidcLogin"],
+    queryFn: getOIDCLogin,
+    retry: false,
+  });
+  const ssoName = oidcLoginQuery.data?.enabled
+    ? oidcLoginQuery.data.display_name
+    : undefined;
 
   const [isEditPasswordModalOpen, setEditPasswordModalOpen] = useState(false);
 
@@ -89,6 +131,26 @@ export default function Profile() {
         Manage how you authenticate with {PRODUCT.name}.
       </Typography>
 
+      {linkResult && "error" in linkResult && (
+        <Alert
+          severity="error"
+          onClose={() => setLinkResult(null)}
+          sx={{ mb: 3 }}
+        >
+          {oidcLinkError(linkResult.error)}
+        </Alert>
+      )}
+      {linkResult && "linked" in linkResult && userQuery.data?.oidc_linked && (
+        <Alert
+          severity="success"
+          onClose={() => setLinkResult(null)}
+          sx={{ mb: 3 }}
+        >
+          Your account is linked. You can now log in with{" "}
+          {ssoName ?? "single sign-on"}.
+        </Alert>
+      )}
+
       <Box
         sx={{
           display: "grid",
@@ -103,7 +165,20 @@ export default function Profile() {
             resource="your account"
             loading={<Skeleton variant="rounded" height={140} />}
           >
-            {(loggedInUser) => <UserAccountCard user={loggedInUser} />}
+            {(loggedInUser) => (
+              <UserAccountCard
+                user={loggedInUser}
+                link={
+                  ssoName
+                    ? {
+                        label: `Link ${ssoName} account`,
+                        href: OIDC_LINK_PATH,
+                        onClick: rememberLinking,
+                      }
+                    : undefined
+                }
+              />
+            )}
           </QueryState>
         </Box>
         <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>

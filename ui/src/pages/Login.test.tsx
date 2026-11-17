@@ -77,6 +77,17 @@ describe("Login", () => {
     ).toBeVisible();
   });
 
+  it("asks a user with a password to link from the profile", async () => {
+    serve({ sso: { enabled: true, display_name: "Keycloak" } });
+    renderLogin("/login?error=link_required");
+
+    expect(
+      await screen.findByText(
+        "This account has a password. Log in with it, then link your Keycloak account from your profile.",
+      ),
+    ).toBeVisible();
+  });
+
   it("gives a general message for an unknown single sign-on error", async () => {
     serve();
     renderLogin("/login?error=whatever");

@@ -18,6 +18,7 @@ The examples use these values:
 |---|---|
 | `https://core.example.com` | Ella Core's external URL |
 | `https://core.example.com/api/v1/auth/oidc/callback` | Redirect URL: the external URL followed by `/api/v1/auth/oidc/callback` |
+| `https://core.example.com/login` | Post-logout redirect URL: the external URL followed by `/login` |
 
 ## 1. Register Ella Core at the identity provider
 
@@ -28,14 +29,14 @@ The examples use these values:
     1. Go to **Clients** and click **Create client**.
     2. Set **Client type** to **OpenID Connect** and **Client ID** to `ella-core`. Click **Next**.
     3. Turn on **Client authentication**. Keep **Standard flow** checked. Click **Next**.
-    4. Set **Valid redirect URIs** to the redirect URL. Click **Save**.
+    4. Set **Valid redirect URIs** to the redirect URL and **Valid post logout redirect URIs** to the post-logout redirect URL. Click **Save**.
     5. In the client's **Credentials** tab, copy the **Client Secret**.
 
     In **Users**, turn on **Email verified** for each user.
 
 === "Other providers"
 
-    1. Register a web application, or confidential client, with the redirect URL.
+    1. Register a web application, or confidential client, with the redirect URL and the post-logout redirect URL.
     2. Create a client secret for it.
     3. Allow the `openid`, `email` and `profile` scopes.
 
@@ -57,7 +58,7 @@ In the UI, go to **Single Sign-On** and, in **Provider**, click **Edit**. Set:
 | **Session lifetime** | `24` hours |
 | **Trust email addresses from this provider** | Off, unless the provider does not send `email_verified` |
 
-Check that the **Redirect URL** under the external URL is the one registered in step 1.
+Check that the **Redirect URL** and **Post-logout redirect URL** are the ones registered in step 1.
 
 ## 3. Test the identity provider
 

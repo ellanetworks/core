@@ -40,7 +40,6 @@ type rawResponse struct {
 type ssoUser struct {
 	Email       string `json:"email"`
 	RoleID      int    `json:"role_id"`
-	RolePinned  bool   `json:"role_pinned"`
 	PasswordSet bool   `json:"password_set"`
 	OIDCLinked  bool   `json:"oidc_linked"`
 }
@@ -90,6 +89,7 @@ func newFakeIdP(t *testing.T) *fakeIdP {
 				"id_token_signing_alg_values_supported":          []string{"ES256"},
 				"code_challenge_methods_supported":               []string{"S256"},
 				"authorization_response_iss_parameter_supported": true,
+				"end_session_endpoint":                           idp.issuer + "/logout",
 			})
 		case "/realms/ella/keys":
 			_ = json.NewEncoder(w).Encode(idp.keys)
@@ -237,15 +237,24 @@ func (e *ssoEnv) browser() *http.Client {
 type ssoLogin struct {
 	claims   map[string]any
 	callback func(url.Values)
+	browser  *http.Client
+	link     bool
 }
 
 func (e *ssoEnv) login(t *testing.T, l ssoLogin) (string, *http.Client) {
 	t.Helper()
 
-	browser := e.browser()
+	browser, start, done, failed := e.browser(), "/api/v1/auth/oidc/login", "/", "/login"
+	if l.browser != nil {
+		browser = l.browser
+	}
 
-	location := e.redirect(t, browser, "/api/v1/auth/oidc/login")
-	if strings.HasPrefix(location, "/login") {
+	if l.link {
+		start, done, failed = start+"?link=1", "/profile", "/profile"
+	}
+
+	location := e.redirect(t, browser, start)
+	if strings.HasPrefix(location, failed) {
 		u, _ := url.Parse(location)
 		return u.Query().Get("error"), browser
 	}
@@ -281,12 +290,12 @@ func (e *ssoEnv) login(t *testing.T, l ssoLogin) (string, *http.Client) {
 	}
 
 	location = e.redirect(t, browser, "/api/v1/auth/oidc/callback?"+callback.Encode())
-	if location == "/" {
+	if location == done {
 		return server.OIDCSuccess, browser
 	}
 
 	u, err = url.Parse(location)
-	if err != nil || u.Path != "/login" {
+	if err != nil || u.Path != failed {
 		t.Fatalf("callback redirects to %q", location)
 	}
 
@@ -435,7 +444,7 @@ func TestOIDCSettingsAreValidated(t *testing.T) {
 	}
 }
 
-func TestOIDCSettingsNeedAnAdminLogin(t *testing.T) {
+func TestOIDCSettingsNeedAnAdmin(t *testing.T) {
 	e := newSSOEnv(t)
 
 	code, resp, err := createAPIToken(e.env.Server.URL, e.admin, e.token, &CreateAPITokenParams{Name: "admin"})
@@ -443,8 +452,8 @@ func TestOIDCSettingsNeedAnAdminLogin(t *testing.T) {
 		t.Fatalf("create API token = %d, %v", code, err)
 	}
 
-	if code, _ := e.do(t, e.admin, resp.Result.Token, http.MethodGet, "/api/v1/oidc", nil); code != http.StatusForbidden {
-		t.Fatalf("GET with an API token = %d, want %d", code, http.StatusForbidden)
+	if code, _ := e.do(t, e.admin, resp.Result.Token, http.MethodGet, "/api/v1/oidc", nil); code != http.StatusOK {
+		t.Fatalf("GET with an admin API token = %d, want %d", code, http.StatusOK)
 	}
 
 	nm, err := createUserAndLogin(e.env.Server.URL, e.token, "nm@example.com", RoleNetworkManager, newTestClient(e.env.Server))
@@ -484,7 +493,7 @@ func TestDiscoverOIDC(t *testing.T) {
 func TestOIDCLoginLinksByEmailThenBySubject(t *testing.T) {
 	e := newSSOEnv(t)
 	e.configure(t, nil)
-	e.createUser(t, map[string]any{"email": "NM@example.com", "password": "password123", "role_id": 3})
+	e.createUser(t, map[string]any{"email": "NM@example.com", "role_id": 3})
 
 	outcome, browser := e.login(t, ssoLogin{})
 	if outcome != server.OIDCSuccess {
@@ -498,7 +507,7 @@ func TestOIDCLoginLinksByEmailThenBySubject(t *testing.T) {
 		t.Fatalf("GET /users/me = %d %q", code, resp.Error)
 	}
 
-	if u := e.user(t, "NM@example.com"); !u.OIDCLinked || u.RoleID != 3 || !u.PasswordSet {
+	if u := e.user(t, "NM@example.com"); !u.OIDCLinked || u.RoleID != 3 || u.PasswordSet {
 		t.Fatalf("user = %+v", u)
 	}
 
@@ -511,7 +520,7 @@ func TestOIDCLoginLinksByEmailThenBySubject(t *testing.T) {
 func TestOIDCLoginRefusals(t *testing.T) {
 	e := newSSOEnv(t)
 	e.configure(t, nil)
-	e.createUser(t, map[string]any{"email": "nm@example.com", "password": "password123", "role_id": 3})
+	e.createUser(t, map[string]any{"email": "nm@example.com", "role_id": 3})
 
 	tests := map[string]struct {
 		login ssoLogin
@@ -553,7 +562,7 @@ func TestOIDCLoginRefusals(t *testing.T) {
 func TestOIDCLoginIsSingleUse(t *testing.T) {
 	e := newSSOEnv(t)
 	e.configure(t, nil)
-	e.createUser(t, map[string]any{"email": "nm@example.com", "password": "password123", "role_id": 3})
+	e.createUser(t, map[string]any{"email": "nm@example.com", "role_id": 3})
 
 	var replay string
 
@@ -572,7 +581,7 @@ func TestOIDCLoginRolesFromGroups(t *testing.T) {
 	e := newSSOEnv(t)
 	e.configure(t, func(o map[string]any) {
 		o["groups_claim"] = "groups"
-		o["group_roles"] = []map[string]any{{"group": "admins", "role_id": 1}, {"group": "noc", "role_id": 3}}
+		o["group_roles"] = []map[string]any{{"group": "noc", "role_id": 3}, {"group": "admins", "role_id": 1}}
 	})
 
 	if outcome, _ := e.login(t, ssoLogin{claims: map[string]any{"groups": []string{"guests"}}}); outcome != server.OIDCNoGroup {
@@ -584,7 +593,7 @@ func TestOIDCLoginRolesFromGroups(t *testing.T) {
 		t.Fatalf("login in a mapped group = %q", outcome)
 	}
 
-	if u := e.user(t, "nm@example.com"); u.RoleID != 3 || u.PasswordSet || !u.OIDCLinked || u.RolePinned {
+	if u := e.user(t, "nm@example.com"); u.RoleID != 3 || u.PasswordSet || !u.OIDCLinked {
 		t.Fatalf("created user = %+v", u)
 	}
 
@@ -592,37 +601,104 @@ func TestOIDCLoginRolesFromGroups(t *testing.T) {
 		t.Fatalf("change a role from groups = %d, want %d", code, http.StatusConflict)
 	}
 
-	if code, resp := e.do(t, e.admin, e.token, http.MethodPut, "/api/v1/users/nm@example.com",
-		map[string]any{"role_id": 2, "role_pinned": true}); code != http.StatusOK {
-		t.Fatalf("pin a role = %d %q", code, resp.Error)
-	}
-
-	if outcome, _ := e.login(t, ssoLogin{claims: map[string]any{"groups": []string{"admins"}}}); outcome != server.OIDCSuccess {
-		t.Fatalf("login with a pinned role = %q", outcome)
-	}
-
-	if u := e.user(t, "nm@example.com"); u.RoleID != 2 || !u.RolePinned {
-		t.Fatalf("pinned user = %+v", u)
-	}
-
-	if code, _ := e.do(t, e.admin, e.token, http.MethodPut, "/api/v1/users/nm@example.com",
-		map[string]any{"role_id": 2, "role_pinned": false}); code != http.StatusOK {
-		t.Fatalf("unpin = %d", code)
-	}
-
-	if outcome, _ := e.login(t, ssoLogin{claims: map[string]any{"groups": []string{"admins"}}}); outcome != server.OIDCSuccess {
-		t.Fatalf("login after unpinning = %q", outcome)
+	if outcome, _ := e.login(t, ssoLogin{claims: map[string]any{"groups": []string{"noc", "admins"}}}); outcome != server.OIDCSuccess {
+		t.Fatalf("login in two mapped groups = %q", outcome)
 	}
 
 	if u := e.user(t, "nm@example.com"); u.RoleID != 1 {
-		t.Fatalf("role after unpinning = %+v", u)
+		t.Fatalf("role in two mapped groups = %d, want the highest, 1", u.RoleID)
+	}
+
+	if outcome, _ := e.login(t, ssoLogin{claims: map[string]any{"groups": []string{}}}); outcome != server.OIDCNoGroup {
+		t.Fatalf("login after leaving every mapped group = %q, want %q", outcome, server.OIDCNoGroup)
+	}
+}
+
+func TestOIDCLinkFromTheProfile(t *testing.T) {
+	e := newSSOEnv(t)
+	e.configure(t, nil)
+	e.createUser(t, map[string]any{"email": "nm@example.com", "password": "password123", "role_id": 3})
+
+	if outcome, _ := e.login(t, ssoLogin{}); outcome != server.OIDCLinkRequired {
+		t.Fatalf("login of a user with a password = %q, want %q", outcome, server.OIDCLinkRequired)
+	}
+
+	if outcome, _ := e.login(t, ssoLogin{link: true}); outcome != server.OIDCFailed {
+		t.Fatalf("link without a session = %q, want %q", outcome, server.OIDCFailed)
+	}
+
+	browser := e.browser()
+
+	if code, _, err := login(e.env.Server.URL, browser, &LoginParams{Email: "nm@example.com", Password: "password123"}); err != nil || code != http.StatusOK {
+		t.Fatalf("password login = %d, %v", code, err)
+	}
+
+	if outcome, _ := e.login(t, ssoLogin{browser: browser, link: true, claims: map[string]any{"email": "other@example.com"}}); outcome != server.OIDCSuccess {
+		t.Fatalf("link = %q", outcome)
+	}
+
+	if u := e.user(t, "nm@example.com"); !u.OIDCLinked {
+		t.Fatalf("user after linking = %+v", u)
+	}
+
+	if outcome, _ := e.login(t, ssoLogin{}); outcome != server.OIDCSuccess {
+		t.Fatalf("login after linking = %q", outcome)
+	}
+}
+
+func TestLogoutEndsTheIdentityProviderSession(t *testing.T) {
+	e := newSSOEnv(t)
+	e.configure(t, nil)
+	e.createUser(t, map[string]any{"email": "nm@example.com", "role_id": 3})
+
+	outcome, browser := e.login(t, ssoLogin{})
+	if outcome != server.OIDCSuccess {
+		t.Fatalf("login = %q", outcome)
+	}
+
+	code, resp := e.do(t, browser, "", http.MethodPost, "/api/v1/auth/logout", nil)
+	if code != http.StatusOK {
+		t.Fatalf("logout = %d", code)
+	}
+
+	var out server.LogoutResponse
+	if err := json.Unmarshal(resp.Result, &out); err != nil {
+		t.Fatal(err)
+	}
+
+	u, err := url.Parse(out.RedirectURL)
+	if err != nil || u.Path != "/realms/ella/logout" || u.Query().Get("client_id") != ssoClientID ||
+		u.Query().Get("post_logout_redirect_uri") != ssoExternalURL+"/login" {
+		t.Fatalf("redirect_url = %q", out.RedirectURL)
+	}
+
+	password := e.browser()
+
+	if code, _, err := login(e.env.Server.URL, password, &LoginParams{Email: FirstUserEmail, Password: "password123"}); err != nil || code != http.StatusOK {
+		t.Fatalf("password login = %d, %v", code, err)
+	}
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, e.env.Server.URL+"/api/v1/auth/logout", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := password.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_ = res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		t.Fatalf("logout of a password session = %d, want %d", res.StatusCode, http.StatusNoContent)
 	}
 }
 
 func TestOIDCSessionsEndWithTheSettings(t *testing.T) {
 	e := newSSOEnv(t)
 	e.configure(t, nil)
-	e.createUser(t, map[string]any{"email": "nm@example.com", "password": "password123", "role_id": 3})
+	e.createUser(t, map[string]any{"email": "nm@example.com", "role_id": 3})
 
 	outcome, browser := e.login(t, ssoLogin{})
 	if outcome != server.OIDCSuccess {
@@ -649,7 +725,7 @@ func TestOIDCSessionsEndWithTheSettings(t *testing.T) {
 func TestUnlinkEndsOIDCSessions(t *testing.T) {
 	e := newSSOEnv(t)
 	e.configure(t, nil)
-	e.createUser(t, map[string]any{"email": "nm@example.com", "password": "password123", "role_id": 3})
+	e.createUser(t, map[string]any{"email": "nm@example.com", "role_id": 3})
 
 	if code, _ := e.do(t, e.admin, e.token, http.MethodDelete, "/api/v1/users/nm@example.com/oidc", nil); code != http.StatusNotFound {
 		t.Fatalf("unlink a user that is not linked = %d, want %d", code, http.StatusNotFound)
@@ -678,9 +754,9 @@ func TestUnlinkEndsOIDCSessions(t *testing.T) {
 func TestUsersWithoutAPassword(t *testing.T) {
 	e := newSSOEnv(t)
 
-	e.createUser(t, map[string]any{"email": "sso@example.com", "role_id": 1, "role_pinned": true})
+	e.createUser(t, map[string]any{"email": "sso@example.com", "role_id": 1})
 
-	if u := e.user(t, "sso@example.com"); u.PasswordSet || !u.RolePinned || u.RoleID != 1 {
+	if u := e.user(t, "sso@example.com"); u.PasswordSet || u.RoleID != 1 {
 		t.Fatalf("user = %+v", u)
 	}
 

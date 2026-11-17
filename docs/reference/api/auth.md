@@ -57,11 +57,21 @@ None
 
 ## Log Out
 
-This path ends the session of the cookie, and its access tokens, and clears the cookie.
+This path ends the session of the cookie, and its access tokens, and clears the cookie. For a single sign-on session, it returns the identity provider's logout URL.
 
 | Method | Path                  |
 | ------ | --------------------- |
 | POST   | `/api/v1/auth/logout` |
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "redirect_url": "https://idp.example.com/realms/ella/protocol/openid-connect/logout?client_id=ella-core&post_logout_redirect_uri=https%3A%2F%2Fcore.example.com%2Flogin"
+    }
+}
+```
 
 ## Lookup a JWT Token
 
@@ -134,6 +144,10 @@ This path redirects the browser to the identity provider.
 | ------ | ------------------------- |
 | GET    | `/api/v1/auth/oidc/login` |
 
+### Query Parameters
+
+- `link` (string, optional): `1` links the identity provider account to the user of the session cookie, and redirects to `/profile`.
+
 ## Return From the Identity Provider
 
 This path is the redirect URL. On success, it sets the session cookie and redirects to `/`. Otherwise, it redirects to `/login?error=<error>`.
@@ -153,6 +167,7 @@ This path is the redirect URL. On success, it sets the session cookie and redire
 | `not_set_up`         | No user can be matched. |
 | `email_not_verified` | The email is not verified. |
 | `linked_elsewhere`   | The user is linked to another account. |
+| `link_required`      | The user has a password and must link the account from their profile. |
 | `no_group`           | No group of the user is mapped to a role. |
 | `groups_overage`     | The identity provider did not list the groups. |
 | `too_many_users`     | The user limit is reached. |

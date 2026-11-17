@@ -22,6 +22,7 @@ import (
 
 const (
 	CallbackPath       = "/api/v1/auth/oidc/callback"
+	PostLogoutPath     = "/login"
 	MinSessionLifetime = 5 * time.Minute
 	MaxSessionLifetime = 30 * 24 * time.Hour
 	MaxScopes          = 20
@@ -95,6 +96,10 @@ func clone(o db.OIDC) db.OIDC {
 
 func RedirectURL(o db.OIDC) string {
 	return o.ExternalURL + CallbackPath
+}
+
+func PostLogoutRedirectURL(o db.OIDC) string {
+	return o.ExternalURL + PostLogoutPath
 }
 
 func Validate(o db.OIDC) error {
