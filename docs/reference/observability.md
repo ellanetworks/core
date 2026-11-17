@@ -24,6 +24,7 @@ These metrics are used to monitor the health of the system and the performance o
 | ------------------- | --------- | --------- |
 | app_connected_radios            | Number of radios currently connected to Ella Core, labeled by `rat`.                  | Gauge   |
 | app_signaling_messages_total | Total radio signaling messages, labeled by `rat`, `direction`, and `type`. | Counter |
+| app_nas_messages_total | Total NAS messages (EMM and ESM for 4G, 5GMM and 5GSM for 5G), labeled by `rat`, `direction`, and `type`. A message that cannot be read has `type` `Unknown`. | Counter |
 | app_registered_subscribers      | Number of subscribers currently registered in Ella Core, labeled by `rat` and `roaming` (`true` for roamers). | Gauge   |
 | app_registration_attempts_total | Total UE registration (5G) and attach/tracking-area-update (4G) attempts, labeled by `rat`, `type`, `result`, and `roaming` (`true` for roamers). | Counter |
 | app_sessions | Number of active sessions currently in Ella Core, labeled by `rat` and `roaming` (`true` for roamers). | Gauge |
@@ -50,6 +51,8 @@ These metrics are used to monitor the health of the system and the performance o
 | app_upf_radio_forwarded_bytes_total | Bytes forwarded for sessions, labeled by `direction` and `radio_id`. This value excludes the tunnel and Ethernet headers. | Counter |
 | app_upf_radio_dropped_packets_total | Packets dropped for sessions, labeled by `direction`, `radio_id`, and `reason`. | Counter |
 | app_radio_info | Radios known to this node or counted by its data plane, labeled by `radio_id` (global RAN node ID) and `radio` (name, empty when the radio is no longer registered). Always 1. | Gauge |
+| app_radio_signaling_messages_total | Radio signaling messages, labeled by `radio_id`, `direction`, and `type`. Messages on an association whose radio holds no global RAN node ID are not counted. | Counter |
+| app_radio_registration_attempts_total | UE registration (5G) and attach/tracking-area-update (4G) attempts, labeled by `radio_id` of the radio serving the UE, `type`, and `result`. Attempts with no serving radio holding a global RAN node ID are not counted. | Counter |
 | app_upf_bpf_map_entries | Entries currently installed in a data plane BPF map, labeled by `map`. Divide by `app_upf_bpf_map_max_entries` for a fill ratio. | Gauge |
 | app_upf_bpf_map_max_entries | Capacity of a data plane BPF map, labeled by `map`. | Gauge |
 | app_upf_bpf_map_memory_bytes | Kernel memory locked by a data plane BPF map, labeled by `map`. | Gauge |
@@ -67,6 +70,9 @@ These metrics are used to monitor the health of the system and the performance o
 | app_database_query_duration_seconds | Database query duration in seconds, labeled by `table` and `operation`. | Histogram |
 | app_raft_changeset_bytes_total | SQLite changeset bytes applied through the Raft FSM. Emitted only when clustering is enabled. | Counter |
 | app_radio_events_dropped_total | Radio events not written to the database because the write buffer was full. | Counter |
+
+!!! note
+    The series of a radio in `app_radio_signaling_messages_total` and `app_radio_registration_attempts_total` are removed when the radio leaves the [radio inventory](api/radios.md) of this node. A radio that returns starts new series at zero.
 
 !!! note
     When clustering is enabled, Ella Core also exports the full [hashicorp/raft](https://github.com/hashicorp/raft) metrics suite (prefix `raft_`).

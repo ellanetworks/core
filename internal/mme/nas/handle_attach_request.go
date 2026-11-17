@@ -244,7 +244,7 @@ func sendAttachReject(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn
 }
 
 func sendAttachRejection(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, r *mme.Rejection, esm []byte) {
-	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, attachTypeName(ue), m.IsRoamer(ctx, ue), logger.RegistrationRejected,
+	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, ueConn.RadioID(), attachTypeName(ue), m.IsRoamer(ctx, ue), logger.RegistrationRejected,
 		logger.Cause(r.Cause.String()))
 	ueConn.StopNASGuard(ctx)
 

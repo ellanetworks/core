@@ -522,6 +522,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	smf.RegisterMetrics(smfInstance)
 	upf.RegisterMetrics(eng.TrafficClasses(), eng.Radios())
 	prometheus.MustRegister(radioInfoCollector(knownRadios(cp.amf, cp.mme, eng.Radios().All)))
+	metrics.RegisterRadioSeries(knownRadioIDs(cp.amf, cp.mme))
 
 	ausfStore, amfInstance, mmeInstance := cp.ausfStore, cp.amf, cp.mme
 

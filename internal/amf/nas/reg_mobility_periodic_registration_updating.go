@@ -79,7 +79,7 @@ func continueMobilityRegistration(ctx context.Context, amfInstance *amf.AMF, ue 
 	}
 
 	if !subscriberProfile.Allow5G {
-		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), amfInstance.IsRoamer(ctx, ue), logger.RegistrationRejected)
+		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, conn.RadioID(), registrationTypeName(conn.RegistrationType5GS), amfInstance.IsRoamer(ctx, ue), logger.RegistrationRejected)
 
 		logger.From(ctx, logger.AmfLog).Info("registration update rejected: 5G not allowed for subscriber")
 
@@ -90,7 +90,7 @@ func continueMobilityRegistration(ctx context.Context, amfInstance *amf.AMF, ue 
 	}
 
 	if len(subscriberProfile.AllowedNssai) == 0 {
-		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), amfInstance.IsRoamer(ctx, ue), logger.RegistrationRejected)
+		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, conn.RadioID(), registrationTypeName(conn.RegistrationType5GS), amfInstance.IsRoamer(ctx, ue), logger.RegistrationRejected)
 
 		amf.SendRegistrationReject(ctx, ueConn, fgs.GMMCauseServicesNotAllowed)
 		ue.Deregister(ctx, models.ReleaseFor(models.ReleaseSubscriptionChanged))
@@ -238,7 +238,7 @@ func continueMobilityRegistration(ctx context.Context, amfInstance *amf.AMF, ue 
 						return
 					}
 
-					logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), ue.IsVisitor(), logger.RegistrationAccepted)
+					logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, conn.RadioID(), registrationTypeName(conn.RegistrationType5GS), ue.IsVisitor(), logger.RegistrationAccepted)
 
 					ambr := ue.Ambr()
 
@@ -268,7 +268,7 @@ func continueMobilityRegistration(ctx context.Context, amfInstance *amf.AMF, ue 
 
 					logger.From(ctx, logger.AmfLog).Info("Sent NGAP pdu session resource setup request")
 				} else {
-					logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), ue.IsVisitor(), logger.RegistrationAccepted)
+					logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, conn.RadioID(), registrationTypeName(conn.RegistrationType5GS), ue.IsVisitor(), logger.RegistrationAccepted)
 
 					staged := func() (ngap.PDUSessionResourceSetupListCxtReq, error) { return ctxList, nil }
 
@@ -359,7 +359,7 @@ func continueMobilityRegistration(ctx context.Context, amfInstance *amf.AMF, ue 
 	sht := uint8(fgs.SHTIntegrityProtectedCiphered)
 
 	if initialContextSetup {
-		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), ue.IsVisitor(), logger.RegistrationAccepted)
+		logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, conn.RadioID(), registrationTypeName(conn.RegistrationType5GS), ue.IsVisitor(), logger.RegistrationAccepted)
 
 		staged := func() (ngap.PDUSessionResourceSetupListCxtReq, error) {
 			if err := appendPendingN1(sht); err != nil {
@@ -387,7 +387,7 @@ func continueMobilityRegistration(ctx context.Context, amfInstance *amf.AMF, ue 
 		return
 	}
 
-	logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, registrationTypeName(conn.RegistrationType5GS), ue.IsVisitor(), logger.RegistrationAccepted)
+	logger.LogRegistrationAttempt(ctx, logger.AmfLog, metrics.RAT5G, conn.RadioID(), registrationTypeName(conn.RegistrationType5GS), ue.IsVisitor(), logger.RegistrationAccepted)
 
 	var acceptWire []byte
 

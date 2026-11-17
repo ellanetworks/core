@@ -338,8 +338,9 @@ var (
 	RegistrationFailed       = RegistrationOutcome{result: metrics.ResultReject, level: zapcore.ErrorLevel, failed: true}
 )
 
-func LogRegistrationAttempt(ctx context.Context, base *zap.Logger, rat, regType string, roaming bool, outcome RegistrationOutcome, fields ...zap.Field) {
+func LogRegistrationAttempt(ctx context.Context, base *zap.Logger, rat, radioID, regType string, roaming bool, outcome RegistrationOutcome, fields ...zap.Field) {
 	metrics.RegistrationAttempt(rat, regType, outcome.result, roaming)
+	metrics.RadioRegistrationAttempt(radioID, regType, outcome.result)
 
 	msg := "UE registration accepted"
 	if outcome.result != metrics.ResultAccept {
@@ -377,6 +378,7 @@ func LogNetworkEvent(
 	remoteAddress string,
 	radioName string,
 	radioRef string,
+	radioID string,
 	rawBytes []byte,
 ) {
 	if messageType == "" {
@@ -398,6 +400,7 @@ func LogNetworkEvent(
 	}
 
 	metrics.SignalingMessage(rat, string(dir), messageType)
+	metrics.RadioSignalingMessage(radioID, string(dir), messageType)
 
 	if NetworkLog == nil {
 		return
