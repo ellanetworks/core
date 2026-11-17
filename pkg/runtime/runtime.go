@@ -1851,7 +1851,7 @@ func (cp *controlPlane) start(ctx context.Context, wg *sync.WaitGroup) {
 }
 
 func startRadioEventWriter(dbInstance *db.Database) *dbwriter.BufferedDBWriter {
-	writer := dbwriter.NewBufferedDBWriter(dbInstance, 1000, logger.NetworkLog)
+	writer := dbwriter.NewBufferedDBWriter(dbInstance, 16384, logger.NetworkLog)
 	logger.SetDb(writer)
 
 	return writer
