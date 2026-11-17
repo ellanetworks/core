@@ -1,11 +1,13 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import {
+  Alert,
   Box,
   Button,
+  Divider,
   IconButton,
   InputAdornment,
   TextField,
@@ -15,9 +17,20 @@ import { Visibility, VisibilityOff } from "@mui/icons-material";
 import * as yup from "yup";
 import { ValidationError } from "yup";
 import { login, refresh } from "@/queries/auth";
+import {
+  getOIDCLogin,
+  OIDC_LOGIN_PATH,
+  oidcLoginError,
+  type OIDCLogin,
+} from "@/queries/oidc";
 import { getStatus } from "@/queries/status";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import PageTitle from "@/components/PageTitle";
+import {
+  forgetReturnPath,
+  rememberReturnPath,
+  returnPath,
+} from "@/utils/returnPath";
 
 const schema = yup.object().shape({
   email: yup
@@ -33,9 +46,28 @@ const schema = yup.object().shape({
 const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const redirectTo =
-    (location.state as { from?: string } | null)?.from || "/dashboard";
+  const [redirectTo] = useState(
+    () =>
+      (location.state as { from?: string } | null)?.from ||
+      returnPath() ||
+      "/dashboard",
+  );
+  const [params, setParams] = useSearchParams();
+  const [oidcError] = useState(() => params.get("error"));
   const { showSnackbar } = useSnackbar();
+
+  useEffect(() => {
+    if (params.has("error")) {
+      setParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          next.delete("error");
+          return next;
+        },
+        { replace: true, state: location.state },
+      );
+    }
+  }, [params, setParams, location.state]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -47,6 +79,12 @@ const LoginPage = () => {
 
   const [checkingInitialization, setCheckingInitialization] = useState(true);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [oidc, setOIDC] = useState<OIDCLogin>({ enabled: false });
+  const ssoButton = useRef<HTMLAnchorElement>(null);
+
+  useEffect(() => {
+    if (!checkingAuth && oidc.enabled) ssoButton.current?.focus();
+  }, [checkingAuth, oidc.enabled]);
 
   useEffect(() => {
     (async () => {
@@ -93,16 +131,19 @@ const LoginPage = () => {
   useEffect(() => {
     if (checkingInitialization) return;
     (async () => {
+      const oidcLogin = getOIDCLogin().catch((): OIDCLogin => ({
+        enabled: false,
+      }));
       try {
         const r = await refresh();
         if (r?.token) {
-          navigate(redirectTo);
+          forgetReturnPath();
+          navigate(redirectTo, { replace: true });
           return;
         }
-      } catch {
-      } finally {
-        setCheckingAuth(false);
-      }
+      } catch {}
+      setOIDC(await oidcLogin);
+      setCheckingAuth(false);
     })();
   }, [checkingInitialization, navigate, redirectTo]);
 
@@ -116,6 +157,7 @@ const LoginPage = () => {
       if (!loginResp?.token)
         throw new Error("Login succeeded but could not obtain access token.");
 
+      forgetReturnPath();
       navigate(redirectTo);
     } catch (err) {
       const error = err as Error;
@@ -172,6 +214,36 @@ const LoginPage = () => {
             sx={{ textAlign: "center" }}
           />
 
+          {oidcError && (
+            <Alert severity="error" sx={{ mt: 1 }}>
+              {oidcLoginError(oidcError)}
+            </Alert>
+          )}
+          {oidc.enabled && (
+            <>
+              <Button
+                variant="contained"
+                color="success"
+                fullWidth
+                disableFocusRipple
+                sx={{
+                  mt: 2,
+                  "&.Mui-focusVisible": {
+                    outline: "2px solid",
+                    outlineColor: "success.main",
+                    outlineOffset: 2,
+                  },
+                }}
+                href={OIDC_LOGIN_PATH}
+                onClick={() => rememberReturnPath(redirectTo)}
+                ref={ssoButton}
+              >
+                Log in with {oidc.display_name}
+              </Button>
+              <Divider sx={{ mt: 2 }}>or</Divider>
+            </>
+          )}
+
           <TextField
             label="Email"
             type="email"
@@ -187,7 +259,7 @@ const LoginPage = () => {
             helperText={touched.email ? errors.email : ""}
             fullWidth
             required
-            autoFocus
+            autoFocus={!oidc.enabled}
             autoComplete="email"
           />
 
@@ -228,7 +300,7 @@ const LoginPage = () => {
 
           <Button
             type="submit"
-            variant="contained"
+            variant={oidc.enabled ? "outlined" : "contained"}
             color="success"
             fullWidth
             sx={{ mt: 2 }}

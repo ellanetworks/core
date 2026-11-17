@@ -77,6 +77,10 @@ func (l *Live) Update(ctx context.Context, o db.OIDC) error {
 		return fmt.Errorf("save OIDC settings: %w", err)
 	}
 
+	if stored, err := l.store.GetOIDC(ctx); err == nil {
+		o = clone(stored)
+	}
+
 	l.current.Store(&o)
 
 	return nil
@@ -294,5 +298,9 @@ func validateText(name, s string, maxLength int, required bool) error {
 
 func (l *Live) Reload(o db.OIDC) {
 	o = clone(o)
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	l.current.Store(&o)
 }

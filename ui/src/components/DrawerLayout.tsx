@@ -25,6 +25,7 @@ import {
   Tune as TuneIcon,
   AdminPanelSettings as AdminPanelSettingsIcon,
   Groups as GroupsIcon,
+  Key as KeyIcon,
   Dashboard as DashboardIcon,
   Feed as FeedIcon,
   Hub as HubIcon,
@@ -396,6 +397,14 @@ export default function DrawerLayout({
                   to="/users"
                   label="Users"
                   icon={<AdminPanelSettingsIcon color="primary" />}
+                  pathname={pathname}
+                  onNavigate={handleNavClick}
+                />
+                <NavItem
+                  to="/single-sign-on"
+                  label="Single Sign-On"
+                  icon={<KeyIcon color="primary" />}
+                  exact
                   pathname={pathname}
                   onNavigate={handleNavClick}
                 />

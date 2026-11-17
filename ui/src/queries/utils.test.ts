@@ -7,6 +7,7 @@ import {
   HTTPStatus,
   apiFetch,
   apiFetchVoid,
+  setAccessTokenRenewer,
   setOnUnauthorized,
 } from "./utils";
 
@@ -34,6 +35,7 @@ const stubFetch = (impl: () => Promise<Response>) => {
 
 beforeEach(() => {
   setOnUnauthorized(null);
+  setAccessTokenRenewer(null);
 });
 
 afterEach(() => {
@@ -261,5 +263,64 @@ describe("apiFetchVoid", () => {
       status: 409,
       message: "already exists",
     });
+  });
+});
+
+describe("renewing an access token", () => {
+  it("refreshes once on a 401 and retries with the new token", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(401, { error: "stale" }))
+      .mockResolvedValueOnce(jsonResponse(200, { result: { ok: true } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const renew = vi.fn(async () => "fresh");
+    setAccessTokenRenewer(renew);
+    const onUnauthorized = vi.fn();
+    setOnUnauthorized(onUnauthorized);
+
+    await expect(apiFetch("/x", { authToken: "old" })).resolves.toEqual({
+      ok: true,
+    });
+
+    expect(renew).toHaveBeenCalledTimes(1);
+    expect(onUnauthorized).not.toHaveBeenCalled();
+    const retried = fetchMock.mock.calls[1][1] as RequestInit;
+    expect((retried.headers as Record<string, string>).Authorization).toBe(
+      "Bearer fresh",
+    );
+  });
+
+  it("gives up when the refresh fails", async () => {
+    stubFetch(async () => jsonResponse(401, { error: "stale" }));
+    setAccessTokenRenewer(async () => null);
+    const onUnauthorized = vi.fn();
+    setOnUnauthorized(onUnauthorized);
+
+    await expect(
+      apiFetchVoid("/x", { method: "DELETE", authToken: "old" }),
+    ).rejects.toMatchObject({ kind: "auth" });
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries only once", async () => {
+    stubFetch(async () => jsonResponse(401, { error: "stale" }));
+    const renew = vi.fn(async () => "fresh");
+    setAccessTokenRenewer(renew);
+
+    await expect(apiFetch("/x", { authToken: "old" })).rejects.toBeInstanceOf(
+      ApiError,
+    );
+    expect(renew).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not refresh for a request without a token", async () => {
+    stubFetch(async () => jsonResponse(401, { error: "bad password" }));
+    const renew = vi.fn(async () => "fresh");
+    setAccessTokenRenewer(renew);
+
+    await expect(apiFetch("/api/v1/auth/login")).rejects.toBeInstanceOf(
+      ApiError,
+    );
+    expect(renew).not.toHaveBeenCalled();
   });
 });

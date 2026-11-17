@@ -126,7 +126,7 @@ func Refresh(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool) h
 
 		hashed := sha256.Sum256(rawToken)
 
-		session, err := dbInstance.GetSessionByTokenHash(r.Context(), hashed[:])
+		session, err := awaitSessionByTokenHash(r.Context(), dbInstance, hashed[:])
 		if err != nil {
 			clearSessionCookie(w, secureCookie)
 			writeError(r.Context(), w, http.StatusUnauthorized, "Invalid session token", err, logger.APILog)
@@ -172,6 +172,30 @@ func Refresh(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool) h
 
 		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
 	})
+}
+
+func awaitSessionByTokenHash(ctx context.Context, dbInstance *db.Database, tokenHash []byte) (*db.Session, error) {
+	session, err := dbInstance.GetSessionByTokenHash(ctx, tokenHash)
+	if !errors.Is(err, db.ErrNotFound) || !dbInstance.ClusterEnabled() || dbInstance.IsLeader() {
+		return session, err
+	}
+
+	deadline := time.Now().Add(sessionCatchUpTimeout)
+
+	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return nil, err
+		case <-time.After(sessionCatchUpPoll):
+		}
+
+		session, err = dbInstance.GetSessionByTokenHash(ctx, tokenHash)
+		if !errors.Is(err, db.ErrNotFound) {
+			return session, err
+		}
+	}
+
+	return nil, err
 }
 
 func Login(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool, loginLimiter *ipRateLimiter) http.Handler {

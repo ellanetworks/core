@@ -36,7 +36,10 @@ type claims struct {
 	jwt.RegisteredClaims
 }
 
-const sessionCatchUpTimeout = 2 * time.Second
+const (
+	sessionCatchUpTimeout = 2 * time.Second
+	sessionCatchUpPoll    = 50 * time.Millisecond
+)
 
 type contextKey string
 
@@ -196,7 +199,11 @@ func authenticateRequest(r *http.Request, jwtSecret *JWTSecret, store *db.Databa
 
 func checkSession(ctx context.Context, store *db.Database, cl *claims) error {
 	if cl.SessionID == "" {
-		return errors.New("token has no session")
+		if store.SessionsBound(ctx) {
+			return errors.New("token has no session")
+		}
+
+		return nil
 	}
 
 	s, err := store.GetSessionByID(ctx, cl.SessionID)

@@ -4,19 +4,30 @@
 import React from "react";
 import {
   Box,
+  Button,
   Card,
   CardContent,
   Chip,
   IconButton,
+  Stack,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import { Edit as EditIcon } from "@mui/icons-material";
-import { roleIDToLabel, type APIUser, RoleID } from "@/queries/users";
+import {
+  NOT_LINKED_YET,
+  roleIDToLabel,
+  signInMethods,
+  type APIUser,
+  RoleID,
+} from "@/queries/users";
 
 interface UserAccountCardProps {
   user: APIUser;
   canEdit?: boolean;
   onEdit?: () => void;
+  fromGroups?: boolean;
+  onUnlink?: () => void;
 }
 
 const InfoRow: React.FC<{ label: string; value?: React.ReactNode }> = ({
@@ -68,7 +79,10 @@ const UserAccountCard: React.FC<UserAccountCardProps> = ({
   user,
   canEdit,
   onEdit,
+  fromGroups = false,
+  onUnlink,
 }) => {
+  const methods = signInMethods(user);
   return (
     <Card variant="outlined" sx={{ height: "100%" }}>
       <CardContent>
@@ -81,6 +95,8 @@ const UserAccountCard: React.FC<UserAccountCardProps> = ({
             display: "flex",
             alignItems: "center",
             py: 0.75,
+            borderBottom: "1px solid",
+            borderColor: "divider",
           }}
         >
           <Typography
@@ -100,6 +116,16 @@ const UserAccountCard: React.FC<UserAccountCardProps> = ({
             color={roleChipColor(user.role_id)}
             variant="outlined"
           />
+          {user.role_pinned && (
+            <Tooltip title="Not updated from the user's groups.">
+              <Chip size="small" label="Pinned" sx={{ ml: 1 }} />
+            </Tooltip>
+          )}
+          {fromGroups && (
+            <Tooltip title="Updated from the user's groups at each login.">
+              <Chip size="small" label="From groups" sx={{ ml: 1 }} />
+            </Tooltip>
+          )}
           <Box sx={{ flex: 1 }} />
           {canEdit && onEdit && (
             <IconButton
@@ -110,6 +136,40 @@ const UserAccountCard: React.FC<UserAccountCardProps> = ({
             >
               <EditIcon fontSize="small" />
             </IconButton>
+          )}
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", py: 0.75 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              minWidth: 120,
+              flexShrink: 0,
+              mr: 2,
+            }}
+          >
+            Sign-in
+          </Typography>
+          <Stack direction="row" spacing={1}>
+            {methods.map((method) => (
+              <Chip
+                key={method}
+                size="small"
+                label={method}
+                variant="outlined"
+              />
+            ))}
+            {methods.length === 0 && (
+              <Typography variant="body2" color="textSecondary">
+                {NOT_LINKED_YET}
+              </Typography>
+            )}
+          </Stack>
+          <Box sx={{ flex: 1 }} />
+          {onUnlink && user.oidc_linked && (
+            <Button size="small" color="error" onClick={onUnlink}>
+              Unlink
+            </Button>
           )}
         </Box>
       </CardContent>

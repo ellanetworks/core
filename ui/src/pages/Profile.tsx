@@ -107,10 +107,15 @@ export default function Profile() {
           </QueryState>
         </Box>
         <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-          <UserPasswordCard
-            onChangePassword={() => setEditPasswordModalOpen(true)}
-            disabled={userQuery.data === undefined}
-          />
+          {userQuery.data?.password_set === false ? (
+            <UserPasswordCard description="You sign in with single sign-on, and have no password." />
+          ) : (
+            <UserPasswordCard
+              description="Changing your password ends your other sessions."
+              onChangePassword={() => setEditPasswordModalOpen(true)}
+              disabled={userQuery.data === undefined}
+            />
+          )}
         </Box>
       </Box>
 

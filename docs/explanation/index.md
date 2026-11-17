@@ -5,6 +5,7 @@ The following explanations provide context and clarification on key-topics relat
 - [Architecture](architecture.md)
 - [High Availability](high_availability.md)
 - [Platform Security](platform_security.md)
+- [Single Sign-On](single_sign_on.md)
 - [Subscriber Security](subscriber_security.md)
 - [User Plane Packet Processing with eBPF](user_plane_packet_processing_with_ebpf.md)
 - [Obtaining a PLMN ID for a Private Network](obtaining_plmn_id.md)

@@ -88,6 +88,8 @@ func newOIDCSettings(ctx context.Context, dbInstance *db.Database) *oidc.Live {
 		ctx = context.Background()
 	}
 
+	wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicOIDC)
+
 	initial, err := dbInstance.GetOIDC(ctx)
 	if err != nil {
 		logger.APILog.Warn("couldn't load the OIDC settings", zap.Error(err))
@@ -96,8 +98,6 @@ func newOIDCSettings(ctx context.Context, dbInstance *db.Database) *oidc.Live {
 	}
 
 	live := oidc.NewLive(dbInstance, initial)
-
-	wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicOIDC)
 
 	go func() {
 		defer stop()

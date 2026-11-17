@@ -1,0 +1,67 @@
+name: UI E2E OIDC
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+jobs:
+  ui-e2e-oidc:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Download Container image from GitHub Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ellacore-image-amd64
+
+      - name: Load container image
+        run: |
+          docker load -i ellacore_latest-amd64.tar
+
+      - name: use npm
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: |
+          npm install --prefix ui
+
+      - name: Install Playwright browsers
+        run: |
+          npx --prefix ui playwright install --with-deps chromium
+
+      - name: Start Ella Core and Keycloak
+        run: |
+          ui/e2e/oidc/up.sh
+
+      - name: Run OIDC E2E tests
+        working-directory: ui
+        run: |
+          npx playwright test -c e2e/oidc/playwright.config.ts
+
+      - name: Collect logs
+        if: failure()
+        run: |
+          docker compose -p ella-core-oidc-e2e -f ui/e2e/oidc/compose.yaml logs
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-oidc
+          path: |
+            ui/playwright-report/
+            ui/test-results/oidc/
+          retention-days: 7
+
+      - name: Stop Ella Core and Keycloak
+        if: always()
+        run: |
+          docker compose -p ella-core-oidc-e2e -f ui/e2e/oidc/compose.yaml down -v

@@ -11,9 +11,10 @@ Security is one of Ella Core's core tenets. From the UI to the database, securit
 
 ## Authentication & Authorization
 
-Ella Core enforces authentication on API requests towards most endpoints. Two authentication methods are supported:
+Ella Core enforces authentication on API requests towards most endpoints. Three authentication methods are supported:
 
 - **Session-based authentication.** Users authenticate with email and password. A session cookie and a short-lived access token are issued. The login endpoint enforces per-IP rate limiting.
+- **Single sign-on.** Users authenticate through the organization's OpenID Connect identity provider. See [Single Sign-On](single_sign_on.md).
 - **API tokens.** Per-user tokens with explicit expiry that can be revoked individually. Recommended for programmatic access.
 
 ### Role-Based Access Control
@@ -31,6 +32,7 @@ Every request is authorized against a role-based permission system with three bu
 - **User passwords** are stored as one-way hashes. Verification uses constant-time comparison.
 - **API token secrets** are stored as one-way hashes. The raw token is returned only once at creation time and is never retrievable afterward.
 - **Session tokens** are cryptographically random values. Only a one-way hash is persisted.
+- **Single sign-on client secret** is stored in the database, and so in backups. It is never returned by the API.
 - **JWT signing secret** is a cryptographically random value generated once and stored in the database. Rotating it invalidates all previously issued tokens and sessions.
 
 ## Transport Security

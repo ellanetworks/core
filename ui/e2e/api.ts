@@ -38,7 +38,7 @@ export async function send(
   }
 }
 
-async function json<T>(
+export async function json<T>(
   request: APIRequestContext,
   method: "get" | "post" | "put" | "delete",
   path: string,

@@ -39,6 +39,7 @@ GET /api/v1/openapi.yaml  # Unauthenticated
 - 401 - Unauthorized.
 - 429 - Too many requests.
 - 500 - Internal server error.
+- 502 - The identity provider cannot be reached or used. See [Test an Identity Provider](oidc.md#test-an-identity-provider).
 
 ## Client
 

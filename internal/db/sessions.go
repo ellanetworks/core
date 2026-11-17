@@ -113,6 +113,10 @@ func (db *Database) GetSessionByID(ctx context.Context, id string) (_ *Session, 
 	return &row, nil
 }
 
+func (db *Database) SessionsBound(ctx context.Context) bool {
+	return db.appliedSchemaAtLeast(ctx, oidcSchema)
+}
+
 func (db *Database) sessionColumns(ctx context.Context) string {
 	if db.appliedSchemaAtLeast(ctx, oidcSchema) {
 		return sessionColumns

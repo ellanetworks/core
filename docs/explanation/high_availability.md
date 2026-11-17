@@ -26,7 +26,7 @@ Within those bounds, surviving voters keep accepting writes, radio traffic, and 
 
 ## What replicates, and what does not
 
-Network-wide resources (subscribers, profiles, policies, slices, data networks, network rules, IP leases, users, API tokens, the operator configuration) replicate across the cluster. If a node dies, the survivors hold the same state, automatically elect a new leader, and keep accepting writes.
+Network-wide resources (subscribers, profiles, policies, slices, data networks, network rules, IP leases, users, API tokens, single sign-on settings, the operator configuration) replicate across the cluster. If a node dies, the survivors hold the same state, automatically elect a new leader, and keep accepting writes.
 
 Per-node configuration (local data-plane and routing settings) does not replicate. Configure those settings on every node.
 
@@ -89,6 +89,10 @@ Every inter-node connection is mutually authenticated over TLS. Each node owns a
 ## Disaster recovery
 
 HA clusters recover from total loss through an offline, backup-driven path. An operator stops every node, seeds one node from a backup archive, and starts it. The remaining voters then rejoin with fresh join tokens. The step-by-step procedure lives in [Backup and Restore](../how_to/backup_and_restore.md).
+
+## Single sign-on
+
+With [single sign-on](single_sign_on.md), users reach the cluster through one external URL: the load balancer's. Any node can complete a login.
 
 ## Rolling upgrades
 

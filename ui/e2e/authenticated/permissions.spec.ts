@@ -6,6 +6,7 @@ import { ROLES } from "../roles";
 
 const ADMIN_ONLY_ROUTES = [
   "/users",
+  "/single-sign-on",
   "/audit-logs",
   "/backup-restore",
   "/cluster",
@@ -42,6 +43,7 @@ for (const [label, role] of Object.entries(ROLES)) {
 
       for (const item of [
         "Users",
+        "Single Sign-On",
         "Audit Logs",
         "Backup and Restore",
         "Cluster",
