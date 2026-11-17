@@ -63,6 +63,7 @@ type UPF struct {
 	errorIndReader     *ringbuf.Reader
 	raResponder        *RAResponder
 	bufferResponder    *BufferResponder
+	fragResponder      *FragmentationResponder
 
 	ctx context.Context
 
@@ -282,6 +283,24 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		se.SetDownlinkBuffer(bufferResponder)
 	}
 
+	n3Ifindexes := []int{n3Iface.Index, n3RoutingIface.Index}
+
+	if n3VRFDevice != "" {
+		if vrf, err := net.InterfaceByName(n3VRFDevice); err == nil {
+			n3Ifindexes = append(n3Ifindexes, vrf.Index)
+		}
+	}
+
+	fragResponder := NewFragmentationResponder(bpfObjects, se, bpfObjects.HasPdrUplink, n3Ifindexes...)
+	if err := fragResponder.Start(); err != nil {
+		logger.UpfLog.Warn("failed to start the GTP-U fragmentation responder, fragmented GTP-U will be dropped and oversized downlink packets will not be fragmented",
+			zap.Error(err))
+
+		_ = fragResponder.Close()
+	} else {
+		upf.fragResponder = fragResponder
+	}
+
 	if err := enslaveVethPairsToReferenceVRF(n3Interface.Name); err != nil {
 		upf.Close(ctx)
 
@@ -348,6 +367,12 @@ func (u *UPF) StopDatapath() error {
 		}
 	}
 
+	if u.fragResponder != nil {
+		if err := u.fragResponder.detach(); err != nil {
+			errs = append(errs, fmt.Errorf("detach the GTP-U reassembly program: %w", err))
+		}
+	}
+
 	if u.se != nil {
 		if err := u.se.WaitForDatapath(); err != nil {
 			errs = append(errs, fmt.Errorf("wait for running datapath programs: %w", err))
@@ -380,6 +405,12 @@ func (u *UPF) Close(ctx context.Context) {
 		if u.bufferResponder != nil {
 			if err := u.bufferResponder.Close(); err != nil {
 				logger.UpfLog.Warn("Failed to close downlink buffer responder", zap.Error(err))
+			}
+		}
+
+		if u.fragResponder != nil {
+			if err := u.fragResponder.Close(); err != nil {
+				logger.UpfLog.Warn("Failed to close GTP-U fragmentation responder", zap.Error(err))
 			}
 		}
 
@@ -497,6 +528,12 @@ func (u *UPF) updateAttachedPrograms() error {
 
 	if u.bufferResponder != nil {
 		if err := u.bufferResponder.UpdateProgram(u.se.BpfObjects.UpfDownlinkFunc); err != nil {
+			return err
+		}
+	}
+
+	if u.fragResponder != nil {
+		if err := u.fragResponder.UpdateProgram(u.se.BpfObjects.UpfUplinkFunc); err != nil {
 			return err
 		}
 	}

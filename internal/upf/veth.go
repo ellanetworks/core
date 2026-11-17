@@ -140,7 +140,7 @@ func enslaveVethPairsToReferenceVRF(refName string) error {
 
 	enslaved := 0
 
-	for _, name := range []string{VethSMFName, VethXDPName, VethBufName, VethBufXDPName} {
+	for _, name := range []string{VethSMFName, VethXDPName, VethBufName, VethBufXDPName, VethReasmName, VethReasmXDPName} {
 		l, err := vethLinkByName(name)
 		if err != nil {
 			if _, ok := err.(netlink.LinkNotFoundError); ok {

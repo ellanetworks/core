@@ -190,7 +190,9 @@ static __always_inline void account_flow(struct packet_context *ctx,
 	}
 
 	f->imsi = imsi;
-	f->ingress_ifindex = ctx_ingress_ifindex(ctx->ctx_buff);
+	f->ingress_ifindex = frame_is_reassembled(ctx->ctx_buff) ?
+				     (__u32)n3_ifindex :
+				     ctx_ingress_ifindex(ctx->ctx_buff);
 	f->egress_ifindex = egress_ifindex;
 	f->action = action;
 	f->direction = direction;

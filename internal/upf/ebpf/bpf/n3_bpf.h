@@ -30,6 +30,7 @@
 #include "bpf/utils/trace.h"
 #include "bpf/utils/profiling.h"
 #include "bpf/utils/flow.h"
+#include "bpf/utils/gtpu_frag.h"
 #include "bpf/utils/gtp.h"
 #include "bpf/utils/tailcall.h"
 #include "bpf/utils/pdr.h"
@@ -260,7 +261,11 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 					     &mtu_len, encap_size, 0);
 		if (mtu_ret < 0)
 			return abort_with(ctx, UPF_DROP_INTERNAL_MTU_CHECK_FAILED);
-		if (mtu_ret > 0) {
+		if (mtu_ret > 0 &&
+		    !(ctx->ip4 ? downlink_fragments_outer_ipv4(ctx->ip4) :
+				 ctx->ip6 && downlink_fragments_outer_ipv6(
+						     ctx->ip6,
+						     mtu_len - encap_size))) {
 			return drop_with(ctx, UPF_DROP_MTU_EXCEEDED);
 		}
 	}
@@ -584,7 +589,8 @@ handle_gtp_packet(struct packet_context *ctx)
 		/* No PDU session for this TEID: discard the G-PDU and, for a non-zero
 		 * TEID, return a GTP-U Error Indication to the sender over the same
 		 * IP transport (TS 29.281 §7.3.1). */
-		if (ctx->gtp->teid != 0) {
+		if (ctx->gtp->teid != 0 &&
+		    !frame_is_reassembled(ctx->ctx_buff)) {
 			return gtpu_control_tail_call(ctx);
 		}
 
@@ -898,6 +904,9 @@ handle_gtp_packet(struct packet_context *ctx)
 static __always_inline enum ctx_action handle_gtpu(struct packet_context *ctx)
 {
 	int pdu_type = parse_gtp(ctx);
+	if (pdu_type != GTPU_G_PDU && frame_is_reassembled(ctx->ctx_buff))
+		return drop_with(ctx, UPF_DROP_REINJECT_UNOWNED);
+
 	switch (pdu_type) {
 	case GTPU_G_PDU:
 		return handle_gtp_packet(ctx);

@@ -53,6 +53,8 @@ volatile const int n6_vlan = 0;
 volatile const bool network_instances_enabled;
 volatile const bool network_instances_enabled = false;
 
+int reasm_veth_ifindex;
+
 struct vlan_hdr {
 	__be16 h_vlan_TCI;
 	__be16 h_vlan_encapsulated_proto;
@@ -129,12 +131,20 @@ struct packet_context {
 	__u8 ni_id;
 };
 
+static __always_inline bool frame_is_reassembled(struct __ctx_buff *ctx)
+{
+	return reasm_veth_ifindex != 0 &&
+	       ctx_ingress_ifindex(ctx) == (__u32)reasm_veth_ifindex;
+}
+
 __noinline __weak __u32
 routing_ingress_ifindex(struct __ctx_buff *ctx, __u8 interface)
 {
 	__u32 ifindex = ctx_ingress_ifindex(ctx);
 
 	if (interface == INTERFACE_N3 && ifindex == (__u32)n3_ifindex)
+		return n3_routing_ifindex;
+	if (interface == INTERFACE_N3 && frame_is_reassembled(ctx))
 		return n3_routing_ifindex;
 	if (interface == INTERFACE_N6 && ifindex == (__u32)n6_ifindex)
 		return n6_routing_ifindex;

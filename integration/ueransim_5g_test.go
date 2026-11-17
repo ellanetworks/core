@@ -229,6 +229,20 @@ func TestIntegration5GUERANSIM(t *testing.T) {
 
 			t.Logf("Network tester results: %s", result)
 
+			_, err = dockerClient.Exec(ctx, ueransimContainerName, []string{"ip", "link", "set", "uesimtun0", "mtu", "1500"}, false, 5*time.Second, logWriter{t})
+			if err != nil {
+				t.Fatalf("failed to raise the UE MTU: %v", err)
+			}
+
+			result, err = dockerClient.Exec(ctx, ueransimContainerName, []string{pingCmd, "-I", "uesimtun0", "-M", "dont", "-s", "1472", pingDest, "-c", "3"}, false, 10*time.Second, logWriter{t})
+			if err != nil {
+				t.Fatalf("failed to exec command in pod: %v", err)
+			}
+
+			t.Logf("UERANSIM large ping result: %s", result)
+
+			Assert(t, strings.Contains(result, "3 packets transmitted, 3 received"), fmt.Sprintf("expected 3/3 1500-byte ping packets received over a 1500-byte N3, but got: %s", result))
+
 			dockerClient.ComposeDownWithFile(ctx, "compose/ueransim", ComposeFile())
 		})
 	}

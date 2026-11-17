@@ -15,10 +15,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func senderOrSkip(t *testing.T, local netip.Addr) *endMarkerSockets {
+func senderOrSkip(t *testing.T, local netip.Addr) *gtpuSockets {
 	t.Helper()
 
-	socks := &endMarkerSockets{}
+	socks := &gtpuSockets{}
 
 	t.Cleanup(func() { _ = socks.Close() })
 
@@ -180,7 +180,7 @@ func TestEndMarkerSendRejectsMismatchedFamily(t *testing.T) {
 		peer:  netip.MustParseAddr("2001:db8::1"),
 	}
 
-	var socks endMarkerSockets
+	var socks gtpuSockets
 
 	if err := socks.send(target, 1, ""); err == nil {
 		t.Error("sending an End Marker across address families should fail")
@@ -231,7 +231,7 @@ func boundDevice(t *testing.T, sock *net.UDPConn) string {
 func TestEndMarkerSocketBindsToProvidedVRFDevice(t *testing.T) {
 	local := netip.MustParseAddr("127.0.0.1")
 
-	socks := &endMarkerSockets{}
+	socks := &gtpuSockets{}
 
 	t.Cleanup(func() { _ = socks.Close() })
 

@@ -43,6 +43,8 @@ const (
 func RegisterMetrics(classes *engine.TrafficClasses, radios *engine.Radios) {
 	prometheus.MustRegister(flowReportsDropped, dlBufferEvicted, sessionsPendingCleanup)
 
+	registerFragmentationMetrics()
+
 	flowReportsDropped.WithLabelValues(flowReportDropChannelFull)
 
 	for _, reason := range []string{
@@ -121,7 +123,7 @@ func RegisterMetrics(classes *engine.TrafficClasses, radios *engine.Radios) {
 	// forwarded, by action, or dropped, by reason.
 	datapathForwardDesc := prometheus.NewDesc(
 		"app_upf_datapath_forward_total",
-		"Packets the data plane forwarded, by direction and by the action it took (pass, tx, redirect). The action is the data plane's own decision, not the hook verdict, so it means the same thing in every attach mode.",
+		"Packets the data plane forwarded, by direction and by the action it took (pass, tx, redirect, slow_path). The action is the data plane's own decision, not the hook verdict, so it means the same thing in every attach mode.",
 		[]string{"direction", "action"},
 		nil,
 	)
@@ -185,6 +187,7 @@ func RegisterMetrics(classes *engine.TrafficClasses, radios *engine.Radios) {
 				{"pass", ebpf.ActionPass},
 				{"tx", ebpf.ActionTx},
 				{"redirect", ebpf.ActionRedirect},
+				{"slow_path", ebpf.ActionSlowPath},
 			} {
 				ch <- prometheus.MustNewConstMetric(datapathForwardDesc,
 					prometheus.CounterValue, float64(counters.Forwarded[a.index]),

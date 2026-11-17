@@ -36,6 +36,7 @@ static __always_inline int ctx_verdict(enum ctx_action action)
 	case CTX_ACT_TX:
 	case CTX_ACT_REDIRECT:
 		return TC_ACT_REDIRECT;
+	case CTX_ACT_SLOW_PATH:
 	case CTX_ACT_DROP:
 	case CTX_ACT_ABORTED:
 		break;
