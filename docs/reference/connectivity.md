@@ -106,6 +106,7 @@ N2 / S1-MME signalling crosses the same tunnels. When a tunnel drops larger pack
 | Scope | Per slice and data network. Uplink traffic leaving N6, sourced from the N6 address. Sessions on IMS data networks are never translated. |
 | Translated protocols | TCP, UDP, and ICMP |
 | Source ports | `1024`-`32767` |
+| Capacity | 31,744 simultaneous connections per destination address, port and protocol, per N6 address. Further connections to that destination are dropped (`nat_port_exhausted`). |
 | Downlink traffic | Delivered only when it matches a translation the subscriber's own traffic created. |
 | Untranslatable traffic | IP fragments (`nat_fragment`) and protocols without ports, such as ESP and GRE (`nat_unsupported_proto`), are dropped. Protocols that embed addresses in their payload, such as FTP in active mode, do not work |
 | Configuration | The **Slices** section of the data network's page in the UI, or the [Slices API](api/slices.md#update-a-data-network-of-a-slice). Changes apply to established sessions and break their established connections. |
