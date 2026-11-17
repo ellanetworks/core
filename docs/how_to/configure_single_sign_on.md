@@ -67,7 +67,7 @@ In the dialog, click **Test**. Fix the issuer URL or the CA certificate until it
 
 On the **Single Sign-On** page, turn on **Enabled**.
 
-To turn it off, for example during an incident, turn off **Enabled** and click **Disable**. Everyone who logged in with single sign-on is logged out.
+To turn it off, turn off **Enabled** and click **Disable**. Everyone who logged in with single sign-on is logged out.
 
 ## 5. Log in
 
@@ -75,4 +75,4 @@ To turn it off, for example during an incident, turn off **Enabled** and click *
 2. In a private browser window, open `https://core.example.com`, and click **Log in with** your display name.
 3. Log in at the identity provider. Ella Core opens.
 
-If the login page shows an error, the `auth_oidc_login` [audit log](../reference/api/audit_logs.md) gives the reason. In a cluster, it is on the node that completed the login.
+If the login page shows an error, the `auth_oidc_login` [audit log](../reference/api/audit_logs.md) gives the reason.

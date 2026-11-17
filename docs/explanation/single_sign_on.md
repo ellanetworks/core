@@ -30,16 +30,8 @@ Email addresses match in any case. If several users have the address in differen
 
 ## Sessions
 
-An access token is tied to its session, and ends with it at once. Logging out ends the session. Deleting the user or changing their role ends all their sessions. Unlinking the user or disabling single sign-on ends the sessions started through the identity provider. Access tokens issued before the upgrade to this release have no session, and are refused once: the UI gets a new one from its session cookie.
+An access token ends with its session.
 
 ## Offboarding
 
 Ella Core does not learn when someone is removed at the identity provider. Their session lasts until its lifetime ends, and their API tokens until deleted. A shorter session lifetime narrows that window, at the cost of logging in more often. To end access at once, [offboard the user](../how_to/manage_single_sign_on_users.md#offboard-a-user) in Ella Core.
-
-## High availability
-
-In a [cluster](high_availability.md), single sign-on is unavailable until every node runs a release that supports it.
-
-## Client secret
-
-The identity provider's client secret is stored in the database, and so in its [backups](../how_to/backup_and_restore.md).

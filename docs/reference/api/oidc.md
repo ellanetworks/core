@@ -4,7 +4,7 @@ description: RESTful API reference for configuring single sign-on through OpenID
 
 # Single Sign-On
 
-These paths require an Admin access token from [login](auth.md#login). API tokens are refused.
+These paths require an Admin access token from [login](auth.md#log-in). API tokens are refused.
 
 ## Get the OIDC Settings
 

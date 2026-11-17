@@ -6,7 +6,7 @@ description: RESTful API reference for authentication.
 
 This section describes the RESTful API for system user authentication.
 
-## Login
+## Log In
 
 This path logs the user in and sets an `httpOnly` session cookie valid for 30 days.
 
@@ -150,7 +150,7 @@ This path is the redirect URL. On success, it sets the session cookie and redire
 | `unavailable`        | Single sign-on is disabled, or the identity provider is unreachable. |
 | `failed`             | The login is invalid or expired. |
 | `denied`             | The identity provider refused access. |
-| `not_set_up`         | No user matches the email. |
+| `not_set_up`         | No user can be matched. |
 | `email_not_verified` | The email is not verified. |
 | `linked_elsewhere`   | The user is linked to another account. |
 | `no_group`           | No group of the user is mapped to a role. |

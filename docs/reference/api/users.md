@@ -132,8 +132,6 @@ None
 | `password_set` | boolean | The user has a password. |
 | `oidc_linked`  | boolean | The user is linked to an account at the current [identity provider](oidc.md). |
 
-The other paths that return users return the same fields.
-
 ## Delete a User
 
 This path deletes a user from Ella Core, with its sessions and API tokens. An Admin cannot delete itself, and the last Admin with a password cannot be deleted.

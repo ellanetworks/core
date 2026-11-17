@@ -6,7 +6,7 @@ description: RESTful API reference for managing Ella Core.
 
 ## Authentication
 
-Almost every operation requires a client token. The client token must be sent as Authorization HTTP Header using the Bearer <token> scheme. That token can either be the JWT returned by the [login](auth.md/#login) endpoint or an [API token](users.md/#create-an-api-token).
+Almost every operation requires a client token. The client token must be sent as Authorization HTTP Header using the Bearer <token> scheme. That token can either be the JWT returned by the [login](auth.md/#log-in) endpoint or an [API token](users.md/#create-an-api-token).
 
 ## Responses
 
