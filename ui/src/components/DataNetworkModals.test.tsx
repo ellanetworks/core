@@ -50,7 +50,7 @@ describe("CreateDataNetworkModal", () => {
     renderCreate();
     expect(field(/IPv4 Pool/)).toHaveValue("10.45.0.0/22");
     expect(field(/DNS/)).toHaveValue("8.8.8.8");
-    expect(field(/MTU/)).toHaveValue(1456);
+    expect(field(/MTU/)).toHaveValue(1400);
     expect(dialog()).toHaveAccessibleName("Create Data Network");
   });
 
@@ -106,7 +106,7 @@ describe("CreateDataNetworkModal", () => {
       name: "internet",
       ipv4_pool: "10.45.0.0/22",
       dns: "8.8.8.8",
-      mtu: 1456,
+      mtu: 1400,
       ims: false,
     });
   });
