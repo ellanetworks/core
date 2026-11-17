@@ -38,7 +38,7 @@ Ella Core does not learn when someone is removed at the identity provider. Their
 
 ## High availability
 
-The identity provider sends users back to one external URL. In a [cluster](high_availability.md), it is the load balancer's URL, and any node can complete a login. Single sign-on is unavailable until every node runs a release that supports it.
+In a [cluster](high_availability.md), single sign-on is unavailable until every node runs a release that supports it.
 
 ## Client secret
 

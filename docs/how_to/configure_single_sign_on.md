@@ -8,7 +8,7 @@ This guide lets users log in to the Ella Core UI through an OpenID Connect ident
 
 ## Prerequisites
 
-- **Ella Core**: reached by users over HTTPS, at a URL with no path. In a cluster, this is the URL of the load balancer, and every node runs the same release.
+- **Ella Core**: reached by users over HTTPS, at a URL with no path. In a cluster, every node runs the same release.
 - **Identity provider**: an OpenID Connect provider, reachable from every Ella Core node over HTTPS.
 - **Ella Core account**: an Admin that logs in with a password.
 

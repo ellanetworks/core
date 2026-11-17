@@ -70,7 +70,7 @@ This path replaces the settings, which take effect at once. Disabling OIDC or ch
 | Field                      | Type    | Required        | Description |
 | -------------------------- | ------- | --------------- | ----------- |
 | `enabled`                  | boolean | Yes             | |
-| `external_url`             | string  | When enabled    | An https URL with no path. In a cluster, the load balancer's URL. Stored as `https://host[:port]`. |
+| `external_url`             | string  | When enabled    | An https URL with no path. Stored as `https://host[:port]`. |
 | `issuer`                   | string  | When enabled    | An https URL with no query or fragment, as the identity provider gives it. |
 | `client_id`                | string  | When enabled    | At most 255 characters. |
 | `client_secret`            | string  | When enabled and none is stored, or when `issuer` or `client_id` changes | At most 255 characters. Empty or absent: the stored secret is kept. |

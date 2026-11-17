@@ -90,10 +90,6 @@ Every inter-node connection is mutually authenticated over TLS. Each node owns a
 
 HA clusters recover from total loss through an offline, backup-driven path. An operator stops every node, seeds one node from a backup archive, and starts it. The remaining voters then rejoin with fresh join tokens. The step-by-step procedure lives in [Backup and Restore](../how_to/backup_and_restore.md).
 
-## Single sign-on
-
-With [single sign-on](single_sign_on.md), users reach the cluster through one external URL: the load balancer's. Any node can complete a login.
-
 ## Rolling upgrades
 
 Upgrades proceed one node at a time: drain the node, refresh its binary, then resume.
