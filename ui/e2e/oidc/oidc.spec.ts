@@ -218,7 +218,7 @@ test("an admin configures single sign-on in the UI", async ({
 
   await expect(dialog.getByLabel("External URL")).toHaveValue(EXTERNAL_URL);
   await expect(
-    dialog.getByRole("textbox", { name: "Redirect URL" }),
+    dialog.getByRole("textbox", { name: "Redirect URL", exact: true }),
   ).toHaveValue(`${EXTERNAL_URL}/api/v1/auth/oidc/callback`);
   await expect(
     dialog.getByRole("textbox", { name: "Post-logout redirect URL" }),

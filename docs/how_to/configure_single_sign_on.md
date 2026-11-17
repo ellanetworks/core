@@ -62,18 +62,14 @@ Check that the **Redirect URL** and **Post-logout redirect URL** are the ones re
 
 ## 3. Test the identity provider
 
-In the dialog, click **Test**. Fix the issuer URL or the CA certificate until it shows **Works**. Click **Update**.
+In the dialog, click **Test**. Check that it shows **Works**, then click **Update**.
 
 ## 4. Enable single sign-on
 
 On the **Single Sign-On** page, turn on **Enabled**.
-
-To turn it off, turn off **Enabled** and click **Disable**.
 
 ## 5. Log in
 
 1. Give a user access: [create their user](manage_single_sign_on_users.md#give-a-user-access), or [map their groups to a role](manage_single_sign_on_users.md#map-groups-to-roles).
 2. In a private browser window, open `https://core.example.com`, and click **Log in with** your display name.
 3. Log in at the identity provider. Ella Core opens.
-
-If the login page shows an error, check the `auth_oidc_login` [audit log](../reference/api/audit_logs.md).
