@@ -122,6 +122,7 @@ type GnodeB struct {
 	watchedTEIDs      map[uint32]int     // G-PDUs seen per watched TEID that has no tunnel
 	downlinkQFIs      map[uint32]map[uint8]int
 	downlinkUDP       map[uint32]map[uint16]int
+	downlinkHook      func(teid uint32, packet []byte)
 	qosFlows          map[int64]map[int64][]uint8
 	modifyRequests    map[int64]int
 	modifyResponses   map[int64]int

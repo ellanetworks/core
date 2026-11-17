@@ -30,6 +30,8 @@ type scaleParams struct {
 	ProbeAddress     string
 	ExpectCapacityAt int
 	Hold             time.Duration
+	PingInterval     time.Duration
+	PingAddress      string
 	Timeout          time.Duration
 }
 
@@ -45,6 +47,8 @@ func init() {
 			fs.StringVar(&p.ProbeAddress, "probe-address", "10.6.0.3", "data network host that echoes UDP on the probe port")
 			fs.IntVar(&p.ExpectCapacityAt, "expect-capacity-at", 0, "when non-zero, register one more UE and expect its PDU session rejected with #26 once this many sessions exist")
 			fs.DurationVar(&p.Hold, "hold", 0, "how long to keep every UE registered before deregistering")
+			fs.DurationVar(&p.PingInterval, "ping-interval", 0, "during --hold, every UE pings --ping-address at this mean interval, jittered by ±50%; 0 disables")
+			fs.StringVar(&p.PingAddress, "ping-address", "10.6.0.3", "data network host that answers ICMP echo")
 			fs.DurationVar(&p.Timeout, "timeout", 2*time.Minute, "per-procedure timeout")
 
 			return p
@@ -66,6 +70,10 @@ type scaleUE struct {
 func runScale(ctx context.Context, env scenarios.Env, p *scaleParams) error {
 	if p.UEs <= 0 || p.Concurrency <= 0 {
 		return fmt.Errorf("--ues and --concurrency must be positive")
+	}
+
+	if p.PingInterval > 0 && p.Hold <= 0 {
+		return fmt.Errorf("--ping-interval needs a --hold to send traffic during")
 	}
 
 	radios, err := startScaleGNBs(env)
@@ -139,7 +147,11 @@ func runScale(ctx context.Context, env scenarios.Env, p *scaleParams) error {
 		}
 	}
 
-	if p.Hold > 0 {
+	if p.Hold > 0 && p.PingInterval > 0 {
+		if err := runScalePingTraffic(ctx, ues, p); err != nil {
+			return err
+		}
+	} else if p.Hold > 0 {
 		logger.Logger.Info("holding sessions", zap.Duration("hold", p.Hold))
 
 		select {
@@ -147,11 +159,11 @@ func runScale(ctx context.Context, env scenarios.Env, p *scaleParams) error {
 			return ctx.Err()
 		case <-time.After(p.Hold):
 		}
+	}
 
-		if p.ProbeEvery > 0 {
-			if err := probeScaleUEs(ctx, ues, p); err != nil {
-				return fmt.Errorf("after hold: %w", err)
-			}
+	if p.Hold > 0 && p.ProbeEvery > 0 {
+		if err := probeScaleUEs(ctx, ues, p); err != nil {
+			return fmt.Errorf("after hold: %w", err)
 		}
 	}
 
