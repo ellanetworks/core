@@ -5,9 +5,9 @@ package gnb
 
 import (
 	"context"
+	crand "crypto/rand"
 	"encoding/binary"
 	"fmt"
-	"math/rand/v2"
 	"net/netip"
 	"sync"
 	"sync/atomic"
@@ -43,8 +43,20 @@ func (r *rttRecorder) add(d time.Duration) {
 	r.mu.Unlock()
 }
 
+func randUint64() uint64 {
+	var b [8]byte
+
+	_, _ = crand.Read(b[:])
+
+	return binary.LittleEndian.Uint64(b[:])
+}
+
+func randDuration(d time.Duration) time.Duration {
+	return time.Duration(randUint64() % uint64(d)) //nolint:gosec
+}
+
 func pingJitter(interval time.Duration) time.Duration {
-	return interval/2 + rand.N(interval) //nolint:gosec
+	return interval/2 + randDuration(interval)
 }
 
 func runScalePingTraffic(ctx context.Context, ues []*scaleUE, p *scaleParams) error {
@@ -67,7 +79,7 @@ func runScalePingTraffic(ctx context.Context, ues []*scaleUE, p *scaleParams) er
 			return fmt.Errorf("UE %s has no UPF address: %w", s.ue.UeSecurity.Supi, err)
 		}
 
-		pingers[i] = &scalePinger{ue: s, id: uint16(rand.N(1 << 16)), src: src, upf: upf} //nolint:gosec
+		pingers[i] = &scalePinger{ue: s, id: uint16(randUint64()), src: src, upf: upf} //nolint:gosec
 
 		if byGNB[s.gnb] == nil {
 			byGNB[s.gnb] = make(map[uint32]*scalePinger)
@@ -135,7 +147,7 @@ func runScalePingTraffic(ctx context.Context, ues []*scaleUE, p *scaleParams) er
 			time.AfterFunc(pingJitter(p.PingInterval), fire)
 		}
 
-		time.AfterFunc(rand.N(p.PingInterval), fire) //nolint:gosec
+		time.AfterFunc(randDuration(p.PingInterval), fire)
 	}
 
 	wg.Wait()
