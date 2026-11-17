@@ -269,19 +269,9 @@ func (db *Database) applyUpdateUserRole(ctx context.Context, p *userRolePayload)
 }
 
 func (db *Database) setUserRole(ctx context.Context, email string, roleID RoleID, rolePinned *bool) error {
-	var (
-		id      string
-		current RoleID
-		hash    string
-	)
-
-	err := db.runner(ctx).QueryRowContext(ctx, userIDByEmailSQL, email).Scan(&id, &current, &hash)
-	if errors.Is(err, sql.ErrNoRows) {
-		return ErrNotFound
-	}
-
+	id, current, _, err := db.userOfEmailForUpdate(ctx, email)
 	if err != nil {
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	if roleID != RoleAdmin {
@@ -312,19 +302,9 @@ func (db *Database) setUserRole(ctx context.Context, email string, roleID RoleID
 }
 
 func (db *Database) applyUpdateUserPassword(ctx context.Context, u *User) (any, error) {
-	var (
-		id      string
-		current RoleID
-		hash    string
-	)
-
-	err := db.runner(ctx).QueryRowContext(ctx, userIDByEmailSQL, u.Email).Scan(&id, &current, &hash)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
-	}
-
+	id, _, hash, err := db.userOfEmailForUpdate(ctx, u.Email)
 	if err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
+		return nil, err
 	}
 
 	if u.HashedPassword == "" {
@@ -345,19 +325,9 @@ func (db *Database) applyUpdateUserPassword(ctx context.Context, u *User) (any, 
 }
 
 func (db *Database) applyDeleteUser(ctx context.Context, p *stringPayload) (any, error) {
-	var (
-		id      string
-		current RoleID
-		hash    string
-	)
-
-	err := db.runner(ctx).QueryRowContext(ctx, userIDByEmailSQL, p.Value).Scan(&id, &current, &hash)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
-	}
-
+	id, _, _, err := db.userOfEmailForUpdate(ctx, p.Value)
 	if err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
+		return nil, err
 	}
 
 	if err := db.keepPasswordAdmin(ctx, id); err != nil {
@@ -369,6 +339,25 @@ func (db *Database) applyDeleteUser(ctx context.Context, p *stringPayload) (any,
 	}
 
 	return nil, nil
+}
+
+func (db *Database) userOfEmailForUpdate(ctx context.Context, email string) (string, RoleID, string, error) {
+	var (
+		id   string
+		role RoleID
+		hash string
+	)
+
+	err := db.runner(ctx).QueryRowContext(ctx, userIDByEmailSQL, email).Scan(&id, &role, &hash)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", 0, "", ErrNotFound
+	}
+
+	if err != nil {
+		return "", 0, "", fmt.Errorf("query failed: %w", err)
+	}
+
+	return id, role, hash, nil
 }
 
 func (db *Database) keepPasswordAdmin(ctx context.Context, userID string) error {

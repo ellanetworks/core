@@ -131,7 +131,6 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("DELETE /api/v1/users/{email}/password", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteUserPassword, DeleteUserPassword(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/users/{email}/oidc", Authenticate(jwtSecret, dbInstance, Authorize(PermUnlinkUser, UnlinkUser(dbInstance))).ServeHTTP)
 
-	// Single sign-on (Authenticated, with a login)
 	mux.HandleFunc("GET /api/v1/oidc", Authenticate(jwtSecret, dbInstance, Authorize(PermReadOIDC, NeedsLogin(GetOIDC(oidcSettings)))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/oidc", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOIDC, NeedsLogin(UpdateOIDC(oidcSettings)))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/oidc/discovery", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOIDC, NeedsLogin(DiscoverOIDC()))).ServeHTTP)
