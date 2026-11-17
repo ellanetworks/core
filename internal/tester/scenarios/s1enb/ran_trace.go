@@ -114,7 +114,7 @@ func expectS1TraceStart(e *s1enb.ENB, enbUEID int64, plmn []byte) (s1ap.EUTRANTr
 		return s1ap.EUTRANTraceID{}, fmt.Errorf("interfaces %08b depth %d, want %08b minimum", ta.InterfacesToTrace, ta.TraceDepth, wantInterfaces)
 	}
 
-	if len(ta.TraceCollectionEntityIPAddress) == 0 {
+	if ta.TraceCollectionEntityIPAddress.IsZero() {
 		return s1ap.EUTRANTraceID{}, fmt.Errorf("no Trace Collection Entity IP Address")
 	}
 

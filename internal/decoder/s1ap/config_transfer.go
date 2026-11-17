@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/ellanetworks/core/per"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -24,10 +25,15 @@ func buildENBConfigurationTransfer(value []byte) (S1APMessageValue, string) {
 
 	var ies []IE
 
-	if len(m.SONConfigurationTransfer) > 0 {
+	if m.SONConfigurationTransfer != nil {
 		ies = append(ies, ie(s1ap.IDSONConfigurationTransferECT, s1ap.CriticalityIgnore,
-			SONConfigurationTransfer{Hex: hex.EncodeToString(m.SONConfigurationTransfer)}))
+			sonConfigurationTransfer(m.SONConfigurationTransfer)))
 	}
+
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDENDCSONConfigurationTransferECT, s1ap.CriticalityIgnore, m.ENDCSONConfigurationTransferECT},
+		{s1ap.IDIntersystemSONConfigurationTransferECT, s1ap.CriticalityIgnore, m.IntersystemSONConfigurationTransferECT},
+	})
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
@@ -42,12 +48,28 @@ func buildMMEConfigurationTransfer(value []byte) (S1APMessageValue, string) {
 
 	var ies []IE
 
-	if len(m.SONConfigurationTransfer) > 0 {
+	if m.SONConfigurationTransfer != nil {
 		ies = append(ies, ie(s1ap.IDSONConfigurationTransferMCT, s1ap.CriticalityIgnore,
-			SONConfigurationTransfer{Hex: hex.EncodeToString(m.SONConfigurationTransfer)}))
+			sonConfigurationTransfer(m.SONConfigurationTransfer)))
 	}
+
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDENDCSONConfigurationTransferMCT, s1ap.CriticalityIgnore, m.ENDCSONConfigurationTransferMCT},
+		{s1ap.IDIntersystemSONConfigurationTransferMCT, s1ap.CriticalityIgnore, m.IntersystemSONConfigurationTransferMCT},
+	})
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, "MME Configuration Transfer"
+}
+
+func sonConfigurationTransfer(v *s1ap.SONConfigurationTransfer) SONConfigurationTransfer {
+	w := per.NewWriter()
+	if err := v.MarshalPER(w, per.Aligned); err != nil {
+		return SONConfigurationTransfer{}
+	}
+
+	w.AlignToByte()
+
+	return SONConfigurationTransfer{Hex: hex.EncodeToString(w.Bytes())}
 }

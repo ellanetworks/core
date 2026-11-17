@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -18,6 +19,8 @@ import (
 )
 
 const SMSOnlyLAC uint16 = 0x0001
+
+const smsReleaseBackoff = 50 * time.Millisecond
 
 func (ue *UeContext) SMSOnly() bool {
 	return ue.smsOnly.Load()
@@ -204,6 +207,13 @@ func (m *MME) reachForSMS(ctx context.Context, ue *UeContext) error {
 			return smsf.ErrUnreachable
 		case !ue.SMSOnly():
 			return smsf.ErrNotRegisteredForSMS
+		case m.holdUntilReleased(ue, req, nil):
+			select {
+			case <-time.After(smsReleaseBackoff):
+				continue
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		case ue.Conn() != nil:
 			return nil
 		case paged:

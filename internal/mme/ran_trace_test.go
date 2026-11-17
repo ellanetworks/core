@@ -4,7 +4,6 @@
 package mme
 
 import (
-	"net/netip"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -18,7 +17,7 @@ func newTracedMMEUE(t *testing.T) (*MME, *tracing.TraceSessions, *UeContext, *Ue
 	t.Helper()
 
 	m := New(nil, nil, nil)
-	sessions := tracing.NewTraceSessions(tracing.TraceConfig{TCEAddress: netip.MustParseAddr("10.0.0.1")}, func() int { return 3 })
+	sessions := tracing.NewTraceSessions(func() int { return 3 })
 	m.EnableRANTrace(sessions)
 
 	w := &captureConn{}
@@ -132,6 +131,7 @@ func TestMMEHandoverTraceActivationFollowsSource(t *testing.T) {
 	ue.TraceConnection(t.Context())
 
 	target := &UeConn{m: m}
+	target.setConn(&captureConn{})
 	target.trace.Inherit(&c.trace)
 
 	ta, err := target.HandoverTraceActivation()
@@ -155,14 +155,14 @@ func TestMMETraceFailure(t *testing.T) {
 	other := id
 	other[7]++
 
-	c.TraceFailed(t.Context(), s1ap.EUTRANTraceID(other), s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5})
+	c.TraceFailed(t.Context(), s1ap.EUTRANTraceID(other), s1ap.CauseRadioNetworkPartialHandover.Cause())
 	ue.TraceConnection(t.Context())
 
 	if n := len(sentTraceStarts(t, w)); n != 1 {
 		t.Fatalf("%d Trace Start messages after a failure for another Trace ID, want 1", n)
 	}
 
-	c.TraceFailed(t.Context(), s1ap.EUTRANTraceID(id), s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 5})
+	c.TraceFailed(t.Context(), s1ap.EUTRANTraceID(id), s1ap.CauseRadioNetworkPartialHandover.Cause())
 	ue.TraceConnection(t.Context())
 
 	starts := sentTraceStarts(t, w)
@@ -190,7 +190,7 @@ func TestMMENewConnectionGetsNewRecording(t *testing.T) {
 
 func TestMMEImplicitDetachReleasesTrace(t *testing.T) {
 	m := New(nil, nil, nil)
-	sessions := tracing.NewTraceSessions(tracing.TraceConfig{TCEAddress: netip.MustParseAddr("10.0.0.1")}, func() int { return 3 })
+	sessions := tracing.NewTraceSessions(func() int { return 3 })
 	m.EnableRANTrace(sessions)
 
 	ue := NewUeContext()

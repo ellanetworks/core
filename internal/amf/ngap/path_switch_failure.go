@@ -54,7 +54,7 @@ func pathSwitchFailedSessions(items ngap.PDUSessionResourceFailedToSetupListPSRe
 // sendPathSwitchRequestFailure refuses a path switch. TS 38.413 §9.2.3.10 has
 // no Cause IE for the message as a whole — unlike TS 36.413 §9.1.5.10 — so the
 // reason is reported per session, once for every session the request named.
-func sendPathSwitchRequestFailure(ctx context.Context, ran *amf.Radio, msg *ngap.PathSwitchRequest, causeValue int) {
+func sendPathSwitchRequestFailure(ctx context.Context, ran *amf.Radio, msg *ngap.PathSwitchRequest, causeValue ngap.CauseRadioNetwork) {
 	released, err := pathSwitchReleasedList(msg.PDUSessionResourceToBeSwitchedDLList, causeValue)
 	if err != nil {
 		ran.Log(ctx).Error("error building path switch released list", zap.Error(err))
@@ -77,7 +77,7 @@ func sendPathSwitchRequestFailure(ctx context.Context, ran *amf.Radio, msg *ngap
 
 // pathSwitchReleasedList builds the released list with one item per distinct
 // requested PDU session (TS 38.413).
-func pathSwitchReleasedList(items ngap.PDUSessionResourceToBeSwitchedDLList, causeValue int) (ngap.PDUSessionResourceReleasedListPSFail, error) {
+func pathSwitchReleasedList(items ngap.PDUSessionResourceToBeSwitchedDLList, causeValue ngap.CauseRadioNetwork) (ngap.PDUSessionResourceReleasedListPSFail, error) {
 	transfer, err := buildPathSwitchRequestUnsuccessfulTransfer(causeValue)
 	if err != nil {
 		return nil, err
@@ -102,9 +102,9 @@ func pathSwitchReleasedList(items ngap.PDUSessionResourceToBeSwitchedDLList, cau
 	return list, nil
 }
 
-func buildPathSwitchRequestUnsuccessfulTransfer(causeValue int) (ngap.TransferContainer, error) {
+func buildPathSwitchRequestUnsuccessfulTransfer(causeValue ngap.CauseRadioNetwork) (ngap.TransferContainer, error) {
 	b, err := (&ngap.PathSwitchRequestUnsuccessfulTransfer{
-		Cause: ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: causeValue},
+		Cause: causeValue.Cause(),
 	}).Marshal()
 	if err != nil {
 		return nil, fmt.Errorf("encode path switch request unsuccessful transfer: %w", err)

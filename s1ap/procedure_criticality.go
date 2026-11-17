@@ -79,6 +79,7 @@ var procedureInfos = map[ProcedureCode]procedureInfo{
 	ProcHandoverSuccess:                      {CriticalityIgnore, false},
 	ProcENBEarlyStatusTransfer:               {CriticalityReject, false},
 	ProcMMEEarlyStatusTransfer:               {CriticalityIgnore, false},
+	ProcS1Removal:                            {CriticalityReject, true},
 }
 
 // TS 36.413 §9.3.2.

@@ -58,9 +58,9 @@ func buildNGReset(value []byte) NGAPMessageValue {
 		ies = append(ies, ie(ngap.IDCause, ngap.CriticalityIgnore, cause(*m.Cause)))
 	}
 
-	rt := ResetType{NGInterface: m.ResetType.All}
-	if !m.ResetType.All {
-		rt.PartOfNG = ueAssociatedConnections(m.ResetType.Part)
+	rt := ResetType{NGInterface: m.ResetType.NGInterface != nil}
+	if p := m.ResetType.PartOfNGInterface; p != nil {
+		rt.PartOfNG = ueAssociatedConnections(*p)
 	}
 
 	ies = append(ies, ie(ngap.IDResetType, ngap.CriticalityReject, rt))

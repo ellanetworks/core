@@ -11,6 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/models"
 	libngap "github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType libngap.PDUSessionType, erabID uint8, flows []QoSFlow) ([]byte, error) {
@@ -61,7 +62,7 @@ func pduSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.Q
 		return nil, fmt.Errorf("ambr is nil")
 	}
 
-	tla, err := encodeTransportLayerAddress(n3IPv4, n3IPv6)
+	tla, err := ap.TransportLayerAddressFromAddrs(n3IPv4, n3IPv6)
 	if err != nil {
 		return nil, fmt.Errorf("encode transport layer address failed: %s", err)
 	}
@@ -70,7 +71,7 @@ func pduSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.Q
 		// Conditional: present when at least one non-GBR QoS flow is set up.
 		PDUSessionAggregateMaximumBitRate: sessionAMBR(ambr),
 		ULNGUUPTNLInformation: libngap.UPTransportLayerInformation{
-			GTPTunnel: libngap.GTPTunnel{TransportLayerAddress: tla, GTPTEID: libngap.GTPTEID(teid)},
+			GTPTunnel: &libngap.GTPTunnel{TransportLayerAddress: tla, GTPTEID: libngap.GTPTEID(teid)},
 		},
 		PDUSessionType: pduSessionType,
 	}

@@ -586,7 +586,7 @@ func TestRolesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("4. Use ReadOnly user to list subscribers - should succeed", func(t *testing.T) {
-		statusCode, response, err := listSubscribers(env.Server.URL, client, readOnlyToken, 1, 10)
+		statusCode, response, err := listSubscribers(env.Server.URL, client, readOnlyToken, 10)
 		if err != nil {
 			t.Fatalf("couldn't list subscribers: %s", err)
 		}
@@ -601,7 +601,7 @@ func TestRolesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("5. Use Network Manager user to list subscribers - should succeed", func(t *testing.T) {
-		statusCode, response, err := listSubscribers(env.Server.URL, client, networkManagerToken, 1, 10)
+		statusCode, response, err := listSubscribers(env.Server.URL, client, networkManagerToken, 10)
 		if err != nil {
 			t.Fatalf("couldn't list subscribers: %s", err)
 		}

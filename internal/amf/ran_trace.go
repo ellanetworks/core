@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/tracing"
 	"github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/per/ap"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -157,7 +158,7 @@ func (ueConn *UeConn) SendTraceStart(ctx context.Context, id tracing.RANTraceID)
 		return err
 	}
 
-	activation, err := amfInstance.traceActivation(id)
+	activation, err := amfInstance.traceActivation(id, conn)
 	if err != nil {
 		return err
 	}
@@ -190,23 +191,28 @@ func (ueConn *UeConn) handoverTraceActivation() (*ngap.TraceActivation, error) {
 		return nil, nil
 	}
 
-	return ueConn.amf.traceActivation(id)
+	return ueConn.amf.traceActivation(id, ueConn.Conn())
 }
 
-func (a *AMF) traceActivation(id tracing.RANTraceID) (*ngap.TraceActivation, error) {
+func (a *AMF) traceActivation(id tracing.RANTraceID, conn NGAPWriter) (*ngap.TraceActivation, error) {
 	if a.ranTrace == nil {
 		return nil, fmt.Errorf("RAN trace is not enabled")
 	}
 
-	tce := a.ranTrace.Config().TCEAddress
-	if !tce.IsValid() {
-		return nil, fmt.Errorf("no Trace Collection Entity address")
+	addr, err := tracing.TCEAddress(conn)
+	if err != nil {
+		return nil, err
+	}
+
+	tce, err := ap.TransportLayerAddressFrom(addr)
+	if err != nil {
+		return nil, err
 	}
 
 	return &ngap.TraceActivation{
 		NGRANTraceID:                   ngap.NGRANTraceID(id),
 		InterfacesToTrace:              ranTraceInterfaces,
 		TraceDepth:                     ngap.TraceDepthMinimum,
-		TraceCollectionEntityIPAddress: ngap.TransportLayerAddress(tce.Unmap().AsSlice()),
+		TraceCollectionEntityIPAddress: tce,
 	}, nil
 }

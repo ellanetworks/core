@@ -90,7 +90,7 @@ func TestDecodeNGAPMessage_ErrorIndication(t *testing.T) {
 		t.Fatalf("expected Cause value type=Cause, got %T", item2.Value)
 	}
 
-	if cause.Group.Value != int64(lib.CauseGroupRadioNetwork) {
+	if cause.Group.Label != "radioNetwork" {
 		t.Errorf("expected Cause group=radioNetwork, got %s", cause.Group.Label)
 	}
 

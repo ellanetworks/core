@@ -29,21 +29,25 @@ func ngENBNodeID(mcc, mnc, enbID string) (ngap.GlobalRANNodeID, error) {
 		v = v<<8 | uint64(o)
 	}
 
-	return ngap.GlobalRANNodeID{
-		Kind:         ngap.RANNodeIDMacroNgENB,
-		PLMNIdentity: plmn,
-		Value:        uint32(v >> uint(8*len(b)-ngENBIDBits)),
-		Bits:         ngENBIDBits,
-	}, nil
+	return ngap.NewGlobalNgENBID(plmn, ngap.NgENBID{MacroNgENBID: new(ngap.MacroNgENBID(uint32(v >> uint(8*len(b)-ngENBIDBits))))}), nil
 }
 
 // userLocation builds the User Location Information this simulator reports: the
 // E-UTRA cell it serves and the TAI that cell is in (TS 38.413 §9.3.1.16).
 // internal/tester/gnb reports an NR cell the same way.
-func userLocation(mcc, mnc, enbID, tac string) (ngap.UserLocationInformation, error) {
+func userLocation(mcc, mnc, selMcc, selMnc, enbID, tac string) (ngap.UserLocationInformation, error) {
 	plmn, err := gnb.PLMNIdentity(mcc, mnc)
 	if err != nil {
 		return ngap.UserLocationInformation{}, err
+	}
+
+	selected := plmn
+
+	if selMcc != "" && selMnc != "" {
+		selected, err = gnb.PLMNIdentity(selMcc, selMnc)
+		if err != nil {
+			return ngap.UserLocationInformation{}, err
+		}
 	}
 
 	tacValue, err := gnb.TACValue(tac)
@@ -63,10 +67,5 @@ func userLocation(mcc, mnc, enbID, tac string) (ngap.UserLocationInformation, er
 		return ngap.UserLocationInformation{}, fmt.Errorf("could not build E-UTRA cell identity: %w", err)
 	}
 
-	return ngap.UserLocationInformation{
-		Kind:         ngap.UserLocationEUTRA,
-		PLMNIdentity: plmn,
-		CellIdentity: cellID,
-		TAI:          ngap.TAI{PLMNIdentity: plmn, TAC: tacValue},
-	}, nil
+	return ngap.UserLocationInformation{EUTRA: &ngap.UserLocationInformationEUTRA{EUTRACGI: ngap.EUTRACGI{PLMNIdentity: plmn, EUTRACellIdentity: ngap.EUTRACellIdentity(cellID)}, TAI: ngap.TAI{PLMNIdentity: selected, TAC: tacValue}}}, nil
 }

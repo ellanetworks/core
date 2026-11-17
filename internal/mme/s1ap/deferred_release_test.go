@@ -15,7 +15,7 @@ func inactivityRelease(ue *mme.UeContext) *s1ap.UEContextReleaseRequest {
 	return &s1ap.UEContextReleaseRequest{
 		MMEUES1APID: ue.Conn().MMEUES1APID,
 		ENBUES1APID: 7,
-		Cause:       s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUserInactivity}),
+		Cause:       s1ap.Ptr(s1ap.CauseRadioNetworkUserInactivity.Cause()),
 	}
 }
 
@@ -60,7 +60,7 @@ func TestOtherCausesReleaseDespiteAnMTDeliveryInProgress(t *testing.T) {
 	ue.PagingAnswered()
 
 	req := inactivityRelease(ue)
-	req.Cause = s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioConnectionWithUELost})
+	req.Cause = s1ap.Ptr(s1ap.CauseRadioNetworkRadioConnectionWithUELost.Cause())
 
 	deliverReleaseRequest(t, m, cc, req)
 
@@ -73,7 +73,7 @@ func TestADeferralThatRacesTheSettlementResumesAtOnce(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 
-	ue.Conn().DeferRelease(t.Context(), s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUserInactivity})
+	ue.Conn().DeferRelease(t.Context(), s1ap.CauseRadioNetworkUserInactivity.Cause())
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("UE Context Release Commands sent = %d, want 1: a deferral whose pending signalling already settled must not wait for the guard", len(cc.sent))

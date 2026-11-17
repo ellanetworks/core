@@ -4,9 +4,8 @@
 package ngap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 // maxnoofAoI bounds the areas of interest one request may name.
@@ -30,8 +29,9 @@ const (
 	EventTypeStopChangeOfServeCell
 	EventTypeStopUEPresenceInAreaOfInterest
 	EventTypeCancelLocationReportingForTheUE
-
-	eventTypeRootCount = 6
+	EventTypeChangeOfServingCellAndUEPresenceInAreaOfInterest
+	EventTypeReportAerialUEFlightInformation
+	EventTypeCancelAerialUEFlightInformationReporting
 )
 
 // ReportArea ::= ENUMERATED { cell, ... }, likewise inline in TS 38.413
@@ -41,8 +41,6 @@ type ReportArea uint8
 
 const (
 	ReportAreaCell ReportArea = iota
-
-	reportAreaRootCount = 1
 )
 
 // LocationReportingReferenceID ::= INTEGER (1..64, ...) — TS 38.413 §9.3.1.76.
@@ -53,14 +51,18 @@ func (id LocationReportingReferenceID) MarshalPER(w *per.Writer, enc per.Encodin
 }
 
 func (id *LocationReportingReferenceID) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	v, err := decodeExtensibleInt(r, enc, 1, maxnoofAoI, "LocationReportingReferenceID")
+	v, err := decodeExtensibleInt[LocationReportingReferenceID](r, enc, 1, maxnoofAoI)
 	if err != nil {
 		return err
 	}
 
-	*id = LocationReportingReferenceID(v)
+	*id = v
 
 	return nil
+}
+
+func (v LocationReportingReferenceID) Diagnose(*ap.Diagnosis[ProtocolIEID]) bool {
+	return outsideRoot(int64(v), 1, maxnoofAoI)
 }
 
 // LocationReportingRequestType ::= SEQUENCE { eventType, reportArea,
@@ -68,112 +70,212 @@ func (id *LocationReportingReferenceID) UnmarshalPER(r *per.Reader, enc per.Enco
 // OPTIONAL, iE-Extensions OPTIONAL } (extensible) — TS 38.413 §9.3.1.65.
 // TS 36.413 §9.2.1.34 names the same shape RequestType and has neither optional
 // field.
-//
-// The codec is hand-written because areaOfInterestList is deliberately not
-// modelled: this AMF never asks for area-of-interest reporting, so a peer has
-// no reason to name one back. Its preamble bit is still read, and a request
-// that sets it is refused rather than silently misread.
 type LocationReportingRequestType struct {
-	EventType                                 EventType
-	ReportArea                                ReportArea
-	LocationReportingReferenceIDToBeCancelled *LocationReportingReferenceID
+	EventType                                           EventType
+	ReportArea                                          ReportArea
+	AreaOfInterestList                                  AreaOfInterestList                                  `per:",optional"`
+	LocationReportingReferenceIDToBeCancelled           *LocationReportingReferenceID                       `per:",optional"`
+	LocationReportingAdditionalInfo                     *LocationReportingAdditionalInfo                    `per:",extie:IDLocationReportingAdditionalInfo,crit:ignore"`
+	AdditionalCancelledlocationReportingReferenceIDList AdditionalCancelledlocationReportingReferenceIDList `per:",extie:IDAdditionalCancelledlocationReportingReferenceIDList,crit:reject"`
+	AerialUEFlightInformationReportingControlList       AerialUEFlightInformationReportingControlList       `per:",extie:IDAerialUEFlightInformationReportingControlList,crit:ignore"`
+	iEExtensions                                        extensionMeta                                       `per:",exttable"`
+	extensions                                          per.ExtensionAdditions                              `per:",extraw"`
 }
 
-func (t LocationReportingRequestType) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	// ifEventTypeisStopUEPresinAoI: the ASN.1 makes
-	// locationReportingReferenceIDToBeCancelled present exactly when Event Type
-	// is "stop UE presence in the area of interest" (§9.3.1.65). The message-level
-	// tables enforce their conditions in ieSpec; this one lives inside a SEQUENCE,
-	// so it is enforced here.
-	cancelling := t.EventType == EventTypeStopUEPresenceInAreaOfInterest
-	if cancelling != (t.LocationReportingReferenceIDToBeCancelled != nil) {
-		return fmt.Errorf(
-			"ngap: LocationReportingRequestType: event type %d %s a location reporting reference id to cancel",
-			t.EventType, map[bool]string{true: "requires", false: "must not carry"}[cancelling])
-	}
+const (
+	maxnoofAoIMinusOne             = 63
+	maxnoofTAIinAoI                = 16
+	maxnoofCellinAoI               = 256
+	maxnoofRANNodeinAoI            = 64
+	maxnoofFlightInfoReportControl = 64
+)
 
-	w.WriteBit(false)
-	// areaOfInterestList, which this AMF never sends.
-	w.WriteBit(false)
-	w.WriteBit(t.LocationReportingReferenceIDToBeCancelled != nil)
-	// iE-Extensions.
-	w.WriteBit(false)
+type AreaOfInterestItem struct {
+	AreaOfInterest               AreaOfInterest
+	LocationReportingReferenceID LocationReportingReferenceID
+	iEExtensions                 extensionMeta          `per:",exttable"`
+	extensions                   per.ExtensionAdditions `per:",extraw"`
+}
 
-	if err := encodeRootEnumerated(w, enc, eventTypeRootCount, int64(t.EventType), "EventType"); err != nil {
+type AreaOfInterestList []AreaOfInterestItem
+
+func (l AreaOfInterestList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofAoI, []AreaOfInterestItem(l))
+}
+
+func (l *AreaOfInterestList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[AreaOfInterestItem](r, enc, 1, maxnoofAoI)
+	if err != nil {
 		return err
 	}
 
-	if err := encodeRootEnumerated(w, enc, reportAreaRootCount, int64(t.ReportArea), "ReportArea"); err != nil {
-		return err
-	}
-
-	if t.LocationReportingReferenceIDToBeCancelled != nil {
-		return t.LocationReportingReferenceIDToBeCancelled.MarshalPER(w, enc)
-	}
+	*l = items
 
 	return nil
 }
 
-func (t *LocationReportingRequestType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	extPresent, err := r.ReadBit()
+type AreaOfInterest struct {
+	AreaOfInterestTAIList     AreaOfInterestTAIList     `per:",optional"`
+	AreaOfInterestCellList    AreaOfInterestCellList    `per:",optional"`
+	AreaOfInterestRANNodeList AreaOfInterestRANNodeList `per:",optional"`
+	iEExtensions              extensionMeta             `per:",exttable"`
+	extensions                per.ExtensionAdditions    `per:",extraw"`
+}
+
+type AreaOfInterestTAIItem struct {
+	TAI          TAI
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+}
+
+type AreaOfInterestTAIList []AreaOfInterestTAIItem
+
+func (l AreaOfInterestTAIList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofTAIinAoI, []AreaOfInterestTAIItem(l))
+}
+
+func (l *AreaOfInterestTAIList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[AreaOfInterestTAIItem](r, enc, 1, maxnoofTAIinAoI)
 	if err != nil {
 		return err
 	}
 
-	haveAreaOfInterest, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-
-	haveReferenceID, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-
-	haveExtensions, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-
-	eventType, err := decodeRootEnumerated(r, enc, eventTypeRootCount, "EventType")
-	if err != nil {
-		return err
-	}
-
-	t.EventType = EventType(eventType)
-
-	reportArea, err := decodeRootEnumerated(r, enc, reportAreaRootCount, "ReportArea")
-	if err != nil {
-		return err
-	}
-
-	t.ReportArea = ReportArea(reportArea)
-
-	if haveAreaOfInterest {
-		return fmt.Errorf("%w: LocationReportingRequestType areaOfInterestList", errNotComprehended)
-	}
-
-	if haveReferenceID {
-		var id LocationReportingReferenceID
-
-		if err := id.UnmarshalPER(r, enc); err != nil {
-			return err
-		}
-
-		t.LocationReportingReferenceIDToBeCancelled = &id
-	}
-
-	if haveExtensions {
-		if err := skipSequenceExtensionsPER(r, enc, true, false); err != nil {
-			return err
-		}
-	}
-
-	if extPresent {
-		return skipSequenceExtensionsPER(r, enc, false, true)
-	}
+	*l = items
 
 	return nil
+}
+
+type AreaOfInterestCellItem struct {
+	NGRANCGI     NGRANCGI
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
+}
+
+type AreaOfInterestCellList []AreaOfInterestCellItem
+
+func (l AreaOfInterestCellList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofCellinAoI, []AreaOfInterestCellItem(l))
+}
+
+func (l *AreaOfInterestCellList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[AreaOfInterestCellItem](r, enc, 1, maxnoofCellinAoI)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+type AreaOfInterestRANNodeItem struct {
+	GlobalRANNodeID GlobalRANNodeID
+	iEExtensions    extensionMeta          `per:",exttable"`
+	extensions      per.ExtensionAdditions `per:",extraw"`
+}
+
+type AreaOfInterestRANNodeList []AreaOfInterestRANNodeItem
+
+func (l AreaOfInterestRANNodeList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofRANNodeinAoI, []AreaOfInterestRANNodeItem(l))
+}
+
+func (l *AreaOfInterestRANNodeList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[AreaOfInterestRANNodeItem](r, enc, 1, maxnoofRANNodeinAoI)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+type LocationReportingAdditionalInfo uint8
+
+const (
+	LocationReportingAdditionalInfoIncludePSCell LocationReportingAdditionalInfo = iota
+)
+
+type AdditionalCancelledlocationReportingReferenceIDItem struct {
+	LocationReportingReferenceIDToBeCancelled LocationReportingReferenceID
+	iEExtensions                              extensionMeta          `per:",exttable"`
+	extensions                                per.ExtensionAdditions `per:",extraw"`
+}
+
+type AdditionalCancelledlocationReportingReferenceIDList []AdditionalCancelledlocationReportingReferenceIDItem
+
+func (l AdditionalCancelledlocationReportingReferenceIDList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofAoIMinusOne, []AdditionalCancelledlocationReportingReferenceIDItem(l))
+}
+
+func (l *AdditionalCancelledlocationReportingReferenceIDList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[AdditionalCancelledlocationReportingReferenceIDItem](r, enc, 1, maxnoofAoIMinusOne)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+type AerialUEFlightInformationReportingControlItem struct {
+	AerialUEFlightInformationReportingControl AerialUEFlightInformationReportingControl
+	iEExtensions                              extensionMeta          `per:",exttable"`
+	extensions                                per.ExtensionAdditions `per:",extraw"`
+}
+
+type AerialUEFlightInformationReportingControlList []AerialUEFlightInformationReportingControlItem
+
+func (l AerialUEFlightInformationReportingControlList) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return marshalSeqOf(w, enc, 1, maxnoofFlightInfoReportControl, []AerialUEFlightInformationReportingControlItem(l))
+}
+
+func (l *AerialUEFlightInformationReportingControlList) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := unmarshalSeqOf[AerialUEFlightInformationReportingControlItem](r, enc, 1, maxnoofFlightInfoReportControl)
+	if err != nil {
+		return err
+	}
+
+	*l = items
+
+	return nil
+}
+
+type AerialUEFlightInformationReportingControl struct {
+	HigherAltitudeThreshold   Altitude                      `per:",range:-420..10000,..."`
+	LowerAltitudeThreshold    Altitude                      `per:",range:-420..10000,..."`
+	AerialUEReportPeriodicity *AerialUEReportingPeriodicity `per:",optional"`
+	AreaID                    AreaID
+	iEExtensions              extensionMeta          `per:",exttable"`
+	extensions                per.ExtensionAdditions `per:",extraw"`
+}
+
+type AerialUEReportingPeriodicity uint8
+
+const (
+	AerialUEReportingPeriodicityMs120 AerialUEReportingPeriodicity = iota
+	AerialUEReportingPeriodicityMs240
+	AerialUEReportingPeriodicityMs480
+	AerialUEReportingPeriodicityMs640
+	AerialUEReportingPeriodicityMs1024
+	AerialUEReportingPeriodicityMs2048
+	AerialUEReportingPeriodicityMs5120
+	AerialUEReportingPeriodicityMs10240
+	AerialUEReportingPeriodicityMs20480
+	AerialUEReportingPeriodicityMs40960
+	AerialUEReportingPeriodicityMin1
+	AerialUEReportingPeriodicityMin6
+	AerialUEReportingPeriodicityMin12
+	AerialUEReportingPeriodicityMin30
+)
+
+type AreaID struct {
+	TAI             *TAI             `per:",choice:0"`
+	GlobalRANNodeID *GlobalRANNodeID `per:",choice:1"`
+	NRCGI           *NRCGI           `per:",choice:2"`
+	ChoiceExtension *SingleContainer `per:",choice:3,extie"`
 }
 
 // UEPresence ::= ENUMERATED { in, out, unknown, ... }, an inline type of the
@@ -189,10 +291,10 @@ const (
 // UEPresenceInAreaOfInterestItem ::= SEQUENCE { locationReportingReferenceID,
 // uEPresence, iE-Extensions OPTIONAL } (extensible).
 type UEPresenceInAreaOfInterestItem struct {
-	_                            [0]struct{} `per:"extseq"`
+	extensions                   per.ExtensionAdditions `per:",extraw"`
 	LocationReportingReferenceID LocationReportingReferenceID
-	UEPresence                   UEPresence   `per:"ENUMERATED,range:0..2,..."`
-	_                            ieExtensions `per:",skip"`
+	UEPresence                   UEPresence
+	iEExtensions                 extensionMeta `per:",exttable"`
 }
 
 // UEPresenceInAreaOfInterestList ::= SEQUENCE (SIZE(1..maxnoofAoI)) OF
@@ -215,25 +317,25 @@ type LocationReport struct {
 
 var locationReportIEs = []ieSpec[LocationReport]{
 	{
-		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.AMFUENGAPID)
+		ID: IDAMFUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *LocationReport, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.AMFUENGAPID)
 		},
-		encode: func(m *LocationReport) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
+		Encode: func(m *LocationReport) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.RANUENGAPID)
+		ID: IDRANUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *LocationReport, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.RANUENGAPID)
 		},
-		encode: func(m *LocationReport) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
+		Encode: func(m *LocationReport) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
-		id: IDUserLocationInformation, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
+		ID: IDUserLocationInformation, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *LocationReport, r *per.Reader, enc per.Encoding) error {
 			var v UserLocationInformation
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -241,7 +343,7 @@ var locationReportIEs = []ieSpec[LocationReport]{
 
 			return nil
 		},
-		encode: func(m *LocationReport) (per.Marshaler, bool) {
+		Encode: func(m *LocationReport) (per.Marshaler, bool) {
 			if m.UserLocationInformation == nil {
 				return nil, false
 			}
@@ -250,11 +352,11 @@ var locationReportIEs = []ieSpec[LocationReport]{
 		},
 	},
 	{
-		id: IDUEPresenceInAreaOfInterestList, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.UEPresenceInAreaOfInterestList)
+		ID: IDUEPresenceInAreaOfInterestList, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *LocationReport, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.UEPresenceInAreaOfInterestList)
 		},
-		encode: func(m *LocationReport) (per.Marshaler, bool) {
+		Encode: func(m *LocationReport) (per.Marshaler, bool) {
 			if m.UEPresenceInAreaOfInterestList == nil {
 				return nil, false
 			}
@@ -263,11 +365,11 @@ var locationReportIEs = []ieSpec[LocationReport]{
 		},
 	},
 	{
-		id: IDLocationReportingRequestType, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *LocationReport, raw []byte, enc per.Encoding) error {
+		ID: IDLocationReportingRequestType, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *LocationReport, r *per.Reader, enc per.Encoding) error {
 			var v LocationReportingRequestType
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -275,7 +377,7 @@ var locationReportIEs = []ieSpec[LocationReport]{
 
 			return nil
 		},
-		encode: func(m *LocationReport) (per.Marshaler, bool) {
+		Encode: func(m *LocationReport) (per.Marshaler, bool) {
 			if m.LocationReportingRequestType == nil {
 				return nil, false
 			}
@@ -309,6 +411,10 @@ func ParseLocationReport(value []byte) (*LocationReport, error) {
 	return parseMessageBody[LocationReport](ProcLocationReport, TriggeringInitiatingMessage, locationReportIEs, value)
 }
 
+func DecodeLocationReport(value []byte) (*LocationReport, error) {
+	return decodeMessageBody[LocationReport](ProcLocationReport, locationReportIEs, value)
+}
+
 // TS 38.413 §9.2.11.1. The AMF asks the NG-RAN node to start, change or stop
 // reporting the UE's location. TS 36.413 §9.1.12.1 defines the same procedure
 // with the same three IEs, but this core only drives it from the 5G side.
@@ -322,25 +428,25 @@ type LocationReportingControl struct {
 
 var locationReportingControlIEs = []ieSpec[LocationReportingControl]{
 	{
-		id: IDAMFUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *LocationReportingControl, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.AMFUENGAPID)
+		ID: IDAMFUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *LocationReportingControl, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.AMFUENGAPID)
 		},
-		encode: func(m *LocationReportingControl) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
+		Encode: func(m *LocationReportingControl) (per.Marshaler, bool) { return &m.AMFUENGAPID, true },
 	},
 	{
-		id: IDRANUENGAPID, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *LocationReportingControl, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.RANUENGAPID)
+		ID: IDRANUENGAPID, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *LocationReportingControl, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.RANUENGAPID)
 		},
-		encode: func(m *LocationReportingControl) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
+		Encode: func(m *LocationReportingControl) (per.Marshaler, bool) { return &m.RANUENGAPID, true },
 	},
 	{
-		id: IDLocationReportingRequestType, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *LocationReportingControl, raw []byte, enc per.Encoding) error {
+		ID: IDLocationReportingRequestType, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *LocationReportingControl, r *per.Reader, enc per.Encoding) error {
 			var v LocationReportingRequestType
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -348,7 +454,7 @@ var locationReportingControlIEs = []ieSpec[LocationReportingControl]{
 
 			return nil
 		},
-		encode: func(m *LocationReportingControl) (per.Marshaler, bool) {
+		Encode: func(m *LocationReportingControl) (per.Marshaler, bool) {
 			if m.LocationReportingRequestType == nil {
 				return nil, false
 			}
@@ -380,4 +486,8 @@ func (m *LocationReportingControl) Marshal() ([]byte, error) {
 
 func ParseLocationReportingControl(value []byte) (*LocationReportingControl, error) {
 	return parseMessageBody[LocationReportingControl](ProcLocationReportingControl, TriggeringInitiatingMessage, locationReportingControlIEs, value)
+}
+
+func DecodeLocationReportingControl(value []byte) (*LocationReportingControl, error) {
+	return decodeMessageBody[LocationReportingControl](ProcLocationReportingControl, locationReportingControlIEs, value)
 }

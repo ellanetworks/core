@@ -16,7 +16,7 @@ func TestERABReleaseCommandRoundTrips(t *testing.T) {
 		ENBUES1APID:               1,
 		UEAggregateMaximumBitRate: &ambr,
 		ERABToBeReleased: []ERABItem{
-			{ERABID: 6, Cause: Cause{Group: CauseGroupNAS, Value: 2}}, // normal-release
+			{ERABID: 6, Cause: CauseNASDetach.Cause()}, // normal-release
 		},
 		NASPDU: NASPDU{0x02, 0x06, 0xcd}, // a Deactivate EPS Bearer Context Request, abbreviated
 	}
@@ -45,11 +45,11 @@ func TestERABReleaseCommandRoundTrips(t *testing.T) {
 		t.Fatalf("header mismatch: %+v", out)
 	}
 
-	if out.UEAggregateMaximumBitRate == nil || *out.UEAggregateMaximumBitRate != ambr {
+	if out.UEAggregateMaximumBitRate == nil || !out.UEAggregateMaximumBitRate.Equal(ambr) {
 		t.Fatalf("UE-AMBR mismatch: %+v", out.UEAggregateMaximumBitRate)
 	}
 
-	if out.ERABToBeReleased[0].ERABID != 6 || out.ERABToBeReleased[0].Cause != in.ERABToBeReleased[0].Cause {
+	if out.ERABToBeReleased[0].ERABID != 6 || !out.ERABToBeReleased[0].Cause.Equal(in.ERABToBeReleased[0].Cause) {
 		t.Fatalf("E-RAB item mismatch: %+v", out.ERABToBeReleased[0])
 	}
 
@@ -124,7 +124,7 @@ func TestERABReleaseResponseRoundTripsUserLocation(t *testing.T) {
 
 func TestERABReleaseIndicationRoundTrips(t *testing.T) {
 	plmn := PLMNIdentity{0x00, 0xf1, 0x10}
-	lost := Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkRadioConnectionWithUELost}
+	lost := CauseRadioNetworkRadioConnectionWithUELost.Cause()
 
 	in := &ERABReleaseIndication{
 		MMEUES1APID:  42,
@@ -156,7 +156,7 @@ func TestERABReleaseIndicationRoundTrips(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.MMEUES1APID != 42 || out.ENBUES1APID != 1 || len(out.ERABReleased) != 2 || out.ERABReleased[1].ERABID != 7 || out.ERABReleased[0].Cause != lost {
+	if out.MMEUES1APID != 42 || out.ENBUES1APID != 1 || len(out.ERABReleased) != 2 || out.ERABReleased[1].ERABID != 7 || !out.ERABReleased[0].Cause.Equal(lost) {
 		t.Fatalf("E-RAB Release Indication mismatch: %+v", out)
 	}
 
@@ -165,8 +165,8 @@ func TestERABReleaseIndicationRoundTrips(t *testing.T) {
 	}
 }
 
-func TestDecodeItemListRejectsWrongItemID(t *testing.T) {
-	m := &ERABReleaseIndication{MMEUES1APID: 1, ENBUES1APID: 2, ERABReleased: []ERABItem{{ERABID: 5}}}
+func TestWrongListItemIDNeverReachesTheTypedList(t *testing.T) {
+	m := &ERABReleaseIndication{MMEUES1APID: 1, ENBUES1APID: 2, ERABReleased: []ERABItem{{ERABID: 5, Cause: CauseRadioNetworkUnspecified.Cause()}}}
 
 	wire, err := m.Marshal()
 	if err != nil {

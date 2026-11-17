@@ -5,20 +5,38 @@ package s1ap
 
 import (
 	"context"
-	"encoding/hex"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/s1ap"
 )
 
-const goldenENBConfigTransfer = "000001008140110000f1100000abc000f1100007deadbeef"
-
 func targetENBID() s1ap.GlobalENBID {
 	return s1ap.GlobalENBID{
 		PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10},
-		ENBID:        s1ap.ENBID{Kind: s1ap.ENBIDMacro, Value: 0x00abc},
+		ENBID:        s1ap.ENBID{MacroENBID: s1ap.Ptr(s1ap.MacroENBID(0x00abc))},
 	}
+}
+
+func enbConfigTransferValue(t *testing.T) []byte {
+	t.Helper()
+
+	msg := &s1ap.ENBConfigurationTransfer{SONConfigurationTransfer: &s1ap.SONConfigurationTransfer{
+		TargeteNBID: s1ap.TargeteNBID{
+			GlobalENBID: targetENBID(),
+			SelectedTAI: s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 7},
+		},
+		SourceeNBID: s1ap.SourceeNBID{
+			GlobalENBID: s1ap.GlobalENBID{
+				PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10},
+				ENBID:        s1ap.ENBID{MacroENBID: s1ap.Ptr(s1ap.MacroENBID(0x00abd))},
+			},
+			SelectedTAI: s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 8},
+		},
+		SONInformation: s1ap.SONInformation{SONInformationRequest: s1ap.Ptr(s1ap.SONInformationRequestTimeSynchronisationInfo)},
+	}}
+
+	return initiatingValue(t, mustMarshal(t, msg.Marshal))
 }
 
 func TestHandleENBConfigurationTransfer_RelaysToTarget(t *testing.T) {
@@ -31,12 +49,7 @@ func TestHandleENBConfigurationTransfer_RelaysToTarget(t *testing.T) {
 
 	sourceConn := &captureConn{}
 
-	value, err := hex.DecodeString(goldenENBConfigTransfer)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	handleENBConfigurationTransfer(context.Background(), m, mme.NewRadioForTest(sourceConn), value)
+	handleENBConfigurationTransfer(context.Background(), m, mme.NewRadioForTest(sourceConn), enbConfigTransferValue(t))
 
 	if targetConn.count() != 1 {
 		t.Fatalf("expected 1 relayed message to the target eNB, got %d", targetConn.count())
@@ -66,12 +79,7 @@ func TestHandleENBConfigurationTransfer_TargetNotConnected(t *testing.T) {
 	m := newTestMME(t)
 	sourceConn := &captureConn{}
 
-	value, err := hex.DecodeString(goldenENBConfigTransfer)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	handleENBConfigurationTransfer(context.Background(), m, mme.NewRadioForTest(sourceConn), value)
+	handleENBConfigurationTransfer(context.Background(), m, mme.NewRadioForTest(sourceConn), enbConfigTransferValue(t))
 
 	if sourceConn.count() != 0 {
 		t.Fatalf("no relay expected when the target eNB is not connected, got %d", sourceConn.count())

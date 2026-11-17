@@ -133,7 +133,7 @@ func runS1HandoverTargetRefuses(_ context.Context, env scenarios.Env, _ any) err
 		return err
 	}
 
-	refusal := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHOFailureInTarget}
+	refusal := s1ap.CauseRadioNetworkHOFailureInTarget.Cause()
 	if err := pair.Target.SendHandoverFailure(int64(req.MMEUES1APID), refusal); err != nil {
 		return fmt.Errorf("refuse the handover at the target eNB: %w", err)
 	}
@@ -151,7 +151,7 @@ func runS1HandoverTargetRefuses(_ context.Context, env scenarios.Env, _ any) err
 		return errors.New("the Handover Preparation Failure carries no cause")
 	}
 
-	if fail.Cause.Group != s1ap.CauseGroupRadioNetwork || fail.Cause.Value != s1ap.CauseRadioNetworkHOFailureInTarget {
+	if !fail.Cause.Equal(s1ap.CauseRadioNetworkHOFailureInTarget.Cause()) {
 		return fmt.Errorf("the Handover Preparation Failure cause = %+v, want a radio-network failure in the target", *fail.Cause)
 	}
 
@@ -171,7 +171,7 @@ func runS1HandoverCancel(_ context.Context, env scenarios.Env, _ any) error {
 		return err
 	}
 
-	targetENBUEID := pair.Target.AllocateENBUEID()
+	targetENBUEID := pair.Target.AllocateENBUEIDFor(pair.UE)
 
 	if _, _, err := pair.Target.SendHandoverRequestAcknowledge(targetENBUEID, int64(req.MMEUES1APID), pair.Attached.ERABID, false); err != nil {
 		return fmt.Errorf("admit the handover at the target eNB: %w", err)
@@ -194,7 +194,7 @@ func runS1HandoverCancel(_ context.Context, env scenarios.Env, _ any) error {
 		return err
 	}
 
-	cancelCause := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHandoverCancelled}
+	cancelCause := s1ap.CauseRadioNetworkHandoverCancelled.Cause()
 	if err := pair.Source.SendHandoverCancel(pair.Attached.MMEUES1APID, pair.Attached.ENBUES1APID, cancelCause); err != nil {
 		return fmt.Errorf("cancel the handover at the source eNB: %w", err)
 	}

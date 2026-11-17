@@ -506,7 +506,7 @@ func (ueConn *UeConn) superviseICS(ctx context.Context) {
 			return
 		}
 
-		a.releaseNGConnection(guardCtx, ueConn, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASUnspecified}, nil, models.ReleaseFor(models.ReleaseAccessReleased))
+		a.releaseNGConnection(guardCtx, ueConn, ngap.CauseNASUnspecified.Cause(), nil, models.ReleaseFor(models.ReleaseAccessReleased))
 	})
 }
 
@@ -681,7 +681,7 @@ func (ueConn *UeConn) ClaimReleaseCompletion() bool {
 
 func (a *AMF) ReleaseOnRANRequest(ctx context.Context, ueConn *UeConn, cause ngap.Cause, reported []uint8) {
 	received := models.ReleaseFor(models.ReleaseAccessReleased).
-		WithRanNas(models.ReceivedNGAPCause(uint8(cause.Group), uint16(cause.EnumeratedValue())))
+		WithRanNas(models.ReceivedNGAPCause(causeIndices(cause)))
 
 	a.releaseNGConnection(ctx, ueConn, cause, reported, received)
 }
@@ -885,7 +885,7 @@ func (ueConn *UeConn) abortHandoverOnRemoval(ctx context.Context) {
 			target.SetReleaseAction(UeContextReleaseHandover)
 
 			target.SendUEContextReleaseCommand(ctx,
-				ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkRadioConnectionWithUELost})
+				ngap.CauseRadioNetworkRadioConnectionWithUELost.Cause())
 		}
 
 		ueConn.Log(ctx).Info("released prepared N2 handover target: source association removed")
@@ -911,7 +911,8 @@ func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
 
 	ueConn.abortHandoverOnRemoval(ctx)
 
-	if ue := ueConn.ue.Load(); ue != nil {
+	ue := ueConn.ue.Load()
+	if ue != nil {
 		a.ReleaseNasConnection(ctx, ue, ueConn)
 	}
 
@@ -921,6 +922,8 @@ func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
 	a.mu.Unlock()
 
 	a.connIDs.FreeID(int64(ueConn.AmfUeNgapID))
+
+	a.pageHeldForRelease(ctx, ue, ueConn)
 
 	ueConn.Log(ctx).Debug("ran ue removed")
 
@@ -1004,8 +1007,8 @@ func (ueConn *UeConn) preservesGBRFlows() bool {
 
 // TS 23.502 §4.2.6 step 6a.
 func preservesGBRFlows(cause ngap.Cause) bool {
-	return cause.Group == ngap.CauseGroupRadioNetwork && !cause.Extended &&
-		(cause.Value == ngap.CauseRadioNetworkUserInactivity || cause.Value == ngap.CauseRadioNetworkRedirection)
+	return cause.RadioNetwork != nil &&
+		(*cause.RadioNetwork == ngap.CauseRadioNetworkUserInactivity || *cause.RadioNetwork == ngap.CauseRadioNetworkRedirection)
 }
 
 func (r *UeConn) SetRRCEstablishmentCause(c *ngap.RRCEstablishmentCause) {
@@ -1028,4 +1031,11 @@ func (r *UeConn) MayBeHighPriorityAccess() bool {
 	default:
 		return false
 	}
+}
+
+func causeIndices(cause ngap.Cause) (uint8, uint16) {
+	alt, _ := cause.Alternative()
+	value, _ := cause.Value()
+
+	return uint8(max(alt, 0)), uint16(max(value, 0))
 }

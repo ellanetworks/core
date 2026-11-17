@@ -4,8 +4,6 @@
 package s1ap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
 )
 
@@ -92,10 +90,12 @@ func (b *BitRate) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 // UEAggregateMaximumBitRate ::= SEQUENCE { ...DL, ...UL, iE-Extensions OPTIONAL }
 // (extensible).
 type UEAggregateMaximumBitRate struct {
-	_  [0]struct{} `per:"extseq"`
-	DL BitRate
-	UL BitRate
-	_  ieExtensions `per:",skip"`
+	DL           BitRate
+	UL           BitRate
+	ExtendedDL   *ExtendedBitRate       `per:",extie:IDExtendedUEAggregateMaximumBitRateDL,crit:ignore"`
+	ExtendedUL   *ExtendedBitRate       `per:",extie:IDExtendedUEAggregateMaximumBitRateUL,crit:ignore"`
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
 
 // SecurityKey ::= BIT STRING (SIZE(256)).
@@ -120,53 +120,20 @@ func (k *SecurityKey) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
 // integrityProtectionAlgorithms, iE-Extensions OPTIONAL } (extensible). Each
 // algorithm field is BIT STRING (SIZE(16, ...)).
 type UESecurityCapabilities struct {
-	EncryptionAlgorithms          uint16
-	IntegrityProtectionAlgorithms uint16
+	EncryptionAlgorithms          SecurityAlgorithms
+	IntegrityProtectionAlgorithms SecurityAlgorithms
+	iEExtensions                  extensionMeta          `per:",exttable"`
+	extensions                    per.ExtensionAdditions `per:",extraw"`
 }
 
-func (c UESecurityCapabilities) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
-
-	if err := per.EncodeBitString(w, enc, 16, 16, true, true, true, uintToBits(uint64(c.EncryptionAlgorithms), 16), 16); err != nil {
-		return err
-	}
-
-	return per.EncodeBitString(w, enc, 16, 16, true, true, true, uintToBits(uint64(c.IntegrityProtectionAlgorithms), 16), 16)
+type SecurityAlgorithms struct {
+	Value    uint16
+	extended bool
+	octets   string
+	bits     int
 }
 
-func (c *UESecurityCapabilities) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	extBit, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-
-	extContainer, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-
-	encAlgs, encBits, err := per.DecodeBitString(r, enc, 16, 16, true, true, true)
-	if err != nil {
-		return err
-	}
-
-	integ, integBits, err := per.DecodeBitString(r, enc, 16, 16, true, true, true)
-	if err != nil {
-		return err
-	}
-
-	if err := skipSequenceExtensionsPER(r, enc, extContainer, extBit); err != nil {
-		return err
-	}
-
-	*c = UESecurityCapabilities{
-		EncryptionAlgorithms:          uint16(bitsToUint(encAlgs, encBits)),
-		IntegrityProtectionAlgorithms: uint16(bitsToUint(integ, integBits)),
-	}
-
-	return nil
-}
+const securityAlgorithmsBits = 16
 
 // UERadioCapability ::= OCTET STRING (unconstrained) — TS 36.413 §9.2.1.27.
 type UERadioCapability []byte
@@ -207,69 +174,34 @@ func (c *UERadioCapabilityForPaging) UnmarshalPER(r *per.Reader, enc per.Encodin
 
 // TAI ::= SEQUENCE { pLMNidentity, tAC, iE-Extensions OPTIONAL } (extensible).
 type TAI struct {
-	_            [0]struct{} `per:"extseq"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 	PLMNIdentity PLMNIdentity
 	TAC          TAC
-	_            ieExtensions `per:",skip"`
+	iEExtensions extensionMeta `per:",exttable"`
 }
 
 // EUTRANCGI ::= SEQUENCE { pLMNidentity, cell-ID CellIdentity, iE-Extensions
 // OPTIONAL } (extensible). CellIdentity ::= BIT STRING (SIZE(28)).
 type EUTRANCGI struct {
 	PLMNIdentity PLMNIdentity
-	CellID       uint32 // 28-bit cell identity
+	CellID       CellIdentity
+	iEExtensions extensionMeta          `per:",exttable"`
+	extensions   per.ExtensionAdditions `per:",extraw"`
 }
+
+type CellIdentity uint32
 
 const cellIDBits = 28
-
-func (c EUTRANCGI) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-	w.WriteBit(false)
-
-	if err := c.PLMNIdentity.MarshalPER(w, enc); err != nil {
-		return err
-	}
-
-	return encodeBitStringUint(w, enc, uint64(c.CellID), cellIDBits)
-}
-
-func (c *EUTRANCGI) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	extBit, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-
-	extContainer, err := r.ReadBit()
-	if err != nil {
-		return err
-	}
-
-	var plmn PLMNIdentity
-	if err := plmn.UnmarshalPER(r, enc); err != nil {
-		return err
-	}
-
-	b, _, err := per.DecodeBitString(r, enc, cellIDBits, cellIDBits, true, true, false)
-	if err != nil {
-		return err
-	}
-
-	if err := skipSequenceExtensionsPER(r, enc, extContainer, extBit); err != nil {
-		return err
-	}
-
-	*c = EUTRANCGI{PLMNIdentity: plmn, CellID: uint32(bitsToUint(b, cellIDBits))}
-
-	return nil
-}
 
 // UserLocationInformation ::= SEQUENCE { eutran-CGI EUTRAN-CGI, tai TAI,
 // iE-Extensions OPTIONAL, ... } (extensible) — TS 36.413 §9.2.1.93.
 type UserLocationInformation struct {
-	_         [0]struct{} `per:"extseq"`
-	EUTRANCGI EUTRANCGI
-	TAI       TAI
-	_         ieExtensions `per:",skip"`
+	extensions           per.ExtensionAdditions `per:",extraw"`
+	EUTRANCGI            EUTRANCGI
+	TAI                  TAI
+	PSCellInformation    *PSCellInformation    `per:",extie:IDPSCellInformation,crit:ignore"`
+	LTENTNTAIInformation *LTENTNTAIInformation `per:",extie:IDLTENTNTAIInformation,crit:ignore"`
+	iEExtensions         extensionMeta         `per:",exttable"`
 }
 
 // RRCEstablishmentCause ::= ENUMERATED { emergency, highPriorityAccess,
@@ -282,21 +214,13 @@ const (
 	RRCCauseMTAccess
 	RRCCauseMOSignalling
 	RRCCauseMOData
-
-	rrcEstablishmentCauseRootCount = 5
+	RRCCauseDelayTolerantAccess
+	RRCCauseMOVoiceCall
+	RRCCauseMOExceptionData
 )
 
-func (c RRCEstablishmentCause) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	return encodeRootEnumerated(w, enc, rrcEstablishmentCauseRootCount, int64(c), "RRCEstablishmentCause")
-}
+type GWContextReleaseIndication uint8
 
-func (c *RRCEstablishmentCause) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	idx, err := decodeRootEnumerated(r, enc, rrcEstablishmentCauseRootCount, "RRCEstablishmentCause")
-	if err != nil {
-		return fmt.Errorf("s1ap: rrc establishment cause: %w", err)
-	}
-
-	*c = RRCEstablishmentCause(idx)
-
-	return nil
-}
+const (
+	GWContextReleaseIndicationTrue GWContextReleaseIndication = iota
+)

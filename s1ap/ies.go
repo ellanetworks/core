@@ -4,9 +4,9 @@
 package s1ap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // Container size bounds (TS 36.413, S1AP-Constants).
@@ -15,227 +15,115 @@ const (
 	maxProtocolExtensions = 65535
 )
 
-// Exactly one of val and raw is set; raw holds already-encoded open-type
-// content, so an unmodeled IE round-trips verbatim.
-type ieField struct {
-	id   ProtocolIEID
-	crit Criticality
-	val  per.Marshaler
-	raw  []byte
+var profile = &apimpl.Profile{
+	Name:                  "s1ap",
+	MaxProtocolIEs:        maxProtocolIEs,
+	MaxProtocolExtensions: maxProtocolExtensions,
+	OpaqueProcedures:      []uint8{uint8(ProcPrivateMessage)},
+	ProcedureName:         func(pc uint8) string { return ProcedureCode(pc).String() },
+	IEName:                func(id uint16) string { return ProtocolIEID(id).String() },
 }
 
-type rawIE struct {
-	id    ProtocolIEID
-	crit  Criticality
-	value []byte
-}
+type ieField = apimpl.FieldValue[ProtocolIEID]
 
-func (e rawIE) field() ieField {
-	return ieField{id: e.id, crit: e.crit, raw: e.value}
-}
+type rawIE = ap.Field[ProtocolIEID]
 
 // A ProtocolIE-Field the message type does not model; Value is open-type bytes.
-type RawIE struct {
-	ID          ProtocolIEID
-	Criticality Criticality
-	Value       []byte
-}
-
-// What the typed fields cannot carry: IEs this version does not model, and the
-// abstract syntax errors that did not stop delivery.
-type messageMeta struct {
-	unknownIEs  []rawIE
-	diagnostics Diagnostics
-}
-
-// Bounded: a peer chooses both the count and the size of what we would retain.
-func (u *messageMeta) preserve(f rawIE) {
-	if len(u.unknownIEs) >= maxPreservedIEs {
-		u.diagnostics.Truncated = true
-
-		return
-	}
-
-	u.unknownIEs = append(u.unknownIEs, f)
-}
-
-// The abstract syntax errors §10.3.4.2 and §10.3.5 let the receiver carry on
-// past.
-func (u messageMeta) Diagnostics() Diagnostics { return u.diagnostics }
-
-// In wire order.
-func (u messageMeta) UnknownIEs() []RawIE {
-	if len(u.unknownIEs) == 0 {
-		return nil
-	}
-
-	out := make([]RawIE, len(u.unknownIEs))
-	for i, e := range u.unknownIEs {
-		out[i] = RawIE{ID: e.id, Criticality: e.crit, Value: e.value}
-	}
-
-	return out
-}
-
-func encodeIEContainer(w *per.Writer, enc per.Encoding, fields []ieField) error {
-	if len(fields) > maxProtocolIEs {
-		return fmt.Errorf("s1ap: %d IEs exceed maxProtocolIEs", len(fields))
-	}
-
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, maxProtocolIEs, int64(len(fields))); err != nil {
-		return err
-	}
-
-	for _, f := range fields {
-		if err := encodeContainerField(w, enc, f); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
+type RawIE = ap.Field[ProtocolIEID]
 
 func encodeContainerField(w *per.Writer, enc per.Encoding, f ieField) error {
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, maxProtocolIEs, int64(f.id)); err != nil {
-		return err
-	}
+	return apimpl.EncodeField(profile, w, enc, f)
+}
 
-	if err := per.EncodeEnumerated(w, enc, criticalityRootCount, false, int64(f.crit)); err != nil {
-		return err
-	}
+func decodeIE(r *per.Reader, u per.Unmarshaler) error {
+	return u.UnmarshalPER(r, per.Aligned)
+}
 
-	if f.raw != nil {
-		return per.EncodeOpenTypeBytes(w, enc, f.raw)
-	}
+func restOctets(r *per.Reader) []byte {
+	b, _ := r.ReadOctets(r.Bits() / 8)
 
-	if f.val == nil {
-		return fmt.Errorf("s1ap: IE %d has no value", f.id)
-	}
-
-	if err := per.EncodeOpenType(w, enc, f.val); err != nil {
-		return fmt.Errorf("s1ap: encode IE %d: %w", f.id, err)
-	}
-
-	return nil
+	return b
 }
 
 // maxnoofERABs bounds the E-RAB SEQUENCE-OF lists (TS 36.413).
 const maxnoofERABs = 256
 
+type containerCrit = apimpl.ListItem[ProtocolIEID]
+
+type containerItem interface {
+	ForeignIEs() []RawIE
+}
+
 // ub is each list's own ASN.1 SIZE bound; that today's lists share 256 is
 // coincidental.
 //
 //nolint:unparam
-func encodeSingleContainerList[T any](w *per.Writer, enc per.Encoding, ub int64, id ProtocolIEID, crit Criticality, items []T) error {
-	if len(items) < 1 || int64(len(items)) > ub {
-		return fmt.Errorf("s1ap: single-container list length %d outside [1, %d]", len(items), ub)
-	}
-
-	off := 0
-
-	return per.EncodeLength(w, enc, 1, ub, true, int64(len(items)), func(count int64) error {
-		end := off + int(count)
-		for i := off; i < end; i++ {
-			m, ok := any(&items[i]).(per.Marshaler)
-			if !ok {
-				return fmt.Errorf("s1ap: %T does not implement per.Marshaler", items[i])
-			}
-
-			if err := encodeContainerField(w, enc, ieField{id: id, crit: crit, val: m}); err != nil {
-				return err
-			}
-		}
-
-		off = end
-
-		return nil
-	})
+func encodeSingleContainerList[T any, PT interface {
+	*T
+	containerItem
+}](w *per.Writer, enc per.Encoding, ub int64, id ProtocolIEID, crit Criticality, items []T,
+) error {
+	return apimpl.EncodeItemList(profile, w, enc, ub, id, crit, items)
 }
 
 // Each item is its own open type, so each gets a fresh reader.
 //
 //nolint:unparam
-func decodeItemList[T any](r *per.Reader, enc per.Encoding, ub int64, itemID ProtocolIEID) ([]T, error) {
-	var items []T
+func decodeItemList[T any, PT interface {
+	*T
+	containerItem
+}](r *per.Reader, enc per.Encoding, ub int64, itemID ProtocolIEID, crit Criticality,
+) ([]T, error) {
+	return apimpl.DecodeItemList[ProtocolIEID, T](profile, r, enc, ub, itemID, crit)
+}
 
-	err := per.DecodeLength(r, enc, 1, ub, true, func(count int64) error {
-		for i := int64(0); i < count; i++ {
-			id, err := per.DecodeConstrainedWholeNumber(r, enc, 0, maxProtocolIEs)
-			if err != nil {
-				return err
-			}
+func diagnoseItemList[L ~[]T, T any](d *ap.Diagnosis[ProtocolIEID], id ProtocolIEID, crit Criticality, l *L) bool {
+	items := []T(*l)
+	notComprehended := apimpl.DiagnoseItemList(d, id, crit, &items)
+	*l = L(items)
 
-			if ProtocolIEID(id) != itemID {
-				return fmt.Errorf("s1ap: list item %d has IE id %d, want %d", i, id, itemID)
-			}
-
-			if _, err := per.DecodeEnumerated(r, enc, criticalityRootCount, false); err != nil {
-				return err
-			}
-
-			val, err := per.DecodeOpenTypeBytes(r, enc)
-			if err != nil {
-				return err
-			}
-
-			var item T
-
-			u, ok := any(&item).(per.Unmarshaler)
-			if !ok {
-				return fmt.Errorf("s1ap: %T does not implement per.Unmarshaler", item)
-			}
-
-			if err := u.UnmarshalPER(per.NewReader(val), enc); err != nil {
-				return err
-			}
-
-			items = append(items, item)
-		}
-
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return items, nil
+	return notComprehended
 }
 
 // Keeps every field, including ids the caller does not model.
 //
 //nolint:unparam
 func decodeIEContainer(r *per.Reader, enc per.Encoding) ([]rawIE, error) {
-	n, err := per.DecodeConstrainedWholeNumber(r, enc, 0, maxProtocolIEs)
-	if err != nil {
-		return nil, fmt.Errorf("s1ap: IE container length: %w", err)
+	return apimpl.DecodeIEContainer[ProtocolIEID](profile, r, enc)
+}
+
+func perIEDecode(b []byte, u per.Unmarshaler) error {
+	return apimpl.DecodeValue(b, u)
+}
+
+type itemList[L ~[]T, T any] struct {
+	lb, ub int64
+	id     ProtocolIEID
+	crit   Criticality
+	items  *L
+	single bool
+}
+
+func containerList[L ~[]T, T any](ub int64, id ProtocolIEID, crit Criticality, items *L) itemList[L, T] {
+	return itemList[L, T]{ub: ub, id: id, crit: crit, items: items, single: true}
+}
+
+func seqOf[L ~[]T, T any](lb, ub int64, items *L) itemList[L, T] {
+	return itemList[L, T]{lb: lb, ub: ub, items: items}
+}
+
+func (l itemList[L, T]) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	if l.single {
+		return apimpl.EncodeItemList(profile, w, enc, l.ub, l.id, l.crit, []T(*l.items))
 	}
 
-	// A count the remaining octets cannot hold is bogus and must not be
-	// pre-allocated for.
-	if maxBits := int64(r.Bits()); n > maxBits/minIEFieldBits {
-		return nil, fmt.Errorf("s1ap: IE container declares %d IEs in %d bits", n, maxBits)
+	return marshalSeqOf(w, enc, l.lb, l.ub, []T(*l.items))
+}
+
+func (l itemList[L, T]) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	if l.single {
+		return diagnoseItemList(d, l.id, l.crit, l.items)
 	}
 
-	fields := make([]rawIE, 0, n)
-
-	for i := int64(0); i < n; i++ {
-		id, err := per.DecodeConstrainedWholeNumber(r, enc, 0, maxProtocolIEs)
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: IE %d id: %w", i, err)
-		}
-
-		crit, err := per.DecodeEnumerated(r, enc, criticalityRootCount, false)
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: IE %d criticality: %w", i, err)
-		}
-
-		val, err := per.DecodeOpenTypeBytes(r, enc)
-		if err != nil {
-			return nil, fmt.Errorf("s1ap: IE %d value: %w", i, err)
-		}
-
-		fields = append(fields, rawIE{id: ProtocolIEID(id), crit: Criticality(crit), value: val})
-	}
-
-	return fields, nil
+	return diagnoseItems(d, []T(*l.items))
 }

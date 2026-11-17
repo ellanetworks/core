@@ -345,6 +345,7 @@ type fakeUE struct {
 	settled  int
 	order    []string
 	gate     chan struct{}
+	onSent   func(sms.CPMessage)
 	downlink chan sms.CPMessage
 }
 
@@ -423,11 +424,23 @@ func (u *fakeUE) SendSMS(_ context.Context, _ string, payload []byte) error {
 
 	u.mu.Lock()
 	u.order = append(u.order, m.MessageType().String())
+	onSent := u.onSent
 	u.mu.Unlock()
 
 	u.downlink <- m
 
+	if onSent != nil {
+		onSent(m)
+	}
+
 	return nil
+}
+
+func (u *fakeUE) beforeSendReturns(f func(sms.CPMessage)) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	u.onSent = f
 }
 
 func (u *fakeUE) fail(err error) {

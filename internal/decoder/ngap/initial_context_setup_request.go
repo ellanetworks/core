@@ -5,6 +5,7 @@ package ngap
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/decoder/rrc"
@@ -55,6 +56,18 @@ type MaximumBitRate struct {
 type GTPTunnel struct {
 	GTPTEID               uint32 `json:"gtp_teid"`
 	TransportLayerAddress string `json:"transport_layer_address"`
+
+	alternative any
+}
+
+func (g GTPTunnel) MarshalJSON() ([]byte, error) {
+	if g.alternative != nil {
+		return json.Marshal(g.alternative)
+	}
+
+	type plain GTPTunnel
+
+	return json.Marshal(plain(g))
 }
 
 type ULNGUUPTNLInformation struct {
@@ -92,11 +105,18 @@ type PDUSessionResourceSetupRequestTransfer struct {
 	SecurityIndication      *SecurityIndication    `json:"security_indication,omitempty"`
 	// AdditionalULNGUUPTNLInformation carries the further uplink endpoints a
 	// multi-homed or redundant session uses (TS 38.413 §9.3.1.1).
-	AdditionalULNGUUPTNLInformation  []GTPTunnel `json:"additional_ul_ng_u_up_tnl_information,omitempty"`
-	DataForwardingNotPossible        *bool       `json:"data_forwarding_not_possible,omitempty"`
-	DirectForwardingPathAvailability *bool       `json:"direct_forwarding_path_availability,omitempty"`
-	NetworkInstance                  *uint16     `json:"network_instance,omitempty"`
-	UnrecognizedIEs                  []IE        `json:"unrecognized_ies,omitempty"`
+	AdditionalULNGUUPTNLInformation          []GTPTunnel `json:"additional_ul_ng_u_up_tnl_information,omitempty"`
+	DataForwardingNotPossible                *bool       `json:"data_forwarding_not_possible,omitempty"`
+	DirectForwardingPathAvailability         *bool       `json:"direct_forwarding_path_availability,omitempty"`
+	NetworkInstance                          *uint16     `json:"network_instance,omitempty"`
+	RedundantULNGUUPTNLInformation           *GTPTunnel  `json:"redundant_ul_ng_u_up_tnl_information,omitempty"`
+	AdditionalRedundantULNGUUPTNLInformation []GTPTunnel `json:"additional_redundant_ul_ng_u_up_tnl_information,omitempty"`
+	RedundantPDUSessionInformation           any         `json:"redundant_pdu_session_information,omitempty"`
+	CommonNetworkInstance                    any         `json:"common_network_instance,omitempty"`
+	RedundantCommonNetworkInstance           any         `json:"redundant_common_network_instance,omitempty"`
+	DownlinkTLContainer                      any         `json:"downlink_tl_container,omitempty"`
+	MBSSessionSetupRequestList               any         `json:"mbs_session_setup_request_list,omitempty"`
+	UnrecognizedIEs                          []IE        `json:"unrecognized_ies,omitempty"`
 }
 
 type PDUSessionResourceSetupCxtReq struct {
@@ -116,10 +136,7 @@ type UESecurityCapabilities struct {
 }
 
 // Initial Context Setup Request establishes the UE context on the NG-RAN node,
-// optionally setting up PDU sessions with it (TS 38.413 §9.2.2.1). The optional
-// IEs §9.2.2.1 also allows and this AMF never sends — Old AMF, Core Network
-// Assistance Information, Mobility Restriction List, Index to RFSP — render as
-// preserved-unmodeled if a capture from another core carries them.
+// optionally setting up PDU sessions with it (TS 38.413 §9.2.2.1).
 func buildInitialContextSetupRequest(value []byte) NGAPMessageValue {
 	m, err := ngap.ParseInitialContextSetupRequest(value)
 	if err != nil {
@@ -181,6 +198,14 @@ func buildInitialContextSetupRequest(value []byte) NGAPMessageValue {
 		ie(ngap.IDSecurityKey, ngap.CriticalityReject, hex.EncodeToString(m.SecurityKey[:])),
 	)
 
+	if m.TraceActivation != nil {
+		ies = append(ies, ie(ngap.IDTraceActivation, ngap.CriticalityIgnore, traceActivation(*m.TraceActivation)))
+	}
+
+	if m.MobilityRestrictionList != nil {
+		ies = append(ies, ie(ngap.IDMobilityRestrictionList, ngap.CriticalityIgnore, mobilityRestrictionList(*m.MobilityRestrictionList)))
+	}
+
 	if m.NASPDU != nil {
 		ies = append(ies, ie(ngap.IDNASPDU, ngap.CriticalityIgnore, libNASPDU(*m.NASPDU)))
 	}
@@ -194,6 +219,55 @@ func buildInitialContextSetupRequest(value []byte) NGAPMessageValue {
 			ueRadioCapabilityForPaging(*m.UERadioCapabilityForPaging)))
 	}
 
+	if m.AMFUENGAPID2 != nil {
+		ies = append(ies, ie(ngap.IDAMFUENGAPID2, ngap.CriticalityIgnore, int64(*m.AMFUENGAPID2)))
+	}
+
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDOldAMF, ngap.CriticalityReject, m.OldAMF},
+		{ngap.IDCoreNetworkAssistanceInformationForInactive, ngap.CriticalityIgnore, m.CoreNetworkAssistanceInformationForInactive},
+		{ngap.IDIndexToRFSP, ngap.CriticalityIgnore, m.IndexToRFSP},
+		{ngap.IDMaskedIMEISV, ngap.CriticalityIgnore, m.MaskedIMEISV},
+		{ngap.IDEmergencyFallbackIndicator, ngap.CriticalityReject, m.EmergencyFallbackIndicator},
+		{ngap.IDRRCInactiveTransitionReportRequest, ngap.CriticalityIgnore, m.RRCInactiveTransitionReportRequest},
+		{ngap.IDRedirectionVoiceFallback, ngap.CriticalityIgnore, m.RedirectionVoiceFallback},
+		{ngap.IDLocationReportingRequestType, ngap.CriticalityIgnore, m.LocationReportingRequestType},
+		{ngap.IDCNAssistedRANTuning, ngap.CriticalityIgnore, m.CNAssistedRANTuning},
+		{ngap.IDSRVCCOperationPossible, ngap.CriticalityIgnore, m.SRVCCOperationPossible},
+		{ngap.IDIABAuthorized, ngap.CriticalityIgnore, m.IABAuthorized},
+		{ngap.IDEnhancedCoverageRestriction, ngap.CriticalityIgnore, m.EnhancedCoverageRestriction},
+		{ngap.IDExtendedConnectedTime, ngap.CriticalityIgnore, m.ExtendedConnectedTime},
+		{ngap.IDUEDifferentiationInfo, ngap.CriticalityIgnore, m.UEDifferentiationInfo},
+		{ngap.IDNRV2XServicesAuthorized, ngap.CriticalityIgnore, m.NRV2XServicesAuthorized},
+		{ngap.IDLTEV2XServicesAuthorized, ngap.CriticalityIgnore, m.LTEV2XServicesAuthorized},
+		{ngap.IDNRUESidelinkAggregateMaximumBitrate, ngap.CriticalityIgnore, m.NRUESidelinkAggregateMaximumBitrate},
+		{ngap.IDLTEUESidelinkAggregateMaximumBitrate, ngap.CriticalityIgnore, m.LTEUESidelinkAggregateMaximumBitrate},
+		{ngap.IDPC5QoSParameters, ngap.CriticalityIgnore, m.PC5QoSParameters},
+		{ngap.IDCEmodeBrestricted, ngap.CriticalityIgnore, m.CEmodeBrestricted},
+		{ngap.IDUEUPCIoTSupport, ngap.CriticalityIgnore, m.UEUPCIoTSupport},
+		{ngap.IDRGLevelWirelineAccessCharacteristics, ngap.CriticalityIgnore, m.RGLevelWirelineAccessCharacteristics},
+		{ngap.IDManagementBasedMDTPLMNList, ngap.CriticalityIgnore, m.ManagementBasedMDTPLMNList},
+		{ngap.IDUERadioCapabilityID, ngap.CriticalityReject, m.UERadioCapabilityID},
+		{ngap.IDTimeSyncAssistanceInfo, ngap.CriticalityIgnore, m.TimeSyncAssistanceInfo},
+		{ngap.IDQMCConfigInfo, ngap.CriticalityIgnore, m.QMCConfigInfo},
+		{ngap.IDTargetNSSAIInformation, ngap.CriticalityIgnore, m.TargetNSSAIInformation},
+		{ngap.IDUESliceMaximumBitRateList, ngap.CriticalityIgnore, m.UESliceMaximumBitRateList},
+		{ngap.IDFiveGProSeAuthorized, ngap.CriticalityIgnore, m.FiveGProSeAuthorized},
+		{ngap.IDFiveGProSeUEPC5AggregateMaximumBitRate, ngap.CriticalityIgnore, m.FiveGProSeUEPC5AggregateMaximumBitRate},
+		{ngap.IDFiveGProSePC5QoSParameters, ngap.CriticalityIgnore, m.FiveGProSePC5QoSParameters},
+		{ngap.IDNetworkControlledRepeaterAuthorized, ngap.CriticalityIgnore, m.NetworkControlledRepeaterAuthorized},
+		{ngap.IDAerialUEsubscriptionInformation, ngap.CriticalityIgnore, m.AerialUEsubscriptionInformation},
+		{ngap.IDNRA2XServicesAuthorized, ngap.CriticalityIgnore, m.NRA2XServicesAuthorized},
+		{ngap.IDLTEA2XServicesAuthorized, ngap.CriticalityIgnore, m.LTEA2XServicesAuthorized},
+		{ngap.IDNRA2XUEPC5AggregateMaximumBitRate, ngap.CriticalityIgnore, m.NRA2XUEPC5AggregateMaximumBitRate},
+		{ngap.IDLTEA2XUEPC5AggregateMaximumBitRate, ngap.CriticalityIgnore, m.LTEA2XUEPC5AggregateMaximumBitRate},
+		{ngap.IDA2XPC5QoSParameters, ngap.CriticalityIgnore, m.A2XPC5QoSParameters},
+		{ngap.IDMobileIABAuthorized, ngap.CriticalityIgnore, m.MobileIABAuthorized},
+		{ngap.IDPartiallyAllowedNSSAI, ngap.CriticalityIgnore, m.PartiallyAllowedNSSAI},
+		{ngap.IDSLPositioningRangingServiceInfo, ngap.CriticalityIgnore, m.SLPositioningRangingServiceInfo},
+		{ngap.IDExtendedOldAMF, ngap.CriticalityIgnore, m.ExtendedOldAMF},
+	})
+
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }
 
@@ -202,10 +276,10 @@ func buildInitialContextSetupRequest(value []byte) NGAPMessageValue {
 // pair stays hex, as this core does not negotiate E-UTRA algorithms.
 func libUESecurityCapabilities(c ngap.UESecurityCapabilities) UESecurityCapabilities {
 	return UESecurityCapabilities{
-		NRencryptionAlgorithms:             nrAlgorithmNames(c.NREncryptionAlgorithms, "NEA"),
-		NRintegrityProtectionAlgorithms:    nrAlgorithmNames(c.NRIntegrityProtectionAlgorithms, "NIA"),
-		EUTRAencryptionAlgorithms:          bitsHex(uint64(c.EUTRAEncryptionAlgorithms), 16),
-		EUTRAintegrityProtectionAlgorithms: bitsHex(uint64(c.EUTRAIntegrityProtectionAlgorithms), 16),
+		NRencryptionAlgorithms:             nrAlgorithmNames(c.NREncryptionAlgorithms.Uint16(), "NEA"),
+		NRintegrityProtectionAlgorithms:    nrAlgorithmNames(c.NRIntegrityProtectionAlgorithms.Uint16(), "NIA"),
+		EUTRAencryptionAlgorithms:          bitsHex(uint64(c.EUTRAEncryptionAlgorithms.Uint16()), 16),
+		EUTRAintegrityProtectionAlgorithms: bitsHex(uint64(c.EUTRAIntegrityProtectionAlgorithms.Uint16()), 16),
 	}
 }
 

@@ -175,13 +175,21 @@ func (g *GnodeB) SendPDUSessionResourceReleaseResponse(opts *PDUSessionResourceR
 	return g.SendMessage(pdu, NGAPProcedurePDUSessionResourceReleaseResponse)
 }
 
-func (g *GnodeB) SendPathSwitchRequest(opts *PathSwitchRequestOpts) error {
+func (g *GnodeB) pathSwitchRequestPDU(opts *PathSwitchRequestOpts) ([]byte, error) {
 	opts.Mcc = g.MCC
 	opts.Mnc = g.MNC
 	opts.Tac = g.TAC
 	opts.GnbID = g.GnbID
 
-	pdu, err := BuildPathSwitchRequest(opts)
+	if opts.SelectedMcc == "" {
+		opts.SelectedMcc, opts.SelectedMnc = g.explicitPLMN(opts.RANUENGAPID)
+	}
+
+	return BuildPathSwitchRequest(opts)
+}
+
+func (g *GnodeB) SendPathSwitchRequest(opts *PathSwitchRequestOpts) error {
+	pdu, err := g.pathSwitchRequestPDU(opts)
 	if err != nil {
 		return fmt.Errorf("couldn't build PathSwitchRequest: %s", err.Error())
 	}
@@ -334,13 +342,21 @@ func (g *GnodeB) SendHandoverRequestAcknowledge(opts *HandoverRequestAcknowledge
 	return nil
 }
 
-func (g *GnodeB) SendHandoverNotify(opts *HandoverNotifyOpts) error {
+func (g *GnodeB) handoverNotifyPDU(opts *HandoverNotifyOpts) ([]byte, error) {
 	opts.Mcc = firstNonEmpty(opts.Mcc, g.MCC)
 	opts.Mnc = firstNonEmpty(opts.Mnc, g.MNC)
 	opts.Tac = firstNonEmpty(opts.Tac, g.TAC)
 	opts.GnbID = firstNonEmpty(opts.GnbID, g.GnbID)
 
-	pdu, err := BuildHandoverNotify(opts)
+	if opts.SelectedMcc == "" {
+		opts.SelectedMcc, opts.SelectedMnc = g.explicitPLMN(opts.RANUENGAPID)
+	}
+
+	return BuildHandoverNotify(opts)
+}
+
+func (g *GnodeB) SendHandoverNotify(opts *HandoverNotifyOpts) error {
+	pdu, err := g.handoverNotifyPDU(opts)
 	if err != nil {
 		return fmt.Errorf("couldn't build HandoverNotify: %s", err.Error())
 	}
@@ -372,7 +388,7 @@ func (g *GnodeB) SendQoSFlowsReleased(amfUENGAPID, ranUENGAPID, pduSessionID int
 	for _, qfi := range qfis {
 		transfer.QosFlowReleased = append(transfer.QosFlowReleased, ngap.QosFlowWithCauseItem{
 			QosFlowIdentifier: ngap.QosFlowIdentifier(qfi),
-			Cause:             ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkRadioResourcesNotAvailable},
+			Cause:             ngap.CauseRadioNetworkRadioResourcesNotAvailable.Cause(),
 		})
 	}
 

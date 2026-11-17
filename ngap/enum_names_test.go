@@ -18,38 +18,66 @@ func TestEnumNames(t *testing.T) {
 		{"Criticality(9)", Criticality(9).Name(), ""},
 
 		{"TriggeringInitiatingMessage", TriggeringInitiatingMessage.Name(), "initiating-message"},
-		{"TriggeringMessage(9)", TriggeringMessage(9).Name(), ""},
+		{"TriggeringMessage(9)", TriggeringMessage(9).Name(), "unknown(9)"},
 
 		{"TypeOfErrorMissing", TypeOfErrorMissing.Name(), "missing"},
-		{"TypeOfError(9)", TypeOfError(9).Name(), ""},
+		{"TypeOfError(9)", TypeOfError(9).Name(), "unknown(9)"},
 
-		{"CauseGroupRadioNetwork", CauseGroupRadioNetwork.Name(), "radioNetwork"},
-		{"CauseGroup(9)", CauseGroup(9).Name(), ""},
+		{"CauseRadioNetworkRedirection", CauseRadioNetworkRedirection.Name(), "redirection"},
+		{"CauseMisc(9)", CauseMisc(9).Name(), "unknown(9)"},
 
 		{"PagingDRXv128", PagingDRXv128.Name(), "v128"},
-		{"PagingDRX(9)", PagingDRX(9).Name(), ""},
+		{"PagingDRX(9)", PagingDRX(9).Name(), "unknown(9)"},
 
 		{"TimeToWaitV60s", TimeToWaitV60s.Name(), "v60s"},
-		{"TimeToWait(9)", TimeToWait(9).Name(), ""},
+		{"TimeToWait(9)", TimeToWait(9).Name(), "unknown(9)"},
 
 		{"RRCCauseMOSignalling", RRCCauseMOSignalling.Name(), "mo-Signalling"},
 		{"RRCCauseMCSPriorityAccess", RRCCauseMCSPriorityAccess.Name(), "mcs-PriorityAccess"},
-		{"RRCEstablishmentCause(99)", RRCEstablishmentCause(99).Name(), ""},
+		{"RRCEstablishmentCause(99)", RRCEstablishmentCause(99).Name(), "unknown(99)"},
 
 		{"UEContextRequested", UEContextRequested.Name(), "requested"},
-		{"UEContextRequest(9)", UEContextRequest(9).Name(), ""},
+		{"UEContextRequest(9)", UEContextRequest(9).Name(), "unknown(9)"},
+
+		{"UserPlaneFailureTypeGTPUErrorIndicationReceived", UserPlaneFailureTypeGTPUErrorIndicationReceived.Name(), "gtp-u-error-indication-received"},
+		{"UserPlaneFailureTypeUPPathFailure", UserPlaneFailureTypeUPPathFailure.Name(), "up-path-failure"},
+		{"UserPlaneFailureType(9)", UserPlaneFailureType(9).Name(), "unknown(9)"},
+
+		{"GUAMITypeNative", GUAMITypeNative.Name(), "native"},
+		{"GUAMITypeMapped", GUAMITypeMapped.Name(), "mapped"},
+		{"GUAMIType(9)", GUAMIType(9).Name(), "unknown(9)"},
+
+		{"TNLAssociationUsageUE", TNLAssociationUsageUE.Name(), "ue"},
+		{"TNLAssociationUsageNonUE", TNLAssociationUsageNonUE.Name(), "non-ue"},
+		{"TNLAssociationUsageBoth", TNLAssociationUsageBoth.Name(), "both"},
+
+		{"OverloadActionRejectRRCCRSignalling", OverloadActionRejectRRCCRSignalling.Name(), "reject-rrc-cr-signalling"},
+		{"OverloadAction(9)", OverloadAction(9).Name(), "unknown(9)"},
+
+		{"ConcurrentWarningMessageIndTrue", ConcurrentWarningMessageIndTrue.Name(), "true"},
+		{"CancelAllWarningMessagesTrue", CancelAllWarningMessagesTrue.Name(), "true"},
+		{"CancelAllWarningMessages(9)", CancelAllWarningMessages(9).Name(), "unknown(9)"},
 
 		{"UERetentionUesRetained", UERetentionUesRetained.Name(), "ues-retained"},
-		{"UERetentionInformation(9)", UERetentionInformation(9).Name(), ""},
+		{"UERetentionInformation(9)", UERetentionInformation(9).Name(), "unknown(9)"},
 
 		{"PagingOriginNon3GPP", PagingOriginNon3GPP.Name(), "non-3gpp"},
-		{"PagingOrigin(9)", PagingOrigin(9).Name(), ""},
+		{"PagingOrigin(9)", PagingOrigin(9).Name(), "unknown(9)"},
+
+		{"DLForwardingProposed", DLForwardingProposed.Name(), "dl-forwarding-proposed"},
+		{"DLForwarding(9)", DLForwarding(9).Name(), "unknown(9)"},
+		{"CellSizeVerySmall", CellSizeVerySmall.Name(), "verysmall"},
+		{"CellSizeLarge", CellSizeLarge.Name(), "large"},
+		{"CellSize(9)", CellSize(9).Name(), "unknown(9)"},
+		{"QosFlowMappingUL", QosFlowMappingUL.Name(), "ul"},
+		{"QosFlowMappingDL", QosFlowMappingDL.Name(), "dl"},
+		{"QosFlowMappingIndication(9)", QosFlowMappingIndication(9).Name(), "unknown(9)"},
 
 		{"PagingPriorityLevel8", PagingPriorityLevel8.Name(), "priolevel8"},
-		{"PagingPriority(99)", PagingPriority(99).Name(), ""},
+		{"PagingPriority(99)", PagingPriority(99).Name(), "unknown(99)"},
 
 		{"PDUSessionTypeIPv4v6", PDUSessionTypeIPv4v6.Name(), "ipv4v6"},
-		{"PDUSessionType(9)", PDUSessionType(9).Name(), ""},
+		{"PDUSessionType(9)", PDUSessionType(9).Name(), "unknown(9)"},
 	} {
 		if tc.got != tc.want {
 			t.Errorf("%s.Name() = %q, want %q", tc.what, tc.got, tc.want)

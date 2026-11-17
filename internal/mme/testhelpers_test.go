@@ -5,6 +5,7 @@ package mme
 
 import (
 	"context"
+	"net"
 	"sync"
 	"testing"
 
@@ -28,6 +29,14 @@ func (c *captureConn) WriteMsg(b []byte, _ *sctp.SndRcvInfo) (int, error) {
 
 func (c *captureConn) WriteMsgWait(_ context.Context, b []byte, info *sctp.SndRcvInfo) (int, error) {
 	return c.WriteMsg(b, info)
+}
+
+func (c *captureConn) LocalAddr() net.Addr {
+	return &sctp.SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.ParseIP("127.0.0.1")}}, Port: 36412}
+}
+
+func (c *captureConn) RemoteAddr() net.Addr {
+	return &sctp.SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.ParseIP("127.0.0.2")}}, Port: 36412}
 }
 
 func (c *captureConn) count() int {

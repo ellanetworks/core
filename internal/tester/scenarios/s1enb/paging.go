@@ -116,17 +116,19 @@ func runS1ENBPaging(ctx context.Context, env scenarios.Env, p *pagingParams) err
 }
 
 func assertPaging(p *s1ap.Paging, guti *eps.GUTI) error {
-	if p.STMSI == nil {
+	if p.UEPagingID == nil || p.UEPagingID.STMSI == nil {
 		return fmt.Errorf("paging carried no S-TMSI, so the UE cannot recognise itself")
 	}
 
+	stmsi := p.UEPagingID.STMSI
+
 	wantMTMSI := binary.BigEndian.Uint32(guti.TMSI[:])
-	if uint32(p.STMSI.MTMSI) != wantMTMSI {
-		return fmt.Errorf("paging M-TMSI = %#08x, want the assigned %#08x", uint32(p.STMSI.MTMSI), wantMTMSI)
+	if uint32(stmsi.MTMSI) != wantMTMSI {
+		return fmt.Errorf("paging M-TMSI = %#08x, want the assigned %#08x", uint32(stmsi.MTMSI), wantMTMSI)
 	}
 
-	if uint8(p.STMSI.MMEC) != guti.MMECode {
-		return fmt.Errorf("paging MME code = %#02x, want the assigned %#02x", uint8(p.STMSI.MMEC), guti.MMECode)
+	if uint8(stmsi.MMEC) != guti.MMECode {
+		return fmt.Errorf("paging MME code = %#02x, want the assigned %#02x", uint8(stmsi.MMEC), guti.MMECode)
 	}
 
 	if p.UEIdentityIndexValue == nil {
@@ -155,7 +157,7 @@ func assertPaging(p *s1ap.Paging, guti *eps.GUTI) error {
 		return fmt.Errorf("parse TAC: %w", err)
 	}
 
-	tai := p.TAIList[0]
+	tai := p.TAIList[0].TAI
 	if uint16(tai.TAC) != uint16(tac) {
 		return fmt.Errorf("paging TAI TAC = %d, want %d", uint16(tai.TAC), uint16(tac))
 	}

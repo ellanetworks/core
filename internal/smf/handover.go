@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/smf/ngap"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
 	libngap "github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/per/ap"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -165,11 +166,16 @@ func (s *SMF) openN2ForwardingTunnel(ctx context.Context, sc *SMContext) error {
 		return nil
 	}
 
-	if err := s.openForwardingTunnel(ctx, sc, anchorFromGTPTunnel(plan.DLForwardingUPTNLInformation.GTPTunnel)); err != nil {
+	forwarding, err := anchorFromGTPTunnel(*plan.DLForwardingUPTNLInformation)
+	if err != nil {
 		return err
 	}
 
-	addr, err := ngap.EncodeTransportLayerAddress(sc.Tunnel.N3IPv4, sc.Tunnel.N3IPv6)
+	if err := s.openForwardingTunnel(ctx, sc, forwarding); err != nil {
+		return err
+	}
+
+	addr, err := ap.TransportLayerAddressFromAddrs(sc.Tunnel.N3IPv4, sc.Tunnel.N3IPv6)
 	if err != nil {
 		return fmt.Errorf("encode the forwarding tunnel's transport layer address: %w", err)
 	}
@@ -274,7 +280,11 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 		return err
 	}
 
-	target := anchorFromGTPTunnel(transfer.DLNGUUPTNLInformation.GTPTunnel)
+	target, err := anchorFromGTPTunnel(transfer.DLNGUUPTNLInformation)
+	if err != nil {
+		return err
+	}
+
 	smContext.handoverTargetAN = &target
 
 	if smContext.handoverForwarding != ngap.DataForwardingNone {
@@ -443,7 +453,7 @@ func anchorFromPathSwitchRequest(b []byte, smContext *SMContext) (AnchorBinding,
 		return AnchorBinding{}, err
 	}
 
-	return anchorFromGTPTunnel(pathSwitchRequestTransfer.DLNGUUPTNLInformation.GTPTunnel), nil
+	return anchorFromGTPTunnel(pathSwitchRequestTransfer.DLNGUUPTNLInformation)
 }
 
 func (s *SMF) UpdateSmContextXnHandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error {

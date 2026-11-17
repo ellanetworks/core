@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
+	"github.com/ellanetworks/core/per/ap"
 	"github.com/ellanetworks/core/s1ap"
 )
 
@@ -25,7 +26,7 @@ func queueERABSetupRequest(t *testing.T, e *ENB, enbUEID int64, qos s1ap.ERABLev
 		ERABToBeSetup: []s1ap.ERABToBeSetupItemBearerSUReq{{
 			ERABID:                6,
 			QoS:                   qos,
-			TransportLayerAddress: s1ap.TransportLayerAddress(netip.MustParseAddr("10.0.0.1").AsSlice()),
+			TransportLayerAddress: ap.TransportLayerAddressFromOctets(netip.MustParseAddr("10.0.0.1").AsSlice()),
 			GTPTEID:               0x1234,
 			NASPDU:                s1ap.NASPDU(nasPDU),
 		}},

@@ -97,7 +97,7 @@ func runS1HandoverPingPong(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("attach on eNB A: %w", err)
 	}
 
-	outbound, err := s1PrepareHandoverLeg(first, second, res.ENBUES1APID, res.MMEUES1APID, res.ERABID, res.UpfAddress)
+	outbound, err := s1PrepareHandoverLeg(first, second, ue, res.ENBUES1APID, res.MMEUES1APID, res.ERABID, res.UpfAddress)
 	if err != nil {
 		return fmt.Errorf("first leg A to B: %w", err)
 	}
@@ -121,7 +121,7 @@ func runS1HandoverPingPong(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("first leg send source UE Context Release Complete: %w", err)
 	}
 
-	inbound, err := s1PrepareHandoverLeg(second, first, outbound.TargetENBUEID, outbound.TargetMMEUEID, res.ERABID, res.UpfAddress)
+	inbound, err := s1PrepareHandoverLeg(second, first, ue, outbound.TargetENBUEID, outbound.TargetMMEUEID, res.ERABID, res.UpfAddress)
 	if err != nil {
 		return fmt.Errorf("second leg B to A: %w", err)
 	}
@@ -173,7 +173,7 @@ func runS1HandoverPingPong(_ context.Context, env scenarios.Env, _ any) error {
 	return scenarios.AwaitForwardingTunnelReleased(inboundProbe)
 }
 
-func s1PrepareHandoverLeg(source, target *s1enb.ENB, sourceENBUEID, sourceMMEUEID int64, erabID s1ap.ERABID, upfAddress string) (s1LegEndpoints, error) {
+func s1PrepareHandoverLeg(source, target *s1enb.ENB, ue *s1enb.UE, sourceENBUEID, sourceMMEUEID int64, erabID s1ap.ERABID, upfAddress string) (s1LegEndpoints, error) {
 	if err := source.SendHandoverRequired(sourceENBUEID, sourceMMEUEID, target.GlobalENBID(), false); err != nil {
 		return s1LegEndpoints{}, fmt.Errorf("send Handover Required: %w", err)
 	}
@@ -187,7 +187,7 @@ func s1PrepareHandoverLeg(source, target *s1enb.ENB, sourceENBUEID, sourceMMEUEI
 		return s1LegEndpoints{}, fmt.Errorf("handover request carried %d E-RABs, want 1", len(hoReq.ERABToBeSetup))
 	}
 
-	if ext := hoReq.ERABToBeSetup[0].Extensions; ext != nil && ext.DataForwardingNotPossible != nil {
+	if hoReq.ERABToBeSetup[0].DataForwardingNotPossible != nil {
 		return s1LegEndpoints{}, fmt.Errorf("the target was told data forwarding is not possible, so it allocates no forwarding endpoint")
 	}
 
@@ -196,7 +196,7 @@ func s1PrepareHandoverLeg(source, target *s1enb.ENB, sourceENBUEID, sourceMMEUEI
 	}
 
 	targetMMEUEID := int64(hoReq.MMEUES1APID)
-	targetENBUEID := target.AllocateENBUEID()
+	targetENBUEID := target.AllocateENBUEIDFor(ue)
 
 	_, targetFwdTEID, err := target.SendHandoverRequestAcknowledge(targetENBUEID, targetMMEUEID, erabID, true)
 	if err != nil {

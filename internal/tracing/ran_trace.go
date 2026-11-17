@@ -7,7 +7,6 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
-	"net/netip"
 	"sync"
 
 	"go.opentelemetry.io/otel/trace"
@@ -38,12 +37,7 @@ func (id RANTraceID) IsZero() bool {
 	return id == RANTraceID{}
 }
 
-type TraceConfig struct {
-	TCEAddress netip.Addr
-}
-
 type TraceSessions struct {
-	cfg    TraceConfig
 	prefix func() int
 
 	mu    sync.Mutex
@@ -52,18 +46,13 @@ type TraceSessions struct {
 	bySub map[string]*TraceSession
 }
 
-func NewTraceSessions(cfg TraceConfig, prefix func() int) *TraceSessions {
+func NewTraceSessions(prefix func() int) *TraceSessions {
 	return &TraceSessions{
-		cfg:    cfg,
 		prefix: prefix,
 		next:   randomUint32() & traceIDValueMask,
 		inUse:  make(map[uint32]struct{}),
 		bySub:  make(map[string]*TraceSession),
 	}
-}
-
-func (s *TraceSessions) Config() TraceConfig {
-	return s.cfg
 }
 
 func (s *TraceSessions) Acquire(subscriber string, plmn [3]byte) (*TraceSession, error) {

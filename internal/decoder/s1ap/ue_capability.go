@@ -27,6 +27,13 @@ func buildUECapabilityInfoIndication(value []byte) (S1APMessageValue, string) {
 		ies = append(ies, ie(s1ap.IDUERadioCapabilityForPaging, s1ap.CriticalityIgnore, hex.EncodeToString(m.UERadioCapabilityForPaging)))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDUEApplicationLayerMeasurementCapability, s1ap.CriticalityIgnore, m.UEApplicationLayerMeasurementCapability},
+		{s1ap.IDLTEMIndication, s1ap.CriticalityIgnore, m.LTEMIndication},
+		{s1ap.IDUERadioCapabilityNRFormat, s1ap.CriticalityIgnore, m.UERadioCapabilityNRFormat},
+		{s1ap.IDUERadioCapabilityForPagingNRFormat, s1ap.CriticalityIgnore, m.UERadioCapabilityForPagingNRFormat},
+	})
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, fmt.Sprintf("UE Capability Info Indication (MME-UE %d, eNB-UE %d)", m.MMEUES1APID, m.ENBUES1APID)

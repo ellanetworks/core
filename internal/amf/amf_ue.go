@@ -288,7 +288,7 @@ func (a *AMF) AttachUeConn(ctx context.Context, ue *UeContext, ueConn *UeConn) {
 		a.deactivateDisplacedUserPlane(ctx, ue, displaced)
 
 		displaced.SendUEContextReleaseCommand(ctx,
-			ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASNormalRelease})
+			ngap.CauseNASNormalRelease.Cause())
 	}
 
 	a.clearPagingSuppression(ctx, ue)

@@ -22,12 +22,7 @@ func gnbGlobalRANNodeID(t *testing.T, hexID string) ngap.GlobalRANNodeID {
 		t.Fatalf("bad gNB id %q: %v", hexID, err)
 	}
 
-	return ngap.GlobalRANNodeID{
-		Kind:         ngap.RANNodeIDGNB,
-		PLMNIdentity: ngap.PLMNIdentity{0x02, 0xf8, 0x39},
-		Value:        uint32(v),
-		Bits:         24,
-	}
+	return ngap.NewGlobalGNBID(ngap.PLMNIdentity{0x02, 0xf8, 0x39}, uint32(v), 24)
 }
 
 func gnbRanNodeID(t *testing.T, hexID string) models.GlobalRanNodeID {
@@ -215,10 +210,10 @@ func TestClaimRanID_BitLengthIsPartOfTheIdentity(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 
 	narrow := gnbGlobalRANNodeID(t, "00002A")
-	narrow.Bits = 22
+	narrow.GlobalGNBID.GNBID.GNBID.Bits = 22
 
 	wide := gnbGlobalRANNodeID(t, "00002A")
-	wide.Bits = 24
+	wide.GlobalGNBID.GNBID.GNBID.Bits = 24
 
 	first := claimGNB(t, amfInstance, "gNB-22bit", narrow)
 	second := claimGNB(t, amfInstance, "gNB-24bit", wide)
@@ -238,7 +233,7 @@ func TestClaimRanID_PLMNIsPartOfTheIdentity(t *testing.T) {
 	home := gnbGlobalRANNodeID(t, "000102")
 
 	visited := gnbGlobalRANNodeID(t, "000102")
-	visited.PLMNIdentity = ngap.PLMNIdentity{0x00, 0xf1, 0x10}
+	visited.GlobalGNBID.PLMNIdentity = ngap.PLMNIdentity{0x00, 0xf1, 0x10}
 
 	first := claimGNB(t, amfInstance, "gNB-plmn-a", home)
 	second := claimGNB(t, amfInstance, "gNB-plmn-b", visited)

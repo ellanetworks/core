@@ -26,7 +26,7 @@ var testRelocationENBFTEID = models.FTEID{TEID: 0x5678, Addr: netip.AddrFrom4([4
 
 var testTargetENB = s1ap.GlobalENBID{
 	PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10},
-	ENBID:        s1ap.ENBID{Kind: s1ap.ENBIDMacro, Value: 0x00abc},
+	ENBID:        s1ap.ENBID{MacroENBID: s1ap.Ptr(s1ap.MacroENBID(0x00abc))},
 }
 
 func relocationRequest(sessions ...interworking.PDNConnection) interworking.ForwardRelocationRequest {
@@ -70,6 +70,7 @@ func relocationRequest(sessions ...interworking.PDNConnection) interworking.Forw
 				TAC:    1,
 			},
 		},
+		Cause:          s1ap.CauseRadioNetworkUnspecified.Cause(),
 		SourceToTarget: []byte{0xde, 0xad, 0xbe, 0xef},
 		UEAMBRUplink:   models.MustParseBitRate("1 Gbps"),
 		UEAMBRDownlink: models.MustParseBitRate("2 Gbps"),
@@ -732,14 +733,14 @@ func TestRelocationCancelForAnUnknownSubscriber(t *testing.T) {
 func TestTargetGlobalENBIDWidths(t *testing.T) {
 	for _, tc := range []struct {
 		bits uint8
-		kind s1ap.ENBIDKind
+		kind string
 		ok   bool
 	}{
-		{18, s1ap.ENBIDShortMacro, true},
-		{20, s1ap.ENBIDMacro, true},
-		{21, s1ap.ENBIDLongMacro, true},
-		{28, s1ap.ENBIDHome, true},
-		{19, 0, false},
+		{18, "short-macroENB-ID", true},
+		{20, "macroENB-ID", true},
+		{21, "long-macroENB-ID", true},
+		{28, "homeENB-ID", true},
+		{19, "", false},
 	} {
 		got, err := targetGlobalENBID(interworking.ENBIdentity{
 			PlmnID: models.PlmnID{Mcc: "001", Mnc: "01"},
@@ -750,8 +751,8 @@ func TestTargetGlobalENBIDWidths(t *testing.T) {
 			t.Fatalf("%d bits: err = %v, want ok = %t", tc.bits, err, tc.ok)
 		}
 
-		if tc.ok && got.ENBID.Kind != tc.kind {
-			t.Errorf("%d bits: kind = %d, want %d", tc.bits, got.ENBID.Kind, tc.kind)
+		if tc.ok && got.ENBID.AlternativeName() != tc.kind {
+			t.Errorf("%d bits: kind = %s, want %s", tc.bits, got.ENBID.AlternativeName(), tc.kind)
 		}
 	}
 }
@@ -777,7 +778,7 @@ func TestForwardRelocationReportsATargetRejection(t *testing.T) {
 		t.Fatal("the relocated UE context is not reachable")
 	}
 
-	refusal := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell}
+	refusal := s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell.Cause()
 	m.FailHandoverToSource(context.Background(), ue, refusal)
 
 	err := <-done
@@ -790,7 +791,7 @@ func TestForwardRelocationReportsATargetRejection(t *testing.T) {
 		t.Fatalf("error = %v, want a refusal carrying the target eNB's cause", err)
 	}
 
-	if refused.Cause != refusal {
+	if !refused.Cause.Equal(refusal) {
 		t.Errorf("refusal cause = %+v, want the target eNB's %+v", refused.Cause, refusal)
 	}
 
@@ -947,7 +948,7 @@ func TestForwardRelocationRefusesASubscriberBarredFrom4G(t *testing.T) {
 		t.Fatalf("error = %v, want a TargetRefusal", err)
 	}
 
-	if refusal.Cause.Value != s1ap.CauseRadioNetworkHOTargetNotAllowed {
+	if !refusal.Cause.Equal(s1ap.CauseRadioNetworkHOTargetNotAllowed.Cause()) {
 		t.Fatalf("refusal cause = %+v, want handover target not allowed", refusal.Cause)
 	}
 }
@@ -1092,7 +1093,7 @@ func TestForwardRelocationRefusesAUEThatIsNotAnOwnSubscriber(t *testing.T) {
 				t.Fatalf("error = %v, TargetRefusal = %v, want %v", err, got, tc.wantRefusal)
 			}
 
-			if tc.wantRefusal && refusal.Cause.Value != s1ap.CauseRadioNetworkHOTargetNotAllowed {
+			if tc.wantRefusal && !refusal.Cause.Equal(s1ap.CauseRadioNetworkHOTargetNotAllowed.Cause()) {
 				t.Fatalf("refusal cause = %+v, want handover target not allowed", refusal.Cause)
 			}
 

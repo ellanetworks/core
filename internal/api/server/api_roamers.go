@@ -98,6 +98,7 @@ type liveStatus struct {
 	amf5GLastSeen map[string]amf.LastSeen
 	mme4G         map[string]mme.ConnectedSubscriber
 	mmeLastSeen   map[string]mme.LastSeen
+	elsewhere     map[string]map[string]bool
 }
 
 func snapshotLiveStatus(amfInstance *amf.AMF, mmeInstance *mme.MME) liveStatus {
@@ -114,6 +115,67 @@ func snapshotLiveStatus(amfInstance *amf.AMF, mmeInstance *mme.MME) liveStatus {
 	return s
 }
 
+func (s *liveStatus) loadElsewhere(ctx context.Context, dbInstance *db.Database, imsis []string) error {
+	regs, err := dbInstance.ListActiveUERegistrations(ctx, imsis)
+	if err != nil {
+		return err
+	}
+
+	s.elsewhere = registeredElsewhere(regs, dbInstance.RaftID())
+
+	return nil
+}
+
+func registeredElsewhere(regs []db.UERegistration, localID string) map[string]map[string]bool {
+	out := make(map[string]map[string]bool)
+
+	for _, reg := range regs {
+		if reg.Purged || reg.NodeID == localID {
+			continue
+		}
+
+		system, ok := registrationSystem(reg.Type)
+		if !ok {
+			continue
+		}
+
+		if out[reg.Imsi] == nil {
+			out[reg.Imsi] = make(map[string]bool)
+		}
+
+		out[reg.Imsi][system] = true
+	}
+
+	return out
+}
+
+func registrationSystem(regType string) (string, bool) {
+	switch regType {
+	case db.UERegistrationTypeAMF3GPPAccess:
+		return System5G, true
+	case db.UERegistrationTypeMME:
+		return System4G, true
+	}
+
+	return "", false
+}
+
+func withElsewhere(systems []string, elsewhere map[string]bool) []string {
+	if len(elsewhere) == 0 {
+		return systems
+	}
+
+	out := make([]string, 0, 2)
+
+	for _, system := range []string{System5G, System4G} {
+		if slices.Contains(systems, system) || elsewhere[system] {
+			out = append(out, system)
+		}
+	}
+
+	return out
+}
+
 func (s liveStatus) of(imsi string) SubscriberStatus {
 	amf5G, on5G := s.amf5G[imsi]
 	mme4G, on4G := s.mme4G[imsi]
@@ -121,22 +183,27 @@ func (s liveStatus) of(imsi string) SubscriberStatus {
 	merged := mergeSystems(
 		systemView{
 			system: System5G, present: on5G, registered: amf5G.Registered, connected: amf5G.Connected,
-			lastSeenAt:    lastSeenAt(on5G, amf5G.LastSeenAt, s.amf5GLastSeen[imsi].At),
-			lastSeenRadio: s.amf5GLastSeen[imsi].RadioName,
+			lastSeenAt:       lastSeenAt(on5G, amf5G.LastSeenAt, s.amf5GLastSeen[imsi].At),
+			lastSeenRadio:    s.amf5GLastSeen[imsi].RadioName,
+			lastSeenRadioRef: s.amf5GLastSeen[imsi].RadioID,
 		},
 		systemView{
 			system: System4G, present: on4G, registered: mme4G.Registered, connected: mme4G.Connected,
-			lastSeenAt:    lastSeenAt(on4G, mme4G.LastSeenAt, s.mmeLastSeen[imsi].At),
-			lastSeenRadio: s.mmeLastSeen[imsi].RadioName,
+			lastSeenAt:       lastSeenAt(on4G, mme4G.LastSeenAt, s.mmeLastSeen[imsi].At),
+			lastSeenRadio:    s.mmeLastSeen[imsi].RadioName,
+			lastSeenRadioRef: s.mmeLastSeen[imsi].RadioID,
 		},
 	)
 
+	elsewhere := s.elsewhere[imsi]
+
 	status := SubscriberStatus{
-		Registered:      merged.Registered,
-		ConnectionState: connectionState(on5G || on4G, merged.Connected),
-		Systems:         merged.Systems,
-		NumSessions:     mme4G.NumSessions + amf5G.NumSessions,
-		LastSeenRadio:   merged.LastSeenRadio,
+		Registered:       merged.Registered || len(elsewhere) > 0,
+		ConnectionState:  connectionState(on5G || on4G, merged.Connected),
+		Systems:          withElsewhere(merged.Systems, elsewhere),
+		NumSessions:      mme4G.NumSessions + amf5G.NumSessions,
+		LastSeenRadio:    merged.LastSeenRadio,
+		LastSeenRadioRef: merged.LastSeenRadioRef,
 	}
 
 	if !merged.LastSeenAt.IsZero() {
@@ -146,17 +213,17 @@ func (s liveStatus) of(imsi string) SubscriberStatus {
 	return status
 }
 
-func (s liveStatus) onRadio(radio string) map[string]struct{} {
+func (s liveStatus) onRadio(ref string) map[string]struct{} {
 	imsis := map[string]struct{}{}
 
 	for imsi := range s.amf5G {
-		if s.amf5GLastSeen[imsi].RadioName == radio {
+		if s.amf5GLastSeen[imsi].RadioID == ref {
 			imsis[imsi] = struct{}{}
 		}
 	}
 
 	for imsi := range s.mme4G {
-		if s.mmeLastSeen[imsi].RadioName == radio {
+		if s.mmeLastSeen[imsi].RadioID == ref {
 			imsis[imsi] = struct{}{}
 		}
 	}
@@ -229,12 +296,13 @@ func ListRoamers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme
 		dbPage, dbPerPage := page, perPage
 
 		if radioFilter != "" {
-			if !radioIsKnown(amfInstance, mmeInstance, radioFilter) {
-				writeError(ctx, w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio %q not found", radioFilter), logger.APILog)
+			ref, status, err := radioFilterRef(amfInstance, mmeInstance, radioFilter)
+			if err != nil {
+				writeError(ctx, w, status, radioFilterMessage(status), err, logger.APILog)
 				return
 			}
 
-			onRadio = live.onRadio(radioFilter)
+			onRadio = live.onRadio(ref)
 			dbPage, dbPerPage = 1, MaxNumSubscribers
 		}
 
@@ -251,6 +319,16 @@ func ListRoamers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme
 			})
 			total = len(visitors)
 			visitors = visitors[min((page-1)*perPage, total):min(page*perPage, total)]
+		}
+
+		imsis := make([]string, 0, len(visitors))
+		for _, v := range visitors {
+			imsis = append(imsis, v.Imsi)
+		}
+
+		if err := live.loadElsewhere(ctx, dbInstance, imsis); err != nil {
+			writeError(ctx, w, http.StatusInternalServerError, "Failed to list UE registrations", err, logger.APILog)
+			return
 		}
 
 		items := make([]Roamer, 0, len(visitors))

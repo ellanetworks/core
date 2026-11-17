@@ -40,5 +40,11 @@ func buildUplinkNASTransport(value []byte) NGAPMessageValue {
 			userLocationInformation(*m.UserLocationInformation)))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDWAGFIdentityInformation, ngap.CriticalityReject, m.WAGFIdentityInformation},
+		{ngap.IDTNGFIdentityInformation, ngap.CriticalityReject, m.TNGFIdentityInformation},
+		{ngap.IDTWIFIdentityInformation, ngap.CriticalityReject, m.TWIFIdentityInformation},
+	})
+
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }

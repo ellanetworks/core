@@ -30,7 +30,7 @@ const (
 	targetGNBIDBits   = 24
 )
 
-var handoverRequiredCause = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkTimeCriticalHandover}
+var handoverRequiredCause = s1ap.CauseRadioNetworkTimeCriticalHandover.Cause()
 
 func init() {
 	scenarios.Register(scenarios.Scenario{
@@ -262,8 +262,8 @@ func checkArrivingHandoverRequest(req *ngap.HandoverRequest) (fgs.S1ModeToN1Mode
 		return none, fmt.Errorf("the Handover Request handover type = %d, want eps-to-5gs", req.HandoverType)
 	}
 
-	want := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkTimeCriticalHandover}
-	if req.Cause == nil || *req.Cause != want {
+	want := ngap.CauseRadioNetworkTimeCriticalHandover.Cause()
+	if req.Cause == nil || !req.Cause.Equal(want) {
 		return none, fmt.Errorf("the Handover Request cause = %+v, want the time-critical handover the eNB asked for", req.Cause)
 	}
 
@@ -358,7 +358,7 @@ func refuseHandoverToFiveGS(gNodeB *gnb.GnodeB, e *s1enb.ENB, attached *s1enb.At
 		return fmt.Errorf("the target gNB got no Handover Request: %w", err)
 	}
 
-	refusal := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkNoRadioResourcesInTargetCell}
+	refusal := ngap.CauseRadioNetworkNoRadioResourcesInTargetCell.Cause()
 	if err := gNodeB.SendHandoverFailure(int64(req.AMFUENGAPID), refusal); err != nil {
 		return fmt.Errorf("refuse the handover at the target gNB: %w", err)
 	}
@@ -372,7 +372,7 @@ func refuseHandoverToFiveGS(gNodeB *gnb.GnodeB, e *s1enb.ENB, attached *s1enb.At
 		return errors.New("the Handover Preparation Failure carries no cause")
 	}
 
-	if fail.Cause.Group != s1ap.CauseGroupRadioNetwork || fail.Cause.Value != s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell {
+	if !fail.Cause.Equal(s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell.Cause()) {
 		return fmt.Errorf("the Handover Preparation Failure cause = %+v, want no radio resources available in the target cell", *fail.Cause)
 	}
 

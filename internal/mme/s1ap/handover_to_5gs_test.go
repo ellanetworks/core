@@ -125,11 +125,11 @@ func relocatingToFiveGSUE(t *testing.T, m *mme.MME, peer *fiveGSPeerStub) (*mme.
 func handoverRequiredToGNB(ue *mme.UeContext) *s1ap.HandoverRequired {
 	req := sampleHandoverRequired(ue)
 	req.HandoverType = s1ap.HandoverTypeEPSToFiveGS
-	req.Cause = s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkTimeCriticalHandover})
+	req.Cause = s1ap.Ptr(s1ap.CauseRadioNetworkTimeCriticalHandover.Cause())
 	req.TargetID = s1ap.TargetID{TargetNgRanNodeID: &s1ap.TargetNgRanNodeID{
 		GlobalRANNodeID: s1ap.GlobalRANNodeID{GNB: &s1ap.GNB{GlobalGNBID: s1ap.GlobalGNBID{
 			PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10},
-			GNBID:        s1ap.GNBID{Value: relocationTargetGNBID, Bits: 24},
+			GNBID:        s1ap.GNBIdentity{GNBID: &s1ap.GNBID{Value: relocationTargetGNBID, Bits: 24}},
 		}}},
 		SelectedTAI: s1ap.FiveGSTAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1},
 	}}
@@ -224,7 +224,7 @@ func TestHandoverRequiredToFiveGS(t *testing.T) {
 		t.Errorf("selected 5GS TAI = %+v", req.Target.SelectedTAI)
 	}
 
-	if req.Cause.Value != s1ap.CauseRadioNetworkTimeCriticalHandover {
+	if !req.Cause.Equal(s1ap.CauseRadioNetworkTimeCriticalHandover.Cause()) {
 		t.Errorf("cause = %+v, want the source eNB's own", req.Cause)
 	}
 
@@ -379,7 +379,7 @@ func TestHandoverRequiredToFiveGSWithAnENBTarget(t *testing.T) {
 	ue, source := relocatingToFiveGSUE(t, m, peer)
 
 	req := handoverRequiredToGNB(ue)
-	req.TargetID = s1ap.TargetID{TargeteNBID: s1ap.TargeteNBID{GlobalENBID: targetGlobalENBID, SelectedTAI: s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}}}
+	req.TargetID = s1ap.TargetID{TargeteNBID: &s1ap.TargeteNBID{GlobalENBID: targetGlobalENBID, SelectedTAI: s1ap.TAI{PLMNIdentity: s1ap.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1}}}
 
 	handleHandoverRequired(context.Background(), m, mme.NewRadioForTest(source), initiatingValue(t, mustMarshal(t, req.Marshal)))
 
@@ -407,8 +407,8 @@ func TestHandoverRequiredToFiveGSWithNoTransferablePDN(t *testing.T) {
 		t.Fatal("no cause in the preparation failure")
 	}
 
-	want := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHOTargetNotAllowed}
-	if *got.Cause != want {
+	want := s1ap.CauseRadioNetworkHOTargetNotAllowed.Cause()
+	if !got.Cause.Equal(want) {
 		t.Errorf("cause = %+v, want ho-target-not-allowed", *got.Cause)
 	}
 
@@ -565,7 +565,7 @@ func handoverCancel(ue *mme.UeContext) *s1ap.HandoverCancel {
 	return &s1ap.HandoverCancel{
 		MMEUES1APID: ue.Conn().MMEUES1APID,
 		ENBUES1APID: ue.Conn().ENBUES1APID(),
-		Cause:       s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHandoverCancelled}),
+		Cause:       s1ap.Ptr(s1ap.CauseRadioNetworkHandoverCancelled.Cause()),
 	}
 }
 
@@ -701,7 +701,7 @@ func TestSourceENBLossLeavesTheArrivalToThePeersGuard(t *testing.T) {
 func TestHandoverToFiveGSRelaysTheTargetsCause(t *testing.T) {
 	m := newTestMME(t)
 
-	want := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell}
+	want := s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell.Cause()
 	peer := &fiveGSPeerStub{err: interworking.TargetRefusal{Cause: want}}
 	ue, source := relocatingToFiveGSUE(t, m, peer)
 
@@ -715,7 +715,7 @@ func TestHandoverToFiveGSRelaysTheTargetsCause(t *testing.T) {
 		t.Fatal("the refusal reached the source eNB without a cause")
 	}
 
-	if *fail.Cause != want {
+	if !fail.Cause.Equal(want) {
 		t.Errorf("cause = %+v, want the target's own %+v", *fail.Cause, want)
 	}
 }
@@ -792,8 +792,8 @@ func TestHandoverToFiveGSReleasesAPDNThatCannotMove(t *testing.T) {
 		t.Fatalf("to-release list = %+v, want the PDN that cannot move", cmd.ERABToRelease)
 	}
 
-	want := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkS1InterSystemHandoverTriggered}
-	if cmd.ERABToRelease[0].Cause != want {
+	want := s1ap.CauseRadioNetworkS1InterSystemHandoverTriggered.Cause()
+	if !cmd.ERABToRelease[0].Cause.Equal(want) {
 		t.Errorf("cause = %+v, want s1-inter-system-handover-triggered", cmd.ERABToRelease[0].Cause)
 	}
 }

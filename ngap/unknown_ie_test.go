@@ -6,14 +6,12 @@ package ngap
 import (
 	"bytes"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
-
-// An NG SETUP REQUEST IE this version does not model (§9.2.6.1), ignore
-// criticality.
-const idNBIoTDefaultPagingDRX ProtocolIEID = 204
 
 // An NG SETUP REQUEST carrying one unmodeled IE at the given criticality.
 func encodeWithExtraIE(t *testing.T, crit Criticality, id ProtocolIEID) []byte {
@@ -25,10 +23,10 @@ func encodeWithExtraIE(t *testing.T, crit Criticality, id ProtocolIEID) []byte {
 	w.WriteBit(false)
 
 	fields := []ieField{
-		{id: IDGlobalRANNodeID, crit: CriticalityReject, val: &src.GlobalRANNodeID},
-		{id: IDSupportedTAList, crit: CriticalityReject, val: src.SupportedTAList},
-		{id: IDDefaultPagingDRX, crit: CriticalityIgnore, val: PagingDRXv128},
-		{id: id, crit: crit, raw: []byte{0xde, 0xad}},
+		{ID: IDGlobalRANNodeID, Criticality: CriticalityReject, Value: &src.GlobalRANNodeID},
+		{ID: IDSupportedTAList, Criticality: CriticalityReject, Value: src.SupportedTAList},
+		{ID: IDDefaultPagingDRX, Criticality: CriticalityIgnore, Value: PagingDRXv128},
+		{ID: id, Criticality: crit, Value: apimpl.RawValue([]byte{0xde, 0xad})},
 	}
 
 	if err := encodeIEContainer(w, per.Aligned, fields); err != nil {
@@ -41,7 +39,7 @@ func encodeWithExtraIE(t *testing.T, crit Criticality, id ProtocolIEID) []byte {
 // §10.3.4.2: reported, still delivered, and preserved verbatim so a re-encode
 // stays faithful to what the peer sent.
 func TestUnmodeledIgnoreIEIsPreserved(t *testing.T) {
-	value := encodeWithExtraIE(t, CriticalityIgnore, idNBIoTDefaultPagingDRX)
+	value := encodeWithExtraIE(t, CriticalityIgnore, unmodeledIEID)
 
 	req, err := ParseNGSetupRequest(value)
 	if err != nil {
@@ -53,9 +51,9 @@ func TestUnmodeledIgnoreIEIsPreserved(t *testing.T) {
 		t.Fatal("diagnostics empty, want the unmodeled IE reported")
 	}
 
-	if got := d.IEs[0]; got.ID != idNBIoTDefaultPagingDRX ||
+	if got := d.IEs[0]; got.ID != unmodeledIEID ||
 		got.Criticality != CriticalityIgnore ||
-		got.TypeOfError != TypeOfErrorNotUnderstood {
+		typeOfError(got) != TypeOfErrorNotUnderstood {
 		t.Errorf("diagnostic = %+v", got)
 	}
 
@@ -65,7 +63,7 @@ func TestUnmodeledIgnoreIEIsPreserved(t *testing.T) {
 	}
 
 	unknown := req.UnknownIEs()
-	if len(unknown) != 1 || unknown[0].ID != idNBIoTDefaultPagingDRX ||
+	if len(unknown) != 1 || unknown[0].ID != unmodeledIEID ||
 		!bytes.Equal(unknown[0].Value, []byte{0xde, 0xad}) {
 		t.Fatalf("UnknownIEs() = %+v", unknown)
 	}
@@ -91,14 +89,14 @@ func TestUnmodeledIgnoreIEIsPreserved(t *testing.T) {
 	}
 
 	last := fields[len(fields)-1]
-	if last.id != idNBIoTDefaultPagingDRX || !bytes.Equal(last.value, []byte{0xde, 0xad}) {
+	if last.ID != unmodeledIEID || !bytes.Equal(last.Value, []byte{0xde, 0xad}) {
 		t.Errorf("re-encoded trailing IE = %+v, want the preserved one", last)
 	}
 }
 
 // TS 38.413 §10.3.4.2: the same IE marked reject stops the procedure.
 func TestUnmodeledRejectIEIsRejected(t *testing.T) {
-	value := encodeWithExtraIE(t, CriticalityReject, idNBIoTDefaultPagingDRX)
+	value := encodeWithExtraIE(t, CriticalityReject, unmodeledIEID)
 
 	msg, err := ParseNGSetupRequest(value)
 	if msg != nil {
@@ -110,12 +108,12 @@ func TestUnmodeledRejectIEIsRejected(t *testing.T) {
 		t.Fatalf("error = %v, want *AbstractSyntaxError", err)
 	}
 
-	want := Cause{Group: CauseGroupProtocol, Value: CauseProtocolAbstractSyntaxErrorReject}
-	if ase.Cause != want {
+	want := CauseProtocolAbstractSyntaxErrorReject.Cause()
+	if !ase.Cause.Equal(want) {
 		t.Errorf("cause = %v, want %v", ase.Cause, want)
 	}
 
-	if len(ase.IEs) != 1 || ase.IEs[0].IEID != idNBIoTDefaultPagingDRX ||
+	if len(ase.IEs) != 1 || ase.IEs[0].IEID != unmodeledIEID ||
 		ase.IEs[0].TypeOfError != TypeOfErrorNotUnderstood {
 		t.Errorf("reported IEs = %+v", ase.IEs)
 	}
@@ -140,7 +138,7 @@ func TestUnknownIEsNilWhenNone(t *testing.T) {
 // The peer's criticality is kept: re-emitting under another would change what a
 // downstream receiver must do with it.
 func TestUnmodeledIECriticality(t *testing.T) {
-	value := encodeWithExtraIE(t, CriticalityIgnore, idNBIoTDefaultPagingDRX)
+	value := encodeWithExtraIE(t, CriticalityIgnore, unmodeledIEID)
 
 	req, err := ParseNGSetupRequest(value)
 	if err != nil {
@@ -172,8 +170,123 @@ func TestUnmodeledIECriticality(t *testing.T) {
 	}
 
 	last := fields[len(fields)-1]
-	if last.id != idNBIoTDefaultPagingDRX || last.crit != CriticalityIgnore {
+	if last.ID != unmodeledIEID || last.Criticality != CriticalityIgnore {
 		t.Errorf("re-encoded IE = {%v, %v}, want the preserved id and criticality",
-			last.id, last.crit)
+			last.ID, last.Criticality)
 	}
 }
+
+func bodyOf(t *testing.T, body func(*per.Writer, per.Encoding) error) []byte {
+	t.Helper()
+
+	w := per.NewWriter()
+	if err := body(w, per.Aligned); err != nil {
+		t.Fatal(err)
+	}
+
+	return perBytes(w)
+}
+
+func wireIDs(t *testing.T, body func(*per.Writer, per.Encoding) error) []ProtocolIEID {
+	t.Helper()
+
+	var ids []ProtocolIEID
+	for _, f := range wireIEs(t, body) {
+		ids = append(ids, f.ID)
+	}
+
+	return ids
+}
+
+func TestUnknownIEKeepsItsWirePosition(t *testing.T) {
+	src := goldRequest()
+	value := container(t,
+		ieField{ID: IDGlobalRANNodeID, Criticality: CriticalityReject, Value: &src.GlobalRANNodeID},
+		ieField{ID: IDSupportedTAList, Criticality: CriticalityReject, Value: src.SupportedTAList},
+		ieField{ID: unmodeledIEID, Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0xde, 0xad})},
+		ieField{ID: IDDefaultPagingDRX, Criticality: CriticalityIgnore, Value: PagingDRXv128},
+	)
+
+	req, err := ParseNGSetupRequest(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := bodyOf(t, req.encodeBody); !bytes.Equal(got, value) {
+		t.Fatalf("re-encoded\n got  % x\n want % x", got, value)
+	}
+
+	req.RANNodeName = Ptr("ella-gnb")
+	req.UERetentionInformation = Ptr(UERetentionUesRetained)
+
+	want := []ProtocolIEID{IDGlobalRANNodeID, IDRANNodeName, IDSupportedTAList, unmodeledIEID, IDDefaultPagingDRX, IDUERetentionInformation}
+	if got := wireIDs(t, req.encodeBody); !slices.Equal(got, want) {
+		t.Fatalf("IE order %v, want %v", got, want)
+	}
+
+	req.RANNodeName = nil
+	req.DefaultPagingDRX = nil
+	req.UERetentionInformation = nil
+
+	if _, err := req.Marshal(); err == nil {
+		t.Fatal("encoded without the mandatory Default Paging DRX")
+	}
+}
+
+func TestUnknownIEBeforeEveryTypedIEKeepsItsWirePosition(t *testing.T) {
+	src := goldRequest()
+	value := container(t,
+		ieField{ID: unmodeledIEID, Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0x01})},
+		ieField{ID: IDGlobalRANNodeID, Criticality: CriticalityReject, Value: &src.GlobalRANNodeID},
+		ieField{ID: IDSupportedTAList, Criticality: CriticalityReject, Value: src.SupportedTAList},
+		ieField{ID: IDDefaultPagingDRX, Criticality: CriticalityIgnore, Value: PagingDRXv128},
+		ieField{ID: ProtocolIEID(9999), Criticality: CriticalityNotify, Value: apimpl.RawValue([]byte{0x02})},
+	)
+
+	req, err := ParseNGSetupRequest(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := bodyOf(t, req.encodeBody); !bytes.Equal(got, value) {
+		t.Fatalf("re-encoded\n got  % x\n want % x", got, value)
+	}
+}
+
+func TestReceivedIECriticalityIsReencoded(t *testing.T) {
+	src := goldRequest()
+	value := container(t,
+		ieField{ID: IDGlobalRANNodeID, Criticality: CriticalityReject, Value: &src.GlobalRANNodeID},
+		ieField{ID: IDSupportedTAList, Criticality: CriticalityReject, Value: src.SupportedTAList},
+		ieField{ID: IDDefaultPagingDRX, Criticality: CriticalityReject, Value: PagingDRXv128},
+	)
+
+	req, err := ParseNGSetupRequest(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := bodyOf(t, req.encodeBody); !bytes.Equal(got, value) {
+		t.Fatalf("re-encoded\n got  % x\n want % x", got, value)
+	}
+
+	fresh := &NGSetupRequest{GlobalRANNodeID: src.GlobalRANNodeID, SupportedTAList: src.SupportedTAList, DefaultPagingDRX: Ptr(PagingDRXv128)}
+	if got := wireIEs(t, fresh.encodeBody)[2].Criticality; got != CriticalityIgnore {
+		t.Fatalf("built from scratch: Default Paging DRX criticality %v, want ignore", got)
+	}
+}
+
+func TestConformingMessageParsesToItsBuiltForm(t *testing.T) {
+	in := goldRequest()
+
+	req, err := ParseNGSetupRequest(bodyOf(t, in.encodeBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !req.Equal(*in) {
+		t.Fatalf("parsed %+v, want %+v", req, in)
+	}
+}
+
+const unmodeledIEID ProtocolIEID = 40000

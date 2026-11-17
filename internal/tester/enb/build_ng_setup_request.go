@@ -18,6 +18,8 @@ type NGSetupRequestOpts struct {
 	Tac   string
 	Sst   int32
 	Sd    string
+
+	AdditionalPLMNs []gnb.BroadcastPLMN
 }
 
 // ngENBIDBits is the macroNgENB-ID width this simulator advertises, and the
@@ -60,15 +62,19 @@ func BuildNGSetupRequest(opts *NGSetupRequestOpts) ([]byte, error) {
 		return nil, err
 	}
 
+	nodePLMN, _ := node.PLMNIdentity()
+
+	bplmns, err := gnb.BuildBroadcastPLMNList(nodePLMN, ngap.SliceSupportList{{SNSSAI: snssai}}, opts.AdditionalPLMNs)
+	if err != nil {
+		return nil, err
+	}
+
 	req := &ngap.NGSetupRequest{
 		GlobalRANNodeID: node,
 		RANNodeName:     ngap.Ptr(opts.Name),
 		SupportedTAList: ngap.SupportedTAList{{
-			TAC: tac,
-			BroadcastPLMNList: ngap.BroadcastPLMNList{{
-				PLMNIdentity:        node.PLMNIdentity,
-				TAISliceSupportList: ngap.SliceSupportList{{SNSSAI: snssai}},
-			}},
+			TAC:               tac,
+			BroadcastPLMNList: bplmns,
 		}},
 		DefaultPagingDRX: ngap.Ptr(ngap.PagingDRXv128),
 	}

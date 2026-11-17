@@ -24,8 +24,8 @@ func TestSendProtocolErrorIndication(t *testing.T) {
 
 	ind := parseOutboundErrorIndication(t, cc.sent[0])
 
-	want := s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: s1ap.CauseProtocolTransferSyntaxError}
-	if ind.Cause == nil || *ind.Cause != want {
+	want := s1ap.CauseProtocolTransferSyntaxError.Cause()
+	if ind.Cause == nil || !ind.Cause.Equal(want) {
 		t.Fatalf("cause = %v, want transfer-syntax-error", ind.Cause)
 	}
 
@@ -40,7 +40,7 @@ func TestUnknownProcedure_SendsErrorIndication(t *testing.T) {
 		name      string
 		crit      s1ap.Criticality
 		wantReply bool
-		wantCause int
+		wantCause s1ap.CauseProtocol
 	}{
 		{"reject", s1ap.CriticalityReject, true, s1ap.CauseProtocolAbstractSyntaxErrorReject},
 		{"ignore-and-notify", s1ap.CriticalityNotify, true, s1ap.CauseProtocolAbstractSyntaxErrorIgnoreAndNotify},
@@ -71,8 +71,8 @@ func TestUnknownProcedure_SendsErrorIndication(t *testing.T) {
 
 			ind := parseOutboundErrorIndication(t, cc.sent[0])
 
-			wantCause := s1ap.Cause{Group: s1ap.CauseGroupProtocol, Value: tt.wantCause}
-			if ind.Cause == nil || *ind.Cause != wantCause {
+			wantCause := tt.wantCause.Cause()
+			if ind.Cause == nil || !ind.Cause.Equal(wantCause) {
 				t.Fatalf("cause = %v, want protocol cause %d", ind.Cause, tt.wantCause)
 			}
 

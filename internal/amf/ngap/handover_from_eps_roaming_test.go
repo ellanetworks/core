@@ -107,7 +107,7 @@ func TestForwardRelocationRefusesAVisitorWithoutN26(t *testing.T) {
 	}
 
 	var refusal interworking.TargetRefusal
-	if !errors.As(err, &refusal) || refusal.Cause.Value != s1ap.CauseRadioNetworkHOTargetNotAllowed {
+	if !errors.As(err, &refusal) || !refusal.Cause.Equal(s1ap.CauseRadioNetworkHOTargetNotAllowed.Cause()) {
 		t.Fatalf("error = %v, want a handover-target-not-allowed refusal", err)
 	}
 

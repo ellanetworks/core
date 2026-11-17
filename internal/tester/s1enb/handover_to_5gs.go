@@ -34,7 +34,7 @@ func (e *ENB) SendHandoverRequiredToFiveGS(opts *HandoverToFiveGSOpts) error {
 
 	cause := opts.Cause
 	if cause == nil {
-		cause = s1ap.Ptr(s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 16})
+		cause = s1ap.Ptr(s1ap.CauseRadioNetworkHandoverDesirableForRadio.Cause())
 	}
 
 	req := &s1ap.HandoverRequired{
@@ -45,7 +45,7 @@ func (e *ENB) SendHandoverRequiredToFiveGS(opts *HandoverToFiveGSOpts) error {
 		TargetID: s1ap.TargetID{TargetNgRanNodeID: &s1ap.TargetNgRanNodeID{
 			GlobalRANNodeID: s1ap.GlobalRANNodeID{GNB: &s1ap.GNB{GlobalGNBID: s1ap.GlobalGNBID{
 				PLMNIdentity: e.plmn,
-				GNBID:        s1ap.GNBID{Value: opts.TargetGNBID, Bits: opts.TargetGNBIDBits},
+				GNBID:        s1ap.GNBIdentity{GNBID: &s1ap.GNBID{Value: opts.TargetGNBID, Bits: opts.TargetGNBIDBits}},
 			}}},
 			SelectedTAI: s1ap.FiveGSTAI{PLMNIdentity: e.plmn, TAC: s1ap.FiveGSTAC(opts.TargetTAC)},
 		}},

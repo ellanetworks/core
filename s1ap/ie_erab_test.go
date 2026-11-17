@@ -29,7 +29,7 @@ func TestAllocationAndRetentionPriorityRoundTrip(t *testing.T) {
 			t.Fatalf("level %d: %v", level, err)
 		}
 
-		if out != in {
+		if !out.Equal(in) {
 			t.Fatalf("level %d: round trip %+v, want %+v", level, out, in)
 		}
 	}
@@ -55,7 +55,7 @@ func TestGBRQosInformationRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out != in {
+	if !out.Equal(in) {
 		t.Fatalf("round trip %+v, want %+v", out, in)
 	}
 }

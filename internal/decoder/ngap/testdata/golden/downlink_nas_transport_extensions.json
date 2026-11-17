@@ -1,0 +1,298 @@
+{
+  "summary": "DownlinkNASTransport, AMF-UE=1, RAN-UE=2, NAS=REGISTRATION REJECT",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 4,
+    "label": "DownlinkNASTransport",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 1,
+    "label": "ignore",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 10,
+          "label": "AMF-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 85,
+          "label": "RAN-UE-NGAP-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 2
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 48,
+          "label": "OldAMF",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": "amf-old"
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 83,
+          "label": "RANPagingPriority",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 3
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 38,
+          "label": "NAS-PDU",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "protocol": "NAS",
+          "raw_hex": "7e0044",
+          "decoded": {
+            "security_header": {
+              "protocol_discriminator": {
+                "type": "enum",
+                "value": 126,
+                "label": "5GMM",
+                "unknown": false
+              },
+              "security_header_type": {
+                "type": "enum",
+                "value": 0,
+                "label": "plain",
+                "unknown": false
+              },
+              "sequence_number": 0
+            },
+            "gmm_message": {
+              "gmm_header": {
+                "message_type": {
+                  "type": "enum",
+                  "value": 68,
+                  "label": "REGISTRATION REJECT",
+                  "unknown": false
+                }
+              }
+            },
+            "encrypted": false
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 31,
+          "label": "IndexToRFSP",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 7
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 110,
+          "label": "UEAggregateMaximumBitRate",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "downlink": 2000,
+          "uplink": 1000,
+          "unit": "bps"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 0,
+          "label": "AllowedNSSAI",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "sst": 1
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 177,
+          "label": "SRVCCOperationPossible",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 0,
+          "label": "possible",
+          "unknown": false
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 209,
+          "label": "UE-DifferentiationInfo",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "periodic_communication_indicator": {
+            "type": "enum",
+            "value": 0,
+            "label": "periodically",
+            "unknown": false
+          },
+          "periodic_time": 60
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 226,
+          "label": "EndIndication",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 0,
+          "label": "no-further-data",
+          "unknown": false
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 264,
+          "label": "UERadioCapabilityID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "hex": "cafe"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 34,
+          "label": "MaskedIMEISV",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "hex": "0123456789abcdef",
+          "bits": 64
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 414,
+          "label": "Partially-Allowed-NSSAI",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": [
+          {
+            "s_nssai": {
+              "sst": 2
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

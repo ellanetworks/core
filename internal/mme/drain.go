@@ -19,7 +19,7 @@ const (
 
 const configUpdateGuardTimeout = 5 * time.Second
 
-var causeLoadBalancingTAURequired = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkLoadBalancingTAURequired}
+var causeLoadBalancingTAURequired = s1ap.CauseRadioNetworkLoadBalancingTAURequired.Cause()
 
 func (m *MME) RelativeCapacity() uint8 {
 	return uint8(m.relativeCapacity.Load())

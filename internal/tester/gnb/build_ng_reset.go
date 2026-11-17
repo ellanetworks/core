@@ -30,9 +30,9 @@ func BuildNGReset(opts *NGResetOpts) ([]byte, error) {
 	req := &ngap.NGReset{Cause: opts.Cause}
 
 	if opts.ResetAll {
-		req.ResetType = ngap.ResetType{All: true}
+		req.ResetType = ngap.ResetType{NGInterface: new(ngap.ResetAllResetAll)}
 	} else {
-		req.ResetType = ngap.ResetType{Part: opts.Connections}
+		req.ResetType = ngap.ResetType{PartOfNGInterface: &opts.Connections}
 	}
 
 	return req.Marshal()

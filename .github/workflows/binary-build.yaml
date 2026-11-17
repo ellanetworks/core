@@ -1,0 +1,93 @@
+name: Binary Build
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+jobs:
+  build-binary:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    runs-on: ${{ (matrix.arch == 'arm64' && 'ubuntu-24.04-arm') || 'ubuntu-24.04' }}
+    timeout-minutes: 30
+    env:
+      ARCH: ${{ matrix.arch }}
+      MAX_GLIBC: "2.39"
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: "go.mod"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Build the UI
+        run: |
+          npm install --prefix ui
+          npm run build --prefix ui
+
+      - name: Build the binary
+        env:
+          CGO_ENABLED: "1"
+        run: go build -trimpath -o core -ldflags "-s -w -X github.com/ellanetworks/core/version.GitCommit=${GITHUB_SHA}" ./cmd/core
+
+      - name: Check the glibc requirement
+        run: |
+          required="$(objdump -T core | grep -o 'GLIBC_[0-9][0-9.]*' | sed 's/^GLIBC_//' | sort -uV | tail -n 1)"
+          echo "binary requires glibc ${required}, maximum allowed ${MAX_GLIBC}"
+          if [ -z "${required}" ]; then
+            echo "::error::could not read the glibc requirement of the binary"
+            exit 1
+          fi
+          if [ "$(printf '%s\n%s\n' "${required}" "${MAX_GLIBC}" | sort -V | tail -n 1)" != "${MAX_GLIBC}" ]; then
+            echo "::error::binary requires glibc ${required}, newer than ${MAX_GLIBC}"
+            exit 1
+          fi
+
+      - name: Package the tarball
+        id: package
+        run: |
+          version="$(cat version/VERSION)"
+          name="ella-core-${version}-linux-${ARCH}"
+          mkdir -p "dist/${name}"
+          cp core LICENSE NOTICE "dist/${name}/"
+          cp -r LICENSES "dist/${name}/"
+          cp config/core.yaml "dist/${name}/core.yaml"
+          tar -C dist -czf "${name}.tar.gz" "${name}"
+          echo "name=${name}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate SBOM
+        id: sbom
+        continue-on-error: true
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          file: core
+          format: spdx-json
+          output-file: ${{ steps.package.outputs.name }}.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Generate SBOM (retry)
+        if: steps.sbom.outcome == 'failure'
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          file: core
+          format: spdx-json
+          output-file: ${{ steps.package.outputs.name }}.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Upload the tarball and SBOM
+        uses: actions/upload-artifact@v7
+        with:
+          name: binary-${{ matrix.arch }}
+          path: |
+            ${{ steps.package.outputs.name }}.tar.gz
+            ${{ steps.package.outputs.name }}.spdx.json

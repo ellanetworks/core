@@ -98,16 +98,12 @@ func resolveDecodedUE(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio,
 
 // causeUnknownLocalUEID is Cause Radio Network "unknown-local-UE-NGAP-ID"
 // (TS 38.413): an AMF UE NGAP ID this AMF does not hold.
-var causeUnknownLocalUEID = ngap.Cause{
-	Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownLocalUENGAPID,
-}
+var causeUnknownLocalUEID = ngap.CauseRadioNetworkUnknownLocalUENGAPID.Cause()
 
 // causeInconsistentRemoteUEID is Cause Radio Network
 // "inconsistent-remote-UE-NGAP-ID" (TS 38.413): a RAN UE NGAP ID that does not
 // match the one stored against its AMF UE NGAP ID.
-var causeInconsistentRemoteUEID = ngap.Cause{
-	Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkInconsistentRemoteUEID,
-}
+var causeInconsistentRemoteUEID = ngap.CauseRadioNetworkInconsistentRemoteUEID.Cause()
 
 func sendUnknownLocalUEError(ctx context.Context, ran *amf.Radio, amfID, ranID *int64) {
 	a, r := decodedUEIDs(amfID, ranID)

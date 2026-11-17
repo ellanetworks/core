@@ -6,6 +6,7 @@ package ngap
 import (
 	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/ellanetworks/core/ngap"
@@ -28,31 +29,34 @@ type Cause struct {
 	Value utils.EnumField `json:"value"`
 }
 
-func causeGroupToEnum(g ngap.CauseGroup) utils.EnumField {
-	return utils.NamedEnum(uint8(g), g.Name())
-}
-
 // The library owns the cause vocabulary, including which values are extension
 // additions and where their numbering resumes, so the index it reports is the
 // one to display rather than the raw per-group value.
 func cause(c ngap.Cause) Cause {
-	name, index := c.ValueName()
+	alt, group := c.Alternative()
+	index, name := c.Value()
+
+	unknown := name == "" || strings.HasPrefix(name, "unknown(")
+	if unknown {
+		name = "unknown"
+	}
 
 	return Cause{
-		Group: causeGroupToEnum(c.Group),
-		Value: utils.MakeEnum(int64(index), name, name == "unknown"),
+		Group: utils.NamedEnum(int64(alt), group),
+		Value: utils.MakeEnum(int64(index), name, unknown),
 	}
 }
 
 func buildGlobalRANNodeID(id ngap.GlobalRANNodeID) GlobalRANNodeIDIE {
-	ie := GlobalRANNodeIDIE{PLMNIdentity: plmnIDToDecoder(id.PLMNIdentity)}
+	plmn, _ := id.PLMNIdentity()
+	ie := GlobalRANNodeIDIE{PLMNIdentity: plmnIDToDecoder(plmn)}
 
-	switch id.Kind {
-	case ngap.RANNodeIDGNB:
+	switch {
+	case id.GlobalGNBID != nil:
 		ie.GlobalGNBID = id.Hex()
-	case ngap.RANNodeIDMacroNgENB, ngap.RANNodeIDShortMacroNgENB, ngap.RANNodeIDLongMacroNgENB:
+	case id.GlobalNgENBID != nil:
 		ie.GlobalNgENBID = id.Hex()
-	case ngap.RANNodeIDN3IWF:
+	case id.GlobalN3IWFID != nil:
 		ie.GlobalN3IWFID = id.Hex()
 	}
 
@@ -142,6 +146,13 @@ func buildNGSetupRequest(value []byte) NGAPMessageValue {
 			buildUERetention(*req.UERetentionInformation)))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDNBIoTDefaultPagingDRX, ngap.CriticalityIgnore, req.NBIoTDefaultPagingDRX},
+		{ngap.IDExtendedRANNodeName, ngap.CriticalityIgnore, req.ExtendedRANNodeName},
+		{ngap.IDAIoTSupport, ngap.CriticalityReject, req.AIoTSupport},
+		{ngap.IDAdditionalULI, ngap.CriticalityIgnore, req.AdditionalULI},
+	})
+
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(req.UnknownIEs())...)}
 }
 
@@ -154,10 +165,32 @@ func guami(g ngap.GUAMI) Guami {
 	}
 }
 
-func buildServedGUAMIList(list ngap.ServedGUAMIList) []Guami {
-	out := make([]Guami, len(list))
+type ServedGUAMI struct {
+	Guami
+	BackupAMFName         *string          `json:"backup_amf_name,omitempty"`
+	GUAMIType             *utils.EnumField `json:"guami_type,omitempty"`
+	ExtendedBackupAMFName *ExtendedAMFName `json:"extended_backup_amf_name,omitempty"`
+}
+
+func buildServedGUAMIList(list ngap.ServedGUAMIList) []ServedGUAMI {
+	out := make([]ServedGUAMI, len(list))
 	for i, item := range list {
-		out[i] = guami(item.GUAMI)
+		out[i] = ServedGUAMI{Guami: guami(item.GUAMI)}
+
+		if item.BackupAMFName != nil {
+			name := string(*item.BackupAMFName)
+			out[i].BackupAMFName = &name
+		}
+
+		if item.GUAMIType != nil {
+			t := utils.NamedEnum(uint8(*item.GUAMIType), item.GUAMIType.Name())
+			out[i].GUAMIType = &t
+		}
+
+		if item.ExtendedBackupAMFName != nil {
+			name := extendedAMFName(*item.ExtendedBackupAMFName)
+			out[i].ExtendedBackupAMFName = &name
+		}
 	}
 
 	return out
@@ -171,8 +204,15 @@ func buildPLMNSupportList(list ngap.PLMNSupportList) []PLMN {
 	out := make([]PLMN, len(list))
 	for i, item := range list {
 		out[i] = PLMN{
-			PLMNID:           plmnIDToDecoder(item.PLMNIdentity),
-			SliceSupportList: buildSliceSupportList(item.SliceSupportList),
+			PLMNID:                   plmnIDToDecoder(item.PLMNIdentity),
+			SliceSupportList:         buildSliceSupportList(item.SliceSupportList),
+			ExtendedSliceSupportList: buildSliceSupportList(ngap.SliceSupportList(item.ExtendedSliceSupportList)),
+			OnboardingSupport:        item.OnboardingSupport != nil,
+		}
+
+		if item.NPNSupport != nil && item.NPNSupport.SNPN != nil {
+			nid := bitsHex(uint64(*item.NPNSupport.SNPN), 44)
+			out[i].NPNSupportNID = &nid
 		}
 	}
 
@@ -207,6 +247,17 @@ func buildNGSetupResponse(value []byte) NGAPMessageValue {
 		ies = append(ies, ie(ngap.IDUERetentionInformation, ngap.CriticalityIgnore,
 			buildUERetention(*resp.UERetentionInformation)))
 	}
+
+	if resp.ExtendedAMFName != nil {
+		ies = append(ies, ie(ngap.IDExtendedAMFName, ngap.CriticalityIgnore, extendedAMFName(*resp.ExtendedAMFName)))
+	}
+
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDIABSupported, ngap.CriticalityIgnore, resp.IABSupported},
+		{ngap.IDMobileIABSupported, ngap.CriticalityIgnore, resp.MobileIABSupported},
+		{ngap.IDAIOTFIdentifier, ngap.CriticalityReject, resp.AIOTFIdentifier},
+		{ngap.IDAIOTFName, ngap.CriticalityReject, resp.AIOTFName},
+	})
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(resp.UnknownIEs())...)}
 }

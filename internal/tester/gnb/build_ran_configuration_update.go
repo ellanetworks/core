@@ -23,6 +23,8 @@ type RANConfigurationUpdateOpts struct {
 	Sst    int32
 	Sd     string
 	Slices []SliceOpt // if set, overrides Sst/Sd
+
+	AdditionalPLMNs []BroadcastPLMN
 }
 
 // BuildRANConfigurationUpdate encodes a RAN CONFIGURATION UPDATE PDU.
@@ -74,20 +76,19 @@ func BuildRANConfigurationUpdate(opts *RANConfigurationUpdateOpts) ([]byte, erro
 		slices = []SliceOpt{{Sst: opts.Sst, Sd: opts.Sd}}
 	}
 
-	support := make(ngap.SliceSupportList, 0, len(slices))
+	support, err := sliceSupportList(slices)
+	if err != nil {
+		return nil, err
+	}
 
-	for _, s := range slices {
-		snssai, err := sliceToNGAP(s)
-		if err != nil {
-			return nil, err
-		}
-
-		support = append(support, ngap.SliceSupportItem{SNSSAI: snssai})
+	bplmns, err := BuildBroadcastPLMNList(plmn, support, opts.AdditionalPLMNs)
+	if err != nil {
+		return nil, err
 	}
 
 	req.SupportedTAList = ngap.SupportedTAList{{
 		TAC:               ngap.TAC(uint32(tac[0])<<16 | uint32(tac[1])<<8 | uint32(tac[2])),
-		BroadcastPLMNList: ngap.BroadcastPLMNList{{PLMNIdentity: plmn, TAISliceSupportList: support}},
+		BroadcastPLMNList: bplmns,
 	}}
 
 	return req.Marshal()

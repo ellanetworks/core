@@ -22,6 +22,7 @@ import (
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas/fgs"
 	libngap "github.com/ellanetworks/core/ngap"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 func TestMain(m *testing.M) {
@@ -2183,8 +2184,8 @@ func testTunnel(teid uint32, ip net.IP) libngap.UPTransportLayerInformation {
 		addr = ip.To16()
 	}
 
-	return libngap.UPTransportLayerInformation{GTPTunnel: libngap.GTPTunnel{
-		TransportLayerAddress: libngap.TransportLayerAddress(addr),
+	return libngap.UPTransportLayerInformation{GTPTunnel: &libngap.GTPTunnel{
+		TransportLayerAddress: ap.TransportLayerAddressFromOctets(addr),
 		GTPTEID:               libngap.GTPTEID(teid),
 	}}
 }

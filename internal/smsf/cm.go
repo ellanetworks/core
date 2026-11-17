@@ -367,7 +367,7 @@ func smsMessageFields(m sms.CPMessage) []zap.Field {
 	return fields
 }
 
-func (s *SMSF) reachAndSend(ctx context.Context, imsi string, data *sms.CPData) error {
+func (s *SMSF) reachAndSend(ctx context.Context, imsi string, data *sms.CPData, t *cpTxn) error {
 	pagingCtx, cancel := context.WithTimeout(ctx, s.timers.Paging)
 	err := s.transport.EnableUEReachability(pagingCtx, imsi)
 
@@ -377,6 +377,14 @@ func (s *SMSF) reachAndSend(ctx context.Context, imsi string, data *sms.CPData) 
 		logger.From(ctx, s.logger).Debug("Could not reach the UE for an SMS", zap.String("imsi", imsi), zap.Error(err))
 		return err
 	}
+
+	s.mu.Lock()
+	if !t.sent {
+		t.sentAt = time.Now()
+	}
+
+	t.sent = true
+	s.mu.Unlock()
 
 	return s.send(ctx, imsi, data)
 }
@@ -389,21 +397,13 @@ func (s *SMSF) sendReliably(ctx context.Context, imsi string, data *sms.CPData, 
 		default:
 		}
 
-		if err := s.reachAndSend(ctx, imsi, data); err != nil {
+		if err := s.reachAndSend(ctx, imsi, data, t); err != nil {
 			if attempt > 0 {
 				return fmt.Errorf("%w: retransmission failed: %w", errNoCPAck, err)
 			}
 
 			return err
 		}
-
-		s.mu.Lock()
-		if !t.sent {
-			t.sentAt = time.Now()
-		}
-
-		t.sent = true
-		s.mu.Unlock()
 
 		if err := s.awaitCPAck(ctx, t); err != errTC1Expired {
 			return err

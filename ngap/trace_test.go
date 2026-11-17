@@ -4,8 +4,12 @@
 package ngap
 
 import (
+	"bytes"
 	"encoding/hex"
 	"testing"
+
+	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 const (
@@ -20,7 +24,7 @@ func goldenTraceActivation() TraceActivation {
 		NGRANTraceID:                   goldenTraceID,
 		InterfacesToTrace:              InterfaceToTraceNGC | InterfaceToTraceXnC | InterfaceToTraceUu | InterfaceToTraceF1C | InterfaceToTraceE1,
 		TraceDepth:                     TraceDepthMinimum,
-		TraceCollectionEntityIPAddress: TransportLayerAddress{10, 0, 0, 1},
+		TraceCollectionEntityIPAddress: tlaOf(10, 0, 0, 1),
 	}
 }
 
@@ -59,7 +63,7 @@ func TestTraceStartGolden(t *testing.T) {
 
 	got := *out.TraceActivation
 	if got.NGRANTraceID != ta.NGRANTraceID || got.InterfacesToTrace != ta.InterfacesToTrace ||
-		got.TraceDepth != ta.TraceDepth || hex.EncodeToString(got.TraceCollectionEntityIPAddress) != "0a000001" {
+		got.TraceDepth != ta.TraceDepth || got.TraceCollectionEntityIPAddress != ta.TraceCollectionEntityIPAddress {
 		t.Fatalf("round trip TraceActivation %+v, want %+v", got, ta)
 	}
 }
@@ -72,14 +76,49 @@ func TestTraceStartRequiresTraceActivation(t *testing.T) {
 	}
 }
 
-func TestTraceActivationRequiresTCEAddress(t *testing.T) {
+func TestTraceActivationTraceCollectionEntityURIExtension(t *testing.T) {
 	ta := goldenTraceActivation()
-	ta.TraceCollectionEntityIPAddress = nil
+	ta.TraceCollectionEntityURI = Ptr(URIAddress("http://tce.example/collect"))
 
-	in := TraceStart{AMFUENGAPID: 1, RANUENGAPID: 2, TraceActivation: &ta}
+	w := per.NewWriter()
+	if err := ta.MarshalPER(w, per.Aligned); err != nil {
+		t.Fatal(err)
+	}
 
-	if _, err := in.Marshal(); err == nil {
-		t.Fatal("encoded a Trace Activation without a TCE address")
+	uri, err := per.Marshal(ta.TraceCollectionEntityURI)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bare := goldenTraceActivation()
+
+	want := per.NewWriter()
+	want.WriteBit(false)
+	want.WriteBit(true)
+
+	for _, m := range []per.Marshaler{&bare.NGRANTraceID, &bare.InterfacesToTrace, &bare.TraceDepth, &bare.TraceCollectionEntityIPAddress} {
+		if err := m.MarshalPER(want, per.Aligned); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := encodeExtensionContainer(want, per.Aligned, []ieField{
+		{ID: IDTraceCollectionEntityURI, Criticality: CriticalityIgnore, Value: apimpl.RawValue(uri)},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(perBytes(w), perBytes(want)) {
+		t.Fatalf("encoding = % x, want % x", perBytes(w), perBytes(want))
+	}
+
+	out, err := unmarshalPERValue[TraceActivation](perBytes(w))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !out.Equal(ta) {
+		t.Errorf("round trip = %+v, want %+v", out, ta)
 	}
 }
 
@@ -104,10 +143,10 @@ func TestTraceFailureIndicationGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	want := Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkHandoverCancelled}
+	want := CauseRadioNetworkHandoverCancelled.Cause()
 
 	if out.AMFUENGAPID != 1 || out.RANUENGAPID != 2 || out.NGRANTraceID == nil || *out.NGRANTraceID != goldenTraceID ||
-		out.Cause == nil || *out.Cause != want {
+		out.Cause == nil || !(*out.Cause).Equal(want) {
 		t.Fatalf("decoded %+v", out)
 	}
 
@@ -126,9 +165,9 @@ func TestHandoverRequestTraceActivationRoundTrip(t *testing.T) {
 
 	in := HandoverRequest{
 		AMFUENGAPID: 1, HandoverType: HandoverTypeIntra5GS,
-		Cause:                     &Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkHandoverDesirableForRadio},
+		Cause:                     Ptr(CauseRadioNetworkHandoverDesirableForRadio.Cause()),
 		UEAggregateMaximumBitRate: UEAggregateMaximumBitRate{DL: 1000000000, UL: 1000000000},
-		UESecurityCapabilities:    UESecurityCapabilities{NREncryptionAlgorithms: 0x8000, NRIntegrityProtectionAlgorithms: 0x8000},
+		UESecurityCapabilities:    UESecurityCapabilities{NREncryptionAlgorithms: SecurityAlgorithmsFrom(0x8000), NRIntegrityProtectionAlgorithms: SecurityAlgorithmsFrom(0x8000)},
 		SecurityContext:           SecurityContext{NextHopChainingCount: 1},
 		PDUSessionResourceSetupListHOReq: PDUSessionResourceSetupListHOReq{{
 			PDUSessionID: 5, SNSSAI: SNSSAI{SST: 1}, Transfer: handoverSetupTransfer(t),

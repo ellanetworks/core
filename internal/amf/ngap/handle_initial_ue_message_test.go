@@ -311,7 +311,7 @@ func TestInitialUEMessageReusingTheRanIDOfAConnectionBeingReleasedCompletesThatR
 	HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, &ngap.UEContextReleaseRequest{
 		AMFUENGAPID: 10,
 		RANUENGAPID: 1,
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUserInactivity},
+		Cause:       new(ngap.CauseRadioNetworkUserInactivity.Cause()),
 	})
 
 	HandleInitialUEMessage(context.Background(), amfInstance, ran, &ngap.InitialUEMessage{

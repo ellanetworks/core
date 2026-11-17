@@ -36,7 +36,7 @@ func TestDecodeS1APMessage_TraceStart(t *testing.T) {
 
 func TestDecodeS1APMessage_TraceFailureIndication(t *testing.T) {
 	id := lib.EUTRANTraceID{0x02, 0xf8, 0x39, 0x0a, 0x0b, 0x0c, 0x12, 0x34}
-	cause := lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 5}
+	cause := lib.CauseRadioNetwork(5).Cause()
 
 	raw, err := (&lib.TraceFailureIndication{MMEUES1APID: 1, ENBUES1APID: 2, EUTRANTraceID: &id, Cause: &cause}).Marshal()
 	if err != nil {

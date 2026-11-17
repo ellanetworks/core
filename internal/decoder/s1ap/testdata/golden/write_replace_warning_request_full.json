@@ -1,0 +1,225 @@
+{
+  "summary": "Write-Replace Warning Request (message 4370, serial 12289)",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 36,
+    "label": "WriteReplaceWarning",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 111,
+          "label": "MessageIdentifier",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 4370
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 112,
+          "label": "SerialNumber",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 12289
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 113,
+          "label": "WarningAreaList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "ecgi_list": [
+            {
+              "plmn_id": {
+                "mcc": "001",
+                "mnc": "01"
+              },
+              "cell_id": "0019b01"
+            },
+            {
+              "plmn_id": {
+                "mcc": "001",
+                "mnc": "01"
+              },
+              "cell_id": "0019b02"
+            }
+          ]
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 114,
+          "label": "RepetitionPeriod",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 60
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 144,
+          "label": "ExtendedRepetitionPeriod",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 5000
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 115,
+          "label": "NumberofBroadcastRequest",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 3
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 116,
+          "label": "WarningType",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "hex": "0180"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 117,
+          "label": "WarningSecurityInfo",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "hex": "aa00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 118,
+          "label": "DataCodingScheme",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": 15
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 119,
+          "label": "WarningMessageContents",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "hex": "01414243"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 142,
+          "label": "ConcurrentWarningMessageIndicator",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": true
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 286,
+          "label": "WarningAreaCoordinates",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "hex": "0a0b"
+        }
+      }
+    ]
+  }
+}

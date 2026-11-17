@@ -118,7 +118,7 @@ func (ue *UE) BuildIdleTrackingAreaUpdate(opts IdleTrackingAreaUpdateOpts) ([]by
 }
 
 func (e *ENB) TrackingAreaUpdateFrom5GS(ue *UE, opts IdleTrackingAreaUpdateOpts, timeout time.Duration) (*AttachResult, error) {
-	enbUEID := e.AllocateENBUEID()
+	enbUEID := e.AllocateENBUEIDFor(ue)
 
 	wire, err := ue.BuildIdleTrackingAreaUpdate(opts)
 	if err != nil {

@@ -37,12 +37,12 @@ const (
 )
 
 func hoTunnel(a byte, teid GTPTEID) UPTransportLayerInformation {
-	addr := TransportLayerAddress{192, 168, 1, 1}
+	addr := tlaOf(192, 168, 1, 1)
 	if a != 192 {
-		addr = TransportLayerAddress{10, 0, 0, 1}
+		addr = tlaOf(10, 0, 0, 1)
 	}
 
-	return UPTransportLayerInformation{GTPTunnel: GTPTunnel{TransportLayerAddress: addr, GTPTEID: teid}}
+	return UPTransportLayerInformation{GTPTunnel: &GTPTunnel{TransportLayerAddress: addr, GTPTEID: teid}}
 }
 
 func TestHandoverAndPathSwitchTransferGoldens(t *testing.T) {
@@ -131,10 +131,10 @@ func TestPathSwitchRequestSetupFailedTransferGolden(t *testing.T) {
 		cause  Cause
 		golden string
 	}{
-		{"RadioNetworkUnspecified", Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified}, goldenPathSwitchRequestSetupFailedRadioNetwork},
-		{"NASNormalRelease", Cause{Group: CauseGroupNAS, Value: CauseNASNormalRelease}, goldenPathSwitchRequestSetupFailedNAS},
-		{"TransportUnavailable", Cause{Group: CauseGroupTransport, Value: CauseTransportResourceUnavailable}, goldenPathSwitchRequestSetupFailedTransport},
-		{"RadioNetworkNGRANGenerated", Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkReleaseDueToNGRANGeneratedReason}, goldenPathSwitchRequestSetupFailedRadioNetwork3},
+		{"RadioNetworkUnspecified", CauseRadioNetworkUnspecified.Cause(), goldenPathSwitchRequestSetupFailedRadioNetwork},
+		{"NASNormalRelease", CauseNASNormalRelease.Cause(), goldenPathSwitchRequestSetupFailedNAS},
+		{"TransportUnavailable", CauseTransportResourceUnavailable.Cause(), goldenPathSwitchRequestSetupFailedTransport},
+		{"RadioNetworkNGRANGenerated", CauseRadioNetworkReleaseDueToNGRANGeneratedReason.Cause(), goldenPathSwitchRequestSetupFailedRadioNetwork3},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			in := PathSwitchRequestSetupFailedTransfer{Cause: c.cause}
@@ -153,7 +153,7 @@ func TestPathSwitchRequestSetupFailedTransferGolden(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if out.Cause != c.cause {
+			if !out.Cause.Equal(c.cause) {
 				t.Fatalf("round trip %+v, want %+v", out.Cause, c.cause)
 			}
 		})
@@ -179,7 +179,7 @@ func TestHandoverTransfersRoundTrip(t *testing.T) {
 		}},
 		QosFlowFailedToSetup: QosFlowListWithCause{{
 			QosFlowIdentifier: 6,
-			Cause:             Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified},
+			Cause:             CauseRadioNetworkUnspecified.Cause(),
 		}},
 		DataForwardingResponseDRB: DataForwardingResponseDRBList{{
 			DRBID: 32, DLForwardingUPTNLInformation: &tun, ULForwardingUPTNLInformation: &tun2,
@@ -205,13 +205,5 @@ func TestHandoverTransfersRoundTrip(t *testing.T) {
 	drb := out.DataForwardingResponseDRB[0]
 	if drb.DRBID != 32 || drb.DLForwardingUPTNLInformation == nil || drb.ULForwardingUPTNLInformation == nil {
 		t.Fatalf("DRB item = %+v, want DRB-ID 32 with both tunnels", drb)
-	}
-}
-
-// DRB-ID is (1..32, ...): zero is below the lower bound.
-func TestDRBIDRejectsZero(t *testing.T) {
-	w := per.NewWriter()
-	if err := DRBID(0).MarshalPER(w, per.Aligned); err == nil {
-		t.Fatal("encoded a DRB-ID of 0")
 	}
 }

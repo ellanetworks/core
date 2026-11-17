@@ -3,164 +3,192 @@
 
 package ngap
 
-import (
-	"fmt"
-
-	"github.com/ellanetworks/core/per"
-)
-
-// CauseGroup selects a Cause CHOICE alternative (TS 38.413 §9.3.1.2).
-type CauseGroup uint8
-
-const (
-	CauseGroupRadioNetwork CauseGroup = iota
-	CauseGroupTransport
-	CauseGroupNAS
-	CauseGroupProtocol
-	CauseGroupMisc
-
-	causeRootGroups = 5
-
-	// An alternative index, not a group, so never a valid CauseGroup.
-	causeChoiceExtensions = 5
-
-	// The CHOICE is not extensible, so there is no extension bit and the index
-	// spans the choice-Extensions alternative.
-	causeAlternatives = 6
-)
-
-// Root ENUMERATED values per group, which sets the index width (§9.3.1.2).
-var causeGroupRootCount = [causeRootGroups]int{
-	CauseGroupRadioNetwork: 45,
-	CauseGroupTransport:    2,
-	CauseGroupNAS:          4,
-	CauseGroupProtocol:     7,
-	CauseGroupMisc:         6,
-}
-
-// Root ENUMERATED values of each Cause group (TS 38.413 §9.3.1.2). A value is
-// an index within its own group, so the same number differs across groups.
-const (
-	CauseRadioNetworkUnspecified                      = 0  // unspecified
-	CauseRadioNetworkSuccessfulHandover               = 2  // successful-handover
-	CauseRadioNetworkReleaseDueToNGRANGeneratedReason = 3  // release-due-to-ngran-generated-reason
-	CauseRadioNetworkReleaseDueTo5GCGeneratedReason   = 4  // release-due-to-5gc-generated-reason
-	CauseRadioNetworkHandoverCancelled                = 5  // handover-cancelled
-	CauseRadioNetworkHOFailureInTarget                = 7  // ho-failure-in-target-5GC-ngran-node-or-target-system
-	CauseRadioNetworkHoTargetNotAllowed               = 8  // ho-target-not-allowed
-	CauseRadioNetworkHandoverDesirableForRadio        = 16 // handover-desirable-for-radio-reason
-	CauseRadioNetworkTimeCriticalHandover             = 17 // time-critical-handover
-	CauseRadioNetworkResourceOptimisationHandover     = 18 // resource-optimisation-handover
-	CauseRadioNetworkReduceLoadInServingCell          = 19 // reduce-load-in-serving-cell
-	CauseRadioNetworkTNGRelocOverallExpiry            = 9  // tngrelocoverall-expiry
-	CauseRadioNetworkUnknownTargetID                  = 12 // unknown-targetID
-	CauseRadioNetworkNoRadioResourcesInTargetCell     = 13 // no-radio-resources-available-in-target-cell
-	CauseRadioNetworkUnknownLocalUENGAPID             = 14 // unknown-local-UE-NGAP-ID
-	CauseRadioNetworkInconsistentRemoteUEID           = 15 // inconsistent-remote-UE-NGAP-ID
-	CauseRadioNetworkUserInactivity                   = 20 // user-inactivity
-	CauseRadioNetworkRadioResourcesNotAvailable       = 22 // radio-resources-not-available
-	CauseRadioNetworkRadioConnectionWithUELost        = 21 // radio-connection-with-ue-lost
-	CauseRadioNetworkUnknownPDUSessionID              = 26 // unknown-PDU-session-ID
-	CauseRadioNetworkMultiplePDUSessionIDs            = 28 // multiple-PDU-session-ID-instances
-	CauseRadioNetworkSliceNotSupported                = 39 // slice-not-supported
-	CauseRadioNetworkReleaseDueToCNDetectedMobility   = 44 // release-due-to-cn-detected-mobility
-	CauseRadioNetworkRedirection                      = 41 // redirection
-
-	CauseRadioNetworkNGIntraSystemHandoverTriggered = 31 // ng-intra-system-handover-triggered
-	CauseRadioNetworkNGInterSystemHandoverTriggered = 32 // ng-inter-system-handover-triggered
-	CauseRadioNetworkXnHandoverTriggered            = 33 // xn-handover-triggered
-
-	// ims-voice-eps-fallback-or-rat-fallback-triggered
-	CauseRadioNetworkIMSVoiceEPSFallbackTriggered = 36
-
-	// encryption-and-or-integrity-protection-algorithms-not-supported
-	CauseRadioNetworkEncryptionAlgorithmsNotSupported = 30
-
-	CauseTransportResourceUnavailable = 0 // transport-resource-unavailable
-	CauseTransportUnspecified         = 1 // unspecified
-
-	CauseNASNormalRelease         = 0 // normal-release
-	CauseNASAuthenticationFailure = 1 // authentication-failure
-	CauseNASDeregister            = 2 // deregister
-	CauseNASUnspecified           = 3 // unspecified
-
-	CauseProtocolTransferSyntaxError                = 0 // transfer-syntax-error
-	CauseProtocolAbstractSyntaxErrorReject          = 1 // abstract-syntax-error-reject
-	CauseProtocolAbstractSyntaxErrorIgnoreAndNotify = 2 // abstract-syntax-error-ignore-and-notify
-	CauseProtocolMessageNotCompatible               = 3 // message-not-compatible-with-receiver-state
-	CauseProtocolSemanticError                      = 4 // semantic-error
-	CauseProtocolUnspecified                        = 6 // unspecified
-
-	// abstract-syntax-error-falsely-constructed-message
-	CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage = 5
-
-	CauseMiscControlProcessingOverload = 0 // control-processing-overload
-	CauseMiscHardwareFailure           = 2 // hardware-failure
-	CauseMiscOMIntervention            = 3 // om-intervention
-	CauseMiscUnknownPLMNOrSNPN         = 4 // unknown-PLMN-or-SNPN
-	CauseMiscUnspecified               = 5 // unspecified
-)
-
-var CauseInsufficientUECapabilities = Cause{Group: CauseGroupRadioNetwork, Value: 6, Extended: true}
+import "fmt"
 
 // Cause ::= CHOICE of five extensible ENUMERATED groups plus a
-// choice-Extensions alternative. Value indexes the chosen group; Extended
-// marks it as indexing an extension addition of that group.
+// choice-Extensions alternative.
 type Cause struct {
-	Group    CauseGroup
-	Value    int
-	Extended bool
+	RadioNetwork    *CauseRadioNetwork `per:",choice:0"`
+	Transport       *CauseTransport    `per:",choice:1"`
+	NAS             *CauseNas          `per:",choice:2"`
+	Protocol        *CauseProtocol     `per:",choice:3"`
+	Misc            *CauseMisc         `per:",choice:4"`
+	ChoiceExtension *SingleContainer   `per:",choice:5,extie"`
 }
 
-func (c Cause) EnumeratedValue() int {
-	if c.Extended && int(c.Group) < causeRootGroups {
-		return causeGroupRootCount[c.Group] + c.Value
-	}
+type CauseRadioNetwork uint8
 
-	return c.Value
+const (
+	CauseRadioNetworkUnspecified CauseRadioNetwork = iota // unspecified
+	CauseRadioNetworkTXnRelocOverallExpiry
+	CauseRadioNetworkSuccessfulHandover               // successful-handover
+	CauseRadioNetworkReleaseDueToNGRANGeneratedReason // release-due-to-ngran-generated-reason
+	CauseRadioNetworkReleaseDueTo5GCGeneratedReason   // release-due-to-5gc-generated-reason
+	CauseRadioNetworkHandoverCancelled                // handover-cancelled
+	CauseRadioNetworkPartialHandover
+	CauseRadioNetworkHOFailureInTarget     // ho-failure-in-target-5GC-ngran-node-or-target-system
+	CauseRadioNetworkHoTargetNotAllowed    // ho-target-not-allowed
+	CauseRadioNetworkTNGRelocOverallExpiry // tngrelocoverall-expiry
+	CauseRadioNetworkTNGRelocPrepExpiry
+	CauseRadioNetworkCellNotAvailable
+	CauseRadioNetworkUnknownTargetID              // unknown-targetID
+	CauseRadioNetworkNoRadioResourcesInTargetCell // no-radio-resources-available-in-target-cell
+	CauseRadioNetworkUnknownLocalUENGAPID         // unknown-local-UE-NGAP-ID
+	CauseRadioNetworkInconsistentRemoteUEID       // inconsistent-remote-UE-NGAP-ID
+	CauseRadioNetworkHandoverDesirableForRadio    // handover-desirable-for-radio-reason
+	CauseRadioNetworkTimeCriticalHandover         // time-critical-handover
+	CauseRadioNetworkResourceOptimisationHandover // resource-optimisation-handover
+	CauseRadioNetworkReduceLoadInServingCell      // reduce-load-in-serving-cell
+	CauseRadioNetworkUserInactivity               // user-inactivity
+	CauseRadioNetworkRadioConnectionWithUELost    // radio-connection-with-ue-lost
+	CauseRadioNetworkRadioResourcesNotAvailable   // radio-resources-not-available
+	CauseRadioNetworkInvalidQoSCombination
+	CauseRadioNetworkFailureInRadioInterfaceProcedure
+	CauseRadioNetworkInteractionWithOtherProcedure
+	CauseRadioNetworkUnknownPDUSessionID // unknown-PDU-session-ID
+	CauseRadioNetworkUnknownQoSFlowID
+	CauseRadioNetworkMultiplePDUSessionIDs // multiple-PDU-session-ID-instances
+	CauseRadioNetworkMultipleQoSFlowIDInstances
+	// encryption-and-or-integrity-protection-algorithms-not-supported
+	CauseRadioNetworkEncryptionAlgorithmsNotSupported
+	CauseRadioNetworkNGIntraSystemHandoverTriggered // ng-intra-system-handover-triggered
+	CauseRadioNetworkNGInterSystemHandoverTriggered // ng-inter-system-handover-triggered
+	CauseRadioNetworkXnHandoverTriggered            // xn-handover-triggered
+	CauseRadioNetworkNotSupported5QIValue
+	CauseRadioNetworkUEContextTransfer
+	// ims-voice-eps-fallback-or-rat-fallback-triggered
+	CauseRadioNetworkIMSVoiceEPSFallbackTriggered // encryption-and-or-integrity-protection-algorithms-not-supported
+	CauseRadioNetworkUPIntegrityProtectionNotPossible
+	CauseRadioNetworkUPConfidentialityProtectionNotPossible
+	CauseRadioNetworkSliceNotSupported // slice-not-supported
+	CauseRadioNetworkUEInRRCInactiveStateNotReachable
+	CauseRadioNetworkRedirection // redirection
+	CauseRadioNetworkResourcesNotAvailableForTheSlice
+	CauseRadioNetworkUEMaxIntegrityProtectedDataRateReason
+	CauseRadioNetworkReleaseDueToCNDetectedMobility // release-due-to-cn-detected-mobility
+	CauseRadioNetworkN26InterfaceNotAvailable
+	CauseRadioNetworkReleaseDueToPreEmption
+	CauseRadioNetworkMultipleLocationReportingReferenceIDInstances
+	CauseRadioNetworkRSNNotAvailableForTheUP
+	CauseRadioNetworkNPNAccessDenied
+	CauseRadioNetworkCAGOnlyAccessDenied
+	CauseRadioNetworkInsufficientUECapabilities
+	CauseRadioNetworkRedCapUENotSupported
+	CauseRadioNetworkUnknownMBSSessionID
+	CauseRadioNetworkIndicatedMBSSessionAreaInformationNotServedByTheGNB
+	CauseRadioNetworkInconsistentSliceInfoForTheSession
+	CauseRadioNetworkMisalignedAssociationForMulticastUnicast
+	CauseRadioNetworkERedCapUENotSupported
+	CauseRadioNetworkTwoRxXRUENotSupported
+	CauseRadioNetworkAerialUEFlightInformationReportingInitiationFailure
+	CauseRadioNetworkUnknownRANAIoTDeviceNGAPID
+	CauseRadioNetworkRequestedAIoTServiceAreaInformationNotServedByTheGNB
+	CauseRadioNetworkUnknownAIoTSession
+	CauseRadioNetworkAIoTDeviceNotReachable
+	CauseRadioNetworkMultipleAIoTSessionIDInstances
+)
+
+type CauseTransport uint8
+
+const (
+	CauseTransportResourceUnavailable CauseTransport = iota // transport-resource-unavailable
+	CauseTransportUnspecified                               // unspecified
+)
+
+type CauseNas uint8
+
+const (
+	CauseNASNormalRelease         CauseNas = iota // normal-release
+	CauseNASAuthenticationFailure                 // authentication-failure
+	CauseNASDeregister                            // deregister
+	CauseNASUnspecified                           // unspecified
+	CauseNASUENotInPLMNServingArea
+	CauseNASMobileIABNotAuthorized
+	CauseNASIABNotAuthorized
+	CauseNASNoAIoTNASResponse
+)
+
+type CauseProtocol uint8
+
+const (
+	CauseProtocolTransferSyntaxError                CauseProtocol = iota // transfer-syntax-error
+	CauseProtocolAbstractSyntaxErrorReject                               // abstract-syntax-error-reject
+	CauseProtocolAbstractSyntaxErrorIgnoreAndNotify                      // abstract-syntax-error-ignore-and-notify
+	CauseProtocolMessageNotCompatible                                    // message-not-compatible-with-receiver-state
+	CauseProtocolSemanticError                                           // semantic-error
+	// abstract-syntax-error-falsely-constructed-message
+	CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage
+	CauseProtocolUnspecified // unspecified
+)
+
+type CauseMisc uint8
+
+const (
+	CauseMiscControlProcessingOverload CauseMisc = iota // control-processing-overload
+	CauseMiscNotEnoughUserPlaneProcessingResources
+	CauseMiscHardwareFailure   // hardware-failure
+	CauseMiscOMIntervention    // om-intervention
+	CauseMiscUnknownPLMNOrSNPN // unknown-PLMN-or-SNPN
+	CauseMiscUnspecified       // unspecified
+)
+
+func (v CauseRadioNetwork) Cause() Cause { return Cause{RadioNetwork: &v} }
+
+func (v CauseTransport) Cause() Cause { return Cause{Transport: &v} }
+
+func (v CauseNas) Cause() Cause { return Cause{NAS: &v} }
+
+func (v CauseProtocol) Cause() Cause { return Cause{Protocol: &v} }
+
+func (v CauseMisc) Cause() Cause { return Cause{Misc: &v} }
+
+func (c Cause) Alternative() (index int, name string) {
+	switch {
+	case c.RadioNetwork != nil:
+		return 0, "radioNetwork"
+	case c.Transport != nil:
+		return 1, "transport"
+	case c.NAS != nil:
+		return 2, "nas"
+	case c.Protocol != nil:
+		return 3, "protocol"
+	case c.Misc != nil:
+		return 4, "misc"
+	case c.ChoiceExtension != nil:
+		return 5, "choice-Extensions"
+	default:
+		return -1, ""
+	}
 }
 
-func (c Cause) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	if int(c.Group) >= causeRootGroups {
-		return fmt.Errorf("ngap: invalid cause group %d", c.Group)
+func (c Cause) Value() (index int, name string) {
+	switch {
+	case c.RadioNetwork != nil:
+		return int(*c.RadioNetwork), c.RadioNetwork.Name()
+	case c.Transport != nil:
+		return int(*c.Transport), c.Transport.Name()
+	case c.NAS != nil:
+		return int(*c.NAS), c.NAS.Name()
+	case c.Protocol != nil:
+		return int(*c.Protocol), c.Protocol.Name()
+	case c.Misc != nil:
+		return int(*c.Misc), c.Misc.Name()
+	default:
+		return -1, ""
 	}
-
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, causeAlternatives-1, int64(c.Group)); err != nil {
-		return err
-	}
-
-	n := int64(causeGroupRootCount[c.Group])
-
-	idx := int64(c.Value)
-	if c.Extended {
-		idx += n
-	}
-
-	return per.EncodeEnumerated(w, enc, n, true, idx)
 }
 
-func (c *Cause) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	gi, err := per.DecodeConstrainedWholeNumber(r, enc, 0, causeAlternatives-1)
-	if err != nil {
-		return fmt.Errorf("ngap: cause group: %w", err)
+func (c Cause) String() string {
+	_, alt := c.Alternative()
+	if alt == "" {
+		return "empty"
 	}
 
-	if gi == causeChoiceExtensions {
-		return decodeChoiceExtension(r, enc, "Cause")
+	if c.ChoiceExtension != nil {
+		return fmt.Sprintf("%s: id %d", alt, c.ChoiceExtension.ID)
 	}
 
-	n := int64(causeGroupRootCount[gi])
+	index, name := c.Value()
 
-	idx, err := per.DecodeEnumerated(r, enc, n, true)
-	if err != nil {
-		return fmt.Errorf("ngap: cause value: %w", err)
-	}
-
-	if idx >= n {
-		*c = Cause{Group: CauseGroup(gi), Value: int(idx - n), Extended: true}
-	} else {
-		*c = Cause{Group: CauseGroup(gi), Value: int(idx)}
-	}
-
-	return nil
+	return fmt.Sprintf("%s: %s (%d)", alt, name, index)
 }

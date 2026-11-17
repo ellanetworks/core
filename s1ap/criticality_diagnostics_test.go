@@ -13,7 +13,7 @@ import (
 func TestCriticalityDiagnosticsEmpty(t *testing.T) {
 	w := per.NewWriter()
 
-	if err := (CriticalityDiagnostics{}).MarshalPER(w, per.Aligned); err != nil {
+	if err := (&CriticalityDiagnostics{}).MarshalPER(w, per.Aligned); err != nil {
 		t.Fatal(err)
 	}
 
@@ -136,7 +136,7 @@ func TestCriticalityDiagnosticsPartial(t *testing.T) {
 	pc := ProcErrorIndication
 
 	w := per.NewWriter()
-	if err := (CriticalityDiagnostics{ProcedureCode: &pc}).MarshalPER(w, per.Aligned); err != nil {
+	if err := (&CriticalityDiagnostics{ProcedureCode: &pc}).MarshalPER(w, per.Aligned); err != nil {
 		t.Fatal(err)
 	}
 

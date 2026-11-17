@@ -15,6 +15,7 @@ export type SubscriberListStatus = {
   num_sessions?: number;
   last_seen_at?: string;
   last_seen_radio?: string;
+  last_seen_radio_ref?: string;
 };
 
 export type APISubscriberSummary = {
@@ -46,6 +47,7 @@ export type Registration = {
   registered: boolean;
   connection_state: ConnectionState | null;
   radio?: string;
+  radio_ref?: string;
   last_seen_at?: string;
   imei?: string;
   ciphering_algorithm?: string;
@@ -82,6 +84,7 @@ export type SubscriberDetailStatus = {
   integrity_algorithm: string;
   last_seen_at?: string;
   last_seen_radio?: string;
+  last_seen_radio_ref?: string;
   ims_voice_over_ps?: boolean;
 };
 
@@ -129,6 +132,7 @@ export function mergeRegistrations(
     integrity_algorithm: serving?.integrity_algorithm ?? "",
     last_seen_at: answering?.last_seen_at,
     last_seen_radio: answering?.radio,
+    last_seen_radio_ref: answering?.radio_ref,
     ims_voice_over_ps: registered?.ims_voice_over_ps,
   };
 }
@@ -206,12 +210,12 @@ export async function searchSubscriberImsis(
 
 export async function listSubscribersByRadio(
   authToken: string,
-  radioName: string,
+  radioRef: string,
   page: number,
   perPage: number,
 ): Promise<ListSubscribersResponse> {
   return apiFetch<ListSubscribersResponse>(
-    `/api/v1/subscribers?radio=${encodeURIComponent(radioName)}&page=${page}&per_page=${perPage}`,
+    `/api/v1/subscribers?radio=${encodeURIComponent(radioRef)}&page=${page}&per_page=${perPage}`,
     { authToken },
   );
 }

@@ -12,10 +12,19 @@ import (
 // ERABToBeModified is an E-RAB whose QoS the MME asks the eNB to change, with
 // the NAS message that tells the UE about it (TS 36.413 §9.1.3.3).
 type ERABToBeModified struct {
-	ERABID uint8  `json:"erab_id"`
-	QCI    uint8  `json:"qci"`
-	ARP    ARP    `json:"arp"`
-	NASPDU NASPDU `json:"nas_pdu"`
+	ERABID uint8   `json:"erab_id"`
+	QCI    uint8   `json:"qci"`
+	ARP    ARP     `json:"arp"`
+	NASPDU NASPDU  `json:"nas_pdu"`
+	GBR    *GBRQoS `json:"gbr_qos_information,omitempty"`
+	ERABQoSExtensions
+
+	TransportInformation *TransportInformation `json:"transport_information,omitempty"`
+}
+
+type TransportInformation struct {
+	TransportLayerAddress string `json:"transport_layer_address"`
+	ULGTPTEID             uint32 `json:"ul_gtp_teid"`
 }
 
 // ERABModifiedItem is an E-RAB the eNB confirms modified (TS 36.413 §9.1.3.4).
@@ -44,6 +53,19 @@ func erabModifiedTunnels(items []s1ap.ERABToBeModifiedItemBearerModInd) []ERABMo
 	return out
 }
 
+func erabNotModifiedTunnels(items s1ap.ERABNotToBeModifiedListBearerModInd) []ERABModifiedTunnel {
+	out := make([]ERABModifiedTunnel, 0, len(items))
+	for _, it := range items {
+		out = append(out, ERABModifiedTunnel{
+			ERABID:                uint8(it.ERABID),
+			TransportLayerAddress: transportLayerAddress(it.TransportLayerAddress),
+			DLGTPTEID:             uint32(it.DLGTPTEID),
+		})
+	}
+
+	return out
+}
+
 func buildERABModifyRequest(value []byte) (S1APMessageValue, string) {
 	m, err := s1ap.ParseERABModifyRequest(value)
 	if err != nil {
@@ -60,8 +82,17 @@ func buildERABModifyRequest(value []byte) (S1APMessageValue, string) {
 				PreemptionCapability:    uint8(it.QoS.ARP.PreemptionCapability),
 				PreemptionVulnerability: uint8(it.QoS.ARP.PreemptionVulnerability),
 			},
-			NASPDU: nasPDU(it.NASPDU),
+			NASPDU:            nasPDU(it.NASPDU),
+			GBR:               gbrQoS(it.QoS.GBR),
+			ERABQoSExtensions: qosExtensions(it.QoS),
 		})
+
+		if ti := it.TransportInformation; ti != nil {
+			erabs[len(erabs)-1].TransportInformation = &TransportInformation{
+				TransportLayerAddress: transportLayerAddress(ti.TransportLayerAddress),
+				ULGTPTEID:             uint32(ti.ULGTPTEID),
+			}
+		}
 	}
 
 	ies := []IE{
@@ -74,6 +105,11 @@ func buildERABModifyRequest(value []byte) (S1APMessageValue, string) {
 	}
 
 	ies = append(ies, ie(s1ap.IDERABToBeModifiedListBearerModReq, s1ap.CriticalityReject, erabs))
+
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDSecondaryRATDataUsageRequest, s1ap.CriticalityIgnore, m.SecondaryRATDataUsageRequest},
+	})
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, fmt.Sprintf("E-RAB Modify Request (MME-UE %d, eNB-UE %d, %d E-RAB)", m.MMEUES1APID, m.ENBUES1APID, len(m.ERABToBeModified))
@@ -116,6 +152,10 @@ func buildERABModifyResponse(value []byte) (S1APMessageValue, string) {
 		ies = append(ies, ie(s1ap.IDUserLocationInformation, s1ap.CriticalityIgnore, userLocationInformation(*m.UserLocationInformation)))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDSecondaryRATDataUsageReportList, s1ap.CriticalityIgnore, m.SecondaryRATDataUsageReportList},
+	})
+
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
 	return S1APMessageValue{IEs: ies}, fmt.Sprintf("E-RAB Modify Response (MME-UE %s, eNB-UE %s, %d E-RAB)", ueIDText(m.MMEUES1APID), ueIDText(m.ENBUES1APID), len(m.ERABModify))
@@ -134,12 +174,21 @@ func buildERABModificationIndication(value []byte) (S1APMessageValue, string) {
 	}
 
 	if len(m.NotToBeModified) > 0 {
-		ies = append(ies, ie(s1ap.IDERABNotToBeModifiedListBearerModInd, s1ap.CriticalityReject, erabModifiedTunnels(m.NotToBeModified)))
+		ies = append(ies, ie(s1ap.IDERABNotToBeModifiedListBearerModInd, s1ap.CriticalityReject, erabNotModifiedTunnels(m.NotToBeModified)))
 	}
 
 	if m.UserLocationInformation != nil {
 		ies = append(ies, ie(s1ap.IDUserLocationInformation, s1ap.CriticalityIgnore, userLocationInformation(*m.UserLocationInformation)))
 	}
+
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDTunnelInformationForBBF, s1ap.CriticalityIgnore, m.TunnelInformationForBBF},
+	})
+
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDCSGMembershipInfo, s1ap.CriticalityReject, m.CSGMembershipInfo},
+		{s1ap.IDSecondaryRATDataUsageReportList, s1ap.CriticalityIgnore, m.SecondaryRATDataUsageReportList},
+	})
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 
@@ -192,6 +241,10 @@ func buildERABModificationConfirm(value []byte) (S1APMessageValue, string) {
 	if m.CriticalityDiagnostics != nil {
 		ies = append(ies, ie(s1ap.IDCriticalityDiagnostics, s1ap.CriticalityIgnore, criticalityDiagnostics(*m.CriticalityDiagnostics)))
 	}
+
+	ies = appendTyped(ies, []typedIE{
+		{s1ap.IDCSGMembershipStatus, s1ap.CriticalityIgnore, m.CSGMembershipStatus},
+	})
 
 	ies = appendUnknownIEs(ies, m.UnknownIEs())
 

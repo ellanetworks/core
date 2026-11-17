@@ -44,7 +44,7 @@ func handlePDUSessionResourceSetupRequest(gnb *GnodeB, value []byte) error {
 			zap.Int64("AMF UE NGAP ID", amfUeNgapID),
 		)
 
-		cause := ngap.Cause{Group: ngap.CauseGroupProtocol, Value: ngap.CauseProtocolMessageNotCompatible}
+		cause := ngap.CauseProtocolMessageNotCompatible.Cause()
 
 		if err := gnb.SendErrorIndication(amfUeNgapID, ranUeNgapID, cause, ngap.ProcPDUSessionResourceSetup); err != nil {
 			return fmt.Errorf("could not send ErrorIndication: %w", err)
@@ -262,8 +262,8 @@ func qosFlowParams(qfi uint8, p *ngap.QosFlowLevelQosParameters) QoSFlowParams {
 		GBR:         p.GBRQosInformation != nil,
 	}
 
-	if p.QosCharacteristics.Kind == ngap.QosCharacteristicsNonDynamic5QI {
-		params.FiveQI = int64(p.QosCharacteristics.NonDynamic5QI.FiveQI)
+	if q := p.QosCharacteristics.NonDynamic5QI; q != nil {
+		params.FiveQI = int64(q.FiveQI)
 	}
 
 	return params
@@ -273,13 +273,13 @@ func qosFlowParams(qfi uint8, p *ngap.QosFlowLevelQosParameters) QoSFlowParams {
 // that matches the IP family of the given gNB N3 address.
 //
 // The encoding per 3GPP TS 38.414 is:
-//   - 4 bytes  → IPv4 only
-//   - 16 bytes → IPv6 only
-//   - 20 bytes → dual-stack: first 4 bytes are IPv4, next 16 bytes are IPv6
+//   - 32 bits  → IPv4 only
+//   - 128 bits → IPv6 only
+//   - 160 bits → dual-stack: first 32 bits are IPv4, next 128 bits are IPv6
 //
 // Returns an error when the UPF provides no address for the requested family.
-func ParseUPFAddress(upfAddressBytes []byte, n3Addr netip.Addr) (string, error) {
-	if len(upfAddressBytes) == 0 {
+func ParseUPFAddress(upfAddress ngap.TransportLayerAddress, n3Addr netip.Addr) (string, error) {
+	if upfAddress.IsZero() {
 		return "", fmt.Errorf("UPF transport layer address is empty")
 	}
 
@@ -287,28 +287,11 @@ func ParseUPFAddress(upfAddressBytes []byte, n3Addr netip.Addr) (string, error) 
 		return "", fmt.Errorf("gNB N3 address is not set")
 	}
 
-	var ipv4Addr, ipv6Addr netip.Addr
-
-	switch len(upfAddressBytes) {
-	case 4:
-		var arr [4]byte
-		copy(arr[:], upfAddressBytes)
-		ipv4Addr = netip.AddrFrom4(arr)
-	case 16:
-		var arr [16]byte
-		copy(arr[:], upfAddressBytes)
-		ipv6Addr = netip.AddrFrom16(arr)
-	case 20:
-		var arr4 [4]byte
-		copy(arr4[:], upfAddressBytes[:4])
-		ipv4Addr = netip.AddrFrom4(arr4)
-
-		var arr16 [16]byte
-		copy(arr16[:], upfAddressBytes[4:])
-		ipv6Addr = netip.AddrFrom16(arr16)
-	default:
-		return "", fmt.Errorf("unexpected UPF transport layer address length: %d bytes", len(upfAddressBytes))
+	if !upfAddress.Valid() {
+		return "", fmt.Errorf("unexpected UPF transport layer address length: %d bits", upfAddress.Bits())
 	}
+
+	ipv4Addr, ipv6Addr := upfAddress.IPv4(), upfAddress.IPv6()
 
 	if n3Addr.Is4() {
 		if !ipv4Addr.IsValid() {

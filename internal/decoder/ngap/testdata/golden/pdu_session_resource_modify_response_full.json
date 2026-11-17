@@ -67,7 +67,9 @@
                 "transport_layer_address": "10.45.0.1"
               },
               "qos_flow_add_or_modify_response": [
-                1
+                {
+                  "qos_flow_identifier": 1
+                }
               ],
               "qos_flow_failed_to_add_or_modify": [
                 {

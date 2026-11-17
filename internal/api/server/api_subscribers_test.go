@@ -174,8 +174,8 @@ type DeleteSubscriberResponse struct {
 	Error  string                         `json:"error,omitempty"`
 }
 
-func listSubscribers(url string, client *http.Client, token string, page int, perPage int) (int, *ListSubscriberResponse, error) {
-	return apiDo[ListSubscriberResponse](client, "GET", fmt.Sprintf("%s/api/v1/subscribers?page=%d&per_page=%d", url, page, perPage), token, nil)
+func listSubscribers(url string, client *http.Client, token string, perPage int) (int, *ListSubscriberResponse, error) {
+	return apiDo[ListSubscriberResponse](client, "GET", fmt.Sprintf("%s/api/v1/subscribers?page=1&per_page=%d", url, perPage), token, nil)
 }
 
 func getSubscriber(url string, client *http.Client, token string, imsi string) (int, *GetSubscriberResponse, error) {
@@ -1468,7 +1468,7 @@ func TestSubscriberDescription(t *testing.T) {
 	})
 
 	t.Run("list reports the description", func(t *testing.T) {
-		code, resp, err := listSubscribers(url, client, token, 1, 25)
+		code, resp, err := listSubscribers(url, client, token, 25)
 		if err != nil {
 			t.Fatalf("list: %s", err)
 		}

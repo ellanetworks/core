@@ -8,14 +8,15 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 func TestUEContextReleaseRoundTrips(t *testing.T) {
-	cause := Cause{Group: CauseGroupRadioNetwork, Value: 0}
+	cause := CauseRadioNetworkUnspecified.Cause()
 
 	t.Run("Command pair", func(t *testing.T) {
 		in := &UEContextReleaseCommand{
-			UES1APIDs: UES1APIDs{MMEUES1APID: 1, ENBUES1APID: 7, Pair: true},
+			UES1APIDs: UES1APIDs{UES1APIDPair: &UES1APIDPair{MMEUES1APID: 1, ENBUES1APID: 7}},
 			Cause:     &cause,
 		}
 
@@ -39,14 +40,13 @@ func TestUEContextReleaseRoundTrips(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if !out.UES1APIDs.Pair || out.UES1APIDs.MMEUES1APID != 1 || out.UES1APIDs.ENBUES1APID != 7 ||
-			deref(out.Cause) != cause {
+		if !out.UES1APIDs.Equal(in.UES1APIDs) || !deref(out.Cause).Equal(cause) {
 			t.Fatalf("mismatch:\n in  %+v\n out %+v", in, out)
 		}
 	})
 
 	t.Run("Command bare MME id", func(t *testing.T) {
-		in := &UEContextReleaseCommand{UES1APIDs: UES1APIDs{MMEUES1APID: 42}, Cause: &cause}
+		in := &UEContextReleaseCommand{UES1APIDs: UES1APIDs{MMEUES1APID: Ptr(MMEUES1APID(42))}, Cause: &cause}
 
 		b, _ := in.Marshal()
 
@@ -57,7 +57,7 @@ func TestUEContextReleaseRoundTrips(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if out.UES1APIDs.Pair || out.UES1APIDs.MMEUES1APID != 42 {
+		if out.UES1APIDs.UES1APIDPair != nil || out.UES1APIDs.MMEUES1APID == nil || *out.UES1APIDs.MMEUES1APID != 42 {
 			t.Fatalf("mismatch: %+v", out.UES1APIDs)
 		}
 	})
@@ -120,7 +120,7 @@ func TestUEContextReleaseRoundTrips(t *testing.T) {
 		}
 
 		out, err := ParseUEContextReleaseRequest(im.Value)
-		if err != nil || out.MMEUES1APID != 1 || out.ENBUES1APID != 7 || deref(out.Cause) != cause {
+		if err != nil || out.MMEUES1APID != 1 || out.ENBUES1APID != 7 || !deref(out.Cause).Equal(cause) {
 			t.Fatalf("got %+v err %v", out, err)
 		}
 	})
@@ -142,7 +142,7 @@ func TestUEContextReleaseCommandExtensionAlternative(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	value := container(t, ieField{id: IDUES1APIDs, crit: CriticalityReject, raw: perBytes(w)})
+	value := container(t, ieField{ID: IDUES1APIDs, Criticality: CriticalityReject, Value: apimpl.RawValue(perBytes(w))})
 
 	_, err := ParseUEContextReleaseCommand(value)
 	if err == nil {
@@ -154,12 +154,51 @@ func TestUEContextReleaseCommandExtensionAlternative(t *testing.T) {
 		t.Fatalf("error = %T (%v), want *AbstractSyntaxError", err, err)
 	}
 
-	if ase.Cause.Value != CauseProtocolAbstractSyntaxErrorReject {
+	if !ase.Cause.Equal(CauseProtocolAbstractSyntaxErrorReject.Cause()) {
 		t.Errorf("cause = %s, want abstract-syntax-error-reject", ase.Cause)
 	}
 
 	if len(ase.IEs) != 1 || ase.IEs[0].IEID != IDUES1APIDs ||
 		ase.IEs[0].TypeOfError != TypeOfErrorNotUnderstood {
 		t.Errorf("diagnostics = %+v, want one not-understood entry for UE-S1AP-IDs", ase.IEs)
+	}
+}
+
+func uEContextReleaseRequestGoldenCases() []newMessageCase {
+	x2 := CauseRadioNetworkX2HandoverTriggered.Cause()
+
+	return []newMessageCase{
+		{
+			name: "UEContextReleaseRequestGWContextReleaseIndication",
+			msg: &UEContextReleaseRequest{
+				MMEUES1APID:                1,
+				ENBUES1APID:                2,
+				Cause:                      &x2,
+				GWContextReleaseIndication: Ptr(GWContextReleaseIndicationTrue),
+			},
+			parse:  func(b []byte) (any, error) { return ParseUEContextReleaseRequest(b) },
+			choice: isInitiating,
+			golden: "0012401a00000400000002000100080002000200024002046000a4000100",
+		},
+	}
+}
+
+func TestUEContextReleaseRequestGWContextReleaseIndicationExtensionRejects(t *testing.T) {
+	cause := CauseRadioNetworkX2HandoverTriggered.Cause()
+
+	_, err := ParseUEContextReleaseRequest(container(t,
+		ieField{ID: IDMMEUES1APID, Criticality: CriticalityReject, Value: Ptr(MMEUES1APID(1))},
+		ieField{ID: IDENBUES1APID, Criticality: CriticalityReject, Value: Ptr(ENBUES1APID(2))},
+		ieField{ID: IDCause, Criticality: CriticalityIgnore, Value: &cause},
+		ieField{ID: IDGWContextReleaseIndication, Criticality: CriticalityReject, Value: apimpl.RawValue(extensionEnum(t, int64(len(enumGWContextReleaseIndication.Root)), 0))},
+	))
+
+	var ase *AbstractSyntaxError
+	if !errors.As(err, &ase) {
+		t.Fatalf("err = %v, want an AbstractSyntaxError", err)
+	}
+
+	if len(ase.IEs) != 1 || ase.IEs[0].IEID != IDGWContextReleaseIndication || ase.IEs[0].TypeOfError != TypeOfErrorNotUnderstood {
+		t.Fatalf("IEs = %+v, want GWContextReleaseIndication not-understood", ase.IEs)
 	}
 }

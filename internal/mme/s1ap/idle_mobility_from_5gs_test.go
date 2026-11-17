@@ -127,8 +127,9 @@ func TestInterSystemTAUWithNoRecoverableContextIsRejected(t *testing.T) {
 				t.Fatalf("TAU Reject cause = %d, want #%d", rej.Cause, tc.wantCause)
 			}
 
-			if cmd := parseUEContextReleaseCommand(t, lastSent(t, conn)); cmd.UES1APIDs.ENBUES1APID != 1001 {
-				t.Errorf("release command names eNB-UE-S1AP-ID %d, want the rejected connection's 1001", cmd.UES1APIDs.ENBUES1APID)
+			cmd := parseUEContextReleaseCommand(t, lastSent(t, conn))
+			if enbID, _ := cmd.UES1APIDs.ENBID(); enbID != 1001 {
+				t.Errorf("release command names eNB-UE-S1AP-ID %d, want the rejected connection's 1001", enbID)
 			}
 		})
 	}

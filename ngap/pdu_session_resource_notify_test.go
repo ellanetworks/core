@@ -26,10 +26,7 @@ func TestPDUSessionResourceNotifyGoldenEncoding(t *testing.T) {
 func TestPDUSessionResourceNotifyRoundTrip(t *testing.T) {
 	plmn := PLMNIdentity{0x00, 0xf1, 0x10}
 	in := goldPDUSessionResourceNotify()
-	in.UserLocationInformation = &UserLocationInformation{
-		Kind: UserLocationNR, PLMNIdentity: plmn, CellIdentity: 0x123456789,
-		TAI: TAI{PLMNIdentity: plmn, TAC: 1},
-	}
+	in.UserLocationInformation = &UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: plmn, NRCellIdentity: NRCellIdentity(0x123456789)}, TAI: TAI{PLMNIdentity: plmn, TAC: 1}}}
 
 	b, err := in.Marshal()
 	if err != nil {
@@ -59,7 +56,7 @@ func TestPDUSessionResourceNotifyRoundTrip(t *testing.T) {
 		t.Fatalf("released list = %+v", out.PDUSessionResourceReleased)
 	}
 
-	if out.UserLocationInformation == nil || out.UserLocationInformation.CellIdentity != 0x123456789 {
+	if out.UserLocationInformation == nil || out.UserLocationInformation.NR == nil || out.UserLocationInformation.NR.NRCGI.NRCellIdentity != 0x123456789 {
 		t.Fatalf("ULI = %+v", out.UserLocationInformation)
 	}
 }

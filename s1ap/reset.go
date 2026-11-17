@@ -4,94 +4,46 @@
 package s1ap
 
 import (
-	"fmt"
-
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
 )
 
 // TS 36.413, S1AP-Constants.
 const maxnoofIndividualS1ConnectionsToReset = 256
 
-// ResetType CHOICE root alternatives, defined inline in the RESET of TS 36.413
-// §9.1.8.1. The CHOICE is extensible, so an extension bit precedes the index.
-const (
-	resetTypeS1Interface = iota
-	resetTypePartOfS1Interface
-
-	resetTypeChoiceRootCount = 2
-)
-
 // ResetAll ::= ENUMERATED { reset-all, ... }.
-const resetAllRootCount = 1
+type ResetAll uint8
+
+const ResetAllResetAll ResetAll = 0
 
 // TS 36.413. Both identities are optional; an item may carry either or both.
 type UEAssociatedLogicalS1ConnectionItem struct {
-	_           [0]struct{}  `per:"extseq"`
-	MMEUES1APID *MMEUES1APID `per:",optional"`
-	ENBUES1APID *ENBUES1APID `per:",optional"`
-	_           ieExtensions `per:",skip"`
+	MMEUES1APID   *MMEUES1APID           `per:",optional"`
+	ENBUES1APID   *ENBUES1APID           `per:",optional"`
+	iEExtensions  extensionMeta          `per:",exttable"`
+	extensions    per.ExtensionAdditions `per:",extraw"`
+	containerCrit `per:"-"`
 }
 
-// All selects s1-Interface, resetting the whole interface; otherwise Part
-// selects partOfS1-Interface, the connections to reset.
+type UEAssociatedLogicalS1ConnectionListRes []UEAssociatedLogicalS1ConnectionItem
+
+func (l UEAssociatedLogicalS1ConnectionListRes) MarshalPER(w *per.Writer, enc per.Encoding) error {
+	return encodeSingleContainerList(w, enc, maxnoofIndividualS1ConnectionsToReset, IDUEAssociatedLogicalS1ConnectionItem, CriticalityReject, l)
+}
+
+func (l *UEAssociatedLogicalS1ConnectionListRes) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
+	items, err := decodeItemList[UEAssociatedLogicalS1ConnectionItem](r, enc, maxnoofIndividualS1ConnectionsToReset, IDUEAssociatedLogicalS1ConnectionItem, CriticalityReject)
+	*l = items
+
+	return err
+}
+
+// ResetType ::= CHOICE { s1-Interface ResetAll, partOfS1-Interface
+// UE-associatedLogicalS1-ConnectionListRes, ... } (TS 36.413 §9.1.8.1).
 type ResetType struct {
-	All  bool
-	Part []UEAssociatedLogicalS1ConnectionItem
-}
-
-func (t ResetType) MarshalPER(w *per.Writer, enc per.Encoding) error {
-	w.WriteBit(false)
-
-	if t.All {
-		if err := per.EncodeConstrainedWholeNumber(w, enc, 0, resetTypeChoiceRootCount-1, resetTypeS1Interface); err != nil {
-			return err
-		}
-
-		return encodeRootEnumerated(w, enc, resetAllRootCount, 0, "ResetAll")
-	}
-
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, resetTypeChoiceRootCount-1, resetTypePartOfS1Interface); err != nil {
-		return err
-	}
-
-	return encodeSingleContainerList(w, enc, maxnoofIndividualS1ConnectionsToReset, IDUEAssociatedLogicalS1ConnectionItem, CriticalityReject, t.Part)
-}
-
-func (t *ResetType) UnmarshalPER(r *per.Reader, enc per.Encoding) error {
-	isExt, err := r.ReadBit()
-	if err != nil {
-		return fmt.Errorf("s1ap: ResetType choice: %w", err)
-	}
-
-	if isExt {
-		// §10.3.1 case 6: handled on criticality, not by abandoning the RESET.
-		return fmt.Errorf("%w: ResetType extension alternative", errNotComprehended)
-	}
-
-	idx, err := per.DecodeConstrainedWholeNumber(r, enc, 0, resetTypeChoiceRootCount-1)
-	if err != nil {
-		return fmt.Errorf("s1ap: ResetType choice: %w", err)
-	}
-
-	switch idx {
-	case resetTypeS1Interface:
-		if _, err := decodeRootEnumerated(r, enc, resetAllRootCount, "ResetAll"); err != nil {
-			return fmt.Errorf("s1ap: ResetAll: %w", err)
-		}
-
-		*t = ResetType{All: true}
-
-		return nil
-	default:
-		items, err := decodeItemList[UEAssociatedLogicalS1ConnectionItem](r, enc, maxnoofIndividualS1ConnectionsToReset, IDUEAssociatedLogicalS1ConnectionItem)
-		if err != nil {
-			return err
-		}
-
-		*t = ResetType{Part: items}
-
-		return nil
-	}
+	S1Interface       *ResetAll                               `per:",choice:0"`
+	PartOfS1Interface *UEAssociatedLogicalS1ConnectionListRes `per:",choice:1"`
+	Ext               *per.ExtensionAlternative               `per:",extalt"`
 }
 
 // TS 36.413 §9.1.8.1.
@@ -104,11 +56,11 @@ type Reset struct {
 
 var resetIEs = []ieSpec[Reset]{
 	{
-		id: IDCause, presence: presenceMandatory, crit: CriticalityIgnore,
-		decode: func(m *Reset, raw []byte, enc per.Encoding) error {
+		ID: IDCause, Presence: presenceMandatory, Criticality: CriticalityIgnore,
+		Decode: func(m *Reset, r *per.Reader, enc per.Encoding) error {
 			var v Cause
 
-			if err := perIEDecode(raw, &v); err != nil {
+			if err := decodeIE(r, &v); err != nil {
 				return err
 			}
 
@@ -116,7 +68,7 @@ var resetIEs = []ieSpec[Reset]{
 
 			return nil
 		},
-		encode: func(m *Reset) (per.Marshaler, bool) {
+		Encode: func(m *Reset) (per.Marshaler, bool) {
 			if m.Cause == nil {
 				return nil, false
 			}
@@ -125,11 +77,11 @@ var resetIEs = []ieSpec[Reset]{
 		},
 	},
 	{
-		id: IDResetType, presence: presenceMandatory, crit: CriticalityReject,
-		decode: func(m *Reset, raw []byte, enc per.Encoding) error {
-			return perIEDecode(raw, &m.ResetType)
+		ID: IDResetType, Presence: presenceMandatory, Criticality: CriticalityReject,
+		Decode: func(m *Reset, r *per.Reader, enc per.Encoding) error {
+			return decodeIE(r, &m.ResetType)
 		},
-		encode: func(m *Reset) (per.Marshaler, bool) { return &m.ResetType, true },
+		Encode: func(m *Reset) (per.Marshaler, bool) { return &m.ResetType, true },
 	},
 }
 
@@ -157,6 +109,10 @@ func ParseReset(value []byte) (*Reset, error) {
 	return parseMessageBody[Reset](ProcReset, TriggeringInitiatingMessage, resetIEs, value)
 }
 
+func DecodeReset(value []byte) (*Reset, error) {
+	return decodeMessageBody[Reset](ProcReset, resetIEs, value)
+}
+
 // TS 36.413 §9.1.8.2.
 type ResetAcknowledge struct {
 	ConnectionList         []UEAssociatedLogicalS1ConnectionItem
@@ -168,9 +124,9 @@ type ResetAcknowledge struct {
 // The message has no mandatory IE.
 var resetAcknowledgeIEs = []ieSpec[ResetAcknowledge]{
 	{
-		id: IDUEAssociatedLogicalS1ConnectionListResAck, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *ResetAcknowledge, raw []byte, enc per.Encoding) error {
-			items, err := decodeItemList[UEAssociatedLogicalS1ConnectionItem](per.NewReader(raw), enc, maxnoofIndividualS1ConnectionsToReset, IDUEAssociatedLogicalS1ConnectionItem)
+		ID: IDUEAssociatedLogicalS1ConnectionListResAck, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *ResetAcknowledge, r *per.Reader, enc per.Encoding) error {
+			items, err := decodeItemList[UEAssociatedLogicalS1ConnectionItem](r, enc, maxnoofIndividualS1ConnectionsToReset, IDUEAssociatedLogicalS1ConnectionItem, CriticalityIgnore)
 			if err != nil {
 				return err
 			}
@@ -179,21 +135,19 @@ var resetAcknowledgeIEs = []ieSpec[ResetAcknowledge]{
 
 			return nil
 		},
-		encode: func(m *ResetAcknowledge) (per.Marshaler, bool) {
+		Encode: func(m *ResetAcknowledge) (per.Marshaler, bool) {
 			if len(m.ConnectionList) == 0 {
 				return nil, false
 			}
 
-			return per.MarshalerFunc(func(w *per.Writer, enc per.Encoding) error {
-				return encodeSingleContainerList(w, enc, maxnoofIndividualS1ConnectionsToReset, IDUEAssociatedLogicalS1ConnectionItem, CriticalityIgnore, m.ConnectionList)
-			}), true
+			return containerList(maxnoofIndividualS1ConnectionsToReset, IDUEAssociatedLogicalS1ConnectionItem, CriticalityIgnore, &m.ConnectionList), true
 		},
 	},
 	{
-		id: IDCriticalityDiagnostics, presence: presenceOptional, crit: CriticalityIgnore,
-		decode: func(m *ResetAcknowledge, raw []byte, enc per.Encoding) error {
+		ID: IDCriticalityDiagnostics, Presence: presenceOptional, Criticality: CriticalityIgnore,
+		Decode: func(m *ResetAcknowledge, r *per.Reader, enc per.Encoding) error {
 			var cd CriticalityDiagnostics
-			if err := perIEDecode(raw, &cd); err != nil {
+			if err := decodeIE(r, &cd); err != nil {
 				return err
 			}
 
@@ -201,7 +155,7 @@ var resetAcknowledgeIEs = []ieSpec[ResetAcknowledge]{
 
 			return nil
 		},
-		encode: func(m *ResetAcknowledge) (per.Marshaler, bool) {
+		Encode: func(m *ResetAcknowledge) (per.Marshaler, bool) {
 			if m.CriticalityDiagnostics == nil {
 				return nil, false
 			}
@@ -233,4 +187,12 @@ func (m *ResetAcknowledge) Marshal() ([]byte, error) {
 
 func ParseResetAcknowledge(value []byte) (*ResetAcknowledge, error) {
 	return parseMessageBody[ResetAcknowledge](ProcReset, TriggeringSuccessfulOutcome, resetAcknowledgeIEs, value)
+}
+
+func DecodeResetAcknowledge(value []byte) (*ResetAcknowledge, error) {
+	return decodeMessageBody[ResetAcknowledge](ProcReset, resetAcknowledgeIEs, value)
+}
+
+func (l *UEAssociatedLogicalS1ConnectionListRes) Diagnose(d *ap.Diagnosis[ProtocolIEID]) bool {
+	return diagnoseItemList(d, IDUEAssociatedLogicalS1ConnectionItem, CriticalityReject, l)
 }

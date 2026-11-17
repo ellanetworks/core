@@ -6,7 +6,7 @@
 // away, but the PER encoding matches real NGAP for the same field values.
 package ngaptest
 
-//go:generate sh -c "cd ../../../.. && go run ./cmd/pergen -o per/internal/conformance/ngap/per_gen.go github.com/ellanetworks/core/per/internal/conformance/ngap"
+//go:generate go run github.com/ellanetworks/core/per/cmd/pergen
 
 // PLMNIdentity holds an MCC/MNC pair in BCD form (TS 38.413 §9.3.3.36).
 type PLMNIdentity struct {

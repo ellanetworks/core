@@ -31,7 +31,7 @@ func TestUEContextModificationFailureForgetsTheUEAMBR(t *testing.T) {
 	HandleUEContextModificationFailure(context.Background(), amfInstance, ran, &ngap.UEContextModificationFailure{
 		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(1)),
 		RANUENGAPID: ngap.Ptr(ngap.RANUENGAPID(1)),
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified},
+		Cause:       new(ngap.CauseRadioNetworkUnspecified.Cause()),
 	})
 
 	if _, ok := ueConn.HeldUEAMBR(); ok {

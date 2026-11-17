@@ -59,7 +59,7 @@ func (e *ENB) TrackingAreaUpdateRejected(ue *UE, guti eps.EPSMobileIdentity, tim
 		return nil, err
 	}
 
-	enbUEID := e.AllocateENBUEID()
+	enbUEID := e.AllocateENBUEIDFor(ue)
 
 	if err := e.SendInitialUEMessageWithSTMSI(enbUEID, guti.GUTI.MMECode, binary.BigEndian.Uint32(guti.GUTI.TMSI[:]), tau); err != nil {
 		return nil, err

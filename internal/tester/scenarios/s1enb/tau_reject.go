@@ -58,9 +58,9 @@ func runS1ENBTAUReject(_ context.Context, env scenarios.Env, _ any) error {
 			res.EMMCause, eps.EMMCauseUEIdentityCannotBeDerived)
 	}
 
-	if res.ReleaseCause.Group != s1ap.CauseGroupNAS || res.ReleaseCause.Value != s1ap.CauseNASUnspecified {
-		return fmt.Errorf("UE Context Release Command cause = group %d value %d, want NAS unspecified",
-			res.ReleaseCause.Group, res.ReleaseCause.Value)
+	if !res.ReleaseCause.Equal(s1ap.CauseNASUnspecified.Cause()) {
+		return fmt.Errorf("UE Context Release Command cause = %s, want NAS unspecified",
+			res.ReleaseCause)
 	}
 
 	return nil

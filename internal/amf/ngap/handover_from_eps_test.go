@@ -118,7 +118,7 @@ func arrivingRequest() interworking.FiveGSRelocationRequest {
 		}},
 		Target:         arrivingTarget(),
 		SourceToTarget: []byte{0x01, 0x02},
-		Cause:          s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkTimeCriticalHandover},
+		Cause:          s1ap.CauseRadioNetworkTimeCriticalHandover.Cause(),
 		UEAMBRUplink:   models.MustParseBitRate("1 Gbps"),
 		UEAMBRDownlink: models.MustParseBitRate("1 Gbps"),
 	}
@@ -253,7 +253,7 @@ func TestForwardRelocationSendsAnInterSystemHandoverRequest(t *testing.T) {
 		t.Error("no next-hop key for the target NG-RAN node")
 	}
 
-	if hoReq.Cause == nil || *hoReq.Cause != (ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkTimeCriticalHandover}) {
+	if hoReq.Cause == nil || !hoReq.Cause.Equal(ngap.CauseRadioNetworkTimeCriticalHandover.Cause()) {
 		t.Errorf("cause = %+v, want the source eNB's time-critical handover mapped through", hoReq.Cause)
 	}
 
@@ -261,11 +261,11 @@ func TestForwardRelocationSendsAnInterSystemHandoverRequest(t *testing.T) {
 		t.Error("no Mobility Restriction List, so the target cannot determine the serving PLMN")
 	}
 
-	if got := hoReq.UESecurityCapabilities.EUTRAEncryptionAlgorithms; got != 0xc000 {
+	if got := hoReq.UESecurityCapabilities.EUTRAEncryptionAlgorithms.Uint16(); got != 0xc000 {
 		t.Errorf("E-UTRA encryption algorithms = %#04x, want the forwarded 0xc000", got)
 	}
 
-	if got := hoReq.UESecurityCapabilities.EUTRAIntegrityProtectionAlgorithms; got != 0xc000 {
+	if got := hoReq.UESecurityCapabilities.EUTRAIntegrityProtectionAlgorithms.Uint16(); got != 0xc000 {
 		t.Errorf("E-UTRA integrity algorithms = %#04x, want the forwarded 0xc000", got)
 	}
 
@@ -367,7 +367,7 @@ func TestHandoverFailureFromEPSRefusesTheRelocation(t *testing.T) {
 
 	HandleHandoverFailure(context.Background(), amfInstance, radio, &ngap.HandoverFailure{
 		AMFUENGAPID: ngap.Ptr(hoReq.AMFUENGAPID),
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkNoRadioResourcesInTargetCell},
+		Cause:       new(ngap.CauseRadioNetworkNoRadioResourcesInTargetCell.Cause()),
 	})
 
 	_, err := awaitArrival(t, done)
@@ -380,8 +380,8 @@ func TestHandoverFailureFromEPSRefusesTheRelocation(t *testing.T) {
 		t.Fatalf("error = %v, want a refusal carrying the target's cause", err)
 	}
 
-	want := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell}
-	if refusal.Cause != want {
+	want := s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell.Cause()
+	if !refusal.Cause.Equal(want) {
 		t.Errorf("refusal cause = %+v, want %+v mapped from the gNB's own", refusal.Cause, want)
 	}
 }
@@ -511,8 +511,8 @@ func TestForwardRelocationRefusesASubscriberBarredFrom5GS(t *testing.T) {
 		t.Fatalf("error = %v, want a TargetRefusal the MME can map to an S1AP cause", err)
 	}
 
-	want := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHOTargetNotAllowed}
-	if refusal.Cause != want {
+	want := s1ap.CauseRadioNetworkHOTargetNotAllowed.Cause()
+	if !refusal.Cause.Equal(want) {
 		t.Errorf("cause = %+v, want ho-target-not-allowed", refusal.Cause)
 	}
 
@@ -567,8 +567,8 @@ func TestForwardRelocationRefusesAUEThatIsNotAnOwnSubscriber(t *testing.T) {
 				t.Fatalf("error = %v, TargetRefusal = %v, want %v", err, got, tc.wantRefusal)
 			}
 
-			want := s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkHOTargetNotAllowed}
-			if tc.wantRefusal && refusal.Cause != want {
+			want := s1ap.CauseRadioNetworkHOTargetNotAllowed.Cause()
+			if tc.wantRefusal && !refusal.Cause.Equal(want) {
 				t.Errorf("cause = %+v, want ho-target-not-allowed", refusal.Cause)
 			}
 

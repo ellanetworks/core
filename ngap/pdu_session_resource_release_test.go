@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"testing"
+
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // Golden PDU SESSION RESOURCE RELEASE PDUs.
@@ -86,10 +88,7 @@ func TestPDUSessionResourceReleaseRoundTrips(t *testing.T) {
 			AMFUENGAPID:                Ptr(AMFUENGAPID(7)),
 			RANUENGAPID:                Ptr(RANUENGAPID(9)),
 			PDUSessionResourceReleased: PDUSessionResourceReleasedListRelRes{{PDUSessionID: 1, Transfer: TransferContainer{0x01}}},
-			UserLocationInformation: &UserLocationInformation{
-				Kind: UserLocationNR, PLMNIdentity: plmn, CellIdentity: 0x123456789,
-				TAI: TAI{PLMNIdentity: plmn, TAC: 1},
-			},
+			UserLocationInformation:    &UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: plmn, NRCellIdentity: NRCellIdentity(0x123456789)}, TAI: TAI{PLMNIdentity: plmn, TAC: 1}}},
 		}
 
 		b, _ := in.Marshal()
@@ -106,7 +105,7 @@ func TestPDUSessionResourceReleaseRoundTrips(t *testing.T) {
 			t.Fatalf("got %+v err %v", out, err)
 		}
 
-		if out.UserLocationInformation == nil || out.UserLocationInformation.CellIdentity != 0x123456789 {
+		if out.UserLocationInformation == nil || out.UserLocationInformation.NR == nil || out.UserLocationInformation.NR.NRCGI.NRCellIdentity != 0x123456789 {
 			t.Fatalf("ULI = %+v", out.UserLocationInformation)
 		}
 	})
@@ -116,8 +115,8 @@ func TestPDUSessionResourceReleaseRoundTrips(t *testing.T) {
 // releases nothing, so it is not delivered (§10.3.5).
 func TestPDUSessionResourceReleaseCommandMissingList(t *testing.T) {
 	value := container(t,
-		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
-		ieField{id: IDRANUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
+		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))},
+		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(RANUENGAPID(2))))},
 	)
 
 	_, err := ParsePDUSessionResourceReleaseCommand(value)
@@ -140,8 +139,8 @@ func TestPDUSessionResourceReleaseCommandMissingList(t *testing.T) {
 // it is still delivered and the absence reported (§10.3.5).
 func TestPDUSessionResourceReleaseResponseMissingList(t *testing.T) {
 	value := container(t,
-		ieField{id: IDAMFUENGAPID, crit: CriticalityIgnore, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
-		ieField{id: IDRANUENGAPID, crit: CriticalityIgnore, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
+		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityIgnore, Value: apimpl.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))},
+		ieField{ID: IDRANUENGAPID, Criticality: CriticalityIgnore, Value: apimpl.RawValue(ieRaw(t, Ptr(RANUENGAPID(2))))},
 	)
 
 	msg, err := ParsePDUSessionResourceReleaseResponse(value)
@@ -151,7 +150,7 @@ func TestPDUSessionResourceReleaseResponseMissingList(t *testing.T) {
 
 	d := msg.Diagnostics()
 	if len(d.IEs) != 1 || d.IEs[0].ID != IDPDUSessionResourceReleasedListRelRes ||
-		d.IEs[0].TypeOfError != TypeOfErrorMissing {
+		typeOfError(d.IEs[0]) != TypeOfErrorMissing {
 		t.Errorf("diagnostics = %+v, want one missing entry for the released list", d.IEs)
 	}
 }
@@ -171,9 +170,9 @@ func TestPDUSessionResourceReleaseCommandTransferGolden(t *testing.T) {
 		cause  Cause
 		golden string
 	}{
-		{"RadioNetworkUnspecified", Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified}, goldenReleaseCommandTransferRadioNetwork},
-		{"NASNormalRelease", Cause{Group: CauseGroupNAS, Value: CauseNASNormalRelease}, goldenReleaseCommandTransferNAS},
-		{"RadioNetworkNGRANGenerated", Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkReleaseDueToNGRANGeneratedReason}, goldenReleaseCommandTransferRadioNetwork3},
+		{"RadioNetworkUnspecified", CauseRadioNetworkUnspecified.Cause(), goldenReleaseCommandTransferRadioNetwork},
+		{"NASNormalRelease", CauseNASNormalRelease.Cause(), goldenReleaseCommandTransferNAS},
+		{"RadioNetworkNGRANGenerated", CauseRadioNetworkReleaseDueToNGRANGeneratedReason.Cause(), goldenReleaseCommandTransferRadioNetwork3},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			in := PDUSessionResourceReleaseCommandTransfer{Cause: c.cause}
@@ -192,7 +191,7 @@ func TestPDUSessionResourceReleaseCommandTransferGolden(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if out.Cause != c.cause {
+			if !out.Cause.Equal(c.cause) {
 				t.Fatalf("round trip %+v, want %+v", out.Cause, c.cause)
 			}
 		})

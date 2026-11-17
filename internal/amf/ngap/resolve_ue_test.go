@@ -12,7 +12,7 @@ import (
 	"github.com/ellanetworks/core/sctp"
 )
 
-func assertSingleErrorIndication(t *testing.T, sender *fakeNGAPSender, wantCause int) *ngap.ErrorIndication {
+func assertSingleErrorIndication(t *testing.T, sender *fakeNGAPSender, wantCause ngap.CauseRadioNetwork) *ngap.ErrorIndication {
 	t.Helper()
 
 	if len(sender.SentErrorIndications) != 1 {
@@ -21,9 +21,9 @@ func assertSingleErrorIndication(t *testing.T, sender *fakeNGAPSender, wantCause
 
 	errInd := sender.SentErrorIndications[0]
 
-	want := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: wantCause}
-	if errInd.Cause == nil || *errInd.Cause != want {
-		t.Errorf("cause = %v, want radio-network cause %d", errInd.Cause, wantCause)
+	want := wantCause.Cause()
+	if errInd.Cause == nil || !errInd.Cause.Equal(want) {
+		t.Errorf("cause = %v, want radio-network cause %v", errInd.Cause, want)
 	}
 
 	return errInd
@@ -73,8 +73,8 @@ func TestCrossRadio_PDUSessionResourceSetupResponse(t *testing.T) {
 		t.Fatalf("expected 1 ErrorIndication on attacker radio, got %d", len(attackerSender.SentErrorIndications))
 	}
 
-	want := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownLocalUENGAPID}
-	if cause := attackerSender.SentErrorIndications[0].Cause; cause == nil || *cause != want {
+	want := ngap.CauseRadioNetworkUnknownLocalUENGAPID.Cause()
+	if cause := attackerSender.SentErrorIndications[0].Cause; cause == nil || !cause.Equal(want) {
 		t.Errorf("cause = %v, want unknown-local-UE-NGAP-ID", cause)
 	}
 
@@ -182,8 +182,8 @@ func TestInconsistentRanIDSendsErrorIndicationAndReleasesLocally(t *testing.T) {
 		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))
 	}
 
-	want := ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkInconsistentRemoteUEID}
-	if cause := sender.SentErrorIndications[0].Cause; cause == nil || *cause != want {
+	want := ngap.CauseRadioNetworkInconsistentRemoteUEID.Cause()
+	if cause := sender.SentErrorIndications[0].Cause; cause == nil || !cause.Equal(want) {
 		t.Errorf("cause = %v, want inconsistent-remote-UE-NGAP-ID", cause)
 	}
 

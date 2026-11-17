@@ -22,6 +22,7 @@ type RadioEvent struct {
 	MessageType string `json:"message_type"`
 	Direction   string `json:"direction"`
 	Radio       string `json:"radio"`
+	RadioRef    string `json:"radio_ref"`
 	Address     string `json:"address"`
 	Details     string `json:"details"`
 }
@@ -371,6 +372,7 @@ func TestListRadioEventsFilters(t *testing.T) {
 			LocalAddress:  "192.168.1.1:38412",
 			RemoteAddress: "192.168.1.100:12345",
 			RadioName:     "gnb-alpha",
+			RadioRef:      "gNB:001-01:00000a@24",
 			Details:       "Event 1",
 			Raw:           []byte("data1"),
 		},
@@ -382,6 +384,7 @@ func TestListRadioEventsFilters(t *testing.T) {
 			LocalAddress:  "192.168.1.1:38412",
 			RemoteAddress: "192.168.1.101:12346",
 			RadioName:     "gnb-alpha",
+			RadioRef:      "gNB:001-01:00000a@24",
 			Details:       "Event 2",
 			Raw:           []byte("data2"),
 		},
@@ -393,6 +396,7 @@ func TestListRadioEventsFilters(t *testing.T) {
 			LocalAddress:  "192.168.1.1:38412",
 			RemoteAddress: "192.168.1.102:12347",
 			RadioName:     "gnb-beta",
+			RadioRef:      "gNB:001-01:00000b@24",
 			Details:       "Event 3",
 			Raw:           []byte("data3"),
 		},
@@ -404,6 +408,7 @@ func TestListRadioEventsFilters(t *testing.T) {
 			LocalAddress:  "192.168.1.2:38412",
 			RemoteAddress: "192.168.1.103:12348",
 			RadioName:     "gnb-beta",
+			RadioRef:      "gNB:001-01:00000b@24",
 			Details:       "Event 4",
 			Raw:           []byte("data4"),
 		},
@@ -442,10 +447,22 @@ func TestListRadioEventsFilters(t *testing.T) {
 			expectedStatus: http.StatusOK,
 		},
 		{
-			name:           "Filter by radio name",
-			filters:        map[string]string{"radio": "gnb-beta"},
+			name:           "Filter by radio ref",
+			filters:        map[string]string{"radio": "gNB:001-01:00000b@24"},
 			expectedCount:  2,
 			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "Filter by radio ref of a radio without events",
+			filters:        map[string]string{"radio": "gNB:001-01:00000c@24"},
+			expectedCount:  0,
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "Filter by radio name is rejected",
+			filters:        map[string]string{"radio": "gnb-beta"},
+			expectedStatus: http.StatusBadRequest,
+			expectedError:  `invalid radio: radio "gnb-beta" is not <type>:<plmn>:<id>`,
 		},
 		{
 			name:           "Filter by start",

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ellanetworks/core/per/ap"
 	lib "github.com/ellanetworks/core/s1ap"
 )
 
@@ -15,9 +16,9 @@ func TestDecodeHandoverRequired(t *testing.T) {
 		MMEUES1APID:  7,
 		ENBUES1APID:  2,
 		HandoverType: lib.HandoverTypeIntraLTE,
-		Cause:        lib.Ptr(lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 16}),
-		TargetID: lib.TargetID{TargeteNBID: lib.TargeteNBID{
-			GlobalENBID: lib.GlobalENBID{PLMNIdentity: lib.PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: lib.ENBID{Kind: lib.ENBIDMacro, Value: 2}},
+		Cause:        lib.Ptr(lib.CauseRadioNetwork(16).Cause()),
+		TargetID: lib.TargetID{TargeteNBID: &lib.TargeteNBID{
+			GlobalENBID: lib.GlobalENBID{PLMNIdentity: lib.PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: lib.ENBID{MacroENBID: lib.Ptr(lib.MacroENBID(2))}},
 			SelectedTAI: lib.TAI{PLMNIdentity: lib.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 1},
 		}},
 		SourceToTarget: lib.TransparentContainer{0xab, 0xcd},
@@ -52,10 +53,10 @@ func TestDecodeHandoverRequestAcknowledge(t *testing.T) {
 		ENBUES1APID: lib.Ptr(lib.ENBUES1APID(55)),
 		ERABAdmitted: []lib.ERABAdmittedItem{{
 			ERABID:                5,
-			TransportLayerAddress: lib.TransportLayerAddress{10, 4, 0, 2},
+			TransportLayerAddress: ap.TransportLayerAddressFromOctets([]byte{10, 4, 0, 2}),
 			GTPTEID:               0x99,
 		}},
-		ERABFailedToSetup: []lib.ERABItem{{ERABID: 6, Cause: lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 0}}},
+		ERABFailedToSetup: []lib.ERABItem{{ERABID: 6, Cause: lib.CauseRadioNetwork(0).Cause()}},
 		TargetToSource:    lib.TransparentContainer{0x11},
 	}).Marshal()
 	if err != nil {
@@ -109,11 +110,11 @@ func TestDecodeHandoverRequiredNGRANTarget(t *testing.T) {
 		MMEUES1APID:  7,
 		ENBUES1APID:  2,
 		HandoverType: lib.HandoverTypeEPSToFiveGS,
-		Cause:        lib.Ptr(lib.Cause{Group: lib.CauseGroupRadioNetwork, Value: 16}),
+		Cause:        lib.Ptr(lib.CauseRadioNetwork(16).Cause()),
 		TargetID: lib.TargetID{TargetNgRanNodeID: &lib.TargetNgRanNodeID{
 			GlobalRANNodeID: lib.GlobalRANNodeID{GNB: &lib.GNB{GlobalGNBID: lib.GlobalGNBID{
 				PLMNIdentity: lib.PLMNIdentity{0x00, 0xf1, 0x10},
-				GNBID:        lib.GNBID{Value: 0x2a, Bits: 22},
+				GNBID:        lib.GNBIdentity{GNBID: &lib.GNBID{Value: 0x2a, Bits: 22}},
 			}}},
 			SelectedTAI: lib.FiveGSTAI{PLMNIdentity: lib.PLMNIdentity{0x00, 0xf1, 0x10}, TAC: 0x000101},
 		}},

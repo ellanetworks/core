@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"testing"
+
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // Golden UE CONTEXT RELEASE PDUs.
@@ -32,8 +34,8 @@ func mustMarshalHex(t *testing.T, m interface{ Marshal() ([]byte, error) }) stri
 
 func TestUEContextReleaseGoldenEncodings(t *testing.T) {
 	plmn := PLMNIdentity{0x00, 0xf1, 0x10}
-	inactivity := Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUserInactivity}
-	normalRelease := Cause{Group: CauseGroupNAS, Value: CauseNASNormalRelease}
+	inactivity := CauseRadioNetworkUserInactivity.Cause()
+	normalRelease := CauseNASNormalRelease.Cause()
 
 	tests := []struct {
 		name string
@@ -58,26 +60,23 @@ func TestUEContextReleaseGoldenEncodings(t *testing.T) {
 		{
 			"CommandPair",
 			&UEContextReleaseCommand{
-				UENGAPIDs: UENGAPIDs{AMFUENGAPID: 1, RANUENGAPID: 2, Pair: true},
+				UENGAPIDs: UENGAPIDs{UENGAPIDPair: &UENGAPIDPair{AMFUENGAPID: 1, RANUENGAPID: 2}},
 				Cause:     &normalRelease,
 			},
 			goldenUEContextReleaseCommandPair,
 		},
 		{
 			"CommandAMFIDOnly",
-			&UEContextReleaseCommand{UENGAPIDs: UENGAPIDs{AMFUENGAPID: 1}, Cause: &normalRelease},
+			&UEContextReleaseCommand{UENGAPIDs: UENGAPIDs{AMFUENGAPID: Ptr(AMFUENGAPID(1))}, Cause: &normalRelease},
 			goldenUEContextReleaseCommandAMF,
 		},
 		{
 			"Complete",
 			&UEContextReleaseComplete{
-				AMFUENGAPID: Ptr(AMFUENGAPID(1)),
-				RANUENGAPID: Ptr(RANUENGAPID(2)),
-				UserLocationInformation: &UserLocationInformation{
-					Kind: UserLocationNR, PLMNIdentity: plmn, CellIdentity: 0x123456789,
-					TAI: TAI{PLMNIdentity: plmn, TAC: 1},
-				},
-				PDUSessionResourceList: PDUSessionResourceListCxtRelCpl{{PDUSessionID: 5}},
+				AMFUENGAPID:             Ptr(AMFUENGAPID(1)),
+				RANUENGAPID:             Ptr(RANUENGAPID(2)),
+				UserLocationInformation: &UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: plmn, NRCellIdentity: NRCellIdentity(0x123456789)}, TAI: TAI{PLMNIdentity: plmn, TAC: 1}}},
+				PDUSessionResourceList:  PDUSessionResourceListCxtRelCpl{{PDUSessionID: 5}},
 			},
 			goldenUEContextReleaseComplete,
 		},
@@ -99,11 +98,11 @@ func TestUEContextReleaseGoldenEncodings(t *testing.T) {
 
 func TestUEContextReleaseRoundTrips(t *testing.T) {
 	plmn := PLMNIdentity{0x00, 0xf1, 0x10}
-	cause := Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUserInactivity}
+	cause := CauseRadioNetworkUserInactivity.Cause()
 
 	t.Run("Command pair", func(t *testing.T) {
 		in := &UEContextReleaseCommand{
-			UENGAPIDs: UENGAPIDs{AMFUENGAPID: 1, RANUENGAPID: 7, Pair: true},
+			UENGAPIDs: UENGAPIDs{UENGAPIDPair: &UENGAPIDPair{AMFUENGAPID: 1, RANUENGAPID: 7}},
 			Cause:     &cause,
 		}
 
@@ -127,14 +126,14 @@ func TestUEContextReleaseRoundTrips(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if !out.UENGAPIDs.Pair || out.UENGAPIDs.AMFUENGAPID != 1 || out.UENGAPIDs.RANUENGAPID != 7 ||
-			deref(out.Cause) != cause {
+		if !out.UENGAPIDs.Equal(UENGAPIDs{UENGAPIDPair: &UENGAPIDPair{AMFUENGAPID: 1, RANUENGAPID: 7}}) ||
+			!deref(out.Cause).Equal(cause) {
 			t.Fatalf("mismatch:\n in  %+v\n out %+v", in, out)
 		}
 	})
 
 	t.Run("Command bare AMF id", func(t *testing.T) {
-		in := &UEContextReleaseCommand{UENGAPIDs: UENGAPIDs{AMFUENGAPID: 42}, Cause: &cause}
+		in := &UEContextReleaseCommand{UENGAPIDs: UENGAPIDs{AMFUENGAPID: Ptr(AMFUENGAPID(42))}, Cause: &cause}
 
 		b, _ := in.Marshal()
 
@@ -145,7 +144,7 @@ func TestUEContextReleaseRoundTrips(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if out.UENGAPIDs.Pair || out.UENGAPIDs.AMFUENGAPID != 42 || out.UENGAPIDs.RANUENGAPID != 0 {
+		if out.UENGAPIDs.UENGAPIDPair != nil || deref(out.UENGAPIDs.AMFUENGAPID) != 42 {
 			t.Fatalf("mismatch: %+v", out.UENGAPIDs)
 		}
 	})
@@ -170,12 +169,9 @@ func TestUEContextReleaseRoundTrips(t *testing.T) {
 
 	t.Run("CompleteWithUserLocation", func(t *testing.T) {
 		in := &UEContextReleaseComplete{
-			AMFUENGAPID: Ptr(AMFUENGAPID(1)),
-			RANUENGAPID: Ptr(RANUENGAPID(7)),
-			UserLocationInformation: &UserLocationInformation{
-				Kind: UserLocationNR, PLMNIdentity: plmn, CellIdentity: 0x123456789,
-				TAI: TAI{PLMNIdentity: plmn, TAC: 9},
-			},
+			AMFUENGAPID:             Ptr(AMFUENGAPID(1)),
+			RANUENGAPID:             Ptr(RANUENGAPID(7)),
+			UserLocationInformation: &UserLocationInformation{NR: &UserLocationInformationNR{NRCGI: NRCGI{PLMNIdentity: plmn, NRCellIdentity: NRCellIdentity(0x123456789)}, TAI: TAI{PLMNIdentity: plmn, TAC: 9}}},
 		}
 
 		b, _ := in.Marshal()
@@ -187,7 +183,7 @@ func TestUEContextReleaseRoundTrips(t *testing.T) {
 			t.Fatalf("got %+v err %v", out, err)
 		}
 
-		if out.UserLocationInformation.CellIdentity != 0x123456789 || out.UserLocationInformation.TAI.TAC != 9 {
+		if nr := out.UserLocationInformation.NR; nr == nil || nr.NRCGI.NRCellIdentity != 0x123456789 || nr.TAI.TAC != 9 {
 			t.Fatalf("ULI mismatch: %+v", out.UserLocationInformation)
 		}
 	})
@@ -234,7 +230,7 @@ func TestUEContextReleaseRoundTrips(t *testing.T) {
 		}
 
 		out, err := ParseUEContextReleaseRequest(im.Value)
-		if err != nil || out.AMFUENGAPID != 1 || out.RANUENGAPID != 7 || deref(out.Cause) != cause {
+		if err != nil || out.AMFUENGAPID != 1 || out.RANUENGAPID != 7 || !deref(out.Cause).Equal(cause) {
 			t.Fatalf("got %+v err %v", out, err)
 		}
 
@@ -249,9 +245,9 @@ func TestUEContextReleaseRoundTrips(t *testing.T) {
 // the IE's criticality: reject, so no message is delivered.
 func TestUEContextReleaseCommandChoiceExtension(t *testing.T) {
 	value := container(t, ieField{
-		id:   IDUENGAPIDs,
-		crit: CriticalityReject,
-		raw:  choiceExtensionValue(t, ueNGAPIDsAlternatives, ueNGAPIDsChoiceExtensions, IDUENGAPIDs),
+		ID:          IDUENGAPIDs,
+		Criticality: CriticalityReject,
+		Value:       apimpl.RawValue(choiceExtensionValue(t, ueNGAPIDsAlternatives, ueNGAPIDsChoiceExtensions, IDUENGAPIDs)),
 	})
 
 	_, err := ParseUEContextReleaseCommand(value)
@@ -264,12 +260,57 @@ func TestUEContextReleaseCommandChoiceExtension(t *testing.T) {
 		t.Fatalf("error = %T (%v), want *AbstractSyntaxError", err, err)
 	}
 
-	if ase.Cause.Value != CauseProtocolAbstractSyntaxErrorReject {
+	if !ase.Cause.Equal(CauseProtocolAbstractSyntaxErrorReject.Cause()) {
 		t.Errorf("cause = %s, want abstract-syntax-error-reject", ase.Cause)
 	}
 
 	if len(ase.IEs) != 1 || ase.IEs[0].IEID != IDUENGAPIDs ||
 		ase.IEs[0].TypeOfError != TypeOfErrorNotUnderstood {
 		t.Errorf("diagnostics = %+v, want one not-understood entry for UE-NGAP-IDs", ase.IEs)
+	}
+}
+
+func uEContextReleaseRequestGoldenCases() []goldenRoundTrip {
+	inactivity := CauseRadioNetworkUserInactivity.Cause()
+
+	return []goldenRoundTrip{
+		{
+			"UEContextReleaseRequestGWContextReleaseIndication",
+			&UEContextReleaseRequest{
+				AMFUENGAPID:                1,
+				RANUENGAPID:                2,
+				PDUSessionResourceList:     PDUSessionResourceListCxtRelReq{{PDUSessionID: 5}},
+				Cause:                      &inactivity,
+				GWContextReleaseIndication: Ptr(GWContextReleaseIndicationTrue),
+			},
+			func(v []byte) (any, error) { return ParseUEContextReleaseRequest(v) },
+			"002a4021000005000a0002000100550002000200850003000005000f4002050001c4000100",
+		},
+	}
+}
+
+func TestUEContextReleaseRequestGWContextReleaseIndicationGolden(t *testing.T) {
+	for _, c := range uEContextReleaseRequestGoldenCases() {
+		t.Run(c.name, func(t *testing.T) { checkGoldenRoundTrip(t, c) })
+	}
+}
+
+func TestUEContextReleaseRequestGWContextReleaseIndicationExtensionRejects(t *testing.T) {
+	cause := CauseRadioNetworkUserInactivity.Cause()
+
+	_, err := ParseUEContextReleaseRequest(container(t,
+		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: Ptr(AMFUENGAPID(1))},
+		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: Ptr(RANUENGAPID(2))},
+		ieField{ID: IDCause, Criticality: CriticalityIgnore, Value: &cause},
+		ieField{ID: IDGWContextReleaseIndication, Criticality: CriticalityReject, Value: apimpl.RawValue(extensionEnum(t, int64(len(enumGWContextReleaseIndication.Root)), 0))},
+	))
+
+	var ase *AbstractSyntaxError
+	if !errors.As(err, &ase) {
+		t.Fatalf("err = %v, want an AbstractSyntaxError", err)
+	}
+
+	if len(ase.IEs) != 1 || ase.IEs[0].IEID != IDGWContextReleaseIndication || ase.IEs[0].TypeOfError != TypeOfErrorNotUnderstood {
+		t.Fatalf("IEs = %+v, want GW-Context-Release-Indication not-understood", ase.IEs)
 	}
 }

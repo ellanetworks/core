@@ -107,7 +107,7 @@ func ranConfigUpdateOutcomeFor(req *ngap.RANConfigurationUpdate, operatorInfo *a
 			}
 
 			reason = "gNB broadcasts no PLMN served by this AMF (Unknown PLMN)"
-			if cause == causeNoServedTAC {
+			if cause.Equal(causeNoServedTAC) {
 				reason = "gNB broadcasts a served PLMN but no TAC served by this AMF"
 			}
 

@@ -107,11 +107,8 @@ func TestENBConfigurationUpdateRejectionAnswers(t *testing.T) {
 		t.Fatalf("parse failure: %v", err)
 	}
 
-	want := s1ap.Cause{
-		Group: s1ap.CauseGroupProtocol,
-		Value: s1ap.CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage,
-	}
-	if fail.Cause == nil || *fail.Cause != want {
+	want := s1ap.CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage.Cause()
+	if fail.Cause == nil || !fail.Cause.Equal(want) {
 		t.Errorf("cause = %v, want falsely-constructed-message", fail.Cause)
 	}
 }

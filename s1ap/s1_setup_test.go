@@ -46,7 +46,7 @@ func TestS1SetupRequestGoldenDecode(t *testing.T) {
 		t.Fatalf("PLMN = % x", req.GlobalENBID.PLMNIdentity)
 	}
 
-	if req.GlobalENBID.ENBID.Kind != ENBIDHome || req.GlobalENBID.ENBID.Value != 0x54f6401 {
+	if req.GlobalENBID.ENBID.HomeENBID == nil || *req.GlobalENBID.ENBID.HomeENBID != 0x54f6401 {
 		t.Fatalf("ENB-ID = %+v", req.GlobalENBID.ENBID)
 	}
 
@@ -93,7 +93,7 @@ func TestS1SetupRequestGoldenReencode(t *testing.T) {
 
 func TestS1SetupRequestRoundTrip(t *testing.T) {
 	in := &S1SetupRequest{
-		GlobalENBID:      GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{Kind: ENBIDMacro, Value: 0x0abcd}},
+		GlobalENBID:      GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{MacroENBID: Ptr(MacroENBID(0x0abcd))}},
 		ENBName:          Ptr("eNB-1"),
 		SupportedTAs:     SupportedTAs{{TAC: 0x0001, BroadcastPLMNs: BPLMNs{{0x00, 0xf1, 0x10}}}},
 		DefaultPagingDRX: Ptr(PagingDRXv128),
@@ -114,7 +114,7 @@ func TestS1SetupRequestRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.GlobalENBID != in.GlobalENBID || deref(out.ENBName) != deref(in.ENBName) ||
+	if !out.GlobalENBID.Equal(in.GlobalENBID) || deref(out.ENBName) != deref(in.ENBName) ||
 		deref(out.DefaultPagingDRX) != deref(in.DefaultPagingDRX) ||
 		len(out.SupportedTAs) != 1 ||
 		out.SupportedTAs[0].TAC != in.SupportedTAs[0].TAC {
@@ -132,18 +132,18 @@ func encodePartialS1Setup(t *testing.T, globalENBID, supportedTAs, pagingDRX boo
 	var fields []ieField
 
 	if globalENBID {
-		g := GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{Kind: ENBIDMacro, Value: 0x0abcd}}
-		fields = append(fields, ieField{id: IDGlobalENBID, crit: CriticalityReject, val: &g})
+		g := GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{MacroENBID: Ptr(MacroENBID(0x0abcd))}}
+		fields = append(fields, ieField{ID: IDGlobalENBID, Criticality: CriticalityReject, Value: &g})
 	}
 
 	if supportedTAs {
 		s := SupportedTAs{{TAC: 0x0001, BroadcastPLMNs: BPLMNs{{0x00, 0xf1, 0x10}}}}
-		fields = append(fields, ieField{id: IDSupportedTAs, crit: CriticalityReject, val: s})
+		fields = append(fields, ieField{ID: IDSupportedTAs, Criticality: CriticalityReject, Value: s})
 	}
 
 	if pagingDRX {
 		d := PagingDRXv128
-		fields = append(fields, ieField{id: IDDefaultPagingDRX, crit: CriticalityIgnore, val: d})
+		fields = append(fields, ieField{ID: IDDefaultPagingDRX, Criticality: CriticalityIgnore, Value: d})
 	}
 
 	if err := encodeIEContainer(w, per.Aligned, fields); err != nil {
@@ -199,8 +199,8 @@ func TestParseS1SetupRequestMissingMandatoryIE(t *testing.T) {
 				t.Errorf("procedure = %d, want ProcS1Setup", ase.Procedure)
 			}
 
-			want := Cause{Group: CauseGroupProtocol, Value: CauseProtocolAbstractSyntaxErrorReject}
-			if ase.Cause != want {
+			want := CauseProtocolAbstractSyntaxErrorReject.Cause()
+			if !ase.Cause.Equal(want) {
 				t.Errorf("cause = %v, want %v", ase.Cause, want)
 			}
 
@@ -239,7 +239,7 @@ func rejectedIEIDs(items []CriticalityDiagnosticsIEItem) []ProtocolIEID {
 // reject the setup over an IE it does not model.
 func TestS1SetupUERetentionInformationRoundTrip(t *testing.T) {
 	sent := &S1SetupRequest{
-		GlobalENBID:            GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{Kind: ENBIDMacro, Value: 0x1a2b3}},
+		GlobalENBID:            GlobalENBID{PLMNIdentity: PLMNIdentity{0x00, 0xf1, 0x10}, ENBID: ENBID{MacroENBID: Ptr(MacroENBID(0x1a2b3))}},
 		SupportedTAs:           SupportedTAs{{TAC: 1, BroadcastPLMNs: BPLMNs{{0x00, 0xf1, 0x10}}}},
 		DefaultPagingDRX:       Ptr(PagingDRXv128),
 		UERetentionInformation: Ptr(UERetentionUesRetained),

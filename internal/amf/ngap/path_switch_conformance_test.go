@@ -427,7 +427,7 @@ func TestPathSwitchToleratesAbsentIgnoreCriticalityIEs(t *testing.T) {
 		ngap.Ptr(ngap.RANUENGAPID(2)),
 		ngap.PDUSessionResourceToBeSwitchedDLList{switchedDLItem(t)},
 		nil,
-		ngap.Ptr(ngap.UESecurityCapabilities{NREncryptionAlgorithms: 0xc000, NRIntegrityProtectionAlgorithms: 0xc000}),
+		ngap.Ptr(ngap.UESecurityCapabilities{NREncryptionAlgorithms: ngap.SecurityAlgorithmsFrom(0xc000), NRIntegrityProtectionAlgorithms: ngap.SecurityAlgorithmsFrom(0xc000), EUTRAEncryptionAlgorithms: ngap.SecurityAlgorithmsFrom(0), EUTRAIntegrityProtectionAlgorithms: ngap.SecurityAlgorithmsFrom(0)}),
 	)
 
 	encoded, err := full.Marshal()

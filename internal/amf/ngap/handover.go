@@ -6,11 +6,11 @@ package ngap
 import "github.com/ellanetworks/core/ngap"
 
 var (
-	causeHOFailureInTarget      = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHOFailureInTarget}
-	causeHOTargetNotAllowed     = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHoTargetNotAllowed}
-	causeUnknownTargetID        = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownTargetID}
-	causeHandoverNoSecurity     = ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASAuthenticationFailure}
-	causeHandoverPrepUnspecific = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnspecified}
-	causeUnknownPDUSessionID    = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkUnknownPDUSessionID}
-	causeHandoverCNReason       = ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkReleaseDueTo5GCGeneratedReason}
+	causeHOFailureInTarget      = ngap.CauseRadioNetworkHOFailureInTarget.Cause()
+	causeHOTargetNotAllowed     = ngap.CauseRadioNetworkHoTargetNotAllowed.Cause()
+	causeUnknownTargetID        = ngap.CauseRadioNetworkUnknownTargetID.Cause()
+	causeHandoverNoSecurity     = ngap.CauseNASAuthenticationFailure.Cause()
+	causeHandoverPrepUnspecific = ngap.CauseRadioNetworkUnspecified.Cause()
+	causeUnknownPDUSessionID    = ngap.CauseRadioNetworkUnknownPDUSessionID.Cause()
+	causeHandoverCNReason       = ngap.CauseRadioNetworkReleaseDueTo5GCGeneratedReason.Cause()
 )

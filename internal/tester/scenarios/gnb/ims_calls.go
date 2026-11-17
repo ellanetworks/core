@@ -481,6 +481,8 @@ func sourceFiveQIs(l voiceLeg, qfi uint8) map[uint8]int64 {
 
 func xnHandOverVoiceUE(target *gnb.GnodeB, n3 netip.Addr, u imsCallUE, qfi uint8) (voiceLeg, error) {
 	ack, err := xnPathSwitch(target, &xnPathSwitchOpts{
+		Source:            u.leg.gnb,
+		SourceRANUENGAPID: u.leg.ranUEID,
 		SourceAMFUENGAPID: u.leg.gnb.GetAMFUENGAPID(u.leg.ranUEID),
 		TargetRANUENGAPID: imsHandoverTargetRANID,
 		TargetN3IP:        n3,
@@ -556,6 +558,10 @@ func n2HandOverVoiceUE(target *gnb.GnodeB, n3 netip.Addr, u imsCallUE, qfi uint8
 	targetAMFUEID, err := common.ExtractAmfUeNgapIDFromHandoverRequest(frame.Data)
 	if err != nil {
 		return voiceLeg{}, fmt.Errorf("extract AMF UE NGAP ID from Handover Request: %w", err)
+	}
+
+	if err := target.InheritSelectedPLMN(imsHandoverTargetRANID, source, u.leg.ranUEID); err != nil {
+		return voiceLeg{}, fmt.Errorf("carry the selected PLMN to the target gNB: %w", err)
 	}
 
 	if err := target.SendHandoverRequestAcknowledge(&gnb.HandoverRequestAcknowledgeOpts{

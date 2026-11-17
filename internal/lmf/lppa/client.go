@@ -92,6 +92,10 @@ func (c *Client) RequestMeasurements(ctx context.Context, supi etsi.SUPI, quanti
 		return 0, fmt.Errorf("failed to build LPPa E-CID request: %w", err)
 	}
 
+	if c.mme.HoldLPPaUntilReleased(supi, measID, payload) {
+		return measID, nil
+	}
+
 	conn := ue.Conn()
 	if conn == nil {
 		if err := c.mme.PageAndRetryLPPa(ctx, supi, measID, payload); err != nil {

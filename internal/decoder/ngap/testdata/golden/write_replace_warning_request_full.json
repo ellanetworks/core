@@ -1,0 +1,208 @@
+{
+  "summary": "WriteReplaceWarning",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 51,
+    "label": "WriteReplaceWarning",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 35,
+          "label": "MessageIdentifier",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": "1112"
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 95,
+          "label": "SerialNumber",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": "3456"
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 122,
+          "label": "WarningAreaList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "nr_cgi_list": [
+            {
+              "plmn_id": {
+                "mcc": "001",
+                "mnc": "01"
+              },
+              "nr_cell_identity": "123456789"
+            }
+          ]
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 87,
+          "label": "RepetitionPeriod",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 10
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 47,
+          "label": "NumberOfBroadcastsRequested",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": 1
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 125,
+          "label": "WarningType",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "hex": "0580"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 124,
+          "label": "WarningSecurityInfo",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "hex": "0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 20,
+          "label": "DataCodingScheme",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": "0f"
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 123,
+          "label": "WarningMessageContents",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "hex": "01d4f29c0e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004"
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 17,
+          "label": "ConcurrentWarningMessageInd",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 0,
+          "label": "true",
+          "unknown": false
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 141,
+          "label": "WarningAreaCoordinates",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "hex": "aabb"
+        }
+      }
+    ]
+  }
+}

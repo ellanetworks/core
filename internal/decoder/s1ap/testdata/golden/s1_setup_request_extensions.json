@@ -1,0 +1,136 @@
+{
+  "summary": "S1 Setup Request",
+  "pdu_type": "InitiatingMessage",
+  "procedure_code": {
+    "type": "enum",
+    "value": 17,
+    "label": "S1Setup",
+    "unknown": false
+  },
+  "criticality": {
+    "type": "enum",
+    "value": 0,
+    "label": "reject",
+    "unknown": false
+  },
+  "value": {
+    "ies": [
+      {
+        "id": {
+          "type": "enum",
+          "value": 59,
+          "label": "Global-ENB-ID",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": {
+          "plmn_id": {
+            "mcc": "001",
+            "mnc": "01"
+          },
+          "enb_id": {
+            "kind": {
+              "type": "enum",
+              "value": 0,
+              "label": "macroENB-ID",
+              "unknown": false
+            },
+            "value": 74565
+          }
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 64,
+          "label": "SupportedTAs",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "tac": 1,
+            "broadcast_plmns": [
+              {
+                "mcc": "001",
+                "mnc": "01"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 137,
+          "label": "DefaultPagingDRX",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 1,
+          "label": "v64",
+          "unknown": false
+        }
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 128,
+          "label": "CSG-IdList",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 0,
+          "label": "reject",
+          "unknown": false
+        },
+        "value": [
+          {
+            "csg_id": {
+              "hex": "00002460",
+              "bits": 27
+            }
+          }
+        ]
+      },
+      {
+        "id": {
+          "type": "enum",
+          "value": 234,
+          "label": "NB-IoT-DefaultPagingDRX",
+          "unknown": false
+        },
+        "criticality": {
+          "type": "enum",
+          "value": 1,
+          "label": "ignore",
+          "unknown": false
+        },
+        "value": {
+          "type": "enum",
+          "value": 1,
+          "label": "v256",
+          "unknown": false
+        }
+      }
+    ]
+  }
+}

@@ -8,15 +8,16 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 func TestEncodeIEContainerKnownVector(t *testing.T) {
 	w := per.NewWriter()
 
 	err := encodeIEContainer(w, per.Aligned, []ieField{{
-		id:   59,
-		crit: CriticalityIgnore,
-		raw:  []byte{0xab, 0xcd},
+		ID:          59,
+		Criticality: CriticalityIgnore,
+		Value:       apimpl.RawValue([]byte{0xab, 0xcd}),
 	}})
 	if err != nil {
 		t.Fatal(err)
@@ -53,9 +54,9 @@ func TestEmptyIEContainer(t *testing.T) {
 
 func TestIEContainerRoundTrip(t *testing.T) {
 	in := []ieField{
-		{id: 59, crit: CriticalityReject, raw: []byte{0x01, 0x02, 0x03}},
-		{id: 1, crit: CriticalityIgnore, raw: []byte{0xff}},
-		{id: 65535, crit: CriticalityNotify, val: per.MarshalerFunc(func(*per.Writer, per.Encoding) error { return nil })},
+		{ID: 59, Criticality: CriticalityReject, Value: apimpl.RawValue([]byte{0x01, 0x02, 0x03})},
+		{ID: 1, Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0xff})},
+		{ID: 65535, Criticality: CriticalityNotify, Value: per.MarshalerFunc(func(*per.Writer, per.Encoding) error { return nil })},
 	}
 
 	w := per.NewWriter()
@@ -75,12 +76,12 @@ func TestIEContainerRoundTrip(t *testing.T) {
 	wantValues := [][]byte{{0x01, 0x02, 0x03}, {0xff}, {0x00}} // empty body -> open type min 1 octet
 
 	for i, f := range in {
-		if got[i].id != f.id || got[i].crit != f.crit {
-			t.Fatalf("IE %d: id/crit mismatch got {%d,%v}", i, got[i].id, got[i].crit)
+		if got[i].ID != f.ID || got[i].Criticality != f.Criticality {
+			t.Fatalf("IE %d: id/crit mismatch got {%d,%v}", i, got[i].ID, got[i].Criticality)
 		}
 
-		if !bytes.Equal(got[i].value, wantValues[i]) {
-			t.Fatalf("IE %d: value % x, want % x", i, got[i].value, wantValues[i])
+		if !bytes.Equal(got[i].Value, wantValues[i]) {
+			t.Fatalf("IE %d: value % x, want % x", i, got[i].Value, wantValues[i])
 		}
 	}
 }
@@ -88,8 +89,8 @@ func TestIEContainerRoundTrip(t *testing.T) {
 func TestRawIEReencodePreserves(t *testing.T) {
 	// A container decoded and re-encoded from preserved raw IEs is byte-identical.
 	original := []ieField{
-		{id: 10, crit: CriticalityReject, raw: []byte{0xde, 0xad}},
-		{id: 20, crit: CriticalityIgnore, raw: []byte{0xbe, 0xef, 0x00}},
+		{ID: 10, Criticality: CriticalityReject, Value: apimpl.RawValue([]byte{0xde, 0xad})},
+		{ID: 20, Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0xbe, 0xef, 0x00})},
 	}
 
 	w1 := per.NewWriter()
@@ -104,7 +105,7 @@ func TestRawIEReencodePreserves(t *testing.T) {
 
 	fields := make([]ieField, len(raw))
 	for i, e := range raw {
-		fields[i] = e.field()
+		fields[i] = e.Encodable()
 	}
 
 	w2 := per.NewWriter()

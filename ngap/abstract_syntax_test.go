@@ -4,10 +4,12 @@
 package ngap
 
 import (
+	"bytes"
 	"errors"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // As a peer would send it, without the rules the encoder normally enforces.
@@ -28,10 +30,10 @@ func ngSetupFields() []ieField {
 	src := goldRequest()
 
 	return []ieField{
-		{id: IDGlobalRANNodeID, crit: CriticalityReject, val: &src.GlobalRANNodeID},
-		{id: IDRANNodeName, crit: CriticalityIgnore, val: Name("ella-gnb")},
-		{id: IDSupportedTAList, crit: CriticalityReject, val: src.SupportedTAList},
-		{id: IDDefaultPagingDRX, crit: CriticalityIgnore, val: PagingDRXv128},
+		{ID: IDGlobalRANNodeID, Criticality: CriticalityReject, Value: &src.GlobalRANNodeID},
+		{ID: IDRANNodeName, Criticality: CriticalityIgnore, Value: Name("ella-gnb")},
+		{ID: IDSupportedTAList, Criticality: CriticalityReject, Value: src.SupportedTAList},
+		{ID: IDDefaultPagingDRX, Criticality: CriticalityIgnore, Value: PagingDRXv128},
 	}
 }
 
@@ -47,7 +49,7 @@ func TestDuplicateIERejected(t *testing.T) {
 		t.Fatalf("error = %v, want *AbstractSyntaxError", err)
 	}
 
-	if ase.Cause.Value != CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage {
+	if !ase.Cause.Equal(CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage.Cause()) {
 		t.Errorf("cause = %s, want falsely-constructed-message", ase.Cause)
 	}
 }
@@ -65,7 +67,7 @@ func TestIEsOutOfOrderRejected(t *testing.T) {
 		t.Fatalf("error = %v, want *AbstractSyntaxError", err)
 	}
 
-	if ase.Cause.Value != CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage {
+	if !ase.Cause.Equal(CauseProtocolAbstractSyntaxErrorFalselyConstructedMessage.Cause()) {
 		t.Errorf("cause = %s, want falsely-constructed-message", ase.Cause)
 	}
 }
@@ -73,7 +75,7 @@ func TestIEsOutOfOrderRejected(t *testing.T) {
 // §10.3.6 considers only IEs the receiver's version defines.
 func TestUnknownIEDoesNotBreakOrdering(t *testing.T) {
 	fields := ngSetupFields()
-	unknown := ieField{id: ProtocolIEID(60000), crit: CriticalityIgnore, raw: []byte{0x01, 0x02}}
+	unknown := ieField{ID: ProtocolIEID(60000), Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0x01, 0x02})}
 	fields = append([]ieField{fields[0], fields[1], unknown}, fields[2:]...)
 
 	msg, err := ParseNGSetupRequest(container(t, fields...))
@@ -102,7 +104,7 @@ func TestAbsentIgnoreIEIsDelivered(t *testing.T) {
 
 	diag := msg.Diagnostics()
 	if len(diag.IEs) != 1 || diag.IEs[0].ID != IDDefaultPagingDRX ||
-		diag.IEs[0].TypeOfError != TypeOfErrorMissing {
+		typeOfError(diag.IEs[0]) != TypeOfErrorMissing {
 		t.Fatalf("diagnostics = %+v", diag.IEs)
 	}
 }
@@ -122,7 +124,7 @@ func TestAbsentRejectIEStopsDelivery(t *testing.T) {
 		t.Fatalf("error = %v, want *AbstractSyntaxError", err)
 	}
 
-	if ase.Cause.Value != CauseProtocolAbstractSyntaxErrorReject {
+	if !ase.Cause.Equal(CauseProtocolAbstractSyntaxErrorReject.Cause()) {
 		t.Errorf("cause = %s, want abstract-syntax-error-reject", ase.Cause)
 	}
 
@@ -145,31 +147,36 @@ func TestEncodeRejectsUnsetRequiredIE(t *testing.T) {
 	}
 }
 
-// Recording is bounded, since a peer chooses how many IEs to send.
-func TestDiagnosticsAreBounded(t *testing.T) {
+func TestDiagnosticsAndPreservationAreUnbounded(t *testing.T) {
 	fields := ngSetupFields()
-	for i := range maxDiagnosticIEs + 10 {
+	for i := range paddingIEs {
 		fields = append(fields, ieField{
-			id: ProtocolIEID(40000 + i), crit: CriticalityIgnore, raw: []byte{0x00},
+			ID: ProtocolIEID(40000 + i), Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0x00}),
 		})
 	}
 
-	msg, err := ParseNGSetupRequest(container(t, fields...))
+	value := container(t, fields...)
+
+	msg, err := ParseNGSetupRequest(value)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
 
-	diag := msg.Diagnostics()
-	if len(diag.IEs) > maxDiagnosticIEs {
-		t.Errorf("recorded %d diagnostics, want at most %d", len(diag.IEs), maxDiagnosticIEs)
+	if got := len(msg.Diagnostics().IEs); got != paddingIEs {
+		t.Errorf("recorded %d diagnostics, want %d", got, paddingIEs)
 	}
 
-	if !diag.Truncated {
-		t.Error("Truncated = false, want true")
+	if got := len(msg.UnknownIEs()); got != paddingIEs {
+		t.Errorf("preserved %d unknown IEs, want %d", got, paddingIEs)
 	}
 
-	if got := len(msg.UnknownIEs()); got > maxPreservedIEs {
-		t.Errorf("preserved %d unknown IEs, want at most %d", got, maxPreservedIEs)
+	w := per.NewWriter()
+	if err := msg.encodeBody(w, per.Aligned); err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(w.Bytes(), value) {
+		t.Fatalf("re-encoded\n got  %x\n want %x", w.Bytes(), value)
 	}
 }
 
@@ -216,17 +223,15 @@ func TestOversizedIECountRejected(t *testing.T) {
 	}
 }
 
-// A notify entry must survive the diagnostics bound or the §10.3.4.2 report
-// carries no IE. No IE table assigns notify, but a peer chooses what it stamps.
-func TestNotifySurvivesTruncation(t *testing.T) {
+func TestNotifyReportedAmongIgnoredIEs(t *testing.T) {
 	fields := ngSetupFields()
-	for i := range maxDiagnosticIEs + 10 {
+	for i := range paddingIEs + 10 {
 		fields = append(fields, ieField{
-			id: ProtocolIEID(40000 + i), crit: CriticalityIgnore, raw: []byte{0x00},
+			ID: ProtocolIEID(40000 + i), Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0x00}),
 		})
 	}
 
-	fields = append(fields, ieField{id: ProtocolIEID(50000), crit: CriticalityNotify, raw: []byte{0x00}})
+	fields = append(fields, ieField{ID: ProtocolIEID(50000), Criticality: CriticalityNotify, Value: apimpl.RawValue([]byte{0x00})})
 
 	msg, err := ParseNGSetupRequest(container(t, fields...))
 	if err != nil {
@@ -321,9 +326,9 @@ func TestModeledIEsSurvivePadding(t *testing.T) {
 	fields := ngSetupFields()
 
 	var padded []ieField
-	for i := range maxPreservedIEs * 2 {
+	for i := range paddingIEs * 2 {
 		padded = append(padded, ieField{
-			id: ProtocolIEID(40000 + i), crit: CriticalityIgnore, raw: []byte{0x00},
+			ID: ProtocolIEID(40000 + i), Criticality: CriticalityIgnore, Value: apimpl.RawValue([]byte{0x00}),
 		})
 	}
 

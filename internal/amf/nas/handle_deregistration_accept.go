@@ -30,7 +30,7 @@ func handleDeregistrationAccept(ctx context.Context, ue *amf.UeContext) nasreply
 
 	ueConn.SetReleaseAction(amf.UeContextReleaseDueToNwInitiatedDeregistraion)
 
-	ueConn.SendUEContextReleaseCommand(ctx, ngap.Cause{Group: ngap.CauseGroupNAS, Value: ngap.CauseNASDeregister})
+	ueConn.SendUEContextReleaseCommand(ctx, ngap.CauseNASDeregister.Cause())
 
 	return nasreply.Handled()
 }

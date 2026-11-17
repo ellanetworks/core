@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"testing"
+
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 const (
@@ -15,7 +17,7 @@ const (
 )
 
 func TestHandoverCancelGolden(t *testing.T) {
-	cause := Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkHandoverCancelled}
+	cause := CauseRadioNetworkHandoverCancelled.Cause()
 
 	in := HandoverCancel{AMFUENGAPID: 1, RANUENGAPID: 2, Cause: &cause}
 
@@ -43,7 +45,7 @@ func TestHandoverCancelGolden(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if out.AMFUENGAPID != 1 || out.RANUENGAPID != 2 || out.Cause == nil || *out.Cause != cause {
+	if out.AMFUENGAPID != 1 || out.RANUENGAPID != 2 || out.Cause == nil || !(*out.Cause).Equal(cause) {
 		t.Fatalf("round trip %+v, want 1/2 and %v", out, cause)
 	}
 }
@@ -90,8 +92,8 @@ func TestHandoverCancelAcknowledgeGolden(t *testing.T) {
 // continue without it; the AMF still has to see that it was missing.
 func TestHandoverCancelMissingCause(t *testing.T) {
 	value := container(t,
-		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
-		ieField{id: IDRANUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(RANUENGAPID(2)))},
+		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))},
+		ieField{ID: IDRANUENGAPID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(RANUENGAPID(2))))},
 	)
 
 	out, err := ParseHandoverCancel(value)
@@ -103,15 +105,15 @@ func TestHandoverCancelMissingCause(t *testing.T) {
 		t.Errorf("Cause = %+v, want nil", out.Cause)
 	}
 
-	ies := out.meta().diagnostics.IEs
-	if len(ies) != 1 || ies[0].ID != IDCause || ies[0].TypeOfError != TypeOfErrorMissing {
+	ies := out.meta().Message.Diagnostics().IEs
+	if len(ies) != 1 || ies[0].ID != IDCause || typeOfError(ies[0]) != TypeOfErrorMissing {
 		t.Errorf("diagnostics = %+v, want one missing entry for Cause", ies)
 	}
 }
 
 func TestHandoverCancelMissingRANUENGAPID(t *testing.T) {
 	value := container(t,
-		ieField{id: IDAMFUENGAPID, crit: CriticalityReject, raw: ieRaw(t, Ptr(AMFUENGAPID(1)))},
+		ieField{ID: IDAMFUENGAPID, Criticality: CriticalityReject, Value: apimpl.RawValue(ieRaw(t, Ptr(AMFUENGAPID(1))))},
 	)
 
 	_, err := ParseHandoverCancel(value)

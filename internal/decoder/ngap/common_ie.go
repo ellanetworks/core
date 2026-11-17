@@ -6,7 +6,6 @@ package ngap
 import (
 	"encoding/hex"
 	"fmt"
-	"net/netip"
 
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/ngap"
@@ -97,36 +96,36 @@ func criticalityDiagnostics(cd ngap.CriticalityDiagnostics) CriticalityDiagnosti
 	return out
 }
 
-// userLocationInformation renders the CHOICE the library flattens into one
-// struct (TS 38.413 §9.3.2.2). Cell identities are right-aligned in the width
-// the variant implies, and rendered left-aligned in hex.
+// userLocationInformation renders the UserLocationInformation CHOICE
+// (TS 38.413 §9.3.2.2). Cell identities are right-aligned in the width the
+// variant implies, and rendered left-aligned in hex.
 func userLocationInformation(uli ngap.UserLocationInformation) UserLocationInformation {
-	switch uli.Kind {
-	case ngap.UserLocationEUTRA:
+	switch {
+	case uli.EUTRA != nil:
 		return UserLocationInformation{EUTRA: &UserLocationInformationEUTRA{
 			EUTRACGI: EUTRACGI{
-				PLMNID:            plmnIDToDecoder(uli.PLMNIdentity),
-				EUTRACellIdentity: bitsHex(uli.CellIdentity, ngap.EUTRACellIdentityBits),
+				PLMNID:            plmnIDToDecoder(uli.EUTRA.EUTRACGI.PLMNIdentity),
+				EUTRACellIdentity: bitsHex(uint64(uli.EUTRA.EUTRACGI.EUTRACellIdentity), ngap.EUTRACellIdentityBits),
 			},
-			TAI:       tai(uli.TAI),
-			TimeStamp: timeStamp(uli.TimeStamp),
+			TAI:       tai(uli.EUTRA.TAI),
+			TimeStamp: timeStamp(uli.EUTRA.TimeStamp),
 		}}
-	case ngap.UserLocationNR:
+	case uli.NR != nil:
 		return UserLocationInformation{NR: &UserLocationInformationNR{
 			NRCGI: NRCGI{
-				PLMNID:         plmnIDToDecoder(uli.PLMNIdentity),
-				NRCellIdentity: bitsHex(uli.CellIdentity, ngap.NRCellIdentityBits),
+				PLMNID:         plmnIDToDecoder(uli.NR.NRCGI.PLMNIdentity),
+				NRCellIdentity: bitsHex(uint64(uli.NR.NRCGI.NRCellIdentity), ngap.NRCellIdentityBits),
 			},
-			TAI:       tai(uli.TAI),
-			TimeStamp: timeStamp(uli.TimeStamp),
+			TAI:       tai(uli.NR.TAI),
+			TimeStamp: timeStamp(uli.NR.TimeStamp),
 		}}
-	case ngap.UserLocationN3IWF:
+	case uli.N3IWF != nil:
 		return UserLocationInformation{N3IWF: &UserLocationInformationN3IWF{
-			IPAddress:  ipAddressText(uli.IPAddress),
-			PortNumber: int32(uli.PortNumber),
+			IPAddress:  transportLayerAddressText(uli.N3IWF.IPAddress),
+			PortNumber: int32(uli.N3IWF.PortNumber),
 		}}
 	default:
-		return UserLocationInformation{Error: fmt.Sprintf("unsupported UserLocationInformation type: %d", uli.Kind)}
+		return UserLocationInformation{Error: "unsupported UserLocationInformation alternative: " + uliAlternative(uli)}
 	}
 }
 
@@ -153,12 +152,19 @@ func timeStamp(ts *ngap.TimeStamp) *string {
 	return &s
 }
 
-// ipAddressText renders a transport layer address as an IP string; the length
-// distinguishes IPv4 from IPv6 (TS 38.413 §9.3.2.4).
-func ipAddressText(addr ngap.TransportLayerAddress) string {
-	if ip, ok := netip.AddrFromSlice(addr); ok {
-		return ip.String()
+func uliAlternative(uli ngap.UserLocationInformation) string {
+	switch {
+	case uli.TNGF != nil:
+		return "userLocationInformationTNGF"
+	case uli.TWIF != nil:
+		return "userLocationInformationTWIF"
+	case uli.WAGF != nil:
+		return "userLocationInformationW-AGF"
+	case uli.N3IWFWithoutPortNumber != nil:
+		return "userLocationInformationN3IWF-without-PortNumber"
+	case uli.ChoiceExtension != nil:
+		return "choice-Extensions " + uli.ChoiceExtension.ID.String()
+	default:
+		return "none"
 	}
-
-	return hex.EncodeToString(addr)
 }

@@ -115,6 +115,10 @@ func runN2HandoverIndirectForwarding(_ context.Context, env scenarios.Env, _ any
 
 	targetGNB.WatchTEID(targetForwardingTEID)
 
+	if err := targetGNB.InheritSelectedPLMN(int64(100), sourceGNB, ranUENGAPID); err != nil {
+		return fmt.Errorf("carry the selected PLMN to the target gNB: %w", err)
+	}
+
 	err = targetGNB.SendHandoverRequestAcknowledge(&gnb.HandoverRequestAcknowledgeOpts{
 		AMFUENGAPID: targetAmfUENGAPID,
 		RANUENGAPID: int64(100),
@@ -263,7 +267,8 @@ func forwardingEndpoint(frame gnb.SCTPFrame, upfAddress string, targetForwarding
 		return relayEndpoint{}, fmt.Errorf("the source was given the target's forwarding TEID %#x, not a tunnel on the UPF", teid)
 	}
 
-	v4, v6 := transfer.DLForwardingUPTNLInformation.GTPTunnel.TransportLayerAddress.IPs()
+	tla := transfer.DLForwardingUPTNLInformation.GTPTunnel.TransportLayerAddress
+	v4, v6 := tla.IPv4(), tla.IPv6()
 
 	upf, err := netip.ParseAddr(upfAddress)
 	if err != nil {

@@ -150,7 +150,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 	bpfObjects = ebpf.NewBpfObjects(flowact, masquerade, n3Iface.Index, n6Iface.Index, n3Vlan, n6Vlan)
 	bpfObjects.N3RoutingIndex = uint32(n3RoutingIface.Index)
 	bpfObjects.N6RoutingIndex = uint32(n6RoutingIface.Index)
-	bpfObjects.Sizing = ebpf.NewMapSizing(ebpf.DefaultMaxSessions)
+	bpfObjects.Sizing = ebpf.NewMapSizing(datapath.MaxSessions)
 	bpfObjects.NetworkInstancesEnabled = len(networkInstances) > 0
 
 	if err := loadDatapathObjects(bpfObjects, attachMode); err != nil {
@@ -195,7 +195,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		logger.UpfLog.Info("network instance attached", zap.String("network_instance", ni.name), zap.String("n6", ni.interfaceName))
 	}
 
-	resourceManager, err := engine.NewFteIDResourceManager(FTEIDPool)
+	resourceManager, err := engine.NewFteIDResourceManager(teidPoolSize(bpfObjects.Sizing.MaxSessions))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Resource Manager: %w", err)
 	}
@@ -871,23 +871,23 @@ func (u *UPF) listenForMissingNeighbours() {
 // entries that have expired (inactive or max-active-lifetime exceeded), and
 // forwards them to flowch for reporting.
 //
-// Scan speed is the priority: sends to flowch are non-blocking. If the channel
-// is full the report is dropped and counted. This ensures that BPF-map cleanup
-// is never delayed by a slow reporter.
+// Expired entries are deleted before their reports are sent, so a full flowch
+// delays only the next scan, never the cleanup of this one. Sends wait for the
+// reporter until ctx is done; after that, reports that do not fit are dropped
+// and counted.
 //
 // NOTE (TOCTOU): There is an inherent race between the scan and the subsequent
 // BatchDelete. The eBPF XDP program may update a flow's byte or packet counters
 // after the value has been read but before it is removed. The deleted entry will therefore contain a slightly
 // stale counter. This inaccuracy is accepted as a reasonable trade-off to
 // avoid per-key Lookup+Delete syscall pairs that would double the map load.
-func (u *UPF) scanAndEnqueueExpiredFlows(expiryThreshold int64, flowch chan flowReport,
+func (u *UPF) scanAndEnqueueExpiredFlows(ctx context.Context, expiryThreshold int64, flowch chan flowReport,
 	keys []ebpf.N3N6EntrypointFlow, values []ebpf.N3N6EntrypointFlowStats,
 ) {
 	var (
 		expiredKeys  []ebpf.N3N6EntrypointFlow
 		expiredFlows []flowReport
 		cursor       bpf.MapBatchCursor
-		dropped      int
 		scanned      int
 		complete     bool
 	)
@@ -942,21 +942,30 @@ func (u *UPF) scanAndEnqueueExpiredFlows(expiryThreshold int64, flowch chan flow
 
 	logger.UpfLog.Debug("Deleted expired flow entries", zap.Int("count", count))
 
-	// Forward collected reports to the reporter goroutine with a non-blocking
-	// send. Dropping a report is preferable to stalling the scan loop and
-	// delaying BPF-map cleanup.
-	for _, f := range expiredFlows {
+	if dropped := enqueueFlowReports(ctx, flowch, expiredFlows); dropped > 0 {
+		flowReportsDropped.WithLabelValues(flowReportDropChannelFull).Add(float64(dropped))
+		logger.UpfLog.Warn("Dropped flow reports: reporter channel full", zap.Int("dropped", dropped))
+	}
+}
+
+func enqueueFlowReports(ctx context.Context, flowch chan<- flowReport, flows []flowReport) int {
+	dropped := 0
+
+	for _, f := range flows {
 		select {
 		case flowch <- f:
+			continue
 		default:
+		}
+
+		select {
+		case flowch <- f:
+		case <-ctx.Done():
 			dropped++
 		}
 	}
 
-	if dropped > 0 {
-		flowReportsDropped.WithLabelValues(flowReportDropChannelFull).Add(float64(dropped))
-		logger.UpfLog.Warn("Dropped flow reports: reporter channel full", zap.Int("dropped", dropped))
-	}
+	return dropped
 }
 
 // deleteFlowKeys removes the given keys and returns how many were deleted.
@@ -1007,7 +1016,7 @@ func (u *UPF) collectExpiredFlows(ctx context.Context, flowch chan flowReport) {
 				return
 			}
 
-			u.scanAndEnqueueExpiredFlows(ts.Nano()-InactiveFlowTimeout.Nanoseconds(), flowch,
+			u.scanAndEnqueueExpiredFlows(ctx, ts.Nano()-InactiveFlowTimeout.Nanoseconds(), flowch,
 				keys, values)
 
 			return
@@ -1019,7 +1028,7 @@ func (u *UPF) collectExpiredFlows(ctx context.Context, flowch chan flowReport) {
 			continue
 		}
 
-		u.scanAndEnqueueExpiredFlows(ts.Nano()-InactiveFlowTimeout.Nanoseconds(), flowch,
+		u.scanAndEnqueueExpiredFlows(ctx, ts.Nano()-InactiveFlowTimeout.Nanoseconds(), flowch,
 			keys, values)
 	}
 }
@@ -1139,4 +1148,8 @@ func parseNoNeighEvent(b []byte) (ifindex int, addr netip.Addr, ok bool) {
 
 func (u *UPF) HasNetworkInstance(name string) bool {
 	return u.se.HasNetworkInstance(name)
+}
+
+func teidPoolSize(maxSessions uint32) uint32 {
+	return max(FTEIDPool, maxSessions)
 }

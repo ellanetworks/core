@@ -8,7 +8,7 @@ import "testing"
 func TestErrorIndicationRoundTrips(t *testing.T) {
 	mme := MMEUES1APID(1)
 	enb := ENBUES1APID(7)
-	cause := Cause{Group: CauseGroupRadioNetwork, Value: 0}
+	cause := CauseRadioNetworkUnspecified.Cause()
 
 	t.Run("full", func(t *testing.T) {
 		in := &ErrorIndication{MMEUES1APID: &mme, ENBUES1APID: &enb, Cause: &cause}
@@ -35,7 +35,7 @@ func TestErrorIndicationRoundTrips(t *testing.T) {
 
 		if out.MMEUES1APID == nil || *out.MMEUES1APID != mme ||
 			out.ENBUES1APID == nil || *out.ENBUES1APID != enb ||
-			out.Cause == nil || *out.Cause != cause {
+			out.Cause == nil || !out.Cause.Equal(cause) {
 			t.Fatalf("mismatch: %+v", out)
 		}
 	})
@@ -65,7 +65,7 @@ func TestErrorIndicationRefusesEmptyOnSend(t *testing.T) {
 // An eNB that knows only the S-TMSI names the UE with it.
 func TestErrorIndicationSTMSIRoundTrip(t *testing.T) {
 	sent := &ErrorIndication{
-		Cause: &Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified},
+		Cause: Ptr(CauseRadioNetworkUnspecified.Cause()),
 		STMSI: &STMSI{MMEC: 0x2a, MTMSI: 0xdeadbeef},
 	}
 
@@ -95,7 +95,7 @@ func TestErrorIndicationSTMSIRoundTrip(t *testing.T) {
 
 // An all-zero S-TMSI is a legal identity, so absent must stay absent.
 func TestErrorIndicationSTMSIStaysAbsent(t *testing.T) {
-	raw, err := (&ErrorIndication{Cause: &Cause{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified}}).Marshal()
+	raw, err := (&ErrorIndication{Cause: Ptr(CauseRadioNetworkUnspecified.Cause())}).Marshal()
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}

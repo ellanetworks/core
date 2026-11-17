@@ -22,10 +22,7 @@ const drainIMSI = "001017271246607"
 
 const drainSignalTimeout = 60 * time.Second
 
-var causeLoadBalancingTAURequired = s1ap.Cause{
-	Group: s1ap.CauseGroupRadioNetwork,
-	Value: s1ap.CauseRadioNetworkLoadBalancingTAURequired,
-}
+var causeLoadBalancingTAURequired = s1ap.CauseRadioNetworkLoadBalancingTAURequired.Cause()
 
 func init() {
 	scenarios.Register(scenarios.Scenario{
@@ -118,12 +115,12 @@ func runS1ENBDrain(env scenarios.Env) error {
 		return fmt.Errorf("phase2: UE Context Release Command carried no cause, want %+v", causeLoadBalancingTAURequired)
 	}
 
-	if *cmd.Cause != causeLoadBalancingTAURequired {
+	if !cmd.Cause.Equal(causeLoadBalancingTAURequired) {
 		return fmt.Errorf("phase2: release cause = %+v, want load-balancing-tau-required %+v; the UE would keep its GUMMEI and come back",
 			*cmd.Cause, causeLoadBalancingTAURequired)
 	}
 
 	logger.Logger.Info("phase2: UE released for load re-balancing")
 
-	return e.SendUEContextReleaseComplete(int64(cmd.UES1APIDs.MMEUES1APID), int64(cmd.UES1APIDs.ENBUES1APID))
+	return e.SendUEContextReleaseComplete(ueS1APIDs(cmd.UES1APIDs))
 }

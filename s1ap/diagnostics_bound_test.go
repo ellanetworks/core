@@ -6,6 +6,8 @@ package s1ap
 import (
 	"errors"
 	"testing"
+
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 // CriticalityDiagnostics-IE-List is SIZE(1..maxnoofErrors), so an untruncated
@@ -14,9 +16,9 @@ func TestNotUnderstoodReportStaysSendable(t *testing.T) {
 	fields := make([]ieField, 0, maxnoofErrors+64)
 	for i := range cap(fields) {
 		fields = append(fields, ieField{
-			id:   ProtocolIEID(40000 + i), // outside every id this version models
-			crit: CriticalityReject,
-			raw:  []byte{0x00},
+			ID:          ProtocolIEID(40000 + i), // outside every id this version models
+			Criticality: CriticalityReject,
+			Value:       apimpl.RawValue([]byte{0x00}),
 		})
 	}
 

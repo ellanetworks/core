@@ -30,6 +30,7 @@ import SubscriberStatusCell, {
   subscriberStatus,
 } from "@/components/SubscriberStatusCell";
 import { useAuth } from "@/contexts/AuthContext";
+import { radioDisplayName, radioPath } from "@/queries/radios";
 import { useQuery } from "@tanstack/react-query";
 import { useDebouncedState } from "@/hooks/useDebouncedState";
 import { useFilteredPagination } from "@/hooks/useFilteredPagination";
@@ -165,10 +166,17 @@ const SubscribersTab: React.FC = () => {
         flex: 0.8,
         minWidth: 110,
         valueGetter: (_v, row: APISubscriberSummary) =>
-          row?.status?.last_seen_radio ?? "",
+          radioDisplayName(
+            row?.status?.last_seen_radio,
+            row?.status?.last_seen_radio_ref,
+          ),
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
-          const radioName = params.row?.status?.last_seen_radio;
-          if (!radioName) {
+          const radioRef = params.row?.status?.last_seen_radio_ref;
+          const radioName = radioDisplayName(
+            params.row?.status?.last_seen_radio,
+            radioRef,
+          );
+          if (!radioRef) {
             return (
               <Box
                 sx={{
@@ -194,7 +202,7 @@ const SubscribersTab: React.FC = () => {
               }}
             >
               <Link
-                to={`/radios/by-name/${encodeURIComponent(radioName)}`}
+                to={`/radios/${radioPath(radioRef)}`}
                 style={{ textDecoration: "none" }}
                 onClick={(e: React.MouseEvent) => e.stopPropagation()}
               >

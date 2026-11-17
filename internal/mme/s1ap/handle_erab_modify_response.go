@@ -58,11 +58,11 @@ func handleERABModifyResponse(ctx context.Context, m *mme.MME, radio *mme.Radio,
 }
 
 func handoverTriggered(c s1ap.Cause) bool {
-	if c.Group != s1ap.CauseGroupRadioNetwork || c.Extended {
+	if c.RadioNetwork == nil {
 		return false
 	}
 
-	switch c.Value {
+	switch *c.RadioNetwork {
 	case s1ap.CauseRadioNetworkS1IntraSystemHandoverTriggered, s1ap.CauseRadioNetworkS1InterSystemHandoverTriggered, s1ap.CauseRadioNetworkX2HandoverTriggered:
 		return true
 	default:

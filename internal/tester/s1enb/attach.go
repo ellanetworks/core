@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
+	"github.com/ellanetworks/core/per/ap"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
@@ -71,7 +72,7 @@ func (e *ENB) ReattachWithGUTI(ue *UE, guti *eps.EPSMobileIdentity, staleENBUEID
 		return nil, err
 	}
 
-	enbUEID := e.AllocateENBUEID()
+	enbUEID := e.AllocateENBUEIDFor(ue)
 
 	if err := e.SendInitialUEMessage(enbUEID, attachReq); err != nil {
 		return nil, err
@@ -224,7 +225,7 @@ func (e *ENB) awaitAttachAccept(ue *UE, enbUEID int64, identityRequested bool, t
 }
 
 func (e *ENB) attachUntilSecured(ue *UE, timeout time.Duration) (enbUEID int64, identityRequested bool, err error) {
-	enbUEID = e.AllocateENBUEID()
+	enbUEID = e.AllocateENBUEIDFor(ue)
 
 	attachReq, err := ue.buildAttachRequest()
 	if err != nil {
@@ -353,17 +354,14 @@ func (e *ENB) waitForPlainDownlink(enbUEID int64, timeout time.Duration) (nas []
 // sendInitialContextSetupResponse acknowledges the bearer setup, reporting the
 // eNB's S1-U downlink endpoint (the F-TEID the MME hands to the UPF).
 func (e *ENB) sendInitialContextSetupResponse(ics *s1ap.InitialContextSetupRequest, enbUEID int64, dlTEID uint32) error {
-	addr := e.n3Addr.To4()
-	if addr == nil {
-		addr = e.n3Addr.To16()
-	}
+	addr := e.n3TransportLayerAddress()
 
 	resp := &s1ap.InitialContextSetupResponse{
 		MMEUES1APID: s1ap.Ptr(ics.MMEUES1APID),
 		ENBUES1APID: s1ap.Ptr(s1ap.ENBUES1APID(enbUEID)),
 		ERABSetup: []s1ap.ERABSetupItemCtxtSURes{{
 			ERABID:                ics.ERABToBeSetup[0].ERABID,
-			TransportLayerAddress: s1ap.TransportLayerAddress(addr),
+			TransportLayerAddress: addr,
 			GTPTEID:               s1ap.GTPTEID(dlTEID),
 		}},
 	}
@@ -377,26 +375,17 @@ func (e *ENB) sendInitialContextSetupResponse(ics *s1ap.InitialContextSetupReque
 }
 
 // selectUpfAddr resolves the UPF S1-U endpoint from the E-RAB Transport Layer
-// Address (TS 36.413): 4 octets IPv4, 16 IPv6, or 20 dual-stack (IPv4||IPv6).
+// Address (TS 36.413): 32 bits IPv4, 128 IPv6, or 160 dual-stack (IPv4||IPv6).
 // For a dual-stack endpoint it picks the family of the eNB's own N3 socket, since
 // the GTP-U transport between eNB and UPF must share an address family.
 func (e *ENB) selectUpfAddr(tla s1ap.TransportLayerAddress) (netip.Addr, error) {
-	b := []byte(tla)
 	enbIsV6 := e.n3Addr.To4() == nil
 
-	var v4, v6 netip.Addr
-
-	switch len(b) {
-	case 4:
-		v4, _ = netip.AddrFromSlice(b)
-	case 16:
-		v6, _ = netip.AddrFromSlice(b)
-	case 20:
-		v4, _ = netip.AddrFromSlice(b[0:4])
-		v6, _ = netip.AddrFromSlice(b[4:20])
-	default:
-		return netip.Addr{}, fmt.Errorf("s1enb: unexpected S1-U transport layer address length %d", len(b))
+	if !tla.Valid() {
+		return netip.Addr{}, fmt.Errorf("s1enb: unexpected S1-U transport layer address length %d bits", tla.Bits())
 	}
+
+	v4, v6 := tla.IPv4(), tla.IPv6()
 
 	switch {
 	case enbIsV6 && v6.IsValid():
@@ -430,4 +419,11 @@ func (e *ENB) allocForwardingTEID() uint32 {
 	e.nextFwdTEID++
 
 	return t
+}
+
+func (e *ENB) n3TransportLayerAddress() s1ap.TransportLayerAddress {
+	addr, _ := netip.AddrFromSlice(e.n3Addr)
+	tla, _ := ap.TransportLayerAddressFrom(addr)
+
+	return tla
 }

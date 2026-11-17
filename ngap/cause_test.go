@@ -4,23 +4,26 @@
 package ngap
 
 import (
-	"strings"
+	"bytes"
+	"errors"
 	"testing"
 
 	"github.com/ellanetworks/core/per"
+	"github.com/ellanetworks/core/per/ap"
+	"github.com/ellanetworks/core/per/ap/apimpl"
 )
 
 func TestCauseRoundTrip(t *testing.T) {
 	for _, c := range []Cause{
-		{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkUnspecified},
-		{Group: CauseGroupRadioNetwork, Value: CauseRadioNetworkSliceNotSupported},
-		{Group: CauseGroupTransport, Value: CauseTransportResourceUnavailable},
-		{Group: CauseGroupNAS, Value: CauseNASDeregister},
-		{Group: CauseGroupProtocol, Value: CauseProtocolAbstractSyntaxErrorReject},
-		{Group: CauseGroupMisc, Value: CauseMiscUnknownPLMNOrSNPN},
-		// Extension additions of a group's ENUMERATED continue past its root.
-		{Group: CauseGroupRadioNetwork, Value: 0, Extended: true},
-		{Group: CauseGroupNAS, Value: 2, Extended: true},
+		CauseRadioNetworkUnspecified.Cause(),
+		CauseRadioNetworkSliceNotSupported.Cause(),
+		CauseTransportResourceUnavailable.Cause(),
+		CauseNASDeregister.Cause(),
+		CauseProtocolAbstractSyntaxErrorReject.Cause(),
+		CauseMiscUnknownPLMNOrSNPN.Cause(),
+		CauseRadioNetworkN26InterfaceNotAvailable.Cause(),
+		CauseRadioNetworkMultipleAIoTSessionIDInstances.Cause(),
+		CauseNASNoAIoTNASResponse.Cause(),
 	} {
 		w := per.NewWriter()
 		if err := c.MarshalPER(w, per.Aligned); err != nil {
@@ -32,54 +35,116 @@ func TestCauseRoundTrip(t *testing.T) {
 			t.Fatalf("%v: unmarshal: %v", c, err)
 		}
 
-		if got != c {
-			t.Errorf("round trip = %+v, want %+v", got, c)
+		if !got.Equal(c) {
+			t.Errorf("round trip = %v, want %v", got, c)
 		}
 	}
 }
 
-// An out-of-range group cannot be encoded: the CHOICE has five groups plus a
-// choice-Extensions alternative this library never selects.
-func TestCauseInvalidGroup(t *testing.T) {
-	w := per.NewWriter()
+func TestCauseRejectsZeroOrSeveralAlternatives(t *testing.T) {
+	if err := (&Cause{}).MarshalPER(per.NewWriter(), per.Aligned); !errors.Is(err, per.ErrEmpty) {
+		t.Errorf("empty cause: err = %v, want per.ErrEmpty", err)
+	}
 
-	err := Cause{Group: CauseGroup(causeChoiceExtensions)}.MarshalPER(w, per.Aligned)
-	if err == nil {
-		t.Fatal("marshal accepted the choice-Extensions index as a group")
+	two := CauseNASDeregister.Cause()
+	two.Misc = Ptr(CauseMiscUnspecified)
+
+	if err := two.MarshalPER(per.NewWriter(), per.Aligned); !errors.Is(err, per.ErrChoice) {
+		t.Errorf("two alternatives: err = %v, want per.ErrChoice", err)
 	}
 }
 
-// TS 38.413 §9.3.1.2 closes Cause with choice-Extensions rather than an
-// extension marker. A peer selecting it has sent something this version cannot
-// represent, so decoding must say so instead of yielding a zero Cause that
-// reads as radioNetwork/unspecified.
-func TestCauseChoiceExtensionIsRejected(t *testing.T) {
+func causeChoiceExtensionWire(t *testing.T, crit Criticality) []byte {
+	t.Helper()
+
 	w := per.NewWriter()
-	enc := per.Aligned
 
-	if err := per.EncodeConstrainedWholeNumber(w, enc, 0, causeAlternatives-1, causeChoiceExtensions); err != nil {
+	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, 5, 5); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := encodeContainerField(w, enc, ieField{
-		id:   IDCause,
-		crit: CriticalityIgnore,
-		raw:  []byte{0x00},
-	}); err != nil {
+	if err := encodeContainerField(w, ieField{ID: 9999, Criticality: crit, Value: apimpl.RawValue([]byte{0x2a})}); err != nil {
 		t.Fatal(err)
 	}
 
-	got, err := unmarshalPERValue[Cause](perBytes(w))
-	if err == nil {
-		t.Fatalf("decoded choice-Extensions as %+v, want an error", got)
+	return perBytes(w)
+}
+
+func TestCauseChoiceExtensionIsPreservedAndDiagnosed(t *testing.T) {
+	for _, crit := range []Criticality{CriticalityReject, CriticalityIgnore} {
+		wire := causeChoiceExtensionWire(t, crit)
+
+		got, err := unmarshalPERValue[Cause](wire)
+		if err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+
+		if got.ChoiceExtension == nil || got.ChoiceExtension.ID != 9999 || got.ChoiceExtension.Criticality != crit {
+			t.Fatalf("ChoiceExtension = %+v, want id 9999 criticality %v", got.ChoiceExtension, crit)
+		}
+
+		w := per.NewWriter()
+		if err := got.MarshalPER(w, per.Aligned); err != nil {
+			t.Fatal(err)
+		}
+
+		if !bytes.Equal(perBytes(w), wire) {
+			t.Errorf("re-encode = % x, want % x", perBytes(w), wire)
+		}
+
+		d := ap.Diagnose[ProtocolIEID](&got)
+
+		var found bool
+
+		for _, e := range d.IEs {
+			if e.ID == 9999 && e.Criticality == crit {
+				found = true
+			}
+		}
+
+		if !found {
+			t.Errorf("diagnostics %+v do not report the unknown choice-Extensions IE on criticality %v", d.IEs, crit)
+		}
+	}
+}
+
+func TestCauseUnknownExtensionValueRoundTrips(t *testing.T) {
+	w := per.NewWriter()
+
+	if err := per.EncodeConstrainedWholeNumber(w, per.Aligned, 0, 5, 1); err != nil {
+		t.Fatal(err)
 	}
 
-	if !strings.Contains(err.Error(), "unsupported Cause alternative") {
-		t.Errorf("error = %q, want it to name the unsupported alternative", err)
+	if err := per.EncodeEnumerated(w, per.Aligned, 2, true, 40); err != nil {
+		t.Fatal(err)
 	}
 
-	if got != (Cause{}) {
-		t.Errorf("cause = %+v, want it left untouched", got)
+	wire := perBytes(w)
+
+	got, err := unmarshalPERValue[Cause](wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got.Transport == nil || *got.Transport != 40 {
+		t.Fatalf("Transport = %v, want 40", got.Transport)
+	}
+
+	if got.String() != "transport: unknown(40) (40)" {
+		t.Errorf("String() = %q", got.String())
+	}
+
+	if !got.Diagnose(&ap.Diagnosis[ProtocolIEID]{}) {
+		t.Error("Diagnose() = false for an unknown CauseTransport value")
+	}
+
+	w = per.NewWriter()
+	if err := got.MarshalPER(w, per.Aligned); err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Equal(perBytes(w), wire) {
+		t.Errorf("re-encode = % x, want % x", perBytes(w), wire)
 	}
 }
 
@@ -88,12 +153,10 @@ func TestCauseString(t *testing.T) {
 		in   Cause
 		want string
 	}{
-		{Cause{Group: CauseGroupRadioNetwork, Value: 0}, "radioNetwork: unspecified (0)"},
-		{Cause{Group: CauseGroupNAS, Value: CauseNASDeregister}, "nas: deregister (2)"},
-		// An extension addition's index continues after the root values.
-		{Cause{Group: CauseGroupNAS, Value: 0, Extended: true}, "nas: uE-not-in-PLMN-serving-area (4)"},
-		{Cause{Group: CauseGroupRadioNetwork, Value: 99}, "radioNetwork: unknown (99)"},
-		{Cause{Group: CauseGroup(9), Value: 1}, "group-9: value-1"},
+		{CauseRadioNetworkUnspecified.Cause(), "radioNetwork: unspecified (0)"},
+		{CauseNASDeregister.Cause(), "nas: deregister (2)"},
+		{CauseNASUENotInPLMNServingArea.Cause(), "nas: uE-not-in-PLMN-serving-area (4)"},
+		{Cause{}, "empty"},
 	} {
 		if got := tc.in.String(); got != tc.want {
 			t.Errorf("String() = %q, want %q", got, tc.want)
@@ -101,12 +164,12 @@ func TestCauseString(t *testing.T) {
 	}
 }
 
-func TestCauseEnumeratedValueContinuesPastTheRoot(t *testing.T) {
-	if got := (Cause{Group: CauseGroupNAS, Value: CauseNASDeregister}).EnumeratedValue(); got != CauseNASDeregister {
-		t.Fatalf("root value = %d, want %d", got, CauseNASDeregister)
+func TestCauseExtensionValuesContinuePastTheRoot(t *testing.T) {
+	if got := int(CauseRadioNetworkInsufficientUECapabilities); got != len(enumCauseRadioNetwork.Root)+6 {
+		t.Fatalf("insufficient-ue-capabilities = %d, want %d", got, len(enumCauseRadioNetwork.Root)+6)
 	}
 
-	if got := CauseInsufficientUECapabilities.EnumeratedValue(); got != causeGroupRootCount[CauseGroupRadioNetwork]+6 {
-		t.Fatalf("extension value = %d, want %d", got, causeGroupRootCount[CauseGroupRadioNetwork]+6)
+	if got := CauseRadioNetworkInsufficientUECapabilities.Name(); got != "insufficient-ue-capabilities" {
+		t.Errorf("Name() = %q", got)
 	}
 }

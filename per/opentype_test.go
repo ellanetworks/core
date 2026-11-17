@@ -5,6 +5,7 @@ package per
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 )
 
@@ -209,5 +210,23 @@ func TestDecodeNormallySmallLengthFragments(t *testing.T) {
 
 	if got := bits[16384:]; got[0] || !got[1] || got[2] {
 		t.Fatalf("second fragment = %v, want [false true false]", got)
+	}
+}
+
+func TestNormallySmallLengthRejectsZero(t *testing.T) {
+	t.Parallel()
+
+	for _, enc := range []Encoding{Aligned, Unaligned} {
+		r := NewReader([]byte{0x80, 0x00})
+
+		called := false
+
+		err := DecodeNormallySmallLength(r, enc, func(int64) error {
+			called = true
+			return nil
+		})
+		if !errors.Is(err, ErrOverflow) || called {
+			t.Fatalf("%s: err=%v called=%v, want ErrOverflow and no consume", enc, err, called)
+		}
 	}
 }

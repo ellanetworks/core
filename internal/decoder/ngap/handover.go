@@ -62,20 +62,41 @@ type HandoverRequiredTransferDecoded struct {
 // HandoverCommandTransferDecoded is the per-session forwarding plan the source
 // node is given (TS 38.413 §9.3.4.10).
 type HandoverCommandTransferDecoded struct {
-	DLForwardingUPTNLInformation *GTPTunnel                  `json:"dl_forwarding_up_tnl_information,omitempty"`
-	QosFlowToBeForwarded         []int64                     `json:"qos_flow_to_be_forwarded,omitempty"`
-	DataForwardingResponseDRB    []DataForwardingResponseDRB `json:"data_forwarding_response_drb,omitempty"`
+	DLForwardingUPTNLInformation           *GTPTunnel                   `json:"dl_forwarding_up_tnl_information,omitempty"`
+	QosFlowToBeForwarded                   []int64                      `json:"qos_flow_to_be_forwarded,omitempty"`
+	DataForwardingResponseDRB              []DataForwardingResponseDRB  `json:"data_forwarding_response_drb,omitempty"`
+	AdditionalDLForwardingUPTNLInformation []QosFlowPerTNLInformation   `json:"additional_dl_forwarding_up_tnl_information,omitempty"`
+	ULForwardingUPTNLInformation           *GTPTunnel                   `json:"ul_forwarding_up_tnl_information,omitempty"`
+	AdditionalULForwardingUPTNLInformation []GTPTunnel                  `json:"additional_ul_forwarding_up_tnl_information,omitempty"`
+	DataForwardingResponseERAB             []DataForwardingResponseERAB `json:"data_forwarding_response_erab,omitempty"`
+}
+
+type DataForwardingResponseERAB struct {
+	ERABID                       uint8     `json:"erab_id"`
+	DLForwardingUPTNLInformation GTPTunnel `json:"dl_forwarding_up_tnl_information"`
+}
+
+type AdditionalDLUPTNLInformationForHO struct {
+	AdditionalDLNGUUPTNLInformation          GTPTunnel                   `json:"additional_dl_ng_u_up_tnl_information"`
+	AdditionalQosFlowSetupResponse           []QosFlowWithDataForwarding `json:"additional_qos_flow_setup_response,omitempty"`
+	AdditionalDLForwardingUPTNLInformation   *GTPTunnel                  `json:"additional_dl_forwarding_up_tnl_information,omitempty"`
+	AdditionalRedundantDLNGUUPTNLInformation *GTPTunnel                  `json:"additional_redundant_dl_ng_u_up_tnl_information,omitempty"`
 }
 
 // HandoverRequestAcknowledgeTransferDecoded is what the target node reports per
 // admitted session (TS 38.413 §9.3.4.11).
 type HandoverRequestAcknowledgeTransferDecoded struct {
-	DLNGUUPTNLInformation        GTPTunnel                   `json:"dl_ng_u_up_tnl_information"`
-	DLForwardingUPTNLInformation *GTPTunnel                  `json:"dl_forwarding_up_tnl_information,omitempty"`
-	SecurityResult               *SecurityResult             `json:"security_result,omitempty"`
-	QosFlowSetupResponse         []QosFlowWithDataForwarding `json:"qos_flow_setup_response,omitempty"`
-	QosFlowFailedToSetup         []QosFlowWithCause          `json:"qos_flow_failed_to_setup,omitempty"`
-	DataForwardingResponseDRB    []DataForwardingResponseDRB `json:"data_forwarding_response_drb,omitempty"`
+	DLNGUUPTNLInformation                  GTPTunnel                           `json:"dl_ng_u_up_tnl_information"`
+	DLForwardingUPTNLInformation           *GTPTunnel                          `json:"dl_forwarding_up_tnl_information,omitempty"`
+	SecurityResult                         *SecurityResult                     `json:"security_result,omitempty"`
+	QosFlowSetupResponse                   []QosFlowWithDataForwarding         `json:"qos_flow_setup_response,omitempty"`
+	QosFlowFailedToSetup                   []QosFlowWithCause                  `json:"qos_flow_failed_to_setup,omitempty"`
+	DataForwardingResponseDRB              []DataForwardingResponseDRB         `json:"data_forwarding_response_drb,omitempty"`
+	AdditionalDLUPTNLInformationForHO      []AdditionalDLUPTNLInformationForHO `json:"additional_dl_up_tnl_information_for_ho,omitempty"`
+	ULForwardingUPTNLInformation           *GTPTunnel                          `json:"ul_forwarding_up_tnl_information,omitempty"`
+	AdditionalULForwardingUPTNLInformation []GTPTunnel                         `json:"additional_ul_forwarding_up_tnl_information,omitempty"`
+	DataForwardingResponseERAB             []DataForwardingResponseERAB        `json:"data_forwarding_response_erab,omitempty"`
+	RedundantDLNGUUPTNLInformation         *GTPTunnel                          `json:"redundant_dl_ng_u_up_tnl_information,omitempty"`
 }
 
 // HandoverResourceAllocationUnsuccessfulTransferDecoded says why the target node
@@ -157,6 +178,11 @@ func libHandoverCommandTransfer(raw ngap.TransferContainer) (any, error) {
 		out.QosFlowToBeForwarded = append(out.QosFlowToBeForwarded, int64(f.QosFlowIdentifier))
 	}
 
+	out.AdditionalDLForwardingUPTNLInformation = qosFlowPerTNLInformationList(t.AdditionalDLForwardingUPTNLInformation)
+	out.ULForwardingUPTNLInformation = optionalGTPTunnel(t.ULForwardingUPTNLInformation)
+	out.AdditionalULForwardingUPTNLInformation = gtpTunnelList(t.AdditionalULForwardingUPTNLInformation)
+	out.DataForwardingResponseERAB = dataForwardingResponseERABs(t.DataForwardingResponseERAB)
+
 	return out, nil
 }
 
@@ -182,17 +208,52 @@ func libHandoverRequestAcknowledgeTransfer(raw ngap.TransferContainer) (any, err
 		out.SecurityResult = &result
 	}
 
-	for _, f := range t.QosFlowSetupResponse {
+	out.QosFlowSetupResponse = qosFlowsWithDataForwarding(t.QosFlowSetupResponse)
+
+	for _, a := range t.AdditionalDLUPTNLInformationForHO {
+		out.AdditionalDLUPTNLInformationForHO = append(out.AdditionalDLUPTNLInformationForHO, AdditionalDLUPTNLInformationForHO{
+			AdditionalDLNGUUPTNLInformation:          libGTPTunnel(a.AdditionalDLNGUUPTNLInformation),
+			AdditionalQosFlowSetupResponse:           qosFlowsWithDataForwarding(a.AdditionalQosFlowSetupResponse),
+			AdditionalDLForwardingUPTNLInformation:   optionalGTPTunnel(a.AdditionalDLForwardingUPTNLInformation),
+			AdditionalRedundantDLNGUUPTNLInformation: optionalGTPTunnel(a.AdditionalRedundantDLNGUUPTNLInformation),
+		})
+	}
+
+	out.ULForwardingUPTNLInformation = optionalGTPTunnel(t.ULForwardingUPTNLInformation)
+	out.AdditionalULForwardingUPTNLInformation = gtpTunnelList(t.AdditionalULForwardingUPTNLInformation)
+	out.DataForwardingResponseERAB = dataForwardingResponseERABs(t.DataForwardingResponseERAB)
+	out.RedundantDLNGUUPTNLInformation = optionalGTPTunnel(t.RedundantDLNGUUPTNLInformation)
+
+	return out, nil
+}
+
+func qosFlowsWithDataForwarding(list ngap.QosFlowListWithDataForwarding) []QosFlowWithDataForwarding {
+	var out []QosFlowWithDataForwarding
+
+	for _, f := range list {
 		entry := QosFlowWithDataForwarding{QosFlowIdentifier: int64(f.QosFlowIdentifier)}
 		if f.DataForwardingAccepted != nil {
 			accepted := true
 			entry.DataForwardingAccepted = &accepted
 		}
 
-		out.QosFlowSetupResponse = append(out.QosFlowSetupResponse, entry)
+		out = append(out, entry)
 	}
 
-	return out, nil
+	return out
+}
+
+func dataForwardingResponseERABs(list ngap.DataForwardingResponseERABList) []DataForwardingResponseERAB {
+	var out []DataForwardingResponseERAB
+
+	for _, e := range list {
+		out = append(out, DataForwardingResponseERAB{
+			ERABID:                       uint8(e.ERABID),
+			DLForwardingUPTNLInformation: libGTPTunnel(e.DLForwardingUPTNLInformation),
+		})
+	}
+
+	return out
 }
 
 func libHandoverResourceAllocationUnsuccessfulTransfer(raw ngap.TransferContainer) (any, error) {
@@ -268,7 +329,7 @@ func tacsToStrings(list []ngap.TAC) []string {
 // ratRestrictionNames are the RATs a restriction bitmap can bar, in transmission
 // order (TS 38.413 §9.3.1.85).
 var ratRestrictionNames = []struct {
-	bit  ngap.RATRestrictionInformation
+	bit  ngap.RATRestrictionFlags
 	name string
 }{
 	{ngap.RATRestrictionEUTRA, "e-UTRA"},
@@ -284,7 +345,7 @@ func ratRestrictionInformation(v ngap.RATRestrictionInformation) string {
 	var restricted []string
 
 	for _, r := range ratRestrictionNames {
-		if v&r.bit != 0 {
+		if v.Flags&r.bit != 0 {
 			restricted = append(restricted, r.name)
 		}
 	}
@@ -348,7 +409,7 @@ func targetID(t ngap.TargetID) TargetID {
 		out.TargetENBID = &TargetENBID{
 			GlobalNgENBID: GlobalNgENBID{
 				PLMNIdentity: plmnIDToDecoder(t.TargeteNBID.GlobalENBID.PLMNIdentity),
-				NgENBID:      fmt.Sprintf("%x", t.TargeteNBID.GlobalENBID.NgENBID.Value),
+				NgENBID:      ngENBIDHex(t.TargeteNBID.GlobalENBID.NgENBID),
 			},
 			SelectedEPSTAI: EPSTAI{
 				PLMNIdentity: plmnIDToDecoder(t.TargeteNBID.SelectedEPSTAI.PLMNIdentity),
@@ -390,7 +451,7 @@ func buildHandoverRequired(value []byte) NGAPMessageValue {
 
 	ies = append(ies,
 		ie(ngap.IDPDUSessionResourceListHORqd, ngap.CriticalityReject, sessions),
-		ie(ngap.IDSourceToTargetTransparentContainer, ngap.CriticalityReject, hex.EncodeToString(m.SourceToTargetTransparentContainer)),
+		ie(ngap.IDSourceToTargetTransparentContainer, ngap.CriticalityReject, sourceToTargetTransparentContainer(m.SourceToTargetTransparentContainer, m.HandoverType == ngap.HandoverTypeIntra5GS)),
 	)
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
@@ -530,13 +591,59 @@ func buildHandoverRequest(value []byte) NGAPMessageValue {
 		ies = append(ies, ie(ngap.IDTraceActivation, ngap.CriticalityIgnore, traceActivation(*m.TraceActivation)))
 	}
 
-	ies = append(ies, ie(ngap.IDSourceToTargetTransparentContainer, ngap.CriticalityReject, hex.EncodeToString(m.SourceToTargetTransparentContainer)))
+	ies = append(ies, ie(ngap.IDSourceToTargetTransparentContainer, ngap.CriticalityReject, sourceToTargetTransparentContainer(m.SourceToTargetTransparentContainer, true)))
 
 	if m.MobilityRestrictionList != nil {
 		ies = append(ies, ie(ngap.IDMobilityRestrictionList, ngap.CriticalityIgnore, mobilityRestrictionList(*m.MobilityRestrictionList)))
 	}
 
 	ies = append(ies, ie(ngap.IDGUAMI, ngap.CriticalityReject, guami(m.GUAMI)))
+
+	if m.AMFUENGAPID2 != nil {
+		ies = append(ies, ie(ngap.IDAMFUENGAPID2, ngap.CriticalityIgnore, int64(*m.AMFUENGAPID2)))
+	}
+
+	if m.TargetRANNodeID != nil {
+		ies = append(ies, ie(ngap.IDTargetRANNodeID, ngap.CriticalityIgnore, buildGlobalRANNodeID(*m.TargetRANNodeID)))
+	}
+
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDCoreNetworkAssistanceInformationForInactive, ngap.CriticalityIgnore, m.CoreNetworkAssistanceInformationForInactive},
+		{ngap.IDMaskedIMEISV, ngap.CriticalityIgnore, m.MaskedIMEISV},
+		{ngap.IDLocationReportingRequestType, ngap.CriticalityIgnore, m.LocationReportingRequestType},
+		{ngap.IDRRCInactiveTransitionReportRequest, ngap.CriticalityIgnore, m.RRCInactiveTransitionReportRequest},
+		{ngap.IDRedirectionVoiceFallback, ngap.CriticalityIgnore, m.RedirectionVoiceFallback},
+		{ngap.IDCNAssistedRANTuning, ngap.CriticalityIgnore, m.CNAssistedRANTuning},
+		{ngap.IDSRVCCOperationPossible, ngap.CriticalityIgnore, m.SRVCCOperationPossible},
+		{ngap.IDIABAuthorized, ngap.CriticalityReject, m.IABAuthorized},
+		{ngap.IDEnhancedCoverageRestriction, ngap.CriticalityIgnore, m.EnhancedCoverageRestriction},
+		{ngap.IDUEDifferentiationInfo, ngap.CriticalityIgnore, m.UEDifferentiationInfo},
+		{ngap.IDNRV2XServicesAuthorized, ngap.CriticalityIgnore, m.NRV2XServicesAuthorized},
+		{ngap.IDLTEV2XServicesAuthorized, ngap.CriticalityIgnore, m.LTEV2XServicesAuthorized},
+		{ngap.IDNRUESidelinkAggregateMaximumBitrate, ngap.CriticalityIgnore, m.NRUESidelinkAggregateMaximumBitrate},
+		{ngap.IDLTEUESidelinkAggregateMaximumBitrate, ngap.CriticalityIgnore, m.LTEUESidelinkAggregateMaximumBitrate},
+		{ngap.IDPC5QoSParameters, ngap.CriticalityIgnore, m.PC5QoSParameters},
+		{ngap.IDCEmodeBrestricted, ngap.CriticalityIgnore, m.CEmodeBrestricted},
+		{ngap.IDUEUPCIoTSupport, ngap.CriticalityIgnore, m.UEUPCIoTSupport},
+		{ngap.IDManagementBasedMDTPLMNList, ngap.CriticalityIgnore, m.ManagementBasedMDTPLMNList},
+		{ngap.IDUERadioCapabilityID, ngap.CriticalityReject, m.UERadioCapabilityID},
+		{ngap.IDExtendedConnectedTime, ngap.CriticalityIgnore, m.ExtendedConnectedTime},
+		{ngap.IDTimeSyncAssistanceInfo, ngap.CriticalityIgnore, m.TimeSyncAssistanceInfo},
+		{ngap.IDUESliceMaximumBitRateList, ngap.CriticalityIgnore, m.UESliceMaximumBitRateList},
+		{ngap.IDFiveGProSeAuthorized, ngap.CriticalityIgnore, m.FiveGProSeAuthorized},
+		{ngap.IDFiveGProSeUEPC5AggregateMaximumBitRate, ngap.CriticalityIgnore, m.FiveGProSeUEPC5AggregateMaximumBitRate},
+		{ngap.IDFiveGProSePC5QoSParameters, ngap.CriticalityIgnore, m.FiveGProSePC5QoSParameters},
+		{ngap.IDAerialUEsubscriptionInformation, ngap.CriticalityIgnore, m.AerialUEsubscriptionInformation},
+		{ngap.IDNRA2XServicesAuthorized, ngap.CriticalityIgnore, m.NRA2XServicesAuthorized},
+		{ngap.IDLTEA2XServicesAuthorized, ngap.CriticalityIgnore, m.LTEA2XServicesAuthorized},
+		{ngap.IDNRA2XUEPC5AggregateMaximumBitRate, ngap.CriticalityIgnore, m.NRA2XUEPC5AggregateMaximumBitRate},
+		{ngap.IDLTEA2XUEPC5AggregateMaximumBitRate, ngap.CriticalityIgnore, m.LTEA2XUEPC5AggregateMaximumBitRate},
+		{ngap.IDA2XPC5QoSParameters, ngap.CriticalityIgnore, m.A2XPC5QoSParameters},
+		{ngap.IDMobileIABAuthorized, ngap.CriticalityIgnore, m.MobileIABAuthorized},
+		{ngap.IDNoPDUSessionIndication, ngap.CriticalityIgnore, m.NoPDUSessionIndication},
+		{ngap.IDPartiallyAllowedNSSAI, ngap.CriticalityIgnore, m.PartiallyAllowedNSSAI},
+		{ngap.IDSLPositioningRangingServiceInfo, ngap.CriticalityIgnore, m.SLPositioningRangingServiceInfo},
+	})
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }
@@ -580,6 +687,12 @@ func buildHandoverRequestAcknowledge(value []byte) NGAPMessageValue {
 	if m.CriticalityDiagnostics != nil {
 		ies = append(ies, ie(ngap.IDCriticalityDiagnostics, ngap.CriticalityIgnore, criticalityDiagnostics(*m.CriticalityDiagnostics)))
 	}
+
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDNPNAccessInformation, ngap.CriticalityReject, m.NPNAccessInformation},
+		{ngap.IDRedCapIndication, ngap.CriticalityIgnore, m.RedCapIndication},
+		{ngap.IDERedCapIndication, ngap.CriticalityIgnore, m.ERedCapIndication},
+	})
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }
@@ -672,4 +785,13 @@ func buildHandoverCancelAcknowledge(value []byte) NGAPMessageValue {
 	}
 
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
+}
+
+func ngENBIDHex(id ngap.NgENBID) string {
+	v, _, ok := id.ID()
+	if !ok {
+		return ""
+	}
+
+	return fmt.Sprintf("%x", v)
 }

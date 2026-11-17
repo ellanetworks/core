@@ -21,6 +21,8 @@ type ERABToBeSetupBearer struct {
 	TransportLayerAddress string  `json:"transport_layer_address"`
 	GTPTEID               uint32  `json:"gtp_teid"`
 	NASPDU                NASPDU  `json:"nas_pdu"`
+	ERABQoSExtensions
+	ERABSetupExtensions
 }
 
 type GBRQoS struct {
@@ -28,6 +30,11 @@ type GBRQoS struct {
 	MaximumBitrateUL    uint64 `json:"maximum_bitrate_ul"`
 	GuaranteedBitrateDL uint64 `json:"guaranteed_bitrate_dl"`
 	GuaranteedBitrateUL uint64 `json:"guaranteed_bitrate_ul"`
+
+	ExtendedMaximumBitrateDL    *uint64 `json:"extended_maximum_bitrate_dl,omitempty"`
+	ExtendedMaximumBitrateUL    *uint64 `json:"extended_maximum_bitrate_ul,omitempty"`
+	ExtendedGuaranteedBitrateDL *uint64 `json:"extended_guaranteed_bitrate_dl,omitempty"`
+	ExtendedGuaranteedBitrateUL *uint64 `json:"extended_guaranteed_bitrate_ul,omitempty"`
 }
 
 func gbrQoS(g *s1ap.GBRQosInformation) *GBRQoS {
@@ -40,6 +47,11 @@ func gbrQoS(g *s1ap.GBRQosInformation) *GBRQoS {
 		MaximumBitrateUL:    uint64(g.MaximumBitrateUL),
 		GuaranteedBitrateDL: uint64(g.GuaranteedBitrateDL),
 		GuaranteedBitrateUL: uint64(g.GuaranteedBitrateUL),
+
+		ExtendedMaximumBitrateDL:    extendedBitRate(g.ExtendedMaximumBitrateDL),
+		ExtendedMaximumBitrateUL:    extendedBitRate(g.ExtendedMaximumBitrateUL),
+		ExtendedGuaranteedBitrateDL: extendedBitRate(g.ExtendedGuaranteedBitrateDL),
+		ExtendedGuaranteedBitrateUL: extendedBitRate(g.ExtendedGuaranteedBitrateUL),
 	}
 }
 
@@ -63,6 +75,8 @@ func buildERABSetupRequest(value []byte) (S1APMessageValue, string) {
 			TransportLayerAddress: transportLayerAddress(it.TransportLayerAddress),
 			GTPTEID:               uint32(it.GTPTEID),
 			NASPDU:                nasPDU(it.NASPDU),
+			ERABQoSExtensions:     qosExtensions(it.QoS),
+			ERABSetupExtensions:   setupExtensions(it.CorrelationID, it.SIPTOCorrelationID, it.BearerType, it.EthernetType, it.SecurityIndication),
 		})
 	}
 

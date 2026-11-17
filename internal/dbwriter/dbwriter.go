@@ -29,6 +29,7 @@ type RadioEvent struct {
 	LocalAddress  string
 	RemoteAddress string
 	RadioName     string
+	RadioRef      string
 	Raw           []byte
 	Details       string // JSON or plain text (we store a string)
 }

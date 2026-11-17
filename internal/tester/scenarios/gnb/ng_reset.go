@@ -56,9 +56,7 @@ func runNGReset(_ context.Context, env scenarios.Env, _ any) error {
 	}
 
 	if err := node.SendNGReset(&gnb.NGResetOpts{
-		Cause: ngaplib.Ptr(ngaplib.Cause{
-			Group: ngaplib.CauseGroupMisc, Value: ngaplib.CauseMiscUnspecified,
-		}),
+		Cause:    new(ngaplib.CauseMiscUnspecified.Cause()),
 		ResetAll: true,
 	}); err != nil {
 		return fmt.Errorf("send NGReset: %w", err)

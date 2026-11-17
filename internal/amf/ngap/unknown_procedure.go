@@ -25,7 +25,7 @@ func respondToUnknownProcedure(ctx context.Context, ran *amf.Radio, pdu ngap.PDU
 		return
 	}
 
-	var cause int
+	var cause ngap.CauseProtocol
 
 	switch im.Criticality {
 	case ngap.CriticalityReject:
@@ -44,7 +44,7 @@ func respondToUnknownProcedure(ctx context.Context, ran *amf.Radio, pdu ngap.PDU
 	crit := im.Criticality
 
 	emitErrorIndication(ctx, ran, &ngap.ErrorIndication{
-		Cause: &ngap.Cause{Group: ngap.CauseGroupProtocol, Value: cause},
+		Cause: new(cause.Cause()),
 		CriticalityDiagnostics: &ngap.CriticalityDiagnostics{
 			ProcedureCode:        &proc,
 			TriggeringMessage:    &trigger,
@@ -55,8 +55,8 @@ func respondToUnknownProcedure(ctx context.Context, ran *amf.Radio, pdu ngap.PDU
 
 // sendProtocolErrorIndication answers octets that did not decode at all, where
 // no procedure or IE can be named (TS 38.413 §10.2).
-func sendProtocolErrorIndication(ctx context.Context, ran *amf.Radio, cause int) {
+func sendProtocolErrorIndication(ctx context.Context, ran *amf.Radio, cause ngap.CauseProtocol) {
 	emitErrorIndication(ctx, ran, &ngap.ErrorIndication{
-		Cause: &ngap.Cause{Group: ngap.CauseGroupProtocol, Value: cause},
+		Cause: new(cause.Cause()),
 	})
 }

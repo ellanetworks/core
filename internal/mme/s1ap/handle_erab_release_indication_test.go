@@ -18,7 +18,7 @@ func releaseIndication(t *testing.T, ue *mme.UeContext, ebi uint8) []byte {
 	msg := &s1ap.ERABReleaseIndication{
 		MMEUES1APID:  ue.Conn().MMEUES1APID,
 		ENBUES1APID:  ue.Conn().ENBUES1APID(),
-		ERABReleased: []s1ap.ERABItem{{ERABID: s1ap.ERABID(ebi), Cause: s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkRadioConnectionWithUELost}}},
+		ERABReleased: []s1ap.ERABItem{{ERABID: s1ap.ERABID(ebi), Cause: s1ap.CauseRadioNetworkRadioConnectionWithUELost.Cause()}},
 	}
 
 	return initiatingValue(t, mustMarshal(t, msg.Marshal))

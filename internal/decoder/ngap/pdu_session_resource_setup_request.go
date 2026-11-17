@@ -69,5 +69,10 @@ func buildPDUSessionResourceSetupRequest(value []byte) NGAPMessageValue {
 		}))
 	}
 
+	ies = appendTyped(ies, []typedIE{
+		{ngap.IDRANPagingPriority, ngap.CriticalityIgnore, m.RANPagingPriority},
+		{ngap.IDUESliceMaximumBitRateList, ngap.CriticalityIgnore, m.UESliceMaximumBitRateList},
+	})
+
 	return NGAPMessageValue{IEs: append(ies, unmodeledIEs(m.UnknownIEs())...)}
 }

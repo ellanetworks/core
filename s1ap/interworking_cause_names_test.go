@@ -15,10 +15,10 @@ func TestInterworkingFailureCauseNames(t *testing.T) {
 		cause s1ap.Cause
 		want  string
 	}{
-		{s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell}, "no-radio-resources-available-in-target-cell"},
-		{s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkEncryptionAlgorithmsNotSupported}, "encryption-and-or-integrity-protection-algorithms-not-supported"},
-		{s1ap.CauseInsufficientUECapabilities, "insufficient-ue-capabilities"},
-		{s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscOMIntervention}, "om-intervention"},
+		{s1ap.CauseRadioNetworkNoRadioResourcesInTargetCell.Cause(), "no-radio-resources-available-in-target-cell"},
+		{s1ap.CauseRadioNetworkEncryptionAlgorithmsNotSupported.Cause(), "encryption-and-or-integrity-protection-algorithms-not-supported"},
+		{s1ap.CauseRadioNetworkInsufficientUECapabilities.Cause(), "insufficient-ue-capabilities"},
+		{s1ap.CauseMiscOMIntervention.Cause(), "om-intervention"},
 	} {
 		if got := tc.cause.String(); !strings.Contains(got, tc.want) {
 			t.Errorf("cause %+v = %q, want it to name %q", tc.cause, got, tc.want)

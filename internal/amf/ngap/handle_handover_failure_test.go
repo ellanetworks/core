@@ -52,7 +52,7 @@ func TestHandleHandoverFailure_SourceUeContextDetached(t *testing.T) {
 
 	msg := ngap.HandoverFailure{
 		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(200)),
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHOFailureInTarget},
+		Cause:       new(ngap.CauseRadioNetworkHOFailureInTarget.Cause()),
 	}
 
 	HandleHandoverFailure(context.Background(), amfInstance, targetRan, &msg)
@@ -94,7 +94,7 @@ func TestHandleHandoverFailure_DropsTargetLocally(t *testing.T) {
 
 	msg := ngap.HandoverFailure{
 		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(200)),
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHOFailureInTarget},
+		Cause:       new(ngap.CauseRadioNetworkHOFailureInTarget.Cause()),
 	}
 
 	HandleHandoverFailure(context.Background(), amfInstance, targetRan, &msg)
@@ -139,7 +139,7 @@ func TestHandleHandoverFailure_NotFromPreparedTarget(t *testing.T) {
 
 	msg := ngap.HandoverFailure{
 		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(100)),
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHOFailureInTarget},
+		Cause:       new(ngap.CauseRadioNetworkHOFailureInTarget.Cause()),
 	}
 
 	HandleHandoverFailure(context.Background(), amfInstance, sourceRan, &msg)
@@ -180,7 +180,7 @@ func TestHandleHandoverFailure_DoesNotRelayTargetDiagnosticsToSource(t *testing.
 
 	HandleHandoverFailure(context.Background(), amfInstance, targetRan, &ngap.HandoverFailure{
 		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(200)),
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHOFailureInTarget},
+		Cause:       new(ngap.CauseRadioNetworkHOFailureInTarget.Cause()),
 		CriticalityDiagnostics: &ngap.CriticalityDiagnostics{
 			IEsCriticalityDiagnostics: []ngap.CriticalityDiagnosticsIEItem{{
 				IECriticality: ngap.CriticalityReject,
@@ -224,7 +224,7 @@ func TestHandleHandoverFailure_RelaysTargetToSourceFailureContainer(t *testing.T
 
 	HandleHandoverFailure(context.Background(), amfInstance, targetRan, &ngap.HandoverFailure{
 		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(200)),
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHOFailureInTarget},
+		Cause:       new(ngap.CauseRadioNetworkHOFailureInTarget.Cause()),
 		TargettoSourceFailureTransparentContainer: container,
 	})
 
@@ -260,7 +260,7 @@ func TestHandleHandoverFailure_NoContainerToRelay(t *testing.T) {
 
 	HandleHandoverFailure(context.Background(), amfInstance, targetRan, &ngap.HandoverFailure{
 		AMFUENGAPID: ngap.Ptr(ngap.AMFUENGAPID(200)),
-		Cause:       &ngap.Cause{Group: ngap.CauseGroupRadioNetwork, Value: ngap.CauseRadioNetworkHOFailureInTarget},
+		Cause:       new(ngap.CauseRadioNetworkHOFailureInTarget.Cause()),
 	})
 
 	if len(sourceSender.SentHandoverPreparationFailures) != 1 {
