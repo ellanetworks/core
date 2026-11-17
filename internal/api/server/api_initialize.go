@@ -184,13 +184,13 @@ func Initialize(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool
 			return
 		}
 
-		err = createSessionAndSetCookie(r.Context(), dbInstance, userID, secureCookie, w)
+		sessionID, err := createSessionAndSetCookie(r.Context(), dbInstance, userID, secureCookie, w)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
 			return
 		}
 
-		token, err := generateJWT(userID, newUser.Email, RoleID(db.RoleAdmin), jwtSecret.Get())
+		token, err := generateJWT(dbInstance, userID, newUser.Email, RoleID(db.RoleAdmin), sessionID, jwtSecret.Get())
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
 			return

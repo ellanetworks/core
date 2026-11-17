@@ -28,18 +28,23 @@ var tracer = otel.Tracer("ella-core/api/authentication_middleware")
 const AuthenticationAction = "user_authentication"
 
 type claims struct {
-	ID     string `json:"id"`
-	Email  string `json:"email"`
-	RoleID RoleID `json:"role_id"`
+	ID        string `json:"id"`
+	Email     string `json:"email"`
+	RoleID    RoleID `json:"role_id"`
+	SessionID string `json:"sid"`
+	Index     uint64 `json:"idx,omitempty"`
 	jwt.RegisteredClaims
 }
+
+const sessionCatchUpTimeout = 2 * time.Second
 
 type contextKey string
 
 const (
-	contextKeyUserID contextKey = "userID"
-	contextKeyEmail  contextKey = "email"
-	contextKeyRoleID contextKey = "roleID"
+	contextKeyUserID   contextKey = "userID"
+	contextKeyEmail    contextKey = "email"
+	contextKeyRoleID   contextKey = "roleID"
+	contextKeyAPIToken contextKey = "apiToken"
 )
 
 func isAPIToken(tok string) bool { return strings.HasPrefix(tok, "ellacore_") }
@@ -175,6 +180,10 @@ func authenticateRequest(r *http.Request, jwtSecret *JWTSecret, store *db.Databa
 		return "", "", 0, err
 	}
 
+	if err := checkSession(ctx, store, cl); err != nil {
+		return "", "", 0, err
+	}
+
 	u, err := store.GetUserByID(ctx, cl.ID)
 	if err != nil || u == nil {
 		return "", "", 0, errors.New("user not found")
@@ -183,6 +192,32 @@ func authenticateRequest(r *http.Request, jwtSecret *JWTSecret, store *db.Databa
 	success = true
 
 	return u.ID, u.Email, RoleID(u.RoleID), nil
+}
+
+func checkSession(ctx context.Context, store *db.Database, cl *claims) error {
+	if cl.SessionID == "" {
+		return errors.New("token has no session")
+	}
+
+	s, err := store.GetSessionByID(ctx, cl.SessionID)
+	if errors.Is(err, db.ErrNotFound) && cl.Index > store.AppliedIndex() {
+		wait, cancel := context.WithTimeout(ctx, sessionCatchUpTimeout)
+		defer cancel()
+
+		if store.WaitApplied(wait, cl.Index) == nil {
+			s, err = store.GetSessionByID(ctx, cl.SessionID)
+		}
+	}
+
+	if err != nil {
+		return fmt.Errorf("session: %w", err)
+	}
+
+	if s.UserID != cl.ID || time.Now().Unix() >= s.ExpiresAt {
+		return errors.New("session ended")
+	}
+
+	return nil
 }
 
 // putIdentity adds identity to context.
@@ -205,8 +240,18 @@ func Authenticate(jwtSecret *JWTSecret, store *db.Database, next http.Handler) h
 		}
 
 		ctx := putIdentity(r.Context(), uid, email, role)
+		ctx = context.WithValue(ctx, contextKeyAPIToken, isAPIToken(bearerToken(r)))
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func bearerToken(r *http.Request) string {
+	scheme, token, ok := strings.Cut(r.Header.Get("Authorization"), " ")
+	if !ok || !strings.EqualFold(scheme, "Bearer") {
+		return ""
+	}
+
+	return strings.TrimSpace(token)
 }
 
 func getClaimsFromJWT(bearerToken string, jwtSecret []byte) (*claims, error) {

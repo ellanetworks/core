@@ -29,13 +29,15 @@ type UpdateUserPasswordOptions struct {
 }
 
 type CreateUserOptions struct {
-	Email    string `json:"email"`
-	RoleID   RoleID `json:"role_id"`
-	Password string `json:"password"`
+	Email      string `json:"email"`
+	RoleID     RoleID `json:"role_id"`
+	Password   string `json:"password"`
+	RolePinned bool   `json:"role_pinned"`
 }
 
 type UpdateUserOptions struct {
-	RoleID RoleID `json:"role_id"`
+	RoleID     RoleID `json:"role_id"`
+	RolePinned *bool  `json:"role_pinned,omitempty"`
 }
 
 type GetUserOptions struct {
@@ -64,8 +66,11 @@ type APIToken struct {
 }
 
 type User struct {
-	Email  string `json:"email"`
-	RoleID RoleID `json:"role_id"`
+	Email       string `json:"email"`
+	RoleID      RoleID `json:"role_id"`
+	RolePinned  bool   `json:"role_pinned"`
+	PasswordSet bool   `json:"password_set"`
+	OIDCLinked  bool   `json:"oidc_linked"`
 }
 
 type ListUsersResponse struct {
@@ -108,13 +113,15 @@ func (c *Client) ListUsers(ctx context.Context, p *ListParams) (*ListUsersRespon
 
 func (c *Client) CreateUser(ctx context.Context, opts *CreateUserOptions) error {
 	payload := struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-		RoleID   RoleID `json:"role_id"`
+		Email      string `json:"email"`
+		Password   string `json:"password,omitempty"`
+		RoleID     RoleID `json:"role_id"`
+		RolePinned bool   `json:"role_pinned,omitempty"`
 	}{
-		Email:    opts.Email,
-		Password: opts.Password,
-		RoleID:   opts.RoleID,
+		Email:      opts.Email,
+		Password:   opts.Password,
+		RoleID:     opts.RoleID,
+		RolePinned: opts.RolePinned,
 	}
 
 	var body bytes.Buffer
@@ -161,9 +168,11 @@ func (c *Client) GetUser(ctx context.Context, opts *GetUserOptions) (*User, erro
 // UpdateUserPassword.
 func (c *Client) UpdateUser(ctx context.Context, email string, opts *UpdateUserOptions) error {
 	payload := struct {
-		RoleID RoleID `json:"role_id"`
+		RoleID     RoleID `json:"role_id"`
+		RolePinned *bool  `json:"role_pinned,omitempty"`
 	}{
-		RoleID: opts.RoleID,
+		RoleID:     opts.RoleID,
+		RolePinned: opts.RolePinned,
 	}
 
 	var body bytes.Buffer
@@ -184,6 +193,26 @@ func (c *Client) UpdateUser(ctx context.Context, email string, opts *UpdateUserO
 	}
 
 	return nil
+}
+
+func (c *Client) RemoveUserPassword(ctx context.Context, email string) error {
+	_, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "DELETE",
+		Path:   "api/v1/users/" + url.PathEscape(email) + "/password",
+	})
+
+	return err
+}
+
+func (c *Client) UnlinkUser(ctx context.Context, email string) error {
+	_, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "DELETE",
+		Path:   "api/v1/users/" + url.PathEscape(email) + "/oidc",
+	})
+
+	return err
 }
 
 func (c *Client) DeleteUser(ctx context.Context, opts *DeleteUserOptions) error {

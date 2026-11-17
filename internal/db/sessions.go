@@ -17,7 +17,10 @@ const SessionsTableName = "sessions"
 
 const (
 	createSessionSQL            = "INSERT INTO " + SessionsTableName + " (id, user_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)"
-	getSessionByTokenHashSQL    = "SELECT id, user_id, token_hash, created_at, expires_at FROM " + SessionsTableName + " WHERE token_hash==?"
+	sessionColumnsPreV29        = "id, user_id, token_hash, created_at, expires_at, 'password', ''"
+	sessionColumns              = "id, user_id, token_hash, created_at, expires_at, method, COALESCE(identity_id, '')"
+	getSessionByTokenHashSQL    = "SELECT %s FROM " + SessionsTableName + " WHERE token_hash==?"
+	getSessionByIDSQL           = "SELECT %s FROM " + SessionsTableName + " WHERE id==?"
 	deleteSessionByTokenHashSQL = "DELETE FROM " + SessionsTableName + " WHERE token_hash==?"   // #nosec: G101
 	deleteExpiredSessionsSQL    = "DELETE FROM " + SessionsTableName + " WHERE expires_at <= ?" // #nosec: G101
 	countSessionsByUserSQL      = "SELECT COUNT(*) FROM " + SessionsTableName + " WHERE user_id==?"
@@ -27,12 +30,21 @@ const (
 	deleteAllSessionsSQL        = "DELETE FROM " + SessionsTableName
 )
 
+type SessionMethod string
+
+const (
+	SessionPassword SessionMethod = "password"
+	SessionOIDC     SessionMethod = "oidc"
+)
+
 type Session struct {
-	ID        string // UUIDv7
-	UserID    string // FK to users.id (UUID)
-	TokenHash []byte
-	CreatedAt int64 // store as Unix timestamp (seconds since epoch)
-	ExpiresAt int64 // store as Unix timestamp (seconds since epoch)
+	ID         string // UUIDv7
+	UserID     string // FK to users.id (UUID)
+	TokenHash  []byte
+	CreatedAt  int64 // store as Unix timestamp (seconds since epoch)
+	ExpiresAt  int64 // store as Unix timestamp (seconds since epoch)
+	Method     SessionMethod
+	IdentityID string
 }
 
 type SessionCutoff struct {
@@ -73,7 +85,7 @@ func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte)
 	ctx, finish := startDBQuery(ctx, SessionsTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	row, err := scanSession(db.reader().QueryRowContext(ctx, getSessionByTokenHashSQL, tokenHash))
+	row, err := scanSession(db.reader().QueryRowContext(ctx, fmt.Sprintf(getSessionByTokenHashSQL, db.sessionColumns(ctx)), tokenHash))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -83,6 +95,30 @@ func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte)
 	}
 
 	return &row, nil
+}
+
+func (db *Database) GetSessionByID(ctx context.Context, id string) (_ *Session, err error) {
+	ctx, finish := startDBQuery(ctx, SessionsTableName, "SELECT")
+	defer func() { finish(err) }()
+
+	row, err := scanSession(db.reader().QueryRowContext(ctx, fmt.Sprintf(getSessionByIDSQL, db.sessionColumns(ctx)), id))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	return &row, nil
+}
+
+func (db *Database) sessionColumns(ctx context.Context) string {
+	if db.appliedSchemaAtLeast(ctx, oidcSchema) {
+		return sessionColumns
+	}
+
+	return sessionColumnsPreV29
 }
 
 func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []byte) (err error) {
@@ -174,7 +210,7 @@ func (db *Database) DeleteAllSessions(ctx context.Context) (err error) {
 func scanSession(row scanner) (Session, error) {
 	var v Session
 
-	if err := row.Scan(&v.ID, &v.UserID, &v.TokenHash, &v.CreatedAt, &v.ExpiresAt); err != nil {
+	if err := row.Scan(&v.ID, &v.UserID, &v.TokenHash, &v.CreatedAt, &v.ExpiresAt, &v.Method, &v.IdentityID); err != nil {
 		return Session{}, err
 	}
 

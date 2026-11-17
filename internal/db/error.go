@@ -34,6 +34,17 @@ var (
 	ErrJoinTokenExpired         = errors.New("join token expired")
 	ErrUnknownOperation         = errors.New("unknown forwarded operation")
 	ErrRetiredOperation         = errors.New("forwarded operation is retired")
+	ErrLastPasswordAdmin        = errors.New("the last admin with a password")
+	ErrNoPassword               = errors.New("the user has no password")
+	ErrUserLimit                = errors.New("too many users")
+	ErrOIDCDisabled             = errors.New("OIDC is disabled")
+	ErrOIDCChanged              = errors.New("the OIDC settings changed")
+	ErrNotLinked                = errors.New("no user is linked to the identity")
+	ErrNoUser                   = errors.New("no user has the email")
+	ErrAmbiguousEmail           = errors.New("several users have the email in different cases")
+	ErrNoRole                   = errors.New("the groups give no role")
+	ErrLinkedElsewhere          = errors.New("the user is linked to another identity")
+	ErrStateUsed                = errors.New("the login was already used")
 )
 
 func IsUnavailable(err error) bool {

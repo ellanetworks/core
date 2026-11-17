@@ -317,6 +317,22 @@ func (db *Database) OnLeadership(hook ellaraft.LeaderHook) {
 	db.raftManager.OnLeadership(hook)
 }
 
+func (db *Database) AppliedIndex() uint64 {
+	if db.raftManager == nil {
+		return 0
+	}
+
+	return db.raftManager.AppliedIndex()
+}
+
+func (db *Database) WaitApplied(ctx context.Context, index uint64) error {
+	if db.raftManager == nil {
+		return nil
+	}
+
+	return db.raftManager.WaitApplied(ctx, index)
+}
+
 // IsLeader returns true if this node is the current Raft leader.
 func (db *Database) IsLeader() bool {
 	if db.raftManager == nil {

@@ -29,6 +29,9 @@ var (
 		"jwt_secret",
 		"network_rules",
 		"network_slices",
+		"oidc_group_roles",
+		"oidc_settings",
+		"oidc_used_states",
 		"operator",
 		"pcscf_addresses",
 		"ims_registrations",
@@ -54,6 +57,7 @@ var (
 		"subscriber_framed_routes",
 		"subscribers",
 		"ue_registrations",
+		"user_identities",
 		"users",
 		"visitors",
 	}
