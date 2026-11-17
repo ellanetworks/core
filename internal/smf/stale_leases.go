@@ -5,6 +5,7 @@ package smf
 
 import (
 	"context"
+	"errors"
 	"math"
 	"net/netip"
 	"time"
@@ -25,6 +26,8 @@ type OwnedLeaseStore interface {
 	ListOwnedLeases(ctx context.Context) ([]OwnedLease, error)
 	ReleaseOwnedLease(ctx context.Context, lease OwnedLease) (netip.Addr, error)
 }
+
+var ErrLeaseStoreUnavailable = errors.New("lease store unavailable")
 
 const StaleLeaseReleaseInterval = 30 * time.Second
 
@@ -53,6 +56,10 @@ func (s *SMF) ReleaseStaleLeases(ctx context.Context, store OwnedLeaseStore) int
 	released := 0
 
 	for _, lease := range leases {
+		if ctx.Err() != nil {
+			return released
+		}
+
 		key, ok := s.claimStaleLease(lease.IMSI, lease.SessionID)
 		if !ok {
 			continue
@@ -66,7 +73,11 @@ func (s *SMF) ReleaseStaleLeases(ctx context.Context, store OwnedLeaseStore) int
 			logger.From(ctx, logger.SmfLog).Warn("release of a UE address lease no session holds failed; will retry",
 				logger.SUPIFromIMSI(lease.IMSI), zap.Int("session_id", lease.SessionID), zap.String("pool_type", lease.PoolType), zap.Error(err))
 
-			return released
+			if errors.Is(err, ErrLeaseStoreUnavailable) {
+				return released
+			}
+
+			continue
 		}
 
 		released++

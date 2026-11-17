@@ -162,6 +162,10 @@ func (s *SMF) AllocateUEAddressesForTest(ctx context.Context, sc *SMContext) err
 		return err
 	}
 
+	if err := s.awaitStaleLeaseRelease(ctx, sc.Supi, sc.sessionKey()); err != nil {
+		return err
+	}
+
 	_, err = s.allocateUEAddresses(ctx, dn, sc)
 
 	return err

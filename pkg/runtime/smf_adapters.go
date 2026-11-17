@@ -667,10 +667,6 @@ func (a *smfOwnedLeases) ListOwnedLeases(ctx context.Context) ([]smf.OwnedLease,
 	owned := make([]smf.OwnedLease, 0, len(leases))
 
 	for _, l := range leases {
-		if l.SessionID == nil {
-			continue
-		}
-
 		owned = append(owned, smf.OwnedLease{PoolID: l.PoolID, PoolType: l.PoolType, IMSI: l.IMSI, SessionID: *l.SessionID})
 	}
 
@@ -678,5 +674,10 @@ func (a *smfOwnedLeases) ListOwnedLeases(ctx context.Context) ([]smf.OwnedLease,
 }
 
 func (a *smfOwnedLeases) ReleaseOwnedLease(ctx context.Context, lease smf.OwnedLease) (netip.Addr, error) {
-	return a.db.ReleaseIPLease(ctx, lease.PoolID, lease.PoolType, lease.IMSI, lease.SessionID, a.db.RaftID())
+	addr, err := a.db.ReleaseIPLease(ctx, lease.PoolID, lease.PoolType, lease.IMSI, lease.SessionID, a.db.RaftID())
+	if db.IsUnavailable(err) {
+		return netip.Addr{}, fmt.Errorf("%w: %w", smf.ErrLeaseStoreUnavailable, err)
+	}
+
+	return addr, err
 }

@@ -124,10 +124,6 @@ func narrowPDUType(requested, negotiated uint8) pduTypeNarrowing {
 func (s *SMF) allocateUEAddresses(ctx context.Context, dn DNNStore, sc *SMContext) (ueAddresses, error) {
 	imsi := sc.Supi.IMSI()
 
-	if err := s.awaitStaleLeaseRelease(ctx, sc.Supi, sc.sessionKey()); err != nil {
-		return ueAddresses{}, fmt.Errorf("wait for stale UE address release: %w", err)
-	}
-
 	var addrs ueAddresses
 
 	if fgs.PDUSessionType(sc.PDUSessionType) == fgs.PDUSessionTypeIPv4 || fgs.PDUSessionType(sc.PDUSessionType) == fgs.PDUSessionTypeIPv4v6 {

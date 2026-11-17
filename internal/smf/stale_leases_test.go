@@ -6,6 +6,7 @@ package smf_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/netip"
 	"slices"
 	"sync"
@@ -22,6 +23,8 @@ type fakeOwnedLeases struct {
 	leases     []smf.OwnedLease
 	released   []smf.OwnedLease
 	releaseErr error
+	failFor    map[smf.OwnedLease]error
+	attempts   int
 	entered    chan struct{}
 	unblock    chan struct{}
 }
@@ -42,6 +45,12 @@ func (f *fakeOwnedLeases) ReleaseOwnedLease(_ context.Context, lease smf.OwnedLe
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
+	f.attempts++
+
+	if err := f.failFor[lease]; err != nil {
+		return netip.Addr{}, err
+	}
 
 	if f.releaseErr != nil {
 		return netip.Addr{}, f.releaseErr
@@ -174,6 +183,59 @@ func TestReleaseStaleLeasesRetriesAfterAFailedRelease(t *testing.T) {
 
 	if got := s.ReleaseStaleLeases(context.Background(), leases); got != 2 {
 		t.Fatalf("released %d leases on retry, want 2", got)
+	}
+}
+
+func TestReleaseStaleLeasesContinuesPastALeaseThatFails(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	leases := &fakeOwnedLeases{
+		leases:  []smf.OwnedLease{ownedLease("ipv4", 1), ownedLease("ipv4", 2)},
+		failFor: map[smf.OwnedLease]error{ownedLease("ipv4", 1): errors.New("constraint failed")},
+	}
+
+	if got := s.ReleaseStaleLeases(context.Background(), leases); got != 1 {
+		t.Fatalf("released %d leases, want 1", got)
+	}
+
+	if got := leases.releasedLeases(); !slices.Equal(got, []smf.OwnedLease{ownedLease("ipv4", 2)}) {
+		t.Fatalf("released %v, want session 2 only", got)
+	}
+}
+
+func TestReleaseStaleLeasesStopsWhenTheStoreIsUnavailable(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	leases := &fakeOwnedLeases{
+		leases:     []smf.OwnedLease{ownedLease("ipv4", 1), ownedLease("ipv4", 2)},
+		releaseErr: fmt.Errorf("%w: raft commit timeout", smf.ErrLeaseStoreUnavailable),
+	}
+
+	if got := s.ReleaseStaleLeases(context.Background(), leases); got != 0 {
+		t.Fatalf("released %d leases while the store is unavailable", got)
+	}
+
+	leases.mu.Lock()
+	defer leases.mu.Unlock()
+
+	if leases.attempts != 1 {
+		t.Fatalf("attempted %d releases, want 1", leases.attempts)
+	}
+}
+
+func TestReleaseStaleLeasesStopsWhenCancelled(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	leases := &fakeOwnedLeases{leases: []smf.OwnedLease{ownedLease("ipv4", 1)}}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if got := s.ReleaseStaleLeases(ctx, leases); got != 0 {
+		t.Fatalf("released %d leases after cancellation", got)
 	}
 }
 
