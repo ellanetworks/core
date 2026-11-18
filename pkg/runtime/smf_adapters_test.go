@@ -13,6 +13,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf"
 )
 
 // setupAdapterTestDB creates a database with a data network, profile,
@@ -192,5 +193,51 @@ func TestUsageStoreErrLeavesADefiniteFailureAlone(t *testing.T) {
 func TestUsageStoreErrPassesNilThrough(t *testing.T) {
 	if err := usageStoreErr(nil); err != nil {
 		t.Fatalf("usageStoreErr(nil) = %v, want nil", err)
+	}
+}
+
+func TestStaleLeaseReleaseKeepsStaticReservationsAndOtherNodesLeases(t *testing.T) {
+	adapter, _, poolID, imsi := setupAdapterTestDB(t)
+	ctx := context.Background()
+	database := adapter.db
+
+	pinned := netip.MustParseAddr("192.168.1.50")
+	if err := database.CreateStaticLease(ctx, imsi, poolID, "ipv4", pinned); err != nil {
+		t.Fatalf("CreateStaticLease: %s", err)
+	}
+
+	if _, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 7, database.RaftID()); err != nil {
+		t.Fatalf("AllocateIPLease(static): %s", err)
+	}
+
+	if _, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 1, database.RaftID()); err != nil {
+		t.Fatalf("AllocateIPLease(dynamic): %s", err)
+	}
+
+	if _, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 3, "other-node"); err != nil {
+		t.Fatalf("AllocateIPLease(other node): %s", err)
+	}
+
+	s := smf.New(nil, nil, nil, nil)
+
+	if got := s.ReleaseStaleLeases(ctx, &smfOwnedLeases{db: database}); got != 2 {
+		t.Fatalf("released %d leases, want 2", got)
+	}
+
+	if _, err := database.GetLeaseBySession(ctx, poolID, "ipv4", 1, imsi); !errors.Is(err, db.ErrNotFound) {
+		t.Fatalf("dynamic lease survived: %v", err)
+	}
+
+	static, err := database.GetStaticLease(ctx, poolID, "ipv4", imsi)
+	if err != nil {
+		t.Fatalf("static reservation lost: %s", err)
+	}
+
+	if static.SessionID != nil || static.Address() != pinned {
+		t.Fatalf("static reservation = %s session %v, want %s unbound", static.Address(), static.SessionID, pinned)
+	}
+
+	if _, err := database.GetLeaseBySession(ctx, poolID, "ipv4", 3, imsi); err != nil {
+		t.Fatalf("another node's lease was released: %v", err)
 	}
 }

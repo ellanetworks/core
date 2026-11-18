@@ -167,6 +167,7 @@ type SMF struct {
 	refSeq uint64 // guarded by mu; unique-Ref suffix counter
 
 	orphanedLeases map[uint64]orphanedLease
+	staleReleases  map[string]chan struct{}
 
 	pcf PCF
 
@@ -228,6 +229,7 @@ func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Op
 		t3592:  16 * time.Second, // TS 24.501 table 10.3.2
 
 		orphanedLeases: make(map[uint64]orphanedLease),
+		staleReleases:  make(map[string]chan struct{}),
 
 		usageFlush: make(chan struct{}, 1),
 

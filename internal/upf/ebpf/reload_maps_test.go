@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestEveryMapIsAssignedAndClassified(t *testing.T) {
@@ -71,4 +72,54 @@ func TestPreservedMapsCoversLoadedCollection(t *testing.T) {
 			t.Errorf("map %q is preserved but listed as recreated on reload", name)
 		}
 	}
+}
+
+func TestAttachedEntryProgramDispatchesUntilReloadIsReleased(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		seid  = 0x55525306
+		urrID = 26
+	)
+
+	obj := downlinkURRProgram(t, seid, urrID)
+	frame := ethFrame(0x0800, ipv4Packet(serverIP, ueIP, 17, udpDatagram(4000, 53, nil)))
+
+	attached, err := obj.UpfEntryFunc.Clone()
+	if err != nil {
+		t.Fatalf("clone the attached entry program: %v", err)
+	}
+
+	t.Cleanup(func() { _ = attached.Close() })
+
+	release, err := obj.ReloadPrograms()
+	if err != nil {
+		t.Fatalf("ReloadPrograms: %v", err)
+	}
+
+	time.Sleep(200 * time.Millisecond)
+
+	runXDP(t, attached, frame)
+	release()
+
+	if got := downlinkURRPackets(t, obj, seid, urrID); got != 1 {
+		t.Fatalf("downlink packets counted through the still-attached entry program = %d, want 1", got)
+	}
+}
+
+func downlinkURRPackets(t *testing.T, obj *BpfObjects, seid uint64, urrID uint32) uint64 {
+	t.Helper()
+
+	perCPU, err := obj.ReadUrr(seid, urrID)
+	if err != nil {
+		t.Fatalf("ReadUrr: %v", err)
+	}
+
+	var packets uint64
+
+	for _, v := range perCPU {
+		packets += v.DownlinkPackets
+	}
+
+	return packets
 }

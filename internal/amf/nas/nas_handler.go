@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/nasreply"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas/fgs"
@@ -39,20 +40,28 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn, nasPdu
 
 	ue.NoteInboundNAS()
 
-	dispositionForNAS(ctx, amfInstance, ue, nasPdu).Finalize(ctx, egress{ue: ue})
+	disposition, plain := dispositionForNAS(ctx, amfInstance, ue, nasPdu)
+
+	if plain != nil {
+		metrics.NASMessage5G(metrics.DirectionInbound, plain)
+	} else {
+		metrics.NASPDU5G(metrics.DirectionInbound, nasPdu)
+	}
+
+	disposition.Finalize(ctx, egress{ue: ue})
 }
 
 // dispositionForNAS resolves an inbound NAS PDU to the single outcome the finalizer applies.
-func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn, nasPdu []byte) nasreply.Disposition {
+func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn, nasPdu []byte) (nasreply.Disposition, []byte) {
 	if nasPdu == nil {
 		logger.From(ctx, logger.AmfLog).Error("inbound NAS with a nil PDU")
-		return nasreply.Silent(nasreply.ReasonTooShort)
+		return nasreply.Silent(nasreply.ReasonTooShort), nil
 	}
 
 	amfUe := ue.UeContext()
 	if amfUe == nil {
 		if ue.Displaced() {
-			return nasreply.Silent(nasreply.ReasonNoContext)
+			return nasreply.Silent(nasreply.ReasonNoContext), nil
 		}
 
 		resolved, err := fetchUeContextWithMobileIdentity(ctx, amfInstance, nasPdu)
@@ -71,17 +80,17 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 
 				rejectBareServiceRequest(ctx, ue, cause)
 
-				return nasreply.Handled()
+				return nasreply.Handled(), nil
 			}
 
-			return dispositionForUnresolved(nasPdu)
+			return dispositionForUnresolved(nasPdu), nil
 		}
 
 		if resolved == nil {
 			if isServiceRequest(nasPdu) {
 				rejectBareServiceRequest(ctx, ue, fgs.GMMCauseUEIdentityCannotBeDerived)
 
-				return nasreply.Handled()
+				return nasreply.Handled(), nil
 			}
 
 			// Mint a context only for an initial REGISTRATION REQUEST — the only message
@@ -90,7 +99,7 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 			// resolved no context; it cannot be processed, but a message the network can still
 			// classify draws a STATUS (§7.4 / §7.5.1) rather than a silent drop.
 			if !isRegistrationRequest(nasPdu) {
-				return dispositionForUnresolved(nasPdu)
+				return dispositionForUnresolved(nasPdu), nil
 			}
 
 			resolved = amf.NewUeContext()
@@ -103,12 +112,12 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 
 	result, err := amf.DecodeNASMessageOn(amfUe, ue, nasPdu)
 	if err != nil {
-		return amf.DispositionForDecodeError(err)
+		return amf.DispositionForDecodeError(err), nil
 	}
 
 	if !result.IsGMM {
 		logger.From(ctx, logger.AmfLog).Warn("standalone 5GSM message on N1 discarded")
-		return nasreply.Silent(nasreply.ReasonOutOfState)
+		return nasreply.Silent(nasreply.ReasonOutOfState), result.Plain
 	}
 
 	integrityVerified := result.IntegrityVerified
@@ -131,7 +140,7 @@ func dispositionForNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConn
 		logger.MessageType(msgTypeName),
 	)
 
-	return HandleGmmMessage(ctx, amfInstance, amfUe, result.MessageType, result.Plain, integrityVerified, result.ArrivedPlain)
+	return HandleGmmMessage(ctx, amfInstance, amfUe, result.MessageType, result.Plain, integrityVerified, result.ArrivedPlain), result.Plain
 }
 
 // dispositionForUnresolved classifies a fresh-connection NAS PDU that established or resolved
@@ -257,7 +266,7 @@ func rejectBareServiceRequest(ctx context.Context, ue *amf.UeConn, cause fgs.GMM
 		return
 	}
 
-	if err := ue.SendDownlinkNASTransport(ctx, pdu); err != nil {
+	if err := ue.SendPlainNAS(ctx, pdu); err != nil {
 		logger.From(ctx, logger.AmfLog).Warn("failed to send service reject for uncontextualized service request", zap.Error(err))
 	}
 

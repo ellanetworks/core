@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
 	"github.com/ellanetworks/core/nas/eps"
@@ -18,6 +19,8 @@ import (
 // the S1 context (ECM-IDLE → ECM-CONNECTED) once the short MAC verifies against the
 // stored NAS context (TS 24.301).
 func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, msg *s1ap.InitialUEMessage) {
+	metrics.NASPDU4G(metrics.DirectionInbound, msg.NASPDU)
+
 	if msg.STMSI == nil {
 		logger.From(ctx, logger.MmeLog).Warn("Service Request without an S-TMSI")
 		sendServiceReject(ctx, m, conn, msg.ENBUES1APID, eps.EMMCauseUEIdentityCannotBeDerived)

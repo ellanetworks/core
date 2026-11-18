@@ -30,7 +30,7 @@ This path returns the list of data networks.
                 "ipv4_pool": "172.250.0.0/24",
                 "ipv6_pool": "2001:db8::/48",
                 "dns": "8.8.8.8",
-                "mtu": 1460,
+                "mtu": 1400,
                 "ims": false,
                 "status": {
                     "sessions": 0
@@ -118,7 +118,7 @@ None
         "ipv4_pool": "0.0.0.0/24",
         "ipv6_pool": "2001:db8::/48",
         "dns": "8.8.8.8",
-        "mtu": 1460,
+        "mtu": 1400,
         "ims": false,
         "status": {
             "sessions": 0

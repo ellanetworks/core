@@ -86,12 +86,47 @@ func TestNGSetupOutcomeCarriesTheRefOfItsRequest(t *testing.T) {
 	a.setSetupRef(conn, ref)
 
 	for _, procedure := range []NGAPProcedure{NGAPProcedureNGSetupFailure, NGAPProcedureNGSetupResponse} {
-		if _, got := a.radioIdentityByConn(conn, procedure); got != ref {
+		if _, got, _ := a.radioIdentityByConn(conn, procedure); got != ref {
 			t.Errorf("%s ref = %q, want %q", procedure, got, ref)
 		}
 	}
 
-	if _, got := a.radioIdentityByConn(conn, NGAPProcedureErrorIndication); got != "" {
+	if _, got, _ := a.radioIdentityByConn(conn, NGAPProcedureErrorIndication); got != "" {
 		t.Errorf("ErrorIndication ref = %q, want empty: the radio has not claimed an identity", got)
+	}
+}
+
+func TestRadioIDCountsOnlyAClaimedIdentity(t *testing.T) {
+	a := New(nil, nil, nil)
+	radio, conn := newIdentityTestRadio(t, a, "")
+
+	a.setSetupRef(conn, "gNB:001-01:000001@24")
+
+	if _, _, id := a.radioIdentityByConn(conn, NGAPProcedureNGSetupFailure); id != "" {
+		t.Errorf("radio ID before NG Setup = %q, want empty", id)
+	}
+
+	if _, err := a.ClaimRanID(t.Context(), radio, testGNBID(1), DefaultRelativeCapacity); err != nil {
+		t.Fatalf("ClaimRanID: %v", err)
+	}
+
+	want := radioIDOf(radio)
+	if want == "" {
+		t.Fatal("claimed radio has no ID")
+	}
+
+	for _, procedure := range []NGAPProcedure{NGAPProcedureNGSetupResponse, NGAPProcedureErrorIndication} {
+		if _, _, id := a.radioIdentityByConn(conn, procedure); id != want {
+			t.Errorf("%s radio ID = %q, want %q", procedure, id, want)
+		}
+	}
+
+	if got := NewUeConnForTest(radio, 1, 1).RadioID(); got != want {
+		t.Errorf("UE radio ID = %q, want %q", got, want)
+	}
+
+	var none *UeConn
+	if got := none.RadioID(); got != "" {
+		t.Errorf("nil UE radio ID = %q, want empty", got)
 	}
 }

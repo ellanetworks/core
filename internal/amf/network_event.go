@@ -46,7 +46,7 @@ func (a *AMF) logNetworkEvent(ctx context.Context, conn NGAPWriter, messageType 
 		return
 	}
 
-	name, connRef := a.radioIdentityByConn(conn, messageType)
+	name, connRef, radioID := a.radioIdentityByConn(conn, messageType)
 	if ref == "" {
 		ref = connRef
 	}
@@ -60,6 +60,7 @@ func (a *AMF) logNetworkEvent(ctx context.Context, conn NGAPWriter, messageType 
 		AddrString(sctpConn.RemoteAddr()),
 		name,
 		ref,
+		radioID,
 		raw,
 	)
 }

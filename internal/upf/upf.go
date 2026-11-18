@@ -531,9 +531,12 @@ func (u *UPF) reloadDatapath(settings DatapathSettings) error {
 	u.se.BpfObjects.Masquerade = settings.NAT
 	u.se.BpfObjects.FlowAccounting = settings.FlowAccounting
 
-	if err := u.se.BpfObjects.LoadWithMapReplacements(); err != nil {
+	release, err := u.se.BpfObjects.ReloadPrograms()
+	if err != nil {
 		return fmt.Errorf("couldn't load BPF objects: %w", err)
 	}
+
+	defer release()
 
 	return u.updateAttachedPrograms()
 }

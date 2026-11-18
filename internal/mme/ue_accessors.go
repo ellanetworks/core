@@ -480,6 +480,14 @@ func (ue *UeContext) DeriveInitialKeNB() (kenb [32]byte, kenbCount uint32, err e
 	return kenb, kenbCount, nil
 }
 
+func (c *UeConn) RadioID() string {
+	if c == nil || c.m == nil {
+		return ""
+	}
+
+	return c.m.radioIDByConn(c.Conn())
+}
+
 func (c *UeConn) Conn() S1APWriter {
 	if c == nil {
 		return nil
