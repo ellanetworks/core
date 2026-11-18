@@ -177,7 +177,7 @@ func readUpgradeSeed(ctx context.Context, c *client.Client) (*upgradeSeedSnapsho
 		Profile:     *profile,
 		Policy:      *policy,
 		Subscriber:  upgradeSeedSubscriber{Imsi: sub.Imsi, ProfileName: sub.ProfileName, Description: sub.Description, Msisdn: sub.Msisdn},
-		Viewer:      *viewer,
+		Viewer:      client.User{Email: viewer.Email, RoleID: viewer.RoleID},
 	}
 
 	for _, ip := range staticIPs.Items {
