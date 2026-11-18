@@ -84,6 +84,10 @@ func (s *SMF) establishSession(ctx context.Context, req SessionRequest) (*SMCont
 		}
 	}()
 
+	if err := s.awaitStaleLeaseRelease(ctx, req.Supi, sc.sessionKey()); err != nil {
+		return nil, fmt.Errorf("%w: wait for stale UE address release: %v", errUEAddressAllocation, err)
+	}
+
 	// Build under the session lock so a concurrent reader for the same key never
 	// sees a half-built context.
 	sc.Mutex.Lock()

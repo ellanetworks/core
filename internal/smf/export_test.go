@@ -155,3 +155,18 @@ func (smContext *SMContext) SetBackoffAllowedForTest(allowed bool) {
 }
 
 func (s *SMF) WaitReplansForTest() { s.replans.Wait() }
+
+func (s *SMF) AllocateUEAddressesForTest(ctx context.Context, sc *SMContext) error {
+	dn, err := s.store.ResolveDNN(ctx, sc.Dnn)
+	if err != nil {
+		return err
+	}
+
+	if err := s.awaitStaleLeaseRelease(ctx, sc.Supi, sc.sessionKey()); err != nil {
+		return err
+	}
+
+	_, err = s.allocateUEAddresses(ctx, dn, sc)
+
+	return err
+}
