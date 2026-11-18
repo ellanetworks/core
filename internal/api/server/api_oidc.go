@@ -38,8 +38,14 @@ type OIDCSettingsResponse struct {
 	SessionLifetimeSeconds int64           `json:"session_lifetime_seconds"`
 	TrustUnverifiedEmail   bool            `json:"trust_unverified_email"`
 	CACertificate          string          `json:"ca_certificate"`
+	CACertificates         []OIDCCACert    `json:"ca_certificates"`
 	GroupsClaim            string          `json:"groups_claim"`
 	GroupRoles             []OIDCGroupRole `json:"group_roles"`
+}
+
+type OIDCCACert struct {
+	Subject  string `json:"subject"`
+	NotAfter string `json:"not_after"`
 }
 
 type OIDCGroupRole struct {
@@ -60,24 +66,6 @@ type UpdateOIDCParams struct {
 	CACertificate          string          `json:"ca_certificate"`
 	GroupsClaim            string          `json:"groups_claim"`
 	GroupRoles             []OIDCGroupRole `json:"group_roles"`
-}
-
-type DiscoverOIDCParams struct {
-	Issuer        string `json:"issuer"`
-	CACertificate string `json:"ca_certificate"`
-}
-
-type OIDCDiscoveryResponse struct {
-	Issuer                  string   `json:"issuer"`
-	AuthorizationEndpoint   string   `json:"authorization_endpoint"`
-	TokenEndpoint           string   `json:"token_endpoint"`
-	UserInfoEndpoint        string   `json:"userinfo_endpoint"`
-	JWKSURI                 string   `json:"jwks_uri"`
-	SigningAlgorithms       []string `json:"signing_algorithms"`
-	TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method"`
-	Keys                    int      `json:"keys"`
-	PKCE                    bool     `json:"pkce"`
-	IssuerParameter         bool     `json:"issuer_parameter"`
 }
 
 const (
@@ -174,6 +162,19 @@ func UpdateOIDC(oidcSettings OIDCSettings) http.Handler {
 			o.GroupRoles = append(o.GroupRoles, db.GroupRole{Group: g.Group, RoleID: db.RoleID(g.RoleID)})
 		}
 
+		if o.Enabled {
+			_, err := oidc.Discover(r.Context(), o.Issuer, o.CACertificate)
+			if errors.Is(err, oidc.ErrInvalid) {
+				writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+				return
+			}
+
+			if err != nil {
+				writeError(r.Context(), w, http.StatusBadGateway, clip(err.Error()), nil, logger.APILog)
+				return
+			}
+		}
+
 		err := oidcSettings.Update(r.Context(), o)
 		if errors.Is(err, oidc.ErrInvalid) {
 			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
@@ -190,40 +191,6 @@ func UpdateOIDC(oidcSettings OIDCSettings) http.Handler {
 		writeResponse(r.Context(), w, oidcResponse(updated), http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), UpdateOIDCAction, getEmailFromContext(r), getClientIP(r), oidcChanges(current, updated))
-	})
-}
-
-func DiscoverOIDC() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var params DiscoverOIDCParams
-		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
-			return
-		}
-
-		d, err := oidc.Discover(r.Context(), params.Issuer, params.CACertificate)
-		if errors.Is(err, oidc.ErrInvalid) {
-			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
-			return
-		}
-
-		if err != nil {
-			writeError(r.Context(), w, http.StatusBadGateway, clip(err.Error()), nil, logger.APILog)
-			return
-		}
-
-		writeResponse(r.Context(), w, OIDCDiscoveryResponse{
-			Issuer:                  d.Issuer,
-			AuthorizationEndpoint:   d.AuthorizationEndpoint,
-			TokenEndpoint:           d.TokenEndpoint,
-			UserInfoEndpoint:        d.UserInfoEndpoint,
-			JWKSURI:                 d.JWKSURI,
-			SigningAlgorithms:       d.SigningAlgorithms,
-			TokenEndpointAuthMethod: d.TokenEndpointAuthMethod,
-			Keys:                    d.Keys,
-			PKCE:                    d.PKCE,
-			IssuerParameter:         d.IssuerParameter,
-		}, http.StatusOK, logger.APILog)
 	})
 }
 
@@ -329,7 +296,18 @@ func oidcResponse(o db.OIDC) OIDCSettingsResponse {
 		TrustUnverifiedEmail:   o.TrustUnverifiedEmail,
 		CACertificate:          o.CACertificate,
 		GroupsClaim:            o.GroupsClaim,
+		CACertificates:         []OIDCCACert{},
 		GroupRoles:             []OIDCGroupRole{},
+	}
+
+	if o.CACertificate != "" {
+		certs, _ := oidc.CACertificates(o.CACertificate)
+		for _, cert := range certs {
+			resp.CACertificates = append(resp.CACertificates, OIDCCACert{
+				Subject:  cert.Subject.String(),
+				NotAfter: cert.NotAfter.UTC().Format(time.RFC3339),
+			})
+		}
 	}
 
 	if resp.Scopes == nil {

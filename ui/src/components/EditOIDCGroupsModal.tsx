@@ -144,7 +144,9 @@ const EditOIDCGroupsModal: React.FC<EditOIDCGroupsModalProps> = ({
       <TextControl<FormValues>
         name="groupsClaim"
         label="Groups claim"
-        helperText="Such as groups."
+        placeholder="groups"
+        helperText="The claim that holds the user's groups."
+        slotProps={{ inputLabel: { shrink: true } }}
       />
       {fields.map((field, i) => (
         <Stack

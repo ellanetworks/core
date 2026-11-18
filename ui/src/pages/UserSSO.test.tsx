@@ -30,6 +30,7 @@ const oidc = (overrides: Partial<OIDCSettings> = {}): OIDCSettings => ({
   session_lifetime_seconds: 86400,
   trust_unverified_email: false,
   ca_certificate: "",
+  ca_certificates: [],
   groups_claim: "groups",
   group_roles: [{ group: "operators", role_id: RoleID.NetworkManager }],
   ...overrides,

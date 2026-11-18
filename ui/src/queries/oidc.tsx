@@ -23,8 +23,14 @@ export interface OIDCSettings {
   session_lifetime_seconds: number;
   trust_unverified_email: boolean;
   ca_certificate: string;
+  ca_certificates: OIDCCACertificate[];
   groups_claim: string;
   group_roles: GroupRole[];
+}
+
+export interface OIDCCACertificate {
+  subject: string;
+  not_after: string;
 }
 
 export interface UpdateOIDCSettings {
@@ -40,19 +46,6 @@ export interface UpdateOIDCSettings {
   ca_certificate: string;
   groups_claim: string;
   group_roles: GroupRole[];
-}
-
-export interface OIDCDiscovery {
-  issuer: string;
-  authorization_endpoint: string;
-  token_endpoint: string;
-  jwks_uri: string;
-  signing_algorithms: string[];
-  keys: number;
-  pkce: boolean;
-  issuer_parameter: boolean;
-  token_endpoint_auth_method: "client_secret_basic" | "client_secret_post";
-  userinfo_endpoint: string;
 }
 
 export interface OIDCLogin {
@@ -73,8 +66,6 @@ export const MAX_CA_CERTIFICATE_BYTES = 64 * 1024;
 export const REQUIRED_SCOPES = ["openid", "email"];
 export const OIDC_LOGIN_PATH = "/api/v1/auth/oidc/login";
 export const OIDC_LINK_PATH = `${OIDC_LOGIN_PATH}?link=1`;
-export const OIDC_CALLBACK_PATH = "/api/v1/auth/oidc/callback";
-export const OIDC_POST_LOGOUT_PATH = "/login";
 
 export const getOIDC = (authToken: string) =>
   apiFetch<OIDCSettings>("/api/v1/oidc", { authToken });
@@ -84,17 +75,6 @@ export const updateOIDC = (authToken: string, settings: UpdateOIDCSettings) =>
     method: "PUT",
     authToken,
     body: settings,
-  });
-
-export const discoverOIDC = (
-  authToken: string,
-  issuer: string,
-  caCertificate: string,
-) =>
-  apiFetch<OIDCDiscovery>("/api/v1/oidc/discovery", {
-    method: "POST",
-    authToken,
-    body: { issuer, ca_certificate: caCertificate },
   });
 
 export const getOIDCLogin = () => apiFetch<OIDCLogin>("/api/v1/auth/oidc");

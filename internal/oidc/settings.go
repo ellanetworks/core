@@ -250,14 +250,29 @@ func ValidateCACertificate(s string) error {
 }
 
 func certPool(s string) (*x509.CertPool, error) {
+	certs, err := CACertificates(s)
+	if err != nil {
+		return nil, err
+	}
+
+	pool := x509.NewCertPool()
+
+	for _, cert := range certs {
+		pool.AddCert(cert)
+	}
+
+	return pool, nil
+}
+
+func CACertificates(s string) ([]*x509.Certificate, error) {
 	lines := strings.Split(s, "\n")
 	for i, line := range lines {
 		lines[i] = strings.TrimSpace(line)
 	}
 
-	pool := x509.NewCertPool()
 	rest := []byte(strings.Join(lines, "\n"))
-	n := 0
+
+	var certs []*x509.Certificate
 
 	for {
 		var block *pem.Block
@@ -276,16 +291,14 @@ func certPool(s string) (*x509.CertPool, error) {
 			return nil, fmt.Errorf("ca_certificate: %w", err)
 		}
 
-		pool.AddCert(cert)
-
-		n++
+		certs = append(certs, cert)
 	}
 
-	if strings.TrimSpace(string(rest)) != "" || n == 0 {
+	if strings.TrimSpace(string(rest)) != "" || len(certs) == 0 {
 		return nil, errors.New("ca_certificate must hold one or more PEM certificates")
 	}
 
-	return pool, nil
+	return certs, nil
 }
 
 func validateText(name, s string, maxLength int, required bool) error {

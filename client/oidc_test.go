@@ -85,26 +85,6 @@ func TestUpdateOIDC_Success(t *testing.T) {
 	}
 }
 
-func TestTestOIDCProvider_Success(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 200,
-			Headers:    http.Header{},
-			Result:     []byte(`{"issuer": "https://idp.example.com", "keys": 2, "pkce": true}`),
-		},
-	}
-	clientObj := &client.Client{Requester: fake}
-
-	provider, err := clientObj.TestOIDCProvider(context.Background(), &client.TestOIDCProviderOptions{Issuer: "https://idp.example.com"})
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
-
-	if provider.Keys != 2 || !provider.PKCE || fake.lastOpts.Path != "api/v1/oidc/discovery" {
-		t.Fatalf("unexpected provider %+v or path %s", provider, fake.lastOpts.Path)
-	}
-}
-
 func TestRemoveUserPasswordAndUnlinkUser(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{StatusCode: 200, Headers: http.Header{}, Result: []byte(`{"message": "ok"}`)},

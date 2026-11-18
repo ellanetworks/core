@@ -24,7 +24,11 @@ const configured: OIDCSettings = {
   scopes: ["openid", "email", "profile"],
   session_lifetime_seconds: 86400,
   trust_unverified_email: false,
-  ca_certificate: "",
+  ca_certificate:
+    "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----",
+  ca_certificates: [
+    { subject: "CN=Example CA", not_after: "2030-01-02T00:00:00Z" },
+  ],
   groups_claim: "groups",
   group_roles: [
     { group: "admins", role_id: RoleID.Admin },
@@ -42,6 +46,8 @@ const blank: OIDCSettings = {
   client_secret_set: false,
   display_name: "",
   scopes: ["openid", "email"],
+  ca_certificate: "",
+  ca_certificates: [],
   groups_claim: "",
   group_roles: [],
 };
@@ -75,16 +81,20 @@ describe("Single sign-on", () => {
 
     const provider = await screen.findByRole("table", { name: "Provider" });
     expect(await within(provider).findByText("Keycloak")).toBeInTheDocument();
-    expect(within(provider).getByText(configured.redirect_url)).toBeVisible();
+    const redirects = screen.getByRole("table", { name: "URLs" });
+    expect(within(redirects).getByText(configured.redirect_url)).toBeVisible();
     expect(
-      within(provider).getByText(configured.post_logout_redirect_url),
+      within(redirects).getByText(configured.post_logout_redirect_url),
     ).toBeVisible();
     expect(
-      within(provider).getByRole("button", {
+      within(redirects).getByRole("button", {
         name: "Copy the post-logout redirect URL",
       }),
     ).toBeVisible();
-    expect(within(provider).getByText("Set")).toBeVisible();
+    expect(within(provider).getByText("••••••••")).toBeVisible();
+    expect(
+      within(provider).getByText("CN=Example CA · expires 2030-01-02"),
+    ).toBeVisible();
     expect(within(provider).getByText("1 day")).toBeVisible();
     const groups = screen.getByRole("table", { name: "Roles from groups" });
     expect(within(groups).getByText("admins → Admin")).toBeVisible();
@@ -187,35 +197,34 @@ describe("Single sign-on", () => {
       scopes: configured.scopes,
       session_lifetime_seconds: 86400,
       trust_unverified_email: false,
-      ca_certificate: "",
+      ca_certificate: configured.ca_certificate,
       groups_claim: "groups",
       group_roles: configured.group_roles,
     });
   });
 
-  it("shows the redirect URLs as the external URL is typed", async () => {
+  it("saves the external URL, keeping the provider", async () => {
     const user = userEvent.setup();
-    serve(blank);
+    serve(configured);
     renderPage();
 
     await user.click(
-      await screen.findByRole("button", { name: "Edit provider" }),
+      await screen.findByRole("button", { name: "Edit external URL" }),
     );
-    const edit = dialog("Edit Provider");
-    expect(
-      within(edit).queryByRole("textbox", { name: "Redirect URL" }),
-    ).not.toBeInTheDocument();
-    await user.type(
-      within(edit).getByRole("textbox", { name: /External URL/ }),
-      "https://core.example.com/",
-    );
+    const edit = dialog("Edit External URL");
+    const url = within(edit).getByRole("textbox", { name: /External URL/ });
+    await user.clear(url);
+    await user.type(url, "https://sso.example.com/");
+    await user.click(within(edit).getByRole("button", { name: "Update" }));
 
-    expect(
-      within(edit).getByRole("textbox", { name: "Redirect URL" }),
-    ).toHaveValue("https://core.example.com/api/v1/auth/oidc/callback");
-    expect(
-      within(edit).getByRole("textbox", { name: "Post-logout redirect URL" }),
-    ).toHaveValue("https://core.example.com/login");
+    await screen.findByText("Single sign-on updated successfully.");
+    expect(api.lastRequest("/api/v1/oidc")?.body).toMatchObject({
+      external_url: "https://sso.example.com",
+      issuer: configured.issuer,
+      client_id: configured.client_id,
+      client_secret: "",
+      display_name: configured.display_name,
+    });
   });
 
   it("needs the client secret again when the issuer or client ID changes", async () => {
@@ -292,48 +301,6 @@ describe("Single sign-on", () => {
     expect(within(edit).getByText("Include openid and email.")).toBeVisible();
     expect(within(edit).getByText("From 5 minutes to 30 days.")).toBeVisible();
     expect(within(edit).getByRole("button", { name: "Update" })).toBeDisabled();
-  });
-
-  it("tests the identity provider before saving", async () => {
-    const user = userEvent.setup();
-    serve(configured);
-    api.post("/api/v1/oidc/discovery", () => ({ issuer: configured.issuer }));
-    renderPage();
-
-    await user.click(
-      await screen.findByRole("button", { name: "Edit provider" }),
-    );
-    const edit = dialog("Edit Provider");
-    await user.click(within(edit).getByRole("button", { name: "Test" }));
-
-    expect(await within(edit).findByRole("status")).toHaveTextContent("Works");
-    expect(api.lastRequest("/api/v1/oidc/discovery")?.body).toEqual({
-      issuer: configured.issuer,
-      ca_certificate: "",
-    });
-
-    await user.type(
-      within(edit).getByRole("textbox", { name: /Issuer URL/ }),
-      "x",
-    );
-    expect(within(edit).getByRole("status")).not.toHaveTextContent("Works");
-  });
-
-  it("shows why the identity provider cannot be used", async () => {
-    const user = userEvent.setup();
-    serve(configured);
-    api.post("/api/v1/oidc/discovery", () => httpError(400, "no PKCE support"));
-    renderPage();
-
-    await user.click(
-      await screen.findByRole("button", { name: "Edit provider" }),
-    );
-    const edit = dialog("Edit Provider");
-    await user.click(within(edit).getByRole("button", { name: "Test" }));
-
-    const status = await within(edit).findByRole("status");
-    await waitFor(() => expect(status).toHaveTextContent("Failed"));
-    expect(status).toHaveTextContent("no PKCE support");
   });
 
   it("saves the roles from groups, keeping the provider", async () => {

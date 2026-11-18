@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { useRef, type ChangeEvent } from "react";
-import { Box, Button } from "@mui/material";
+import { Box, IconButton, InputAdornment, Tooltip } from "@mui/material";
 import { UploadFile as UploadFileIcon } from "@mui/icons-material";
 import {
   useFormContext,
@@ -18,6 +18,8 @@ interface PemControlProps<T extends FieldValues> {
   helperText?: string;
   placeholder?: string;
   accept?: string;
+  minRows?: number;
+  maxRows?: number;
 }
 
 const PemControl = <T extends FieldValues>({
@@ -26,6 +28,8 @@ const PemControl = <T extends FieldValues>({
   helperText,
   placeholder = "-----BEGIN CERTIFICATE-----",
   accept = ".pem,.crt,.cer,.key",
+  minRows = 3,
+  maxRows = 8,
 }: PemControlProps<T>) => {
   const { setValue } = useFormContext<T>();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -50,22 +54,31 @@ const PemControl = <T extends FieldValues>({
         helperText={helperText}
         placeholder={placeholder}
         multiline
-        minRows={3}
-        maxRows={8}
+        minRows={minRows}
+        maxRows={maxRows}
         slotProps={{
           htmlInput: {
             spellCheck: false,
             style: { fontFamily: "monospace", fontSize: 12 },
           },
+          input: {
+            endAdornment: (
+              <InputAdornment position="end" sx={{ alignSelf: "flex-start" }}>
+                <Tooltip title="Upload file">
+                  <IconButton
+                    size="small"
+                    edge="end"
+                    aria-label={`Upload ${label}`}
+                    onClick={() => inputRef.current?.click()}
+                  >
+                    <UploadFileIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </InputAdornment>
+            ),
+          },
         }}
       />
-      <Button
-        size="small"
-        startIcon={<UploadFileIcon />}
-        onClick={() => inputRef.current?.click()}
-      >
-        Upload {label}
-      </Button>
       <input
         ref={inputRef}
         type="file"

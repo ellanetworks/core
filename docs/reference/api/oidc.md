@@ -30,6 +30,7 @@ This path returns the OIDC settings.
 | `session_lifetime_seconds` | int     | Session lifetime. Default `86400`. |
 | `trust_unverified_email`   | boolean | Accept emails without `email_verified`. |
 | `ca_certificate`           | string  | PEM CA certificates of the identity provider. |
+| `ca_certificates`          | array   | `subject` and `not_after` (RFC 3339) of each certificate in `ca_certificate`. |
 | `groups_claim`             | string  | Claim holding the user's groups. |
 | `group_roles`              | array   | `group` to `role_id` mappings. The highest role among the user's groups applies. |
 
@@ -50,6 +51,7 @@ This path returns the OIDC settings.
         "session_lifetime_seconds": 86400,
         "trust_unverified_email": false,
         "ca_certificate": "",
+        "ca_certificates": [],
         "groups_claim": "groups",
         "group_roles": [
             {"group": "core-admins", "role_id": 1},
@@ -71,7 +73,7 @@ This path replaces the OIDC settings.
 
 | Field                      | Type    | Required           | Description |
 | -------------------------- | ------- | ------------------ | ----------- |
-| `enabled`                  | boolean | Yes                | |
+| `enabled`                  | boolean | Yes                | `true` is refused unless the discovery document of `issuer` can be fetched. |
 | `external_url`             | string  | When enabled       | https URL with no path. |
 | `issuer`                   | string  | When enabled       | https URL with no query or fragment. |
 | `client_id`                | string  | When enabled       | At most 255 characters. |
@@ -84,32 +86,3 @@ This path replaces the OIDC settings.
 | `groups_claim`             | string  | With `group_roles` | Claim name. |
 | `group_roles`              | array   | No                 | At most 100 `{group, role_id}` objects. `role_id` is `1` to `3`. |
 
-## Test an Identity Provider
-
-This path checks an identity provider without changing the settings.
-
-| Method | Path                     |
-| ------ | ------------------------ |
-| POST   | `/api/v1/oidc/discovery` |
-
-### Request Body
-
-| Field            | Type   | Required | Description |
-| ---------------- | ------ | -------- | ----------- |
-| `issuer`         | string | Yes      | Issuer URL. |
-| `ca_certificate` | string | No       | PEM certificates. |
-
-### Response Fields
-
-| Field                        | Type    | Description |
-| ---------------------------- | ------- | ----------- |
-| `issuer`                     | string  | Issuer URL. |
-| `authorization_endpoint`     | string  | Authorization endpoint. |
-| `token_endpoint`             | string  | Token endpoint. |
-| `token_endpoint_auth_method` | string  | `client_secret_basic` or `client_secret_post`. |
-| `userinfo_endpoint`          | string  | UserInfo endpoint. Empty if none. |
-| `jwks_uri`                   | string  | JWKS URI. |
-| `signing_algorithms`         | array   | ID token signing algorithms. |
-| `keys`                       | int     | Number of signing keys. |
-| `pkce`                       | boolean | PKCE is supported. |
-| `issuer_parameter`           | boolean | RFC 9207 is supported. |

@@ -167,25 +167,29 @@ test.beforeAll(async ({ request }) => {
   await deleteUserIfPresent(request, CAROL.email);
 });
 
-test("Keycloak is discovered through the CA certificate", async ({
+test("single sign-on is not enabled for a realm Keycloak does not have", async ({
   request,
 }) => {
-  const discovery = await json<{
-    issuer: string;
-    pkce: boolean;
-    token_endpoint_auth_method: string;
-    userinfo_endpoint: string;
-  }>(request, "post", "/api/v1/oidc/discovery", {
+  const response = await send(request, "put", "/api/v1/oidc", {
     token: adminToken,
-    data: { issuer: ISSUER, ca_certificate: CA_CERTIFICATE },
+    data: {
+      enabled: true,
+      external_url: EXTERNAL_URL,
+      issuer: `https://keycloak:${KEYCLOAK_PORT}/realms/missing`,
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+      display_name: "Keycloak",
+      scopes: ["openid", "email", "profile"],
+      session_lifetime_seconds: LIFETIME_SECONDS,
+      trust_unverified_email: false,
+      ca_certificate: CA_CERTIFICATE,
+      groups_claim: "",
+      group_roles: [],
+    },
   });
 
-  expect(discovery.issuer).toBe(ISSUER);
-  expect(discovery.pkce).toBe(true);
-  expect(discovery.token_endpoint_auth_method).toBe("client_secret_basic");
-  expect(discovery.userinfo_endpoint).toBe(
-    `${ISSUER}/protocol/openid-connect/userinfo`,
-  );
+  expect(response.status()).toBe(502);
+  expect(await response.text()).toContain("Realm does not exist");
 });
 
 test("an admin configures single sign-on in the UI", async ({
@@ -213,16 +217,15 @@ test("an admin configures single sign-on in the UI", async ({
   expect((await passwordLogin(page.request)).ok()).toBe(true);
   await page.goto("/single-sign-on");
   await expect(page.getByRole("switch", { name: "Enabled" })).toBeDisabled();
+  await page.getByRole("button", { name: "Edit external URL" }).click();
+  const urlDialog = page.getByRole("dialog", { name: "Edit External URL" });
+  await expect(urlDialog.getByLabel("External URL")).toHaveValue(EXTERNAL_URL);
+  await urlDialog.getByRole("button", { name: "Update" }).click();
+  await expect(urlDialog).toBeHidden();
+
   await page.getByRole("button", { name: "Edit provider" }).click();
   const dialog = page.getByRole("dialog", { name: "Edit Provider" });
 
-  await expect(dialog.getByLabel("External URL")).toHaveValue(EXTERNAL_URL);
-  await expect(
-    dialog.getByRole("textbox", { name: "Redirect URL", exact: true }),
-  ).toHaveValue(`${EXTERNAL_URL}/api/v1/auth/oidc/callback`);
-  await expect(
-    dialog.getByRole("textbox", { name: "Post-logout redirect URL" }),
-  ).toHaveValue(`${EXTERNAL_URL}/login`);
   await dialog.getByLabel("Display name").fill("Keycloak");
   await dialog.getByLabel("Issuer URL").fill(ISSUER);
   await dialog.getByLabel("Client ID").fill(CLIENT_ID);
@@ -235,9 +238,6 @@ test("an admin configures single sign-on in the UI", async ({
     .getByLabel("CA certificate", { exact: true })
     .fill(CA_CERTIFICATE);
 
-  await dialog.getByRole("button", { name: "Test" }).click();
-  await expect(dialog.getByRole("status")).toContainText("Works");
-
   await dialog.getByRole("button", { name: "Update" }).click();
   await expect(
     page.getByText("Single sign-on updated successfully."),
@@ -246,10 +246,11 @@ test("an admin configures single sign-on in the UI", async ({
 
   const table = page.getByRole("table", { name: "Provider" });
   await expect(table.getByText("5 minutes")).toBeVisible();
+  const redirects = page.getByRole("table", { name: "URLs" });
   await expect(
-    table.getByText(`${EXTERNAL_URL}/api/v1/auth/oidc/callback`),
+    redirects.getByText(`${EXTERNAL_URL}/api/v1/auth/oidc/callback`),
   ).toBeVisible();
-  await expect(table.getByText(`${EXTERNAL_URL}/login`)).toBeVisible();
+  await expect(redirects.getByText(`${EXTERNAL_URL}/login`)).toBeVisible();
   await expect(page.getByRole("switch", { name: "Enabled" })).not.toBeChecked();
 
   await page.getByRole("button", { name: "Edit roles from groups" }).click();

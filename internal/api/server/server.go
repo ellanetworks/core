@@ -133,7 +133,6 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 
 	mux.HandleFunc("GET /api/v1/oidc", Authenticate(jwtSecret, dbInstance, Authorize(PermReadOIDC, GetOIDC(oidcSettings))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/oidc", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOIDC, UpdateOIDC(oidcSettings))).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/oidc/discovery", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOIDC, DiscoverOIDC())).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/users/{email}/api-tokens", Authenticate(jwtSecret, dbInstance, Authorize(PermListUserAPITokens, ListUserAPITokens(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/users/{email}/api-tokens", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateUserAPIToken, CreateUserAPIToken(dbInstance, bcryptCost))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/users/{email}/api-tokens/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteUserAPIToken, DeleteUserAPIToken(dbInstance))).ServeHTTP)

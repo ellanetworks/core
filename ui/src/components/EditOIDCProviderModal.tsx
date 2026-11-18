@@ -5,22 +5,12 @@ import React, { useEffect } from "react";
 import {
   Alert,
   Box,
-  Button,
   FormControlLabel,
-  IconButton,
-  InputAdornment,
   Stack,
   Switch,
-  TextField,
   Tooltip,
-  Typography,
 } from "@mui/material";
-import {
-  CheckCircle as CheckCircleIcon,
-  ContentCopy as ContentCopyIcon,
-  Error as ErrorIcon,
-} from "@mui/icons-material";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Controller,
   useForm,
@@ -29,7 +19,6 @@ import {
   type Resolver,
 } from "react-hook-form";
 import { useAuth } from "@/contexts/AuthContext";
-import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
 import SelectControl from "@/components/form/SelectControl";
@@ -37,14 +26,11 @@ import PemControl from "@/components/form/PemControl";
 import {
   caCertificateError,
   currentUpdate,
-  discoverOIDC,
   httpsURLError,
   MAX_DISPLAY_NAME_BYTES,
   MAX_SESSION_LIFETIME_SECONDS,
   MAX_VALUE_BYTES,
   MIN_SESSION_LIFETIME_SECONDS,
-  OIDC_CALLBACK_PATH,
-  OIDC_POST_LOGOUT_PATH,
   OIDC_QUERY_KEY,
   scopesError,
   splitScopes,
@@ -68,7 +54,6 @@ const largestUnit = (seconds: number) =>
   LIFETIME_UNITS.find((u) => seconds % u.value === 0)!.value;
 
 interface FormValues {
-  externalURL: string;
   issuer: string;
   caCertificate: string;
   clientID: string;
@@ -84,8 +69,6 @@ const lifetimeSeconds = (values: FormValues) =>
   /^\d+$/.test(values.lifetime.trim())
     ? Number(values.lifetime.trim()) * values.lifetimeUnit
     : NaN;
-
-const origin = (externalURL: string) => externalURL.trim().replace(/\/$/, "");
 
 const identityChanged = (values: FormValues, settings: OIDCSettings) =>
   values.issuer.trim() !== settings.issuer ||
@@ -122,10 +105,6 @@ function validate(
           : enabled
             ? "Enter the client secret."
             : undefined),
-    externalURL: httpsURLError(values.externalURL.trim(), {
-      origin: true,
-      missing: enabled ? "Enter the external URL." : undefined,
-    }),
     scopes: scopesError(splitScopes(values.scopes)),
     lifetime:
       !Number.isSafeInteger(seconds) ||
@@ -135,38 +114,6 @@ function validate(
         : undefined,
     caCertificate: caCertificateError(values.caCertificate.trim()),
   };
-}
-
-function RedirectURLField({ label, value }: { label: string; value: string }) {
-  const copy = useCopyToClipboard();
-  return (
-    <TextField
-      label={label}
-      value={value}
-      margin="normal"
-      fullWidth
-      helperText="Register this at the identity provider."
-      slotProps={{
-        input: {
-          readOnly: true,
-          sx: { fontFamily: "monospace" },
-          endAdornment: (
-            <InputAdornment position="end">
-              <Tooltip title="Copy">
-                <IconButton
-                  edge="end"
-                  aria-label={`Copy the ${label.charAt(0).toLowerCase()}${label.slice(1)}`}
-                  onClick={() => void copy(value, label)}
-                >
-                  <ContentCopyIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            </InputAdornment>
-          ),
-        },
-      }}
-    />
-  );
 }
 
 interface EditOIDCProviderModalProps {
@@ -203,9 +150,6 @@ const EditOIDCProviderModal: React.FC<EditOIDCProviderModalProps> = ({
     mode: "onChange",
     resolver,
     defaultValues: {
-      externalURL:
-        settings.external_url ||
-        (window.location.protocol === "https:" ? window.location.origin : ""),
       issuer: settings.issuer,
       caCertificate: settings.ca_certificate,
       clientID: settings.client_id,
@@ -227,27 +171,12 @@ const EditOIDCProviderModal: React.FC<EditOIDCProviderModalProps> = ({
   }, [form]);
 
   const values = useWatch({ control: form.control }) as FormValues;
-  const errors = validate(values, settings);
-  const redirectOrigin = origin(values.externalURL ?? "");
   const signsOut = enabled && values.issuer.trim() !== settings.issuer;
-
-  const testInput = {
-    issuer: values.issuer.trim(),
-    caCertificate: values.caCertificate.trim(),
-  };
-  const test = useMutation({
-    mutationFn: (input: typeof testInput) =>
-      discoverOIDC(accessToken ?? "", input.issuer, input.caCertificate),
-  });
-  const tested =
-    test.variables?.issuer === testInput.issuer &&
-    test.variables?.caCertificate === testInput.caCertificate;
 
   const submit = async (submitted: FormValues) => {
     if (!accessToken) return false;
     const updated = await updateOIDC(accessToken, {
       ...currentUpdate(settings),
-      external_url: origin(submitted.externalURL),
       issuer: submitted.issuer.trim(),
       client_id: submitted.clientID.trim(),
       client_secret: submitted.clientSecret,
@@ -275,23 +204,11 @@ const EditOIDCProviderModal: React.FC<EditOIDCProviderModalProps> = ({
       submittingLabel="Updating..."
     >
       <TextControl<FormValues>
-        name="externalURL"
-        label="External URL"
+        name="displayName"
+        label="Display name"
         required={enabled}
-        helperText={`The https address users open ${PRODUCT.name} at.`}
+        helperText='Shown on the login page: "Log in with …".'
       />
-      {redirectOrigin !== "" && errors.externalURL === undefined && (
-        <>
-          <RedirectURLField
-            label="Redirect URL"
-            value={redirectOrigin + OIDC_CALLBACK_PATH}
-          />
-          <RedirectURLField
-            label="Post-logout redirect URL"
-            value={redirectOrigin + OIDC_POST_LOGOUT_PATH}
-          />
-        </>
-      )}
       <TextControl<FormValues>
         name="issuer"
         label="Issuer URL"
@@ -303,54 +220,9 @@ const EditOIDCProviderModal: React.FC<EditOIDCProviderModalProps> = ({
         label="CA certificate"
         helperText="Optional. Only if a private CA signs the identity provider's certificate."
         accept=".pem,.crt,.cer"
+        minRows={2}
+        maxRows={4}
       />
-      <Box component="output" sx={{ display: "block", mt: 1 }}>
-        <Stack
-          component="span"
-          direction="row"
-          spacing={1}
-          sx={{ alignItems: "center" }}
-        >
-          <Button
-            variant="outlined"
-            onClick={() => test.mutate(testInput)}
-            disabled={
-              values.issuer.trim() === "" ||
-              errors.issuer !== undefined ||
-              errors.caCertificate !== undefined ||
-              test.isPending
-            }
-          >
-            {test.isPending ? "Testing…" : "Test"}
-          </Button>
-          {tested && test.isSuccess && (
-            <>
-              <CheckCircleIcon color="success" fontSize="small" />
-              <Typography variant="body2" component="span">
-                Works
-              </Typography>
-            </>
-          )}
-          {tested && test.isError && (
-            <>
-              <ErrorIcon color="error" fontSize="small" />
-              <Typography variant="body2" component="span">
-                Failed
-              </Typography>
-            </>
-          )}
-        </Stack>
-        {tested && test.isError && (
-          <Typography
-            variant="body2"
-            component="span"
-            color="error"
-            sx={{ display: "block", mt: 0.5, overflowWrap: "anywhere" }}
-          >
-            {test.error.message}
-          </Typography>
-        )}
-      </Box>
       <TextControl<FormValues>
         name="clientID"
         label="Client ID"
@@ -367,12 +239,6 @@ const EditOIDCProviderModal: React.FC<EditOIDCProviderModalProps> = ({
             ? "Leave empty to keep the current secret."
             : undefined
         }
-      />
-      <TextControl<FormValues>
-        name="displayName"
-        label="Display name"
-        required={enabled}
-        helperText='Shown on the login page: "Log in with …".'
       />
       <TextControl<FormValues>
         name="scopes"

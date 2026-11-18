@@ -24,7 +24,7 @@ User objects have `email`, `role_id`, `password_set` and `oidc_linked`. At most 
 
 An Admin cannot change, unlink, remove the password of, or delete its own user (`403`).
 
-`GET`/`PUT /api/v1/oidc` and `POST /api/v1/oidc/discovery` hold the single sign-on settings. `PUT` returns `503` until every cluster node is upgraded.
+`GET`/`PUT /api/v1/oidc` hold the single sign-on settings. `PUT` returns `503` until every cluster node is upgraded.
 
 ## Roles and permissions
 

@@ -29,6 +29,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import ConfirmDialog from "@/components/form/ConfirmDialog";
+import EditOIDCExternalURLModal from "@/components/EditOIDCExternalURLModal";
 import EditOIDCProviderModal from "@/components/EditOIDCProviderModal";
 import EditOIDCGroupsModal from "@/components/EditOIDCGroupsModal";
 import PageTitle from "@/components/PageTitle";
@@ -108,7 +109,7 @@ function SectionHeader({
 }: {
   id: string;
   title: string;
-  action: React.ReactNode;
+  action?: React.ReactNode;
 }) {
   return (
     <Stack
@@ -134,7 +135,7 @@ export default function SingleSignOn() {
   const { showSnackbar } = useSnackbar();
   const copy = useCopyToClipboard();
   const [editing, setEditing] = useState<
-    "provider" | "groups" | "disable" | null
+    "url" | "provider" | "groups" | "disable" | null
   >(null);
   const [toggling, setToggling] = useState(false);
 
@@ -203,7 +204,10 @@ export default function SingleSignOn() {
     );
   };
 
-  const editButton = (section: "provider" | "groups", label: string) => (
+  const editButton = (
+    section: "url" | "provider" | "groups",
+    label: string,
+  ) => (
     <Button
       variant="contained"
       color="success"
@@ -217,7 +221,11 @@ export default function SingleSignOn() {
   );
 
   const copyableURL = (url: string, label: string) => (
-    <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+    <Stack
+      direction="row"
+      spacing={1}
+      sx={{ alignItems: "center", justifyContent: "space-between" }}
+    >
       <Typography
         variant="body2"
         sx={{ fontFamily: "monospace", overflowWrap: "anywhere" }}
@@ -270,6 +278,43 @@ export default function SingleSignOn() {
 
       <Box sx={{ mb: 3 }}>{enabledSwitch()}</Box>
 
+      <Box component="section" aria-labelledby="sso-urls-title" sx={{ mb: 4 }}>
+        <SectionHeader
+          id="sso-urls-title"
+          title="URLs"
+          action={editButton("url", "Edit external URL")}
+        />
+        <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+          Register the redirect URLs for the client at the identity provider.
+        </Typography>
+        <SettingsTable
+          label="URLs"
+          loading={loading}
+          rows={[
+            {
+              label: "External URL",
+              help: `The https address users open ${PRODUCT.name} at.`,
+              value: data && orNone(data.external_url),
+            },
+            {
+              label: "Redirect URL",
+              help: "Where the identity provider sends users after they log in.",
+              value: data && copyableURL(data.redirect_url, "Redirect URL"),
+            },
+            {
+              label: "Post-logout redirect URL",
+              help: "Where the identity provider sends users after they log out.",
+              value:
+                data &&
+                copyableURL(
+                  data.post_logout_redirect_url,
+                  "Post-logout redirect URL",
+                ),
+            },
+          ]}
+        />
+      </Box>
+
       <Box component="section" aria-labelledby="sso-provider-title">
         <SectionHeader
           id="sso-provider-title"
@@ -298,22 +343,7 @@ export default function SingleSignOn() {
             {
               label: "Client secret",
               help: "Never shown.",
-              value: data && (data.client_secret_set ? "Set" : "Not set"),
-            },
-            {
-              label: "Redirect URL",
-              help: "Register this URL for the client at the identity provider.",
-              value: data && copyableURL(data.redirect_url, "Redirect URL"),
-            },
-            {
-              label: "Post-logout redirect URL",
-              help: "Register this URL for the client at the identity provider.",
-              value:
-                data &&
-                copyableURL(
-                  data.post_logout_redirect_url,
-                  "Post-logout redirect URL",
-                ),
+              value: data && (data.client_secret_set ? "••••••••" : "None"),
             },
             {
               label: "Scopes",
@@ -328,7 +358,42 @@ export default function SingleSignOn() {
             {
               label: "CA certificate",
               help: "Certificates trusted for the identity provider, instead of the system's.",
-              value: data && (data.ca_certificate ? "Set" : "System"),
+              value:
+                data &&
+                (data.ca_certificates.length === 0 ? (
+                  "System"
+                ) : (
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    sx={{
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <Stack spacing={0.5}>
+                      {data.ca_certificates.map((c) => (
+                        <Typography
+                          key={c.subject + c.not_after}
+                          variant="body2"
+                        >
+                          {c.subject} · expires {c.not_after.slice(0, 10)}
+                        </Typography>
+                      ))}
+                    </Stack>
+                    <Tooltip title="Copy">
+                      <IconButton
+                        size="small"
+                        aria-label="Copy the CA certificate"
+                        onClick={() =>
+                          void copy(data.ca_certificate, "CA certificate")
+                        }
+                      >
+                        <ContentCopyIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
+                )),
             },
             {
               label: "Trust email addresses",
@@ -379,6 +444,14 @@ export default function SingleSignOn() {
         />
       </Box>
 
+      {editing === "url" && data && (
+        <EditOIDCExternalURLModal
+          open
+          settings={data}
+          onClose={() => setEditing(null)}
+          onSuccess={onSaved}
+        />
+      )}
       {editing === "provider" && data && (
         <EditOIDCProviderModal
           open

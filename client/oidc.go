@@ -27,8 +27,14 @@ type OIDCSettings struct {
 	SessionLifetimeSeconds int64           `json:"session_lifetime_seconds"`
 	TrustUnverifiedEmail   bool            `json:"trust_unverified_email"`
 	CACertificate          string          `json:"ca_certificate"`
+	CACertificates         []OIDCCACert    `json:"ca_certificates"`
 	GroupsClaim            string          `json:"groups_claim"`
 	GroupRoles             []OIDCGroupRole `json:"group_roles"`
+}
+
+type OIDCCACert struct {
+	Subject  string `json:"subject"`
+	NotAfter string `json:"not_after"`
 }
 
 type UpdateOIDCOptions struct {
@@ -44,24 +50,6 @@ type UpdateOIDCOptions struct {
 	CACertificate          string          `json:"ca_certificate,omitempty"`
 	GroupsClaim            string          `json:"groups_claim,omitempty"`
 	GroupRoles             []OIDCGroupRole `json:"group_roles"`
-}
-
-type TestOIDCProviderOptions struct {
-	Issuer        string `json:"issuer"`
-	CACertificate string `json:"ca_certificate,omitempty"`
-}
-
-type OIDCProvider struct {
-	Issuer                  string   `json:"issuer"`
-	AuthorizationEndpoint   string   `json:"authorization_endpoint"`
-	TokenEndpoint           string   `json:"token_endpoint"`
-	UserInfoEndpoint        string   `json:"userinfo_endpoint"`
-	JWKSURI                 string   `json:"jwks_uri"`
-	SigningAlgorithms       []string `json:"signing_algorithms"`
-	TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method"`
-	Keys                    int      `json:"keys"`
-	PKCE                    bool     `json:"pkce"`
-	IssuerParameter         bool     `json:"issuer_parameter"`
 }
 
 func (c *Client) GetOIDC(ctx context.Context) (*OIDCSettings, error) {
@@ -112,30 +100,4 @@ func (c *Client) UpdateOIDC(ctx context.Context, opts *UpdateOIDCOptions) (*OIDC
 	}
 
 	return &settings, nil
-}
-
-func (c *Client) TestOIDCProvider(ctx context.Context, opts *TestOIDCProviderOptions) (*OIDCProvider, error) {
-	var body bytes.Buffer
-
-	if err := json.NewEncoder(&body).Encode(opts); err != nil {
-		return nil, err
-	}
-
-	resp, err := c.Requester.Do(ctx, &RequestOptions{
-		Type:   SyncRequest,
-		Method: "POST",
-		Path:   "api/v1/oidc/discovery",
-		Body:   &body,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	var provider OIDCProvider
-
-	if err := resp.DecodeResult(&provider); err != nil {
-		return nil, err
-	}
-
-	return &provider, nil
 }

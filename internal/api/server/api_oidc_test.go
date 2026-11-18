@@ -395,6 +395,12 @@ func TestOIDCSettings(t *testing.T) {
 		t.Fatalf("settings = %+v", got)
 	}
 
+	ca := e.idp.server.Certificate()
+	if len(got.CACertificates) != 1 || got.CACertificates[0].Subject != ca.Subject.String() ||
+		got.CACertificates[0].NotAfter != ca.NotAfter.UTC().Format(time.RFC3339) {
+		t.Fatalf("ca_certificates = %+v", got.CACertificates)
+	}
+
 	keep := e.settings(func(o map[string]any) {
 		delete(o, "client_secret")
 		o["display_name"] = "Corporate SSO"
@@ -444,6 +450,40 @@ func TestOIDCSettingsAreValidated(t *testing.T) {
 	}
 }
 
+func TestOIDCEnableNeedsDiscovery(t *testing.T) {
+	e := newSSOEnv(t)
+	unreachable := func(o map[string]any) { o["issuer"] = e.idp.issuer + "/missing" }
+
+	if code, resp := e.do(t, e.admin, e.token, http.MethodPut, "/api/v1/oidc", e.settings(unreachable)); code != http.StatusBadGateway {
+		t.Fatalf("enable with an unreachable issuer = %d %q, want %d", code, resp.Error, http.StatusBadGateway)
+	}
+
+	if oidcEnabled(t, e) {
+		t.Fatal("single sign-on enabled after a failed discovery")
+	}
+
+	e.configure(t, func(o map[string]any) {
+		unreachable(o)
+		o["enabled"] = false
+	})
+}
+
+func oidcEnabled(t *testing.T, e *ssoEnv) bool {
+	t.Helper()
+
+	_, resp := e.do(t, e.admin, e.token, http.MethodGet, "/api/v1/oidc", nil)
+
+	var s struct {
+		Enabled bool `json:"enabled"`
+	}
+
+	if err := json.Unmarshal(resp.Result, &s); err != nil {
+		t.Fatal(err)
+	}
+
+	return s.Enabled
+}
+
 func TestOIDCSettingsNeedAnAdmin(t *testing.T) {
 	e := newSSOEnv(t)
 
@@ -463,30 +503,6 @@ func TestOIDCSettingsNeedAnAdmin(t *testing.T) {
 
 	if code, _ := e.do(t, e.admin, nm, http.MethodGet, "/api/v1/oidc", nil); code != http.StatusForbidden {
 		t.Fatalf("GET as a network manager = %d, want %d", code, http.StatusForbidden)
-	}
-}
-
-func TestDiscoverOIDC(t *testing.T) {
-	e := newSSOEnv(t)
-
-	code, resp := e.do(t, e.admin, e.token, http.MethodPost, "/api/v1/oidc/discovery",
-		map[string]string{"issuer": e.idp.issuer, "ca_certificate": e.idp.ca()})
-	if code != http.StatusOK {
-		t.Fatalf("discovery = %d %q", code, resp.Error)
-	}
-
-	var d server.OIDCDiscoveryResponse
-	if err := json.Unmarshal(resp.Result, &d); err != nil {
-		t.Fatal(err)
-	}
-
-	if d.Issuer != e.idp.issuer || d.Keys != 1 || !d.PKCE || d.TokenEndpointAuthMethod != "client_secret_basic" {
-		t.Fatalf("discovery = %+v", d)
-	}
-
-	if code, _ := e.do(t, e.admin, e.token, http.MethodPost, "/api/v1/oidc/discovery",
-		map[string]string{"issuer": e.idp.issuer}); code != http.StatusBadGateway {
-		t.Fatalf("discovery without the CA = %d, want %d", code, http.StatusBadGateway)
 	}
 }
 
