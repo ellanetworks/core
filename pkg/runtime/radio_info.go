@@ -34,6 +34,22 @@ func knownRadios(amfInstance *amf.AMF, mmeInstance *mme.MME, counted func() map[
 	}
 }
 
+func knownRadioIDs(amfInstance *amf.AMF, mmeInstance *mme.MME) func() []string {
+	return func() []string {
+		var out []string
+
+		for _, r := range amfInstance.ListRadios() {
+			out = append(out, r.Ref)
+		}
+
+		for _, r := range mmeInstance.ListRadios() {
+			out = append(out, r.Ref)
+		}
+
+		return out
+	}
+}
+
 func radioInfoCollector(radios func() []radioIdentity) prometheus.Collector {
 	desc := prometheus.NewDesc(
 		"app_radio_info",

@@ -430,19 +430,30 @@ func (bpfObjects *BpfObjects) preservedMaps() map[string]*ebpf.Map {
 // The caller must call link.Update() with the new program to atomically
 // swap the XDP program on the interface.
 func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
+	release, err := bpfObjects.ReloadPrograms()
+	if err != nil {
+		return err
+	}
+
+	release()
+
+	return nil
+}
+
+func (bpfObjects *BpfObjects) ReloadPrograms() (func(), error) {
 	spec, err := bpfObjects.loadSpec()
 	if err != nil {
 		logger.UpfLog.Error("failed to load N3/N6 spec", zap.Error(err))
-		return err
+		return nil, err
 	}
 
 	if err := sizeCPUScratchMaps(spec); err != nil {
 		logger.UpfLog.Error("failed to size scratch maps", zap.Error(err))
-		return err
+		return nil, err
 	}
 
 	if err := bpfObjects.Sizing.orDefault().apply(spec); err != nil {
-		return err
+		return nil, err
 	}
 
 	opts := &ebpf.CollectionOptions{
@@ -452,14 +463,14 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 	var newObjects N3N6EntrypointObjects
 	if err := bpfObjects.loadAndAssignFromSpec(spec, &newObjects, opts); err != nil {
 		logger.UpfLog.Error("failed to load N3/N6 program with map replacements", zap.Error(err))
-		return err
+		return nil, err
 	}
 
 	// The prog-array holds program FDs, which are new on this reload, so
 	// re-populate the new upf_calls with the new stage programs before the new
 	// entry is swapped onto the link.
 	if err := populateTailCalls(&newObjects); err != nil {
-		return err
+		return nil, err
 	}
 
 	oldPrograms := bpfObjects.N3N6EntrypointPrograms
@@ -469,23 +480,25 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 	bpfObjects.UpfCalls = newObjects.UpfCalls
 	bpfObjects.N3N6EntrypointVariables = newObjects.N3N6EntrypointVariables
 
-	// Close the cloned map fds from the new objects to avoid fd leaks. These are
-	// duplicates of our existing map fds pointing to the same kernel-side maps,
-	// so closing them is safe. upf_calls is genuinely new (not preserved) and is
-	// now owned by bpfObjects, so swap the old handle in before the wholesale
-	// close: the old upf_calls is released and the new one is retained.
-	newObjects.UpfCalls = oldCalls
-	if err := newObjects.N3N6EntrypointMaps.Close(); err != nil {
-		logger.UpfLog.Warn("failed to close cloned map fds", zap.Error(err))
+	release := func() {
+		// Close the cloned map fds from the new objects to avoid fd leaks. These are
+		// duplicates of our existing map fds pointing to the same kernel-side maps,
+		// so closing them is safe. upf_calls is genuinely new (not preserved) and is
+		// now owned by bpfObjects, so swap the old handle in before the wholesale
+		// close: the old upf_calls is released and the new one is retained.
+		newObjects.UpfCalls = oldCalls
+		if err := newObjects.N3N6EntrypointMaps.Close(); err != nil {
+			logger.UpfLog.Warn("failed to close cloned map fds", zap.Error(err))
+		}
+
+		// The stage programs stay live in the kernel via the new prog-array
+		// reference.
+		if err := oldPrograms.Close(); err != nil {
+			logger.UpfLog.Warn("failed to close old programs", zap.Error(err))
+		}
 	}
 
-	// The stage programs stay live in the kernel via the new prog-array
-	// reference.
-	if err := oldPrograms.Close(); err != nil {
-		logger.UpfLog.Warn("failed to close old programs", zap.Error(err))
-	}
-
-	return nil
+	return release, nil
 }
 
 func (bpfObjects *BpfObjects) Close() error {

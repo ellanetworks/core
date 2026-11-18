@@ -451,7 +451,7 @@ func handleAttachComplete(ctx context.Context, m *mme.MME, ue *mme.UeContext, ue
 
 	m.SupersedeFiveGSRegistration(ctx, ue)
 
-	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, attachTypeName(ue), ue.IsVisitor(), logger.RegistrationAccepted)
+	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, ueConn.RadioID(), attachTypeName(ue), ue.IsVisitor(), logger.RegistrationAccepted)
 
 	acceptDefaultBearerFromAttach(ctx, m, ue, msg.ESMMessageContainer)
 

@@ -18,6 +18,16 @@ type ForwardingProbe struct {
 const ForwardingProbePackets = 5
 
 func DriveForwardingTunnel(p ForwardingProbe) error {
+	if err := AwaitDownlinkDelivery(
+		func() error { return p.Send([]byte("indirect-forwarding-warmup")) },
+		func() uint64 { return uint64(p.Received()) },
+		"user data on the forwarding tunnel",
+	); err != nil {
+		return err
+	}
+
+	before := p.Received()
+
 	for i := range ForwardingProbePackets {
 		payload := []byte(fmt.Sprintf("indirect-forwarding-probe-%d", i))
 
@@ -26,7 +36,7 @@ func DriveForwardingTunnel(p ForwardingProbe) error {
 		}
 	}
 
-	if err := awaitCount(p.Received, ForwardingProbePackets, "user data relayed to the target's forwarding tunnel"); err != nil {
+	if err := awaitCount(p.Received, before+ForwardingProbePackets, "user data relayed to the target's forwarding tunnel"); err != nil {
 		return err
 	}
 

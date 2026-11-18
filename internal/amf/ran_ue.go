@@ -188,6 +188,16 @@ func (ueConn *UeConn) radioIDName() (string, string) {
 	return "", ""
 }
 
+func (ueConn *UeConn) RadioID() string {
+	if ueConn == nil {
+		return ""
+	}
+
+	id, _ := ueConn.radioIDName()
+
+	return id
+}
+
 func (ueConn *UeConn) radioName() string {
 	_, name := ueConn.radioIDName()
 

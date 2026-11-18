@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
@@ -30,7 +31,13 @@ func (c *UeConn) SendProtected(plain []byte, sht eps.SecurityHeaderType, write n
 		return nil
 	}
 
-	if err := ue.downlink().Send(plain, uint8(sht), write); err != nil {
+	counted := func(wire []byte) error {
+		metrics.NASMessage4G(metrics.DirectionOutbound, plain)
+
+		return write(wire)
+	}
+
+	if err := ue.downlink().Send(plain, uint8(sht), counted); err != nil {
 		return err
 	}
 
@@ -62,7 +69,7 @@ func (c *UeConn) SendDownlinkMessage(ctx context.Context, msg nasMessage) {
 		return
 	}
 
-	c.SendDownlinkNASTransport(ctx, b)
+	c.SendPlainNAS(ctx, b)
 }
 
 func (c *UeConn) SendDownlink(ctx context.Context, msg nasMessage) {
@@ -114,6 +121,16 @@ func (c *UeConn) ResendTauAccept(ctx context.Context) {
 	}
 
 	_ = c.SendGuardedProtected(ctx, "Tracking Area Update Accept", c.TauAcceptPlain, eps.SHTIntegrityProtectedCiphered)
+}
+
+func (c *UeConn) SendPlainNAS(ctx context.Context, plain []byte) {
+	if c == nil {
+		return
+	}
+
+	metrics.NASMessage4G(metrics.DirectionOutbound, plain)
+
+	c.SendDownlinkNASTransport(ctx, plain)
 }
 
 // SendDownlinkNASTransport wraps NAS bytes (plain or security-protected) in a Downlink NAS

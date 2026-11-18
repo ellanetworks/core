@@ -679,11 +679,17 @@ func (ue *UeContext) SendDownlinkNAS(plain []byte, sht uint8, write nas.WriteFun
 		return fmt.Errorf("amf ue is nil")
 	}
 
-	if fgs.SecurityHeaderType(sht) == fgs.SHTPlain || !ue.Secured() {
-		return write(plain)
+	counted := func(wire []byte) error {
+		metrics.NASMessage5G(metrics.DirectionOutbound, plain)
+
+		return write(wire)
 	}
 
-	if err := ue.dl.Send(plain, sht, write); err != nil {
+	if fgs.SecurityHeaderType(sht) == fgs.SHTPlain || !ue.Secured() {
+		return counted(plain)
+	}
+
+	if err := ue.dl.Send(plain, sht, counted); err != nil {
 		return err
 	}
 

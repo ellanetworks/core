@@ -168,7 +168,7 @@ func acceptTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 		return nasreply.Handled()
 	}
 
-	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, "Tracking Area Update", ue.IsVisitor(), logger.RegistrationAccepted)
+	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, ueConn.RadioID(), "Tracking Area Update", ue.IsVisitor(), logger.RegistrationAccepted)
 
 	if ue.IdleMobilityFrom5GSPending() {
 		ue.TransitionTo(ctx, mme.EMMRegistered)
@@ -189,7 +189,7 @@ func acceptTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext
 // rejectTrackingAreaUpdate sends a TAU REJECT and releases the UE's S1 context
 // (TS 24.301 §5.5.3.2.5).
 func rejectTrackingAreaUpdate(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn *mme.UeConn, cause eps.EMMCause) {
-	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, "Tracking Area Update", m.IsRoamer(ctx, ue), logger.RegistrationRejected)
+	logger.LogRegistrationAttempt(ctx, logger.MmeLog, metrics.RAT4G, ueConn.RadioID(), "Tracking Area Update", m.IsRoamer(ctx, ue), logger.RegistrationRejected)
 	ueConn.StopNASGuard(ctx)
 
 	reject := &eps.TrackingAreaUpdateReject{Cause: cause}
