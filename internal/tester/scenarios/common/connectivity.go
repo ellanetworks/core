@@ -41,16 +41,22 @@ type RegisterAndPingOpts struct {
 
 // RegisterAndPing is safe to call concurrently for distinct UEs on the same gNB.
 func RegisterAndPing(ctx context.Context, opts *RegisterAndPingOpts) error {
+	_, err := RegisterAndPingUE(ctx, opts)
+
+	return err
+}
+
+func RegisterAndPingUE(ctx context.Context, opts *RegisterAndPingOpts) (*ue.UE, error) {
 	if opts.GNB == nil {
-		return fmt.Errorf("GNB is required")
+		return nil, fmt.Errorf("GNB is required")
 	}
 
 	if len(opts.IMSI) < 5 {
-		return fmt.Errorf("IMSI %q is too short", opts.IMSI)
+		return nil, fmt.Errorf("IMSI %q is too short", opts.IMSI)
 	}
 
 	if opts.TunInterfaceName == "" {
-		return fmt.Errorf("TunInterfaceName is required")
+		return nil, fmt.Errorf("TunInterfaceName is required")
 	}
 
 	key := opts.Key
@@ -104,14 +110,14 @@ func RegisterAndPing(ctx context.Context, opts *RegisterAndPingOpts) error {
 		}),
 	})
 	if err != nil {
-		return fmt.Errorf("create UE: %w", err)
+		return nil, fmt.Errorf("create UE: %w", err)
 	}
 
 	opts.GNB.AddUE(opts.RANUENGAPID, newUE)
 
 	registration, err := opts.GNB.Register(newUE, opts.RANUENGAPID, pduID, registrationTimeout)
 	if err != nil {
-		return fmt.Errorf("initial registration: %w", err)
+		return nil, fmt.Errorf("initial registration: %w", err)
 	}
 
 	session := registration.Session
@@ -125,7 +131,7 @@ func RegisterAndPing(ctx context.Context, opts *RegisterAndPingOpts) error {
 		MTU:              session.MTU,
 		QFI:              session.QFI,
 	}); err != nil {
-		return fmt.Errorf("create GTP tunnel %q: %w", opts.TunInterfaceName, err)
+		return nil, fmt.Errorf("create GTP tunnel %q: %w", opts.TunInterfaceName, err)
 	}
 
 	// #nosec G204 -- ping is fixed; tunInterfaceName is internally derived; PingDestination is a test constant
@@ -138,7 +144,7 @@ func RegisterAndPing(ctx context.Context, opts *RegisterAndPingOpts) error {
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("ping via %s: %w\noutput:\n%s", opts.TunInterfaceName, err, string(out))
+		return nil, fmt.Errorf("ping via %s: %w\noutput:\n%s", opts.TunInterfaceName, err, string(out))
 	}
 
 	logger.Logger.Debug(
@@ -147,5 +153,5 @@ func RegisterAndPing(ctx context.Context, opts *RegisterAndPingOpts) error {
 		zap.String("imsi", opts.IMSI),
 	)
 
-	return nil
+	return newUE, nil
 }
