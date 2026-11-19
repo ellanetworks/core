@@ -55,8 +55,8 @@ type learnedRoute struct {
 //	learnedMu   — protects learnedRoutes
 //
 // Never acquire mu while holding learnedMu. Code that needs both must acquire
-// mu first, then learnedMu. handleSinglePath snapshots mu-protected fields
-// under mu.RLock, releases it, then acquires learnedMu alone.
+// mu first, then learnedMu. syncRoutes snapshots mu-protected fields
+// under mu.TryRLock, releases it, then acquires learnedMu alone.
 type BGPService struct {
 	server      *gobgp.BgpServer
 	mu          sync.RWMutex
