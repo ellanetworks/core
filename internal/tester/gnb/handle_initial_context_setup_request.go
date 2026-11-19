@@ -26,6 +26,7 @@ func handleInitialContextSetupRequest(gnb *GnodeB, value []byte) error {
 
 	gnb.UpdateNGAPIDs(ranUEID, amfUEID)
 	gnb.storeUEContext(ranUEID)
+	gnb.recordUEGUAMI(ranUEID, req.GUAMI)
 
 	if req.UEAggregateMaximumBitRate != nil {
 		gnb.StoreUEAmbr(ranUEID, &UEAmbrInformation{

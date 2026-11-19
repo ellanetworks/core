@@ -30,10 +30,6 @@ type UpdateResult struct {
 	ReleaseN2 bool   // true when N2 info signals PDU session resource release
 	N1Msg     []byte // NAS message for the UE (may be nil)
 	N2Msg     []byte // NGAP transfer for the RAN (may be nil)
-
-	// The AMF holds a routing context per PDU session and has no other way to
-	// learn this: the message that ends the session produces no N1 or N2 answer.
-	SessionRemoved bool
 }
 
 // UpdateSmContextN1Msg handles a NAS N1 message update (e.g. PDU session release request).
@@ -138,7 +134,7 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 
 		s.teardownAndRemove(ctx, smContext, models.SessionReleaseRequest{})
 
-		return &UpdateResult{SessionRemoved: true}, nil
+		return nil, nil
 
 	case *fgs.PDUSessionModificationComplete:
 		// The UE accepted the modification; stop T3591 and commit the new policy
@@ -181,9 +177,9 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		return nil, nil
 
 	case *fgs.GSMStatus:
-		removed := s.handle5GSMStatus(ctx, smContext, pti, msg.Cause)
+		s.handle5GSMStatus(ctx, smContext, pti, msg.Cause)
 
-		return &UpdateResult{SessionRemoved: removed}, nil
+		return nil, nil
 
 	case *fgs.UnknownGSMMessage:
 		// TS 24.501 §7.4: a 5GSM message type the receiver does not implement is
@@ -389,7 +385,7 @@ func (s *SMF) reportSessionNotMoved(ctx context.Context, supi etsi.SUPI, pduSess
 		return
 	}
 
-	s.amf.SessionDropped(ctx, supi, pduSessionID, ref, nil)
+	s.amf.SMContextStatusNotifyRelease(ctx, supi, pduSessionID, ref, nil)
 }
 
 func handlePDUSessionResourceSetupUnsuccessfulTransfer(b []byte) error {
@@ -404,7 +400,7 @@ func handlePDUSessionResourceSetupUnsuccessfulTransfer(b []byte) error {
 }
 
 // UpdateSmContextN2InfoPduResRelRsp handles the N2 PDU Session Resource Release Response.
-func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRef string) (bool, error) {
+func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRef string) error {
 	ctx, span := tracer.Start(ctx, "smf/update_sm_context_pdu_resource_release_response",
 		trace.WithAttributes(attrs.SMContextRef(smContextRef)),
 	)
@@ -414,7 +410,7 @@ func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRe
 		span.RecordError(fmt.Errorf("SM Context reference is missing"))
 		span.SetStatus(codes.Error, "SM Context reference is missing")
 
-		return false, fmt.Errorf("SM Context reference is missing")
+		return fmt.Errorf("SM Context reference is missing")
 	}
 
 	smContext := s.GetSession(smContextRef)
@@ -422,11 +418,11 @@ func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRe
 		logger.SmfLog.Info("SM context already removed, skipping",
 			logger.SMContextRef(smContextRef))
 
-		return true, nil
+		return nil
 	}
 
 	if s.completeUPConnectionDeactivation(ctx, smContext) {
-		return false, nil
+		return nil
 	}
 
 	smContext.Mutex.Lock()
@@ -438,19 +434,19 @@ func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRe
 		smContext.PDUSessionReleaseDueToDupPduID = false
 		s.RemoveSession(ctx, smContext.Ref, models.SessionReleaseRequest{})
 
-		return true, nil
+		return nil
 	}
 
 	s.releaseUserPlane(ctx, smContext)
 	smContext.n2Released = true
 
 	if !smContext.releaseLegsComplete() {
-		return false, nil
+		return nil
 	}
 
 	s.teardownAndRemove(ctx, smContext, models.SessionReleaseRequest{})
 
-	return true, nil
+	return nil
 }
 
 func (s *SMF) completeUPConnectionDeactivation(ctx context.Context, smContext *SMContext) bool {

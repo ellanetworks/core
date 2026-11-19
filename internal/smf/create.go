@@ -305,10 +305,17 @@ func (s *SMF) handlePduSessionContextReplacement(ctx context.Context, smCtxt *SM
 	// Stop the superseded context's outstanding procedure retransmission.
 	smCtxt.stopProcedureTimer()
 	smCtxt.abandonPendingLocked()
+
+	if dropped != nil && dropped.access == Access5G && s.amf != nil {
+		s.amf.SMContextStatusNotifyRelease(ctx, dropped.supi, dropped.id.PDUSessionID, smCtxt.Ref, sourceN2Release(ctx, dropped))
+	}
+
 	s.RemoveSession(ctx, smCtxt.Ref, models.ReleaseFor(models.ReleaseDuplicateSessionID))
 	smCtxt.Mutex.Unlock()
 
-	s.dropSourceRouting(ctx, smCtxt.Ref, dropped)
+	if dropped != nil && dropped.access == Access4G {
+		s.dropSourceRouting(ctx, smCtxt.Ref, dropped)
+	}
 }
 
 // establishmentRejectCause maps a session-policy lookup failure to the 5GSM

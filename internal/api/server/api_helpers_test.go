@@ -380,7 +380,7 @@ func (f *fakeAMFCallback) N2TransferOrPage(ctx context.Context, supi etsi.SUPI, 
 	return models.N1N2TransferInitiated, nil
 }
 
-func (f *fakeAMFCallback) SessionDropped(_ context.Context, _ etsi.SUPI, _ uint8, _ string, _ []byte) {
+func (f *fakeAMFCallback) SMContextStatusNotifyRelease(_ context.Context, _ etsi.SUPI, _ uint8, _ string, _ []byte) {
 }
 
 func (f *fakeAMFCallback) AssignEPSBearerIdentity(_ etsi.SUPI, _ uint8, _ string) (uint8, error) {

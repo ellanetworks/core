@@ -275,17 +275,16 @@ func TestUpdateSmContextN1Msg_ReleaseCompleteReportsRemoval(t *testing.T) {
 		t.Fatalf("release request failed: %v", err)
 	}
 
-	if _, err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref); err != nil {
+	if err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref); err != nil {
 		t.Fatalf("N2 release response failed: %v", err)
 	}
 
-	rsp, err := s.UpdateSmContextN1Msg(ctx, ref, buildPDUSessionReleaseComplete(smCtx.PDUSessionID, pti))
-	if err != nil {
+	if _, err := s.UpdateSmContextN1Msg(ctx, ref, buildPDUSessionReleaseComplete(smCtx.PDUSessionID, pti)); err != nil {
 		t.Fatalf("release complete failed: %v", err)
 	}
 
-	if rsp == nil || !rsp.SessionRemoved {
-		t.Fatalf("release complete must report SessionRemoved; got %+v", rsp)
+	if calls := amfCb.dropped(); len(calls) != 1 || calls[0].ref != ref {
+		t.Fatalf("release complete must notify the AMF of the release once; got %+v", calls)
 	}
 
 	if s.GetSession(ref) != nil {

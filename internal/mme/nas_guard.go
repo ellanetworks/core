@@ -125,8 +125,7 @@ func (m *MME) armESMGuardMode(ctx context.Context, ue *UeContext, p *PdnConnecti
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	conn := ue.Conn()
-	if conn == nil {
+	if ue.Conn() == nil {
 		return
 	}
 
@@ -134,9 +133,48 @@ func (m *MME) armESMGuardMode(ctx context.Context, ue *UeContext, p *PdnConnecti
 
 	p.guard.ArmWith(
 		m.esmGuardCfg,
-		func(attempt int32) { conn.retransmitNASGuard(link, ue, name, plain, sht, attempt) },
-		func() { conn.expireNASGuard(link, ue, name, onAbort) },
+		func(attempt int32) { m.retransmitESMGuard(link, ue, name, plain, sht, attempt) },
+		func() { m.expireESMGuard(link, ue, p, name, onAbort) },
 	)
+}
+
+func (m *MME) currentConn(ue *UeContext) *UeConn {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return ue.Conn()
+}
+
+func (m *MME) retransmitESMGuard(link trace.SpanContext, ue *UeContext, name string, plain []byte, sht eps.SecurityHeaderType, attempt int32) {
+	if conn := m.currentConn(ue); conn != nil {
+		conn.retransmitNASGuard(link, ue, name, plain, sht, attempt)
+	}
+}
+
+func (m *MME) expireESMGuard(link trace.SpanContext, ue *UeContext, p *PdnConnection, name string, onAbort func(context.Context)) {
+	conn := m.currentConn(ue)
+
+	if onAbort == nil {
+		if conn != nil {
+			conn.expireNASGuard(link, ue, name, nil)
+		}
+
+		return
+	}
+
+	if conn != nil {
+		conn.expireNASGuard(link, ue, name, onAbort)
+
+		return
+	}
+
+	ctx, span := guardSpan(link, "mme/nas_guard_expire", name, 0)
+	defer span.End()
+
+	logger.From(ctx, logger.MmeLog).Info("ESM procedure timed out while the UE is idle, aborting",
+		logger.SUPI(ue.Supi().String()), zap.String("procedure", name), zap.Uint8("ebi", p.Ebi))
+
+	onAbort(ctx)
 }
 
 // StopNASGuard cancels the EMM guard.

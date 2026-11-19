@@ -46,13 +46,8 @@ func (s *SMF) releaseUnrecoverable(ctx context.Context, sc *SMContext) {
 		logger.From(ctx, logger.SmfLog).Warn("could not signal the release of an unrecoverable session; removing it locally",
 			logger.SUPI(sc.Supi.String()), logger.SMContextRef(sc.Ref), zap.Error(err))
 
-		supi, pduSessionID, ref := sc.Supi, sc.PDUSessionID, sc.Ref
 		s.teardownAndRemove(ctx, sc, models.ReleaseFor(reason))
 		sc.Mutex.Unlock()
-
-		if s.amf != nil {
-			s.amf.SessionDropped(ctx, supi, pduSessionID, ref, nil)
-		}
 
 		return
 	}

@@ -558,7 +558,7 @@ type droppedCall struct {
 	n2Transfer   []byte
 }
 
-func (f *fakeAMF) SessionDropped(_ context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte) {
+func (f *fakeAMF) SMContextStatusNotifyRelease(_ context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

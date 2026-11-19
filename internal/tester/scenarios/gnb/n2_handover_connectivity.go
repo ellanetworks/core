@@ -42,7 +42,11 @@ func fixtureN2HandoverConnectivity(_ scenarios.Env) scenarios.FixtureSpec {
 	}
 }
 
-func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) error {
+func runN2HandoverConnectivity(ctx context.Context, env scenarios.Env, _ any) error {
+	return n2HandoverConnectivity(ctx, env, handoverConnectivityOpts{imsi: n2HandoverConnIMSI})
+}
+
+func n2HandoverConnectivity(ctx context.Context, env scenarios.Env, opts handoverConnectivityOpts) error {
 	if len(env.GNBs) < 2 {
 		return fmt.Errorf("n2_handover_connectivity requires at least 2 gNBs, got %d", len(env.GNBs))
 	}
@@ -62,6 +66,7 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 		CoreN2Addresses: env.CoreN2Addresses,
 		GnbN2Address:    sourceGNBSpec.N2Address,
 		GnbN3Address:    sourceGNBSpec.N3Address,
+		ConnectAll:      opts.connectAll,
 	})
 	if err != nil {
 		return fmt.Errorf("start source gNB: %w", err)
@@ -69,11 +74,7 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 
 	defer sourceGNB.Close()
 
-	if _, err := sourceGNB.WaitForMessage(
-		gnb.Successful,
-		ngaplib.ProcNGSetup,
-		2*time.Second,
-	); err != nil {
+	if err := sourceGNB.AwaitNGSetup(2 * time.Second); err != nil {
 		return fmt.Errorf("source gNB: wait NGSetupResponse: %w", err)
 	}
 
@@ -89,6 +90,7 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 		CoreN2Addresses: env.CoreN2Addresses,
 		GnbN2Address:    targetGNBSpec.N2Address,
 		GnbN3Address:    targetGNBSpec.N3Address,
+		ConnectAll:      opts.connectAll,
 	})
 	if err != nil {
 		return fmt.Errorf("start target gNB: %w", err)
@@ -96,17 +98,13 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 
 	defer targetGNB.Close()
 
-	if _, err := targetGNB.WaitForMessage(
-		gnb.Successful,
-		ngaplib.ProcNGSetup,
-		2*time.Second,
-	); err != nil {
+	if err := targetGNB.AwaitNGSetup(2 * time.Second); err != nil {
 		return fmt.Errorf("target gNB: wait NGSetupResponse: %w", err)
 	}
 
 	ranUENGAPID := int64(scenarios.DefaultRANUENGAPID)
 
-	newUE, err := newDefaultUE(sourceGNB, n2HandoverConnIMSI[5:], scenarios.DefaultKey, scenarios.DefaultOPC, scenarios.DefaultSequenceNumber, env.PDUSessionType())
+	newUE, err := newDefaultUE(sourceGNB, opts.imsi[5:], scenarios.DefaultKey, scenarios.DefaultOPC, scenarios.DefaultSequenceNumber, env.PDUSessionType())
 	if err != nil {
 		return fmt.Errorf("create UE: %w", err)
 	}
@@ -119,6 +117,7 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 	}
 
 	amfUENGAPID := sourceGNB.GetAMFUENGAPID(ranUENGAPID)
+	sourceAMF := sourceGNB.ServingAMFAddress(ranUENGAPID)
 
 	session := registration.Session
 
@@ -269,7 +268,7 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 
 	logger.Logger.Info("Ping successful after N2 handover", zap.String("dest", pingDest))
 
-	return nil
+	return opts.finish(ctx, env, sourceAMF, targetGNB.ServingAMFAddress(targetRanUENGAPID), session.UEIPv4, targetRanUENGAPID)
 }
 
 func awaitEndMarker(count func() int, tunnel string) error {
