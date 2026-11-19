@@ -90,8 +90,6 @@ The MTU of a data network is the largest packet a subscriber sends or receives. 
 
 The data network MTU must not exceed the MTU of the path between the radio and Ella Core, minus the GTP-U overhead and the overhead of every tunnel on that path, such as IPsec. It must also not exceed the N6 MTU.
 
-GTP-U packets larger than the N3 MTU are fragmented, and GTP-U packets the radio fragments are reassembled. Both are handled by the kernel rather than XDP or TCX, at a much lower packet rate.
-
 N2 / S1-MME signalling crosses the same tunnels. When a tunnel drops larger packets without reporting its MTU, the route from Ella Core to the radios must have an MTU that fits the tunnel.
 
 | Setting | Default |
