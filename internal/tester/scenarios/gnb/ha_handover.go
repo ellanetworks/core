@@ -5,19 +5,14 @@ package gnb
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/spf13/pflag"
 )
 
 const (
-	HAHandoverMarker  = "HA_HANDOVER_DONE"
-	haN2HandoverIMSI  = "001017271246660"
-	haXnHandoverIMSI  = "001017271246661"
-	haHandoverMaxHold = 3 * time.Minute
+	haN2HandoverIMSI = "001017271246660"
+	haXnHandoverIMSI = "001017271246661"
 )
 
 type handoverConnectivityOpts struct {
@@ -59,22 +54,5 @@ func (o handoverConnectivityOpts) finish(ctx context.Context, env scenarios.Env,
 		return nil
 	}
 
-	if want := env.FirstCore(); sourceAMF != want {
-		return fmt.Errorf("the UE registered through the AMF at %q, want the first core %q", sourceAMF, want)
-	}
-
-	if targetAMF != sourceAMF {
-		return fmt.Errorf("the target gNB reached the UE's AMF at %q, want the AMF at %q that holds the UE context", targetAMF, sourceAMF)
-	}
-
-	fmt.Printf("%s imsi=%s ue_ip=%s ran_ue_ngap_id=%d amf=%s\n", HAHandoverMarker, o.imsi, ueIP, targetRANUENGAPID, sourceAMF)
-
-	_ = os.Stdout.Sync()
-
-	select {
-	case <-ctx.Done():
-	case <-time.After(haHandoverMaxHold):
-	}
-
-	return nil
+	return scenarios.HAHandoverDone(ctx, o.imsi, env.FirstCore(), sourceAMF, targetAMF, ueIP, targetRANUENGAPID)
 }

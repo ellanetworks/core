@@ -56,6 +56,7 @@ type Frame struct {
 	Value         []byte
 	ENBUES1APID   int64            // target eNB-UE-S1AP-ID; NoUEID for non-UE-associated frames
 	Info          *sctp.SndRcvInfo // SCTP receive metadata (PPID, stream), nil if absent
+	Peer          int
 }
 
 // NoUEID tags a frame (and a wait) that is not associated with a specific UE
@@ -95,6 +96,7 @@ type StartOpts struct {
 	// SkipS1SetupWait sends the S1 Setup Request but returns without waiting for
 	// the response, so a scenario can assert an S1 Setup Failure (TS 36.413).
 	SkipS1SetupWait bool
+	ConnectAll      bool
 
 	AdditionalPLMNs []nas.PLMN
 }
@@ -141,12 +143,17 @@ type ENB struct {
 	// S1-MME peer management. Ordered list of MME endpoints; the eNB keeps
 	// exactly one active SCTP association at a time, starting with index 0
 	// and falling through on read/dial/S1-Setup failure. Guarded by mmeMu.
-	mmeLocal    *sctp.SCTPAddr
-	mmeMu       sync.RWMutex
-	peers       []*mmePeer
-	active      int           // index into peers; -1 when no active peer
-	mmeShutdown bool          // set by Close; suppresses failover promotion
-	mmeChange   chan struct{} // closed on every active-peer transition
+	mmeLocal      *sctp.SCTPAddr
+	mmeMu         sync.RWMutex
+	peers         []*mmePeer
+	active        int           // index into peers; -1 when no active peer
+	mmeShutdown   bool          // set by Close; suppresses failover promotion
+	mmeChange     chan struct{} // closed on every active-peer transition
+	connectAll    bool
+	servedGUMMEI  map[int][]s1ap.GUMMEI
+	enbPeers      map[int64]int
+	mmePeers      map[int64]int
+	sourceGUMMEIs map[int64]s1ap.GUMMEI
 }
 
 // mmePeer is one ordered S1-MME endpoint.
@@ -234,6 +241,7 @@ func Start(opts *StartOpts) (*ENB, error) {
 		peers:             peers,
 		active:            -1,
 		mmeChange:         make(chan struct{}),
+		connectAll:        opts.ConnectAll,
 	}
 	e.cond = sync.NewCond(&e.mu)
 
@@ -258,7 +266,16 @@ func Start(opts *StartOpts) (*ENB, error) {
 
 	activated := false
 
+	if opts.ConnectAll {
+		lastErr = e.connectAllPeersLocked()
+		activated = lastErr == nil
+	}
+
 	for idx := range e.peers {
+		if opts.ConnectAll {
+			break
+		}
+
 		if err := e.dialAndActivateLocked(idx); err != nil {
 			lastErr = err
 			continue
@@ -290,6 +307,11 @@ func Start(opts *StartOpts) (*ENB, error) {
 	}
 
 	e.s1SetupFrame = setupResp
+
+	if err := e.awaitRemainingS1Setups(); err != nil {
+		_ = e.Close()
+		return nil, err
+	}
 
 	logger.GnbLogger.Debug("S1 Setup complete", zap.String("enb", opts.Name), zap.Uint32("enb-id", opts.ENBID))
 
@@ -379,6 +401,11 @@ func (e *ENB) promoteNextFromReceiver(failedIdx int, failedConn *sctp.SCTPConn) 
 	defer e.mmeMu.Unlock()
 
 	if e.mmeShutdown {
+		return
+	}
+
+	if e.connectAll {
+		e.dropPeerLocked(failedIdx, failedConn)
 		return
 	}
 
@@ -559,6 +586,10 @@ func (e *ENB) dropCapabilityReport(enbUEID int64) {
 }
 
 func (e *ENB) SendMessage(pdu []byte, ueAssociated bool) error {
+	if e.connectAll {
+		return e.sendToServingMME(pdu, ueAssociated)
+	}
+
 	e.mmeMu.RLock()
 
 	var conn *sctp.SCTPConn
@@ -713,6 +744,12 @@ func (e *ENB) runReceiver(idx int, conn *sctp.SCTPConn) {
 		if !ok {
 			logger.GnbLogger.Warn("s1enb: undecodable S1AP PDU", zap.Int("len", n))
 			continue
+		}
+
+		f.Peer = idx
+
+		if e.connectAll {
+			e.bindIncoming(raw, f)
 		}
 
 		e.mu.Lock()

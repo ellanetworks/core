@@ -170,18 +170,31 @@ func (g *GnodeB) ServingAMFAddress(ranUENGAPID int64) string {
 	return g.n2Peers[idx].address
 }
 
-func (g *GnodeB) bindIncoming(frame SCTPFrame) {
-	pdu, err := ngap.Unmarshal(frame.Data)
+func ueNGAPIDs(packet []byte) (ranID, amfID int64, ranOK, amfOK bool) {
+	raw, err := ngap.ParseRawPDU(packet)
 	if err != nil {
-		return
+		return 0, 0, false, false
 	}
 
-	ranID, ranOK := ngap.PeekRANUENGAPID(pdu)
-	amfID, amfOK := ngap.PeekAMFUENGAPID(pdu)
+	if id, ok, err := raw.RANUENGAPID(); err == nil && ok {
+		ranID, ranOK = int64(id), true
+	}
+
+	if id, ok, err := raw.AMFUENGAPID(); err == nil && ok {
+		amfID, amfOK = int64(id), true
+	} else if id, ok, err := raw.SourceAMFUENGAPID(); err == nil && ok {
+		amfID, amfOK = int64(id), true
+	}
+
+	return ranID, amfID, ranOK, amfOK
+}
+
+func (g *GnodeB) bindIncoming(frame SCTPFrame) {
+	ranID, amfID, ranOK, amfOK := ueNGAPIDs(frame.Data)
 
 	if !ranOK {
 		if id, ok := frameRANUEID(frame); ok {
-			ranID, ranOK = ngap.RANUENGAPID(id), true
+			ranID, ranOK = id, true
 		}
 	}
 
@@ -189,29 +202,16 @@ func (g *GnodeB) bindIncoming(frame SCTPFrame) {
 	defer g.n2Mu.Unlock()
 
 	if ranOK {
-		g.ranPeers[int64(ranID)] = frame.Peer
+		g.ranPeers[ranID] = frame.Peer
 	}
 
 	if amfOK {
-		g.amfPeers[int64(amfID)] = frame.Peer
+		g.amfPeers[amfID] = frame.Peer
 	}
 }
 
 func (g *GnodeB) sendToServingAMF(packet []byte, msgType NGAPProcedure) error {
-	var (
-		ranID, amfID int64
-		ranOK, amfOK bool
-	)
-
-	if pdu, err := ngap.Unmarshal(packet); err == nil {
-		if id, ok := ngap.PeekRANUENGAPID(pdu); ok {
-			ranID, ranOK = int64(id), true
-		}
-
-		if id, ok := ngap.PeekAMFUENGAPID(pdu); ok {
-			amfID, amfOK = int64(id), true
-		}
-	}
+	ranID, amfID, ranOK, amfOK := ueNGAPIDs(packet)
 
 	g.n2Mu.Lock()
 
