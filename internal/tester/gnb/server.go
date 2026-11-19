@@ -163,6 +163,11 @@ type GnodeB struct {
 	n2Shutdown  bool
 	n2Change    chan struct{} // closed on every active-peer transition
 	n2SetupOpts NGSetupRequestOpts
+	connectAll  bool
+	servedGUAMI map[int][]ngap.GUAMI
+	ranPeers    map[int64]int
+	amfPeers    map[int64]int
+	ueGUAMIs    map[int64]ngap.GUAMI
 
 	selectedPLMNs map[int64]BroadcastPLMN
 }
@@ -570,6 +575,7 @@ type SCTPFrame struct {
 	Value         []byte
 	Data          []byte
 	Info          *sctp.SndRcvInfo
+	Peer          int
 }
 
 // NewGnodeB constructs a gNB around a single pre-dialed N2 conn, for ng-eNB
@@ -639,6 +645,7 @@ type StartOpts struct {
 	GnbN2Address    string
 	GnbN3Address    string
 	SignallingOnly  bool
+	ConnectAll      bool
 }
 
 // Start builds a gNB and establishes one active N2 SCTP association. The
@@ -715,6 +722,7 @@ func Start(opts *StartOpts) (*GnodeB, error) {
 		n2Peers:           peers,
 		n2Active:          -1,
 		n2Change:          make(chan struct{}),
+		connectAll:        opts.ConnectAll,
 		n2SetupOpts: NGSetupRequestOpts{
 			GnbID:  opts.GnbID,
 			Mcc:    opts.MCC,
@@ -738,6 +746,10 @@ func Start(opts *StartOpts) (*GnodeB, error) {
 	defer g.n2Mu.Unlock()
 
 	var lastErr error
+
+	if opts.ConnectAll {
+		return g.connectAllPeersLocked(n3Conn)
+	}
 
 	for idx := 0; idx < len(peers); idx++ {
 		if err := g.n2DialAndActivateLocked(idx); err != nil {
@@ -866,6 +878,12 @@ func (g *GnodeB) runReceiver(idx int, conn *sctp.SCTPConn) {
 			continue
 		}
 
+		frame.Peer = idx
+
+		if g.connectAll {
+			g.bindIncoming(frame)
+		}
+
 		ranUEID, ok := frameRANUEID(frame)
 		if !ok {
 			// Node-level and context-creating procedures run inline, so nothing
@@ -892,6 +910,11 @@ func (g *GnodeB) promoteNextFromReceiver(failedIdx int, failedConn *sctp.SCTPCon
 	defer g.n2Mu.Unlock()
 
 	if g.n2Shutdown {
+		return
+	}
+
+	if g.connectAll {
+		g.dropPeerLocked(failedIdx, failedConn)
 		return
 	}
 

@@ -268,6 +268,7 @@ func (e *ENB) buildPathSwitchRequest(enbUEID, sourceMMEUEID int64, erabID s1ap.E
 		EUTRANCGI:              s1ap.Ptr(e.eutranCGI()),
 		TAI:                    s1ap.Ptr(e.taiFor(enbUEID)),
 		UESecurityCapabilities: s1ap.Ptr(caps),
+		SourceMMEGUMMEI:        e.sourceMMEGUMMEI(enbUEID),
 	}
 
 	return req.Marshal()
