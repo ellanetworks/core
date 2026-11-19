@@ -494,7 +494,7 @@ relay_forwarded_gtp(struct packet_context *ctx, const struct pdr_info *pdr)
 		upf_printk("upf: relay forwarded gtp [ %pI4 -> %pI4 ]",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr);
 
-		return route_ipv4(ctx, route_statistic, false);
+		return route_ipv4(ctx, route_statistic, false, false);
 	}
 
 	if (ctx->ip6 && (far->outer_header_creation & OHC_GTP_U_UDP_IPv6)) {
@@ -565,7 +565,7 @@ relay_forwarded_gtp(struct packet_context *ctx, const struct pdr_info *pdr)
 		upf_printk("upf: relay forwarded gtp [ %pI6c -> %pI6c ]",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr);
 
-		return route_ipv6(ctx, route_statistic, false);
+		return route_ipv6(ctx, route_statistic, false, false);
 	}
 
 	return drop_with(ctx, UPF_DROP_FAR_UNSUPPORTED);
@@ -868,7 +868,7 @@ handle_gtp_packet(struct packet_context *ctx)
 		ctx->nat_exempt = !!(pdr->flags & PDR_F_NAT_EXEMPT);
 		PROFILE_START(PROF_N3_FIB_ROUTING);
 		enum ctx_action fib_ret =
-			route_ipv4(ctx, route_statistic, false);
+			route_ipv4(ctx, route_statistic, false, false);
 		PROFILE_END(PROF_N3_FIB_ROUTING);
 
 		if (ctx_action_forwards(fib_ret)) {
@@ -884,7 +884,7 @@ handle_gtp_packet(struct packet_context *ctx)
 		account_flow(ctx, ctx_n6_ifindex(ctx), pdr->imsi, IPV6, FLOW_UPLINK, ALLOW);
 		PROFILE_START(PROF_N3_FIB_ROUTING);
 		enum ctx_action fib_ret =
-			route_ipv6(ctx, route_statistic, false);
+			route_ipv6(ctx, route_statistic, false, false);
 		PROFILE_END(PROF_N3_FIB_ROUTING);
 
 		if (ctx_action_forwards(fib_ret)) {

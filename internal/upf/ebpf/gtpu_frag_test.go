@@ -418,3 +418,75 @@ func TestReassembledLocalSwitchIsHandedOffForOuterFragmentation(t *testing.T) {
 		t.Error("the encapsulated inner packet differs from the one sent")
 	}
 }
+
+func lockRouteMTUToGNB(t *testing.T) {
+	t.Helper()
+
+	if out, err := ipCmd("route", "replace", ip4String(testGNBIP)+"/32", "dev", t2N3Dev, "mtu", "lock", "1280"); err != nil {
+		t.Fatalf("lock the route MTU to the gNB: %v: %s", err, out)
+	}
+}
+
+func TestDownlinkSmallerRouteMTUIsHandedOffForOuterFragmentation(t *testing.T) {
+	requireProgTestRun(t)
+
+	const teid = 0x46524760
+
+	f := setupT2(t, false)
+	putDownlinkPDR(t, f.obj, ueIP, teid, testUPFN3IP, testGNBIP, 7)
+	lockRouteMTUToGNB(t)
+
+	if err := f.obj.SetFragTxEnabled(true); err != nil {
+		t.Fatalf("enable outer fragmentation: %v", err)
+	}
+
+	ring := openFragTxReader(t, f.obj)
+	n3 := f.captureN3(t)
+
+	inner := withDF(ipv4Packet(serverIP, ueIP, 17, udpDatagram(4000, 4001, bytesOf(1300))))
+	f.injectDownlink(t, ethFrame(0x0800, inner))
+
+	pkt := readRingRecord(t, ring)
+	if pkt == nil {
+		t.Fatal("a packet over the route MTU was not handed off for outer fragmentation")
+	}
+
+	if !bytes.Equal(pkt[gtpV4EncapLen:], inner) {
+		t.Error("the encapsulated inner packet differs from the one sent")
+	}
+
+	if fr := captureMatching(n3, 200*time.Millisecond, func(fr []byte) bool {
+		return len(fr) > 1280
+	}); fr != nil {
+		t.Error("a frame over the route MTU egressed on N3")
+	}
+
+	if got := GetDatapathCounters(f.obj)[Downlink].Forwarded[ActionSlowPath]; got != 1 {
+		t.Errorf("slow-path forwards = %d, want 1", got)
+	}
+
+	if got := DropCount(f.obj, Downlink, "fib_frag_needed"); got != 0 {
+		t.Errorf("fib_frag_needed = %d, want 0", got)
+	}
+}
+
+func TestDownlinkSmallerRouteMTUDroppedWhenOuterFragmentationUnavailable(t *testing.T) {
+	requireProgTestRun(t)
+
+	const teid = 0x46524761
+
+	f := setupT2(t, false)
+	putDownlinkPDR(t, f.obj, ueIP, teid, testUPFN3IP, testGNBIP, 7)
+	lockRouteMTUToGNB(t)
+
+	f.injectDownlink(t, ethFrame(0x0800, ipv4Packet(serverIP, ueIP, 17, udpDatagram(4000, 4001, bytesOf(1300)))))
+
+	deadline := time.Now().Add(time.Second)
+	for DropCount(f.obj, Downlink, "fib_frag_needed") != 1 {
+		if time.Now().After(deadline) {
+			t.Fatalf("fib_frag_needed = %d, want 1", DropCount(f.obj, Downlink, "fib_frag_needed"))
+		}
+
+		time.Sleep(20 * time.Millisecond)
+	}
+}

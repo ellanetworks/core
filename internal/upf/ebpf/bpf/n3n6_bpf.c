@@ -604,7 +604,8 @@ int veth_xdp_func(struct __ctx_buff *ctx)
 		if (!route_stat4)
 			return ctx_verdict(CTX_ACT_ABORTED);
 
-		return ctx_verdict(route_ipv4(&pkt_ctx, route_stat4, true));
+		return ctx_verdict(
+			route_ipv4(&pkt_ctx, route_stat4, true, false));
 	}
 
 	if (far.outer_header_creation & OHC_GTP_U_UDP_IPv6) {
@@ -628,7 +629,8 @@ int veth_xdp_func(struct __ctx_buff *ctx)
 		if (!route_stat6)
 			return ctx_verdict(CTX_ACT_ABORTED);
 
-		return ctx_verdict(route_ipv6(&pkt_ctx, route_stat6, true));
+		return ctx_verdict(
+			route_ipv6(&pkt_ctx, route_stat6, true, false));
 	}
 
 	return ctx_verdict(CTX_ACT_DROP);

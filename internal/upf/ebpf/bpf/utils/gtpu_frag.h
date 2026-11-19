@@ -81,19 +81,21 @@ enum frag_tx_result {
 };
 
 __noinline __weak int frag_tx_offload(struct __ctx_buff *ctx_buff, __u32 off,
-				      __u32 len)
+				      __u32 len, __u32 check_mtu)
 {
 	__u32 mtu_len = len;
 
 	if (!ctx_buff)
 		return FRAG_TX_FAILED;
 
-	const long fits =
-		bpf_check_mtu(ctx_buff, n3_mtu_ifindex(), &mtu_len, 0, 0);
-	if (fits < 0)
-		return FRAG_TX_FAILED;
-	if (fits == 0)
-		return FRAG_TX_FITS;
+	if (check_mtu) {
+		const long fits = bpf_check_mtu(ctx_buff, n3_mtu_ifindex(),
+						&mtu_len, 0, 0);
+		if (fits < 0)
+			return FRAG_TX_FAILED;
+		if (fits == 0)
+			return FRAG_TX_FITS;
+	}
 
 	const bool too_large = len > FRAG_TX_MAX_PKT;
 	const bool too_small = len < FRAG_TX_MIN_PKT;
@@ -127,9 +129,9 @@ static __always_inline int frag_tx_offer(struct packet_context *ctx,
 	if (!frag_tx_enabled)
 		return FRAG_TX_FITS;
 
-	return frag_tx_offload(ctx->ctx_buff,
-			       ctx_frame_offset(ctx->ctx_buff, l3),
-			       ctx_len_from(ctx->ctx_buff, ctx->data_end, l3));
+	return frag_tx_offload(
+		ctx->ctx_buff, ctx_frame_offset(ctx->ctx_buff, l3),
+		ctx_len_from(ctx->ctx_buff, ctx->data_end, l3), 1);
 }
 
 static __always_inline enum upf_drop_reason frag_tx_drop_reason(int result)
@@ -139,4 +141,18 @@ static __always_inline enum upf_drop_reason frag_tx_drop_reason(int result)
 	if (result == FRAG_TX_TOO_LARGE)
 		return UPF_DROP_FRAG_TX_TOO_LARGE;
 	return UPF_DROP_INTERNAL_FRAG_TX_FAILED;
+}
+
+static __always_inline enum ctx_action
+frag_tx_route_too_small(struct packet_context *ctx, const void *l3)
+{
+	if (!frag_tx_enabled)
+		return drop_with(ctx, UPF_DROP_FIB_FRAG_NEEDED);
+
+	const int offered = frag_tx_offload(
+		ctx->ctx_buff, ctx_frame_offset(ctx->ctx_buff, l3),
+		ctx_len_from(ctx->ctx_buff, ctx->data_end, l3), 0);
+	if (offered == FRAG_TX_CAPTURED)
+		return CTX_ACT_SLOW_PATH;
+	return drop_with(ctx, frag_tx_drop_reason(offered));
 }
