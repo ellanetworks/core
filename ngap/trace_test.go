@@ -216,6 +216,28 @@ func TestPeekAMFUENGAPID(t *testing.T) {
 	}
 }
 
+func TestPeekRANUENGAPID(t *testing.T) {
+	b, _ := hex.DecodeString(goldenTraceFailureIndication)
+
+	pdu, err := Unmarshal(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	id, ok := PeekRANUENGAPID(pdu)
+	if !ok || id != 2 {
+		t.Fatalf("peeked %d %v, want 2", id, ok)
+	}
+
+	if _, ok := PeekRANUENGAPID(nil); ok {
+		t.Fatal("peeked an ID from a nil PDU")
+	}
+
+	if _, ok := PeekRANUENGAPID(&InitiatingMessage{ProcedureCode: ProcTraceStart, Value: []byte{0x00, 0x00}}); ok {
+		t.Fatal("peeked an ID from a truncated message")
+	}
+}
+
 func TestPeekAMFUENGAPIDRejectsTruncatedInput(t *testing.T) {
 	if _, ok := PeekAMFUENGAPID(&InitiatingMessage{ProcedureCode: ProcTraceStart, Value: []byte{0x00, 0x00}}); ok {
 		t.Fatal("peeked an ID from a truncated message")

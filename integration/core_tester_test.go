@@ -37,6 +37,8 @@ var scenariosSkipped = map[string]string{
 	"ha/drain_4g":                            "multi-core HA topology, covered by TestIntegration4GHADrain",
 	"ha/drain_5g":                            "multi-core HA topology, covered by TestIntegration5GHADrain",
 	"ha/partition_release_5g":                "multi-core HA topology, covered by TestIntegration5GHAPartitionReleasesLease",
+	"ha/n2_handover_5g":                      "multi-core HA topology, covered by TestIntegration5GHAN2Handover",
+	"ha/xn_handover_5g":                      "multi-core HA topology, covered by TestIntegration5GHAXnHandover",
 	"s1enb/roaming/attach":                   "needs an Open5GS home network, covered by TestRoaming4GOpen5GS (-tags open5gs)",
 	"gnb/roaming/register":                   "needs an Open5GS home network, covered by TestRoaming5GOpen5GS (-tags open5gs)",
 	"ha_sms/cross_node_routing":              "multi-core HA topology with an SMSC, covered by TestIntegrationHASMS",

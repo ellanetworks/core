@@ -251,6 +251,10 @@ func (g *GnodeB) SendMessage(pdu []byte, procedure NGAPProcedure) error {
 }
 
 func (g *GnodeB) SendToRan(packet []byte, msgType NGAPProcedure) error {
+	if g.connectAll {
+		return g.sendToServingAMF(packet, msgType)
+	}
+
 	g.n2Mu.RLock()
 
 	var conn *sctp.SCTPConn

@@ -43,7 +43,7 @@ func handleFrame(gnb *GnodeB, frame SCTPFrame) error {
 	case Successful:
 		switch frame.ProcedureCode {
 		case ngap.ProcNGSetup:
-			return handleNGSetupResponse(frame.Value)
+			return handleNGSetupResponse(gnb, frame.Peer, frame.Value)
 		case ngap.ProcNGReset:
 			return handleNGResetAcknowledge(frame.Value)
 		}

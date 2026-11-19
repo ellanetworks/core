@@ -37,3 +37,36 @@ func PeekAMFUENGAPID(pdu PDU) (AMFUENGAPID, bool) {
 
 	return 0, false
 }
+
+func PeekRANUENGAPID(pdu PDU) (RANUENGAPID, bool) {
+	if pdu == nil {
+		return 0, false
+	}
+
+	r := per.NewReader(pdu.value())
+
+	if _, err := r.ReadBit(); err != nil {
+		return 0, false
+	}
+
+	fields, err := decodeIEContainer(r, per.Aligned)
+	if err != nil {
+		return 0, false
+	}
+
+	for _, f := range fields {
+		if f.ID != IDRANUENGAPID {
+			continue
+		}
+
+		var id RANUENGAPID
+
+		if err := perIEDecode(f.Value, &id); err != nil {
+			return 0, false
+		}
+
+		return id, true
+	}
+
+	return 0, false
+}

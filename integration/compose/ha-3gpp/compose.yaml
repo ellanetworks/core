@@ -1,6 +1,6 @@
 services:
   ella-core-1:
-    image: ella-core:latest
+    image: ella-core:hahandover
     restart: unless-stopped
     entrypoint: /bin/core --config /cfg/core.yaml
     privileged: true
@@ -23,7 +23,7 @@ services:
               com.docker.network.endpoint.ifname: n6
         ipv4_address: 10.6.0.11
   ella-core-2:
-    image: ella-core:latest
+    image: ella-core:hahandover
     restart: unless-stopped
     entrypoint: /bin/core --config /cfg/core.yaml
     privileged: true
@@ -46,7 +46,7 @@ services:
               com.docker.network.endpoint.ifname: n6
         ipv4_address: 10.6.0.12
   ella-core-3:
-    image: ella-core:latest
+    image: ella-core:hahandover
     restart: unless-stopped
     entrypoint: /bin/core --config /cfg/core.yaml
     privileged: true
@@ -69,7 +69,7 @@ services:
               com.docker.network.endpoint.ifname: n6
         ipv4_address: 10.6.0.13
   ella-core-tester:
-    image: ella-core-tester:latest
+    image: ella-core-tester:hahandover
     entrypoint:
       - /bin/sh
       - -c
