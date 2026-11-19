@@ -241,7 +241,7 @@ func TestInterworkingRefusedRANSetupDropsThe5GSRoutingContext(t *testing.T) {
 
 	calls := amfCb.dropped()
 	if len(calls) != before+1 {
-		t.Fatalf("AMF SessionDropped calls = %d, want %d: its routing context outlives the move it was created for", len(calls), before+1)
+		t.Fatalf("AMF SMContextStatusNotifyRelease calls = %d, want %d: its routing context outlives the move it was created for", len(calls), before+1)
 	}
 
 	if calls[len(calls)-1].n2Transfer != nil {
@@ -568,7 +568,7 @@ func TestInterworkingExpiredMoveDropsThe5GSRoutingContext(t *testing.T) {
 
 	calls := amfCb.dropped()
 	if len(calls) != before+1 {
-		t.Fatalf("AMF SessionDropped calls = %d, want %d: the routing context outlives the move that created it", len(calls), before+1)
+		t.Fatalf("AMF SMContextStatusNotifyRelease calls = %d, want %d: the routing context outlives the move that created it", len(calls), before+1)
 	}
 
 	if s.GetSession(bearer.Ref) == nil {

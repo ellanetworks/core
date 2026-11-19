@@ -41,12 +41,6 @@ func forward5GSMMessageToSMF(
 
 	response, err := amfInstance.Session.UpdateSmContextN1Msg(ctx, smContextRef, smMessage)
 	if err != nil {
-		// Kept, it survives the UE's whole registration, keeps the PDU session ID
-		// looking occupied, and leaves the reconciler working a dead reference.
-		if errors.Is(err, smf.ErrSMContextNotFound) {
-			ue.DeleteSmContext(pduSessionID)
-		}
-
 		logger.From(ctx, logger.AmfLog).Warn("couldn't send update sm context request", zap.Error(err))
 
 		return
@@ -55,11 +49,6 @@ func forward5GSMMessageToSMF(
 	if response == nil {
 		logger.From(ctx, logger.AmfLog).Debug("SMF did not return any N1/N2 message", logger.PDUSessionID(pduSessionID))
 		return
-	}
-
-	// No later signal would drop the routing context.
-	if response.SessionRemoved {
-		ue.DeleteSmContext(pduSessionID)
 	}
 
 	var plain []byte

@@ -191,6 +191,10 @@ func TestT3592RetransmitsThenReleasesLocally(t *testing.T) {
 		t.Errorf("ReleaseSession calls = %d, want 5 (1 initial + 4 retransmissions)", got)
 	}
 
+	if calls := amfCb.dropped(); len(calls) != 1 || calls[0].ref != ref || calls[0].pduSessionID != smCtx.PDUSessionID {
+		t.Errorf("AMF release notifications = %+v, want one for %s", calls, ref)
+	}
+
 	// The user plane, held through the release window, is torn down on the T3592
 	// abort (item 8).
 	store.mu.Lock()
@@ -252,7 +256,7 @@ func TestT3592StopsOnReleaseComplete(t *testing.T) {
 		t.Fatalf("release complete: %v", err)
 	}
 
-	if _, err := s.UpdateSmContextN2InfoPduResRelRsp(context.Background(), ref); err != nil {
+	if err := s.UpdateSmContextN2InfoPduResRelRsp(context.Background(), ref); err != nil {
 		t.Fatalf("N2 release response: %v", err)
 	}
 

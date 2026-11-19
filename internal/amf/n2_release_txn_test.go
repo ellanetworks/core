@@ -15,10 +15,10 @@ type releaseGuardTestSmf struct {
 	relRspCalls []string
 }
 
-func (s *releaseGuardTestSmf) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, ref string) (bool, error) {
+func (s *releaseGuardTestSmf) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, ref string) error {
 	s.relRspCalls = append(s.relRspCalls, ref)
 
-	return false, nil
+	return nil
 }
 
 func releaseGuardFixture(t *testing.T) (*UeConn, *releaseGuardTestSmf) {

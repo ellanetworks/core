@@ -85,7 +85,7 @@ func TestErrorIndicationBuffersAndRepagesA5GSSession(t *testing.T) {
 		t.Errorf("the user plane was re-activated before the release was acknowledged: %d transfers", len(amfCb.pageCalls))
 	}
 
-	if _, err := s.UpdateSmContextN2InfoPduResRelRsp(context.Background(), ref); err != nil {
+	if err := s.UpdateSmContextN2InfoPduResRelRsp(context.Background(), ref); err != nil {
 		t.Fatalf("UpdateSmContextN2InfoPduResRelRsp: %v", err)
 	}
 
@@ -106,7 +106,7 @@ func TestAccessReleaseKeepsThePDUSessionEstablished(t *testing.T) {
 		t.Fatalf("HandleErrorIndicationReport: %v", err)
 	}
 
-	if _, err := s.UpdateSmContextN2InfoPduResRelRsp(context.Background(), ref); err != nil {
+	if err := s.UpdateSmContextN2InfoPduResRelRsp(context.Background(), ref); err != nil {
 		t.Fatalf("UpdateSmContextN2InfoPduResRelRsp: %v", err)
 	}
 
@@ -337,7 +337,7 @@ func TestUnansweredAccessReleaseDoesNotSwallowASessionRelease(t *testing.T) {
 
 	before := len(amfCb.pageCalls)
 
-	if _, err := s.UpdateSmContextN2InfoPduResRelRsp(context.Background(), ref); err != nil {
+	if err := s.UpdateSmContextN2InfoPduResRelRsp(context.Background(), ref); err != nil {
 		t.Fatalf("UpdateSmContextN2InfoPduResRelRsp: %v", err)
 	}
 

@@ -118,7 +118,7 @@ func TestTransferIdle5GSToEPSKeepsTheSessionWithTheUserPlaneDown(t *testing.T) {
 
 	calls := amfCb.dropped()
 	if len(calls) != 1 {
-		t.Fatalf("AMF SessionDropped calls = %d, want 1", len(calls))
+		t.Fatalf("AMF SMContextStatusNotifyRelease calls = %d, want 1", len(calls))
 	}
 
 	if calls[0].ref != sc.Ref || calls[0].pduSessionID != movedPDUSessionID {
