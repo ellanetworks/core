@@ -122,7 +122,7 @@ type AMFCallback interface {
 	ReleaseSession(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Transfer []byte) error
 	ReleaseAccessResources(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n2Transfer []byte) error
 	N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte, arp *models.Arp) (models.N1N2MessageTransferCause, error)
-	SessionDropped(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte)
+	SMContextStatusNotifyRelease(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte)
 	AssignEPSBearerIdentity(supi etsi.SUPI, pduSessionID uint8, ref string) (uint8, error)
 	ReleaseEPSBearerIdentities(supi etsi.SUPI, pduSessionID uint8, ref string, ebis []uint8)
 }
@@ -389,6 +389,10 @@ func (s *SMF) dropFromPool(ctx context.Context, sc *SMContext, release models.Se
 
 	if h := sc.hplmnSubscription(); h != nil {
 		h.Close()
+	}
+
+	if s.amf != nil {
+		s.amf.SMContextStatusNotifyRelease(ctx, sc.Supi, sc.PDUSessionID, sc.Ref, nil)
 	}
 }
 

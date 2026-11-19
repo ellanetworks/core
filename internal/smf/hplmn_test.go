@@ -366,8 +366,7 @@ func TestHPLMNDeregistrationReleasesTheSession(t *testing.T) {
 		inPool   bool
 		releases int
 	}{
-		"duplicate":           {how: smf.HPLMNReleaseDuplicate},
-		"duplicate via ePDG":  {how: smf.HPLMNReleaseDuplicateNotify, dropped: 1},
+		"duplicate":           {how: smf.HPLMNReleaseDuplicate, dropped: 1},
 		"reactivation":        {how: smf.HPLMNReleaseReactivate, signal: fgs.GSMCauseReactivationRequested, inPool: true, releases: 1},
 		"other home decision": {how: smf.HPLMNReleaseDeactivate, signal: fgs.GSMCauseRegularDeactivation, inPool: true, releases: 1},
 	} {

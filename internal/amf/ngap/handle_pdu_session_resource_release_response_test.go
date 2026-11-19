@@ -7,6 +7,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/ngap"
@@ -102,11 +103,26 @@ func TestHandlePDUSessionResourceReleaseResponse_N2SessionClearedBeforeSMFNotifi
 }
 
 func TestHandlePDUSessionResourceReleaseResponse_N2SessionClearedWhenSMFRemovesSession(t *testing.T) {
-	fakeSmf := &fakeSmfSbi{PduResRelRspRemoved: true}
+	supi, err := etsi.NewSUPIFromIMSI("001010000000001")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fakeSmf := &fakeSmfSbi{}
 	amfInstance := newTestAMFWithSmfAndDB(fakeSmf)
 	ran := newTestRadio(amfInstance)
 
+	fakeSmf.PduResRelRspHook = func(ref string) {
+		amfInstance.SMContextStatusNotifyRelease(context.Background(), supi, 1, ref, nil)
+	}
+
 	amfUe := amf.NewUeContext()
+	amfUe.SetSupiForTest(supi)
+
+	if err := amfInstance.AddUeContextToPoolForTest(amfUe); err != nil {
+		t.Fatal(err)
+	}
+
 	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
 		Snssai: &models.Snssai{Sst: 1},

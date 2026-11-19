@@ -69,7 +69,6 @@ const (
 	HPLMNReleaseDeactivate
 	HPLMNReleaseRejected
 	HPLMNReleaseDuplicate
-	HPLMNReleaseDuplicateNotify
 )
 
 type hplmnBinding struct {
@@ -344,7 +343,7 @@ func (s *SMF) releaseHPLMNBoundSession(ctx context.Context, sc *SMContext, h HPL
 		return
 	}
 
-	supi, pduSessionID, ref := sc.Supi, sc.PDUSessionID, sc.Ref
+	supi, ref := sc.Supi, sc.Ref
 
 	if how == HPLMNReleaseReactivate || how == HPLMNReleaseDeactivate || how == HPLMNReleaseRejected {
 		if sc.releasing {
@@ -360,18 +359,12 @@ func (s *SMF) releaseHPLMNBoundSession(ctx context.Context, sc *SMContext, h HPL
 
 		logger.From(ctx, logger.SmfLog).Warn("could not signal the release of a visitor's PDU session; removing it locally",
 			logger.SUPI(supi.String()), logger.SMContextRef(ref), zap.Error(err))
-
-		how = HPLMNReleaseDuplicateNotify
 	}
 
 	sc.stopProcedureTimer()
 	sc.abandonPendingLocked()
 	s.teardownAndRemove(ctx, sc, models.ReleaseFor(reason))
 	sc.Mutex.Unlock()
-
-	if how == HPLMNReleaseDuplicateNotify && s.amf != nil {
-		s.amf.SessionDropped(ctx, supi, pduSessionID, ref, nil)
-	}
 }
 
 func (s *SMF) ReconcileHPLMNBoundSessions(ctx context.Context, supi etsi.SUPI) {

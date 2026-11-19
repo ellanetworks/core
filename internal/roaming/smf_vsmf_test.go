@@ -522,7 +522,7 @@ func TestVSMFDeregistrationNotification(t *testing.T) {
 	}{
 		"duplicate":    {wire.DeregDuplicatePDUSession, smf.HPLMNReleaseDuplicate, 0},
 		"transferred":  {wire.DeregSMFContextTransferred, smf.HPLMNReleaseDuplicate, 0},
-		"ePDG":         {wire.DeregDuplicatePDUSessionEPDG, smf.HPLMNReleaseDuplicateNotify, 0},
+		"ePDG":         {wire.DeregDuplicatePDUSessionEPDG, smf.HPLMNReleaseDuplicate, 0},
 		"reactivation": {wire.DeregPDUSessionReactivationRequired, smf.HPLMNReleaseReactivate, 1},
 		"other":        {wire.DeregSubscriptionWithdrawn, smf.HPLMNReleaseDeactivate, 0},
 	} {

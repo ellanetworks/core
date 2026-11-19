@@ -68,7 +68,6 @@ func (s *SMF) startReleaseWithBackoff(ctx context.Context, smContext *SMContext,
 		if errors.Is(err, ErrUENotReachable) {
 			// No UE to acknowledge and the user plane is already released, so remove
 			// the SM context immediately.
-			s.amf.SessionDropped(ctx, supi, pduSessionID, smContext.Ref, nil)
 			s.removeSessionUnlocked(ctx, smContext.Ref, release)
 
 			return nil

@@ -162,7 +162,7 @@ func (s *SMF) prepareTransfer(ctx context.Context, sc *SMContext, req transferRe
 			zap.Stringer("to", move.to))
 
 		if move.to == Access5G && s.amf != nil {
-			s.amf.SessionDropped(ctx, supi, pduSessionID, ref, nil)
+			s.amf.SMContextStatusNotifyRelease(ctx, supi, pduSessionID, ref, nil)
 		}
 	})
 
@@ -251,30 +251,34 @@ func (s *SMF) dropSourceRouting(ctx context.Context, ref string, dropped *droppe
 		}
 
 		// TS 23.502 §4.11.2.2 step 14
-		var n2Release []byte
-
 		if sc := s.GetSession(ref); sc != nil {
 			sc.Mutex.Lock()
 			sc.recordN2Release(n2ReleaseSession)
 			sc.Mutex.Unlock()
 		}
 
-		if dropped.upActive {
-			built, err := ngap.BuildPDUSessionResourceReleaseCommandTransfer()
-			if err != nil {
-				logger.From(ctx, logger.SmfLog).Warn("failed to build the N2 release for a moved session; dropping routing only",
-					zap.Error(err), logger.SUPI(dropped.supi.String()), logger.PDUSessionID(dropped.id.PDUSessionID))
-			} else {
-				n2Release = built
-			}
-		}
-
-		s.amf.SessionDropped(ctx, dropped.supi, dropped.id.PDUSessionID, ref, n2Release)
+		s.amf.SMContextStatusNotifyRelease(ctx, dropped.supi, dropped.id.PDUSessionID, ref, sourceN2Release(ctx, dropped))
 	case Access4G:
 		if s.mme != nil {
 			s.mme.SessionDropped(ctx, dropped.supi.IMSI(), dropped.id.EBI, ref)
 		}
 	}
+}
+
+func sourceN2Release(ctx context.Context, dropped *droppedSource) []byte {
+	if !dropped.upActive {
+		return nil
+	}
+
+	built, err := ngap.BuildPDUSessionResourceReleaseCommandTransfer()
+	if err != nil {
+		logger.From(ctx, logger.SmfLog).Warn("failed to build the N2 release for a moved session; dropping routing only",
+			zap.Error(err), logger.SUPI(dropped.supi.String()), logger.PDUSessionID(dropped.id.PDUSessionID))
+
+		return nil
+	}
+
+	return built
 }
 
 func (sc *SMContext) discardOutstandingProcedures() {

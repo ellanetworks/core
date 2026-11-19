@@ -416,8 +416,8 @@ func (a *smfAMFAdapter) N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pd
 	})
 }
 
-func (a *smfAMFAdapter) SessionDropped(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte) {
-	a.amf.SessionDropped(ctx, supi, pduSessionID, ref, n2Transfer)
+func (a *smfAMFAdapter) SMContextStatusNotifyRelease(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte) {
+	a.amf.SMContextStatusNotifyRelease(ctx, supi, pduSessionID, ref, n2Transfer)
 }
 
 type smfMMEAdapter struct {

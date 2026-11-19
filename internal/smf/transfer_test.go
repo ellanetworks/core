@@ -193,7 +193,7 @@ func TestTransfer5GSToEPSKeepsTheSession(t *testing.T) {
 
 	calls := amfCb.dropped()
 	if len(calls) != 1 {
-		t.Fatalf("AMF SessionDropped calls = %d, want 1", len(calls))
+		t.Fatalf("AMF SMContextStatusNotifyRelease calls = %d, want 1", len(calls))
 	}
 
 	if calls[0].ref != sc.Ref || calls[0].pduSessionID != 3 {
@@ -1016,7 +1016,7 @@ func TestTransferFromAnIdle5GSSessionSendsNoN2Release(t *testing.T) {
 
 	calls := amfCb.dropped()
 	if len(calls) != 1 {
-		t.Fatalf("AMF SessionDropped calls = %d, want 1", len(calls))
+		t.Fatalf("AMF SMContextStatusNotifyRelease calls = %d, want 1", len(calls))
 	}
 
 	if calls[0].n2Transfer != nil {

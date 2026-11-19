@@ -108,15 +108,8 @@ func (ueConn *UeConn) expireN2Release(link trace.SpanContext, pduSessionID uint8
 		return
 	}
 
-	removed, err := ueConn.amf.Session.UpdateSmContextN2InfoPduResRelRsp(ctx, smContext.Ref)
-	if err != nil {
+	if err := ueConn.amf.Session.UpdateSmContextN2InfoPduResRelRsp(ctx, smContext.Ref); err != nil {
 		ueConn.Log(ctx).Error("could not complete an unanswered PDU session resource release at the SMF",
 			logger.PDUSessionID(pduSessionID), zap.Error(err))
-
-		return
-	}
-
-	if removed {
-		ue.DeleteSmContext(pduSessionID)
 	}
 }
