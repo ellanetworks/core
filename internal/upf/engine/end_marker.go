@@ -95,6 +95,14 @@ func (conn *SessionEngine) sendEndMarkers(targets []endMarkerTarget) {
 		return
 	}
 
+	if q := conn.downlinkQueue(); q != nil {
+		if err := conn.WaitForDatapath(); err != nil {
+			logger.UpfLog.Warn("failed to wait for the datapath before sending End Markers", zap.Error(err))
+		}
+
+		q.Flush()
+	}
+
 	device := conn.N3VRFDevice()
 
 	for _, t := range targets {

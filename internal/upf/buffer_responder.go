@@ -108,7 +108,7 @@ func (b *BufferResponder) sendFrame(fd int, frame []byte) error {
 // Start creates the injection veth pair, attaches the downlink program,
 // and starts the consumer.
 func (b *BufferResponder) Start() error {
-	if err := createVethPair(VethBufName, VethBufXDPName); err != nil {
+	if err := createVethPair(VethBufName, VethBufXDPName, vethMTU); err != nil {
 		return fmt.Errorf("create injection veth pair: %w", err)
 	}
 

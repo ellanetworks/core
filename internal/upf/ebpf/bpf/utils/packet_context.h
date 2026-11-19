@@ -131,6 +131,11 @@ struct packet_context {
 	__u8 ni_id;
 };
 
+static __always_inline __u32 n3_mtu_ifindex(void)
+{
+	return n3_routing_ifindex ? n3_routing_ifindex : (__u32)n3_ifindex;
+}
+
 static __always_inline bool frame_is_reassembled(struct __ctx_buff *ctx)
 {
 	return reasm_veth_ifindex != 0 &&

@@ -26,3 +26,21 @@ func (pc *SessionEngine) downlinkBuffer() DownlinkBuffer {
 
 	return pc.dlBuffer
 }
+
+type DownlinkQueue interface {
+	Flush()
+}
+
+func (pc *SessionEngine) SetDownlinkQueue(q DownlinkQueue) {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+
+	pc.dlQueue = q
+}
+
+func (pc *SessionEngine) downlinkQueue() DownlinkQueue {
+	pc.mu.RLock()
+	defer pc.mu.RUnlock()
+
+	return pc.dlQueue
+}

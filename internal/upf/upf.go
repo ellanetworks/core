@@ -283,7 +283,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		se.SetDownlinkBuffer(bufferResponder)
 	}
 
-	n3Ifindexes := []int{n3Iface.Index, n3RoutingIface.Index}
+	n3Ifindexes := []int{n3RoutingIface.Index}
 
 	if n3VRFDevice != "" {
 		if vrf, err := net.InterfaceByName(n3VRFDevice); err == nil {
@@ -299,6 +299,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		_ = fragResponder.Close()
 	} else {
 		upf.fragResponder = fragResponder
+		se.SetDownlinkQueue(fragResponder)
 	}
 
 	if err := enslaveVethPairsToReferenceVRF(n3Interface.Name); err != nil {

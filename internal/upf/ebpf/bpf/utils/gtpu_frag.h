@@ -88,7 +88,8 @@ __noinline __weak int frag_tx_offload(struct __ctx_buff *ctx_buff, __u32 off,
 	if (!ctx_buff)
 		return FRAG_TX_FAILED;
 
-	const long fits = bpf_check_mtu(ctx_buff, n3_ifindex, &mtu_len, 0, 0);
+	const long fits =
+		bpf_check_mtu(ctx_buff, n3_mtu_ifindex(), &mtu_len, 0, 0);
 	if (fits < 0)
 		return FRAG_TX_FAILED;
 	if (fits == 0)

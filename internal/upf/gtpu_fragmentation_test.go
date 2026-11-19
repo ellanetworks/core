@@ -368,3 +368,164 @@ func TestErrorIndicationPDUIPv6PeerAddress(t *testing.T) {
 		t.Errorf("IPv6 Error Indication = % x, want 36 bytes, length 28, a 16-byte peer address", pdu)
 	}
 }
+
+func innerIPv4(proto byte, l4 []byte, fragOff uint16) []byte {
+	ip := make([]byte, ipv4HeaderLen+len(l4))
+	ip[0] = 0x45
+	binary.BigEndian.PutUint16(ip[2:4], uint16(len(ip)))
+	binary.BigEndian.PutUint16(ip[6:8], fragOff)
+	ip[8], ip[9] = 64, proto
+	copy(ip[12:16], []byte{10, 6, 0, 3})
+	copy(ip[16:20], []byte{10, 45, 0, 1})
+	copy(ip[ipv4HeaderLen:], l4)
+
+	return ip
+}
+
+func innerIPv6(proto byte, l4 []byte) []byte {
+	ip := make([]byte, ipv6HeaderLen+len(l4))
+	ip[0] = 0x60
+	binary.BigEndian.PutUint16(ip[4:6], uint16(len(l4)))
+	ip[6], ip[7] = proto, 64
+	ip[8], ip[23] = 0xfd, 1
+	ip[24], ip[39] = 0xfd, 2
+	copy(ip[ipv6HeaderLen:], l4)
+
+	return ip
+}
+
+func gpduWithPSC(inner []byte) []byte {
+	pdu := make([]byte, 16+len(inner))
+	pdu[0], pdu[1] = 0x34, gtpuMsgGPDU
+	binary.BigEndian.PutUint16(pdu[2:4], uint16(len(pdu)-8))
+	binary.BigEndian.PutUint32(pdu[4:8], 0xabcd)
+	pdu[11] = 0x85
+	pdu[12], pdu[13], pdu[14], pdu[15] = 1, 0, 9, 0
+	copy(pdu[16:], inner)
+
+	return pdu
+}
+
+func gpduWithoutOptional(inner []byte) []byte {
+	pdu := make([]byte, 8+len(inner))
+	pdu[0], pdu[1] = 0x30, gtpuMsgGPDU
+	binary.BigEndian.PutUint16(pdu[2:4], uint16(len(inner)))
+	copy(pdu[8:], inner)
+
+	return pdu
+}
+
+func l4Segment(proto byte, csumOff int, size int) []byte {
+	l4 := make([]byte, size)
+	binary.BigEndian.PutUint16(l4[0:2], 5001)
+	binary.BigEndian.PutUint16(l4[2:4], 40000)
+
+	if proto == ipProtoUDP {
+		binary.BigEndian.PutUint16(l4[4:6], uint16(size))
+	} else {
+		l4[12] = 0x50
+	}
+
+	for i := csumOff + 2; i < size; i++ {
+		if proto == ipProtoTCP && i < 20 {
+			continue
+		}
+
+		l4[i] = byte(i * 7)
+	}
+
+	binary.BigEndian.PutUint16(l4[csumOff:csumOff+2], 0x1234)
+
+	return l4
+}
+
+func l4ChecksumValid(ip []byte) bool {
+	var (
+		pseudo uint16
+		proto  byte
+		l4     []byte
+	)
+
+	if ip[0]>>4 == 4 {
+		proto, l4 = ip[9], ip[ipv4HeaderLen:]
+		pseudo = onesComplementSum(0, ip[12:20])
+	} else {
+		proto, l4 = ip[6], ip[ipv6HeaderLen:]
+		pseudo = onesComplementSum(0, ip[8:40])
+	}
+
+	pseudo = onesComplementSum(pseudo, []byte{0, 0, byte(len(l4) >> 8), byte(len(l4)), 0, 0, 0, proto})
+
+	return onesComplementSum(pseudo, l4) == 0xffff
+}
+
+func TestFinalizeInnerChecksumCompletesPendingChecksums(t *testing.T) {
+	tests := []struct {
+		name  string
+		inner []byte
+		wrap  func([]byte) []byte
+	}{
+		{"IPv4 UDP over N3", innerIPv4(ipProtoUDP, l4Segment(ipProtoUDP, udpChecksumOffset, 1473), 0x4000), gpduWithPSC},
+		{"IPv4 TCP over N3", innerIPv4(ipProtoTCP, l4Segment(ipProtoTCP, tcpChecksumOffset, 1460), 0), gpduWithPSC},
+		{"IPv6 UDP over N3", innerIPv6(ipProtoUDP, l4Segment(ipProtoUDP, udpChecksumOffset, 1400)), gpduWithPSC},
+		{"IPv6 TCP over S1-U", innerIPv6(ipProtoTCP, l4Segment(ipProtoTCP, tcpChecksumOffset, 1400)), gpduWithoutOptional},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			pdu := tc.wrap(tc.inner)
+
+			finalizeInnerChecksum(pdu)
+
+			if !l4ChecksumValid(gtpuInnerPacket(pdu)) {
+				t.Fatal("inner L4 checksum is not valid")
+			}
+		})
+	}
+}
+
+func TestFinalizeInnerChecksumLeavesUnchecksummedPacketsAlone(t *testing.T) {
+	noChecksum := l4Segment(ipProtoUDP, udpChecksumOffset, 100)
+	binary.BigEndian.PutUint16(noChecksum[6:8], 0)
+
+	tests := []struct {
+		name  string
+		inner []byte
+	}{
+		{"IPv4 UDP without checksum", innerIPv4(ipProtoUDP, noChecksum, 0)},
+		{"IPv4 first fragment", innerIPv4(ipProtoUDP, l4Segment(ipProtoUDP, udpChecksumOffset, 100), 0x2000)},
+		{"IPv4 later fragment", innerIPv4(ipProtoUDP, l4Segment(ipProtoUDP, udpChecksumOffset, 100), 0x0010)},
+		{"IPv4 ICMP", innerIPv4(1, l4Segment(ipProtoUDP, udpChecksumOffset, 100), 0)},
+		{"IPv6 fragment header", innerIPv6(44, l4Segment(ipProtoUDP, udpChecksumOffset, 100))},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			pdu := gpduWithPSC(tc.inner)
+			want := bytes.Clone(pdu)
+
+			finalizeInnerChecksum(pdu)
+
+			if !bytes.Equal(pdu, want) {
+				t.Fatal("finalizeInnerChecksum changed a packet it cannot checksum")
+			}
+		})
+	}
+}
+
+func TestFinalizeInnerChecksumIgnoresTruncatedGTPU(t *testing.T) {
+	pdu := gpduWithPSC(innerIPv4(ipProtoUDP, l4Segment(ipProtoUDP, udpChecksumOffset, 100), 0))
+
+	for n := range 16 + ipv4HeaderLen + udpChecksumOffset + 2 {
+		finalizeInnerChecksum(bytes.Clone(pdu[:n]))
+	}
+
+	pdu[12] = 0
+	want := bytes.Clone(pdu)
+
+	finalizeInnerChecksum(pdu)
+
+	if !bytes.Equal(pdu, want) {
+		t.Fatal("finalizeInnerChecksum changed a packet with a zero-length extension header")
+	}
+}

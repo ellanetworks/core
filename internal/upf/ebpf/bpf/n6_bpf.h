@@ -246,7 +246,8 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		encap_size -=
 			GTP_PSC_EXT_SIZE; /* S1-U: no PDU session container */
 	}
-	ret = bpf_check_mtu(ctx->ctx_buff, n3_ifindex, &mtu_len, encap_size, 0);
+	ret = bpf_check_mtu(ctx->ctx_buff, n3_mtu_ifindex(), &mtu_len, encap_size,
+			    0);
 	PROFILE_END(PROF_N6_MTU_CHECK);
 	if (ret < 0) {
 		return abort_with(ctx, UPF_DROP_INTERNAL_MTU_CHECK_FAILED);
@@ -440,7 +441,7 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 			GTP_PSC_EXT_SIZE; /* S1-U: no PDU session container */
 	}
 	__u32 mtu_len = 0;
-	long ret = bpf_check_mtu(ctx->ctx_buff, n3_ifindex, &mtu_len,
+	long ret = bpf_check_mtu(ctx->ctx_buff, n3_mtu_ifindex(), &mtu_len,
 				 encap_size, 0);
 	if (ret < 0) {
 		return abort_with(ctx, UPF_DROP_INTERNAL_MTU_CHECK_FAILED);

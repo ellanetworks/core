@@ -11,6 +11,7 @@ import (
 	"net/netip"
 	"os"
 	"sync"
+	"time"
 
 	bpf "github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -27,21 +28,28 @@ const (
 	VethReasmName    = "veth-reasm"
 	VethReasmXDPName = "veth-reasm-xdp"
 
-	gtpuPort        = 2152
-	gtpuMsgGPDU     = 0xff
-	gtpuMsgErrorInd = 26
-	gtpuIETEIDData  = 16
-	gtpuIEPeerAddr  = 133
-	gtpuMinHeader   = 8
-	ethHeaderLen    = 14
-	ipv4HeaderLen   = 20
-	ipv6HeaderLen   = 40
-	udpHeaderLen    = 8
-	reinjectTTL     = 64
-	ipProtoUDP      = 17
-	etherTypeIPv4   = 0x0800
-	etherTypeIPv6   = 0x86DD
-	maxReinjectedIP = vethMTU
+	gtpuPort          = 2152
+	gtpuMsgGPDU       = 0xff
+	gtpuMsgErrorInd   = 26
+	gtpuIETEIDData    = 16
+	gtpuIEPeerAddr    = 133
+	gtpuMinHeader     = 8
+	gtpuFlagsOptional = 0x07
+	gtpuFlagExtension = 0x04
+	ipProtoTCP        = 6
+	tcpChecksumOffset = 16
+	udpChecksumOffset = 6
+	ethHeaderLen      = 14
+	ipv4HeaderLen     = 20
+	ipv6HeaderLen     = 40
+	udpHeaderLen      = 8
+	reinjectTTL       = 64
+	ipProtoUDP        = 17
+	etherTypeIPv4     = 0x0800
+	etherTypeIPv6     = 0x86DD
+	maxReinjectedIP   = 9216
+
+	fragTxFlushTimeout = 100 * time.Millisecond
 )
 
 const (
@@ -79,6 +87,8 @@ type FragmentationResponder struct {
 	done     chan struct{}
 
 	mu       sync.Mutex
+	flushMu  sync.Mutex
+	flushed  chan struct{}
 	injectFD int
 	injectSA unix.SockaddrLinklayer
 	closed   bool
@@ -111,7 +121,7 @@ func NewFragmentationResponder(bpfObjects *ebpf.BpfObjects, gtpu gtpuSender, kno
 }
 
 func (f *FragmentationResponder) Start() error {
-	if err := createVethPair(VethReasmName, VethReasmXDPName); err != nil {
+	if err := createVethPair(VethReasmName, VethReasmXDPName, maxReinjectedIP); err != nil {
 		return fmt.Errorf("create reassembly veth pair: %w", err)
 	}
 
@@ -452,6 +462,17 @@ func (f *FragmentationResponder) consume() {
 			return
 		}
 
+		if errors.Is(err, ringbuf.ErrFlushed) {
+			f.mu.Lock()
+			if f.flushed != nil {
+				close(f.flushed)
+				f.flushed = nil
+			}
+			f.mu.Unlock()
+
+			continue
+		}
+
 		if err != nil {
 			logger.UpfLog.Warn("frag_tx ring read error", zap.Error(err))
 			continue
@@ -461,12 +482,46 @@ func (f *FragmentationResponder) consume() {
 	}
 }
 
+func (f *FragmentationResponder) Flush() {
+	if f.reader == nil {
+		return
+	}
+
+	f.flushMu.Lock()
+	defer f.flushMu.Unlock()
+
+	flushed := make(chan struct{})
+
+	f.mu.Lock()
+	if f.closed {
+		f.mu.Unlock()
+		return
+	}
+
+	f.flushed = flushed
+	f.mu.Unlock()
+
+	if err := f.reader.Flush(); err != nil {
+		return
+	}
+
+	timer := time.NewTimer(fragTxFlushTimeout)
+	defer timer.Stop()
+
+	select {
+	case <-flushed:
+	case <-timer.C:
+	}
+}
+
 func (f *FragmentationResponder) transmit(pkt []byte) {
 	local, peer, tclass, payload, ok := parseEncapsulatedPacket(pkt)
 	if !ok {
 		gtpuFragmentation.WithLabelValues(directionDownlink, fragTxMalformed).Inc()
 		return
 	}
+
+	finalizeInnerChecksum(payload)
 
 	if err := f.gtpu.SendGTPU(local, peer, tclass, payload); err != nil {
 		gtpuFragmentation.WithLabelValues(directionDownlink, fragTxSendFailed).Inc()
@@ -525,6 +580,117 @@ func parseEncapsulatedPacket(pkt []byte) (local, peer netip.Addr, tclass uint8, 
 	}
 
 	return local, peer, tclass, udp[udpHeaderLen:], true
+}
+
+func gtpuInnerPacket(gtpu []byte) []byte {
+	if len(gtpu) < gtpuMinHeader || gtpu[1] != gtpuMsgGPDU {
+		return nil
+	}
+
+	off := gtpuMinHeader
+	if gtpu[0]&gtpuFlagsOptional == 0 {
+		return gtpu[off:]
+	}
+
+	if len(gtpu) < off+4 {
+		return nil
+	}
+
+	next := gtpu[off+3]
+	off += 4
+
+	if gtpu[0]&gtpuFlagExtension == 0 {
+		return gtpu[off:]
+	}
+
+	for next != 0 {
+		if len(gtpu) <= off || gtpu[off] == 0 {
+			return nil
+		}
+
+		end := off + int(gtpu[off])*4
+		if len(gtpu) < end {
+			return nil
+		}
+
+		next = gtpu[end-1]
+		off = end
+	}
+
+	return gtpu[off:]
+}
+
+func finalizeInnerChecksum(gtpu []byte) {
+	ip := gtpuInnerPacket(gtpu)
+	if len(ip) < ipv4HeaderLen {
+		return
+	}
+
+	var (
+		proto  byte
+		l4     []byte
+		pseudo uint16
+	)
+
+	switch ip[0] >> 4 {
+	case 4:
+		ihl := int(ip[0]&0x0f) * 4
+		total := int(binary.BigEndian.Uint16(ip[2:4]))
+
+		if ihl < ipv4HeaderLen || total < ihl || total > len(ip) || binary.BigEndian.Uint16(ip[6:8])&0x3fff != 0 {
+			return
+		}
+
+		proto = ip[9]
+		l4 = ip[ihl:total]
+		pseudo = onesComplementSum(0, ip[12:20])
+	case 6:
+		if len(ip) < ipv6HeaderLen {
+			return
+		}
+
+		total := ipv6HeaderLen + int(binary.BigEndian.Uint16(ip[4:6]))
+		if total > len(ip) {
+			return
+		}
+
+		proto = ip[6]
+		l4 = ip[ipv6HeaderLen:total]
+		pseudo = onesComplementSum(0, ip[8:40])
+	default:
+		return
+	}
+
+	csumOff := 0
+
+	switch proto {
+	case ipProtoTCP:
+		csumOff = tcpChecksumOffset
+	case ipProtoUDP:
+		csumOff = udpChecksumOffset
+	default:
+		return
+	}
+
+	if len(l4) < csumOff+2 {
+		return
+	}
+
+	if proto == ipProtoUDP && ip[0]>>4 == 4 && binary.BigEndian.Uint16(l4[csumOff:csumOff+2]) == 0 {
+		return
+	}
+
+	l4Len := uint32(len(l4))
+	pseudo = onesComplementSum(pseudo, []byte{byte(l4Len >> 24), byte(l4Len >> 16), byte(l4Len >> 8), byte(l4Len), 0, 0, 0, proto})
+
+	l4[csumOff], l4[csumOff+1] = 0, 0
+
+	csum := ^onesComplementSum(pseudo, l4)
+	if csum == 0 && proto == ipProtoUDP {
+		csum = 0xffff
+	}
+
+	binary.BigEndian.PutUint16(l4[csumOff:csumOff+2], csum)
 }
 
 func registerFragmentationMetrics() {

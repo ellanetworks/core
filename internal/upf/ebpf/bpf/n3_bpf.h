@@ -257,7 +257,7 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 					 GTP_ENCAP_SIZE_IPV4;
 		if (sel->target.far.outer_header_creation & OHC_NO_PSC)
 			encap_size -= GTP_PSC_EXT_SIZE;
-		long mtu_ret = bpf_check_mtu(ctx->ctx_buff, n3_ifindex,
+		long mtu_ret = bpf_check_mtu(ctx->ctx_buff, n3_mtu_ifindex(),
 					     &mtu_len, encap_size, 0);
 		if (mtu_ret < 0)
 			return abort_with(ctx, UPF_DROP_INTERNAL_MTU_CHECK_FAILED);

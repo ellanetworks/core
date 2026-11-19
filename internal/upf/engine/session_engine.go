@@ -34,6 +34,7 @@ type SessionEngine struct {
 	BpfObjects              *ebpf.BpfObjects
 	// Downlink packet buffering; nil disables it.
 	dlBuffer             DownlinkBuffer
+	dlQueue              DownlinkQueue
 	FteIDResourceManager *FteIDResourceManager
 	SdfIndexAllocator    *SdfIndexAllocator
 	natPurge             natPurger
