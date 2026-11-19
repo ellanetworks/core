@@ -109,6 +109,10 @@ func runXnPathSwitch(_ context.Context, env scenarios.Env, _ any) error {
 }
 
 func startXnTargetGNB(env scenarios.Env, n2Address, n3Address string) (*gnb.GnodeB, error) {
+	return startTargetGNB(env, n2Address, n3Address, false)
+}
+
+func startTargetGNB(env scenarios.Env, n2Address, n3Address string, connectAll bool) (*gnb.GnodeB, error) {
 	targetGNB, err := gnb.Start(&gnb.StartOpts{
 		GnbID:           handoverTargetGnbID,
 		MCC:             scenarios.DefaultMCC,
@@ -121,12 +125,13 @@ func startXnTargetGNB(env scenarios.Env, n2Address, n3Address string) (*gnb.Gnod
 		CoreN2Addresses: env.CoreN2Addresses,
 		GnbN2Address:    n2Address,
 		GnbN3Address:    n3Address,
+		ConnectAll:      connectAll,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("start target gNB: %w", err)
 	}
 
-	if _, err := targetGNB.WaitForMessage(gnb.Successful, ngaplib.ProcNGSetup, 2*time.Second); err != nil {
+	if err := targetGNB.AwaitNGSetup(2 * time.Second); err != nil {
 		targetGNB.Close()
 
 		return nil, fmt.Errorf("target gNB: wait NGSetupResponse: %w", err)
@@ -151,6 +156,10 @@ type xnPathSwitchOpts struct {
 func xnPathSwitch(targetGNB *gnb.GnodeB, opts *xnPathSwitchOpts) (*ngaplib.PathSwitchRequestAcknowledge, error) {
 	if err := targetGNB.InheritSelectedPLMN(opts.TargetRANUENGAPID, opts.Source, opts.SourceRANUENGAPID); err != nil {
 		return nil, fmt.Errorf("carry the selected PLMN to the target gNB: %w", err)
+	}
+
+	if err := targetGNB.InheritServingAMF(opts.TargetRANUENGAPID, opts.Source, opts.SourceRANUENGAPID); err != nil {
+		return nil, fmt.Errorf("select the AMF by the GUAMI the source gNB passed over Xn: %w", err)
 	}
 
 	var sessions [16]*gnb.PDUSessionInformation

@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func handleNGSetupResponse(value []byte) error {
+func handleNGSetupResponse(gnb *GnodeB, peer int, value []byte) error {
 	resp, err := ngap.ParseNGSetupResponse(value)
 	if err != nil {
 		return fmt.Errorf("could not parse NGSetupResponse: %w", err)
@@ -24,6 +24,8 @@ func handleNGSetupResponse(value []byte) error {
 		zap.Int("RelativeAMFCapacity", int(derefUint8(resp.RelativeAMFCapacity))),
 		zap.Int("PLMNSupportListCount", len(resp.PLMNSupportList)),
 	)
+
+	gnb.recordServedGUAMIs(peer, resp.ServedGUAMIList)
 
 	return nil
 }

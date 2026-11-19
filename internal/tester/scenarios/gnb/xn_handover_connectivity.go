@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	ngaplib "github.com/ellanetworks/core/ngap"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 )
@@ -42,6 +41,10 @@ func init() {
 }
 
 func runXnHandoverConnectivity(ctx context.Context, env scenarios.Env, _ any) error {
+	return xnHandoverConnectivity(ctx, env, handoverConnectivityOpts{imsi: xnHandoverConnIMSI})
+}
+
+func xnHandoverConnectivity(ctx context.Context, env scenarios.Env, opts handoverConnectivityOpts) error {
 	if len(env.GNBs) < 2 {
 		return fmt.Errorf("xn_handover_connectivity requires at least 2 gNBs, got %d", len(env.GNBs))
 	}
@@ -61,6 +64,7 @@ func runXnHandoverConnectivity(ctx context.Context, env scenarios.Env, _ any) er
 		CoreN2Addresses: env.CoreN2Addresses,
 		GnbN2Address:    sourceGNBSpec.N2Address,
 		GnbN3Address:    sourceGNBSpec.N3Address,
+		ConnectAll:      opts.connectAll,
 	})
 	if err != nil {
 		return fmt.Errorf("start source gNB: %w", err)
@@ -68,11 +72,11 @@ func runXnHandoverConnectivity(ctx context.Context, env scenarios.Env, _ any) er
 
 	defer sourceGNB.Close()
 
-	if _, err := sourceGNB.WaitForMessage(gnb.Successful, ngaplib.ProcNGSetup, 2*time.Second); err != nil {
+	if err := sourceGNB.AwaitNGSetup(2 * time.Second); err != nil {
 		return fmt.Errorf("source gNB: wait NGSetupResponse: %w", err)
 	}
 
-	targetGNB, err := startXnTargetGNB(env, targetGNBSpec.N2Address, targetGNBSpec.N3Address)
+	targetGNB, err := startTargetGNB(env, targetGNBSpec.N2Address, targetGNBSpec.N3Address, opts.connectAll)
 	if err != nil {
 		return err
 	}
@@ -81,7 +85,7 @@ func runXnHandoverConnectivity(ctx context.Context, env scenarios.Env, _ any) er
 
 	ranUENGAPID := int64(scenarios.DefaultRANUENGAPID)
 
-	newUE, err := newDefaultUE(sourceGNB, xnHandoverConnIMSI[5:], scenarios.DefaultKey, scenarios.DefaultOPC, scenarios.DefaultSequenceNumber, env.PDUSessionType())
+	newUE, err := newDefaultUE(sourceGNB, opts.imsi[5:], scenarios.DefaultKey, scenarios.DefaultOPC, scenarios.DefaultSequenceNumber, env.PDUSessionType())
 	if err != nil {
 		return fmt.Errorf("create UE: %w", err)
 	}
@@ -94,6 +98,7 @@ func runXnHandoverConnectivity(ctx context.Context, env scenarios.Env, _ any) er
 	}
 
 	sourceAmfUENGAPID := sourceGNB.GetAMFUENGAPID(ranUENGAPID)
+	sourceAMF := sourceGNB.ServingAMFAddress(ranUENGAPID)
 
 	session := registration.Session
 
@@ -162,5 +167,5 @@ func runXnHandoverConnectivity(ctx context.Context, env scenarios.Env, _ any) er
 
 	logger.Logger.Info("Ping successful after the Xn handover", zap.String("dest", pingDest))
 
-	return nil
+	return opts.finish(ctx, env, sourceAMF, targetGNB.ServingAMFAddress(xnHandoverConnRANID), session.UEIPv4, xnHandoverConnRANID)
 }
