@@ -6,6 +6,7 @@ package bgp_test
 import (
 	"context"
 	"net/netip"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +14,8 @@ import (
 	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/kernel"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 // fakeKernel records route operations for test assertions.
@@ -483,6 +486,85 @@ func TestUpdateFilterRemovesNewlyRejectedRoutes(t *testing.T) {
 
 	if deletedCount < 1 {
 		t.Fatalf("expected at least 1 kernel route deletion, got %d", deletedCount)
+	}
+}
+
+func TestRIBPollerSnapshotsOwnedPaths(t *testing.T) {
+	// Pause the poller after its first ownership check, while ListPath still
+	// has another route from the same RIB snapshot to process.
+	checks := make(chan string, 2)
+	resume := make(chan struct{})
+	release := sync.OnceFunc(func() { close(resume) })
+	core, _ := observer.New(zap.DebugLevel)
+	logger := zap.New(core, zap.Hooks(func(entry zapcore.Entry) error {
+		if strings.HasPrefix(entry.Message, "skipping route:") {
+			select {
+			case checks <- entry.Message:
+			default:
+			}
+
+			<-resume
+		}
+
+		return nil
+	}))
+
+	svc := bgp.New(netip.MustParseAddr("10.0.0.1"), netip.Addr{}, logger,
+		bgp.WithKernel(&fakeKernel{}),
+		bgp.WithImportPrefixStore(&fakeImportStore{}),
+		bgp.WithRouteFilter(&bgp.RouteFilter{}),
+	)
+	svc.SetListenPort(-1)
+
+	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000, RouterID: "10.0.0.1"}
+	if err := svc.Start(t.Context(), settings, nil, true); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	t.Cleanup(func() { _ = svc.Stop() })
+	t.Cleanup(release)
+
+	prefixes := []netip.Prefix{
+		netip.MustParsePrefix("10.45.0.1/32"),
+		netip.MustParsePrefix("10.45.0.2/32"),
+	}
+	for _, prefix := range prefixes {
+		if err := svc.Announce(prefix, "imsi"); err != nil {
+			t.Fatalf("Announce failed: %v", err)
+		}
+	}
+
+	waitForOwnedCheck := func() {
+		t.Helper()
+
+		select {
+		case message := <-checks:
+			if message != "skipping route: locally originated" {
+				t.Fatalf("ownership snapshot changed during route sync: %s", message)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("poller did not check route ownership within 5 seconds")
+		}
+	}
+	waitForOwnedCheck()
+
+	// Subscriber churn must not change the poller's ownership snapshot or
+	// require it to hold mu throughout the RIB walk.
+	if err := svc.Announce(netip.MustParsePrefix("10.45.0.3/32"), "new-imsi"); err != nil {
+		t.Fatalf("concurrent Announce failed: %v", err)
+	}
+
+	for _, prefix := range prefixes {
+		if err := svc.Withdraw(prefix); err != nil {
+			t.Fatalf("concurrent Withdraw failed: %v", err)
+		}
+	}
+
+	release()
+	waitForOwnedCheck()
+
+	if routes := svc.GetLearnedRoutes(); len(routes) != 0 {
+		t.Fatalf("locally originated routes must not be learned: %+v", routes)
 	}
 }
 
