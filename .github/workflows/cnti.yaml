@@ -122,7 +122,7 @@ jobs:
         run: |
           kubectl delete namespace ella --ignore-not-found --wait --timeout=5m
           kubectl create namespace ella
-          kubectl label namespace ella pod-security.kubernetes.io/enforce=privileged
+          kubectl label namespace ella pod-security.kubernetes.io/enforce=privileged pod-security.kubernetes.io/warn=privileged
           helm install ella-core charts/ella-core --namespace ella
           kubectl -n ella wait --for=jsonpath='{.status.phase}'=Running pod/ella-core-0 --timeout=10m
           kubectl -n ella port-forward pod/ella-core-0 5002:5002 &

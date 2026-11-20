@@ -10,7 +10,7 @@ The cluster must meet the [Kubernetes requirements](https://docs.ellanetworks.co
 
 ```bash
 kubectl create namespace ella
-kubectl label namespace ella pod-security.kubernetes.io/enforce=privileged
+kubectl label namespace ella pod-security.kubernetes.io/enforce=privileged pod-security.kubernetes.io/warn=privileged
 helm install ella-core oci://ghcr.io/ellanetworks/charts/ella-core --namespace ella -f values.yaml
 ```
 

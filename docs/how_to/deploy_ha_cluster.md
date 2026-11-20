@@ -29,7 +29,7 @@ Ella Core can be deployed as a high-availability cluster to provide redundancy a
 
     ```bash
     kubectl create namespace ella
-    kubectl label namespace ella pod-security.kubernetes.io/enforce=privileged
+    kubectl label namespace ella pod-security.kubernetes.io/enforce=privileged pod-security.kubernetes.io/warn=privileged
     ```
 
     Create `values.yaml`. Set `master` to the host interface that connects to your radios, and each node's `ranAddress` to its N2/N3 address:

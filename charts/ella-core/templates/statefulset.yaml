@@ -74,6 +74,7 @@ spec:
           imagePullPolicy: {{ $root.Values.image.pullPolicy }}
           command: ["core"]
           args: ["--config", "/config/config.yaml"]
+          terminationMessagePolicy: FallbackToLogsOnError
           securityContext:
             allowPrivilegeEscalation: false
             seccompProfile:
@@ -121,7 +122,7 @@ spec:
             - name: http
               containerPort: 5002
             {{- if $ha }}
-            - name: cluster
+            - name: tcp-cluster
               containerPort: 7000
             {{- end }}
           volumeMounts:

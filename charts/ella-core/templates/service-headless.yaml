@@ -16,8 +16,8 @@ spec:
       port: 5002
       targetPort: http
     {{- if include "ella-core.ha" . }}
-    - name: cluster
+    - name: tcp-cluster
       protocol: TCP
       port: 7000
-      targetPort: cluster
+      targetPort: 7000
     {{- end }}
