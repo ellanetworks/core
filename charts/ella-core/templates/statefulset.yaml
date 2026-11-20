@@ -129,14 +129,10 @@ spec:
               mountPath: /config
             - name: data
               mountPath: /core/data
-            - name: tmp
-              mountPath: /tmp
       volumes:
         - name: config
           configMap:
             name: {{ $name }}
-        - name: tmp
-          emptyDir: {}
   volumeClaimTemplates:
     - metadata:
         name: data
