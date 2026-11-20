@@ -174,21 +174,38 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
 
 === "Kubernetes"
 
-    Ensure your Kubernetes cluster is running with the [Multus CNI](https://github.com/k8snetworkplumbingwg/multus-cni) installed, and that the `macvlan`, `static`, and `tuning` [CNI plugins](https://github.com/containernetworking/plugins) are present on every node.
+    Ensure your Kubernetes cluster meets the [Kubernetes requirements](../reference/system_reqs.md#kubernetes).
 
-    Download the Ella Core manifests:
+    Create the namespace:
 
     ```bash
-    git clone --depth 1 --branch v1.22.0 https://github.com/ellanetworks/core.git
+    kubectl create namespace ella
+    kubectl label namespace ella pod-security.kubernetes.io/enforce=privileged
     ```
 
-    Edit `core/k8s/core-ran-nad.yaml` to set `master` to the host interface that connects to your radios, and set the N2/N3 address.
+    Create `values.yaml`. Set `master` to the host interface that connects to your radios, and `ranAddress` to the N2/N3 address:
+
+    ```yaml
+    nodes:
+      - ranAddress: 192.168.252.3/24
+    ran:
+      networkAttachment:
+        master: eth1
+    ```
 
     Deploy Ella Core:
 
     ```bash
-    kubectl apply -k core/k8s
+    helm install ella-core oci://ghcr.io/ellanetworks/charts/ella-core --version v1.22.0 --namespace ella -f values.yaml
     ```
 
+    Open the API:
+
+    ```bash
+    kubectl -n ella port-forward service/ella-core 5002:5002
+    ```
+
+    The API address is `http://localhost:5002`. See the [chart reference](https://github.com/ellanetworks/core/tree/main/charts/ella-core) for all values.
+
     !!! note
-        These manifests use `tcx` mode. To use `xdp-native`, move physical N3 and N6 NICs with native XDP support into the pod (e.g. with `host-device`) instead of using macvlan and `eth0`, and put both in a VRF.
+        The chart uses `tcx` mode. To use `xdp-native`, move physical N3 and N6 NICs with native XDP support into the pod (e.g. with `host-device`) instead of using macvlan and `eth0`, and put both in a VRF.

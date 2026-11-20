@@ -4,12 +4,12 @@ on:
   push:
     branches: [main]
     paths:
-      - 'k8s/**'
+      - 'charts/**'
       - '.github/cnti/**'
       - '.github/workflows/cnti.yaml'
   pull_request:
     paths:
-      - 'k8s/**'
+      - 'charts/**'
       - '.github/cnti/**'
       - '.github/workflows/cnti.yaml'
   workflow_dispatch:
@@ -39,6 +39,8 @@ jobs:
       KIND_NODE_IMAGE: kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
       MULTUS_VERSION: v4.3.2
       CNI_PLUGINS_VERSION: v1.9.1
+      HELM_VERSION: v4.3.1
+      HELM_SHA256: 0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b
     steps: &cnti-steps
       - uses: actions/checkout@v7
         with:
@@ -90,10 +92,20 @@ jobs:
           kubectl -n local-path-storage rollout restart deployment/local-path-provisioner
           kubectl -n local-path-storage rollout status deployment/local-path-provisioner --timeout=2m
 
+      - name: Install Helm
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/helm.tgz" "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
+          printf '%s  %s\n' "$HELM_SHA256" "$RUNNER_TEMP/helm.tgz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/helm.tgz" -C "$RUNNER_TEMP" linux-amd64/helm
+          echo "$RUNNER_TEMP/linux-amd64" >> "$GITHUB_PATH"
+
       - name: Render Ella Core manifests
         run: |
           mkdir -p .github/cnti/rendered
-          kubectl kustomize k8s > .github/cnti/rendered/ella-core.yaml
+          {
+            printf 'apiVersion: v1\nkind: Namespace\nmetadata:\n  name: ella\n  labels:\n    pod-security.kubernetes.io/enforce: privileged\n---\n'
+            helm template ella-core charts/ella-core --namespace ella --skip-tests
+          } > .github/cnti/rendered/ella-core.yaml
 
       - name: Run CNTi essential tests
         uses: lfn-cnti/testsuite-action@3c0e163cbbdde302cdd9abb9dbe8c2cbd6a72c71 # v1.4.0

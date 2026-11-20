@@ -28,6 +28,12 @@ jobs:
   image-scan:
     needs: [image-build, image-publish]
     uses: ./.github/workflows/image-scan.yaml
+  chart-publish:
+    needs: [image-publish]
+    uses: ./.github/workflows/chart-publish.yaml
+    permissions:
+      contents: read
+      packages: write
   snap-build:
     uses: ./.github/workflows/snap-build.yaml
   snap-strict-test:

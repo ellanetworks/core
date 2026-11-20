@@ -43,6 +43,8 @@ jobs:
     uses: ./.github/workflows/clang-tidy.yaml
   license-headers:
     uses: ./.github/workflows/license-headers.yaml
+  chart-lint:
+    uses: ./.github/workflows/chart-lint.yaml
   snap-build:
     uses: ./.github/workflows/snap-build.yaml
   binary-build:

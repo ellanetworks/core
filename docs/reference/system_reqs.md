@@ -4,7 +4,7 @@ description: System requirements for running Ella Core.
 
 # System Requirements
 
-Ella Core runs on major Linux distributions including **Ubuntu**, **Ubuntu Core**, **Debian**, and **Arch Linux** (kernel 6.8 or later). It supports **amd64** and **arm64** architectures.
+Ella Core runs on major Linux distributions including **Ubuntu**, **Ubuntu Core**, **Debian**, and **Arch Linux** (kernel 6.8 or later, with the `sctp` module available). It supports **amd64** and **arm64** architectures.
 
 |  | 1,000 sessions | 100,000 sessions |
 |------------|----------|-------------|
@@ -13,3 +13,21 @@ Ella Core runs on major Linux distributions including **Ubuntu**, **Ubuntu Core*
 | **Storage** | 10 GB disk space | 1 TB disk space |
 
 See [connectivity reference](connectivity.md) for network interface requirements and configuration.
+
+## Kubernetes
+
+Ella Core should work on most Kubernetes distributions. It has been validated on **EKS**, **GKE**, **OpenShift**, **RKE2**, and **kind**.
+
+| Requirement | Value |
+|-------------|-------|
+| **Nodes** | Meet the host requirements above |
+| **RAN network** | Radios reach the pod's N2/N3 address directly. The Helm chart uses [Multus](https://github.com/k8snetworkplumbingwg/multus-cni) with the `macvlan`, `static`, and `tuning` [CNI plugins](https://github.com/containernetworking/plugins). |
+| **Pod Security** | `privileged` |
+| **Capabilities** | `NET_ADMIN`, `NET_RAW`, `NET_BIND_SERVICE`, `BPF`, `PERFMON`, `SYS_RESOURCE` |
+| **Storage** | A default StorageClass with `ReadWriteOnce` volumes, one per pod |
+| **High availability** | Three nodes |
+
+On OpenShift, the chart creates the SecurityContextConstraints that Ella Core needs. The cluster also needs:
+
+- The `sctp` module loaded on every node with a MachineConfig. RHCOS blocks it by default.
+- `^net.ipv4.ip_forward$` and `^net.ipv6.conf.all.forwarding$` added to the `cni-sysctl-allowlist` ConfigMap in the `openshift-multus` namespace.

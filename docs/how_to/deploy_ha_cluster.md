@@ -15,9 +15,7 @@ Ella Core can be deployed as a high-availability cluster to provide redundancy a
 
 === "Kubernetes"
 
-    - A Kubernetes cluster with at least three nodes meeting the standard [system requirements](../reference/system_reqs.md).
-    - The [Multus CNI](https://github.com/k8snetworkplumbingwg/multus-cni) installed, and the `macvlan`, `static`, and `tuning` [CNI plugins](https://github.com/containernetworking/plugins) present on every node.
-    - A default StorageClass.
+    - A Kubernetes cluster meeting the [Kubernetes requirements](../reference/system_reqs.md#kubernetes).
 
 ## 1. Deploy the nodes
 
@@ -27,18 +25,29 @@ Ella Core can be deployed as a high-availability cluster to provide redundancy a
 
 === "Kubernetes"
 
-    Download the Ella Core manifests:
+    Create the namespace:
 
     ```bash
-    git clone --depth 1 --branch v1.22.0 https://github.com/ellanetworks/core.git
+    kubectl create namespace ella
+    kubectl label namespace ella pod-security.kubernetes.io/enforce=privileged
     ```
 
-    Edit `core/k8s/ha/core-ran-nad.yaml` to set `master` to the host interface that connects to your radios. In `core/k8s/ha/core-1.yaml`, `core-2.yaml` and `core-3.yaml`, set each node's N2/N3 address in the `ips` field.
+    Create `values.yaml`. Set `master` to the host interface that connects to your radios, and each node's `ranAddress` to its N2/N3 address:
+
+    ```yaml
+    nodes:
+      - ranAddress: 192.168.252.3/24
+      - ranAddress: 192.168.252.4/24
+      - ranAddress: 192.168.252.5/24
+    ran:
+      networkAttachment:
+        master: eth1
+    ```
 
     Deploy Ella Core:
 
     ```bash
-    kubectl apply -k core/k8s/ha
+    helm install ella-core oci://ghcr.io/ellanetworks/charts/ella-core --version v1.22.0 --namespace ella -f values.yaml
     ```
 
     Open each node's API in a separate terminal:
@@ -69,7 +78,7 @@ Open a browser at node 2's API address and click **Join an existing cluster inst
 
 === "Kubernetes"
 
-    Node 1's cluster address is `ella-core-1-0.ella-core-cluster.ella.svc.cluster.local:7000`.
+    Node 1's cluster address is `ella-core-1-0.ella-core-headless.ella.svc.cluster.local:7000`.
 
 ## 5. Add node 3
 
