@@ -13,7 +13,8 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:oidc": "e2e/oidc/run.sh"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

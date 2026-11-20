@@ -47,6 +47,10 @@ type RefreshResponse struct {
 	Token string `json:"token"`
 }
 
+type LogoutResponse struct {
+	RedirectURL string `json:"redirect_url"`
+}
+
 type LookupTokenResponse struct {
 	Valid bool `json:"valid"`
 }
@@ -56,6 +60,8 @@ const (
 	LogoutAction = "auth_logout"
 )
 
+var errNoPassword = errors.New("the user has no password")
+
 // dummyLoginHash is verified against the supplied password when the account
 // does not exist, so login spends bcrypt time on both the known- and
 // unknown-email paths and its latency cannot be used to enumerate users. Its
@@ -63,12 +69,14 @@ const (
 const dummyLoginHash = "$2a$10$jykEIP5jViP21mTuOKjAlegCTonE79QJoB5DKodMZY0gWtYXaOR.C" // #nosec: G101
 
 // Helper function to generate a JWT
-func generateJWT(id string, email string, roleID RoleID, jwtSecret []byte) (string, error) {
+func generateJWT(dbInstance *db.Database, id string, email string, roleID RoleID, sessionID string, jwtSecret []byte) (string, error) {
 	now := time.Now()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims{
-		ID:     id,
-		Email:  email,
-		RoleID: roleID,
+		ID:        id,
+		Email:     email,
+		RoleID:    roleID,
+		SessionID: sessionID,
+		Index:     dbInstance.AppliedIndex(),
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(AccessTokenDuration)),
@@ -122,7 +130,7 @@ func Refresh(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool) h
 
 		hashed := sha256.Sum256(rawToken)
 
-		session, err := dbInstance.GetSessionByTokenHash(r.Context(), hashed[:])
+		session, err := awaitSessionByTokenHash(r.Context(), dbInstance, hashed[:])
 		if err != nil {
 			clearSessionCookie(w, secureCookie)
 			writeError(r.Context(), w, http.StatusUnauthorized, "Invalid session token", err, logger.APILog)
@@ -158,7 +166,7 @@ func Refresh(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool) h
 			return
 		}
 
-		token, err := generateJWT(user.ID, user.Email, RoleID(user.RoleID), jwtSecret.Get())
+		token, err := generateJWT(dbInstance, user.ID, user.Email, RoleID(user.RoleID), session.ID, jwtSecret.Get())
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
 			return
@@ -168,6 +176,30 @@ func Refresh(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool) h
 
 		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
 	})
+}
+
+func awaitSessionByTokenHash(ctx context.Context, dbInstance *db.Database, tokenHash []byte) (*db.Session, error) {
+	session, err := dbInstance.GetSessionByTokenHash(ctx, tokenHash)
+	if !errors.Is(err, db.ErrNotFound) || !dbInstance.ClusterEnabled() || dbInstance.IsLeader() {
+		return session, err
+	}
+
+	deadline := time.Now().Add(sessionCatchUpTimeout)
+
+	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return nil, err
+		case <-time.After(sessionCatchUpPoll):
+		}
+
+		session, err = dbInstance.GetSessionByTokenHash(ctx, tokenHash)
+		if !errors.Is(err, db.ErrNotFound) {
+			return session, err
+		}
+	}
+
+	return nil, err
 }
 
 func Login(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool, loginLimiter *ipRateLimiter) http.Handler {
@@ -205,6 +237,10 @@ func Login(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool, log
 		}
 
 		user, err := dbInstance.GetUser(r.Context(), loginParams.Email)
+		if err == nil && user.HashedPassword == "" {
+			err = errNoPassword
+		}
+
 		if err != nil {
 			_ = bcrypt.CompareHashAndPassword([]byte(dummyLoginHash), []byte(loginParams.Password))
 
@@ -233,13 +269,13 @@ func Login(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool, log
 			return
 		}
 
-		err = createSessionAndSetCookie(r.Context(), dbInstance, user.ID, secureCookie, w)
+		sessionID, err := createSessionAndSetCookie(r.Context(), dbInstance, user.ID, secureCookie, w)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
 			return
 		}
 
-		token, err := generateJWT(user.ID, user.Email, RoleID(user.RoleID), jwtSecret.Get())
+		token, err := generateJWT(dbInstance, user.ID, user.Email, RoleID(user.RoleID), sessionID, jwtSecret.Get())
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
 			return
@@ -259,47 +295,62 @@ func Login(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool, log
 	})
 }
 
-func createSessionAndSetCookie(ctx context.Context, dbInstance *db.Database, userID string, secureCookie bool, w http.ResponseWriter) error {
+func createSessionAndSetCookie(ctx context.Context, dbInstance *db.Database, userID string, secureCookie bool, w http.ResponseWriter) (string, error) {
 	// Enforce session limit per user to prevent database bloat
 	sessionCount, err := dbInstance.CountSessionsByUser(ctx, userID)
 	if err != nil {
-		return fmt.Errorf("couldn't count user sessions: %w", err)
+		return "", fmt.Errorf("couldn't count user sessions: %w", err)
 	}
 
 	if sessionCount >= MaxSessionsPerUser {
 		// Delete oldest session to make room for the new one
 		err = dbInstance.DeleteOldestSessions(ctx, userID, 1)
 		if err != nil {
-			return fmt.Errorf("couldn't delete oldest session: %w", err)
+			return "", fmt.Errorf("couldn't delete oldest session: %w", err)
 		}
 	}
 
-	rawToken := make([]byte, TokenLength)
-
-	n, err := rand.Read(rawToken)
+	rawToken, tokenHash, err := newSessionToken()
 	if err != nil {
-		return fmt.Errorf("couldn't create random token: %w", err)
+		return "", err
 	}
-
-	if n != TokenLength {
-		return fmt.Errorf("rand.Read returned insufficient bytes: got %d, expected %d", n, TokenLength)
-	}
-
-	tokenHash := sha256.Sum256(rawToken)
 
 	expiresAt := time.Now().Add(SessionTokenDuration)
 
 	session := &db.Session{
 		UserID:    userID,
-		TokenHash: tokenHash[:],
+		TokenHash: tokenHash,
 		CreatedAt: time.Now().Unix(),
 		ExpiresAt: expiresAt.Unix(),
 	}
 
 	if err = dbInstance.CreateSession(ctx, session); err != nil {
-		return fmt.Errorf("couldn't create session: %w", err)
+		return "", fmt.Errorf("couldn't create session: %w", err)
 	}
 
+	setSessionCookie(w, rawToken, expiresAt, secureCookie)
+
+	return session.ID, nil
+}
+
+func newSessionToken() ([]byte, []byte, error) {
+	rawToken := make([]byte, TokenLength)
+
+	n, err := rand.Read(rawToken)
+	if err != nil {
+		return nil, nil, fmt.Errorf("couldn't create random token: %w", err)
+	}
+
+	if n != TokenLength {
+		return nil, nil, fmt.Errorf("rand.Read returned insufficient bytes: got %d, expected %d", n, TokenLength)
+	}
+
+	tokenHash := sha256.Sum256(rawToken)
+
+	return rawToken, tokenHash[:], nil
+}
+
+func setSessionCookie(w http.ResponseWriter, rawToken []byte, expiresAt time.Time, secureCookie bool) {
 	http.SetCookie(w, &http.Cookie{ // #nosec G124 -- Secure follows the server's TLS configuration
 		Name:     SessionTokenCookieName,
 		Value:    base64.URLEncoding.EncodeToString(rawToken),
@@ -309,8 +360,6 @@ func createSessionAndSetCookie(ctx context.Context, dbInstance *db.Database, use
 		SameSite: http.SameSiteLaxMode,
 		Expires:  expiresAt,
 	})
-
-	return nil
 }
 
 func LookupToken(dbInstance *db.Database, jwtSecret *JWTSecret) http.Handler {
@@ -329,9 +378,9 @@ func LookupToken(dbInstance *db.Database, jwtSecret *JWTSecret) http.Handler {
 	})
 }
 
-func Logout(dbInstance *db.Database, secureCookie bool) http.Handler {
+func Logout(dbInstance *db.Database, oidcSettings OIDCSettings, secureCookie bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var userEmail string
+		var userEmail, redirectURL string
 
 		cookie, err := r.Cookie(SessionTokenCookieName)
 		if err == nil && cookie.Value != "" {
@@ -344,6 +393,12 @@ func Logout(dbInstance *db.Database, secureCookie bool) http.Handler {
 					user, userErr := dbInstance.GetUserByID(r.Context(), session.UserID)
 					if userErr == nil {
 						userEmail = user.Email
+					}
+
+					if session.Method == db.SessionOIDC {
+						if c, err := oidcSettings.Client(r.Context(), time.Now); err == nil {
+							redirectURL = c.LogoutURL()
+						}
 					}
 				}
 
@@ -367,6 +422,36 @@ func Logout(dbInstance *db.Database, secureCookie bool) http.Handler {
 
 		clearSessionCookie(w, secureCookie)
 
+		if redirectURL != "" {
+			writeResponse(r.Context(), w, LogoutResponse{RedirectURL: redirectURL}, http.StatusOK, logger.APILog)
+			return
+		}
+
 		w.WriteHeader(http.StatusNoContent)
 	})
+}
+
+func sessionFromCookie(r *http.Request, dbInstance *db.Database) (*db.Session, error) {
+	cookie, err := r.Cookie(SessionTokenCookieName)
+	if err != nil {
+		return nil, err
+	}
+
+	raw, err := base64.URLEncoding.DecodeString(cookie.Value)
+	if err != nil || len(raw) != TokenLength {
+		return nil, errors.New("invalid session token")
+	}
+
+	hashed := sha256.Sum256(raw)
+
+	s, err := awaitSessionByTokenHash(r.Context(), dbInstance, hashed[:])
+	if err != nil {
+		return nil, err
+	}
+
+	if time.Now().Unix() >= s.ExpiresAt {
+		return nil, errors.New("session expired")
+	}
+
+	return s, nil
 }

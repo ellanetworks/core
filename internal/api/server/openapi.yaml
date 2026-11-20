@@ -47,6 +47,8 @@ tags:
     description: Login, token refresh, logout, and token validation.
   - name: Users
     description: Manage user accounts and API tokens.
+  - name: Single Sign-On
+    description: Sign-in to the UI through an OpenID Connect identity provider.
   - name: Subscribers
     description: Manage subscribers.
   - name: Roamers
@@ -510,6 +512,12 @@ paths:
       description: Deletes the session and clears the session cookie.
       security: []
       responses:
+        "200":
+          description: Logged out of a single sign-on session. The browser continues to the identity provider's logout.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogoutResponseEnvelope"
         "204":
           description: Logged out.
 
@@ -546,6 +554,99 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+
+  /api/v1/auth/oidc:
+    get:
+      operationId: getOIDCLogin
+      tags: [Authentication]
+      summary: Get the single sign-on option
+      description: Tells the login page whether to show the button to sign in through the identity provider.
+      security: []
+      responses:
+        "200":
+          description: Single sign-on option.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OIDCLoginResponseEnvelope"
+
+  /api/v1/auth/oidc/login:
+    get:
+      operationId: startOIDCLogin
+      tags: [Authentication]
+      summary: Sign in through the identity provider
+      description: Redirects the browser to the identity provider. With link=1, links the identity provider account to the user of the session cookie.
+      security: []
+      parameters:
+        - name: link
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ["1"]
+      responses:
+        "303":
+          description: Redirect to the identity provider, or to /login?error=<error>.
+
+  /api/v1/auth/oidc/callback:
+    get:
+      operationId: oidcCallback
+      tags: [Authentication]
+      summary: Return from the identity provider
+      description: Completes a login through the identity provider, sets the session cookie, and redirects to /, or to /login?error=<error>.
+      security: []
+      responses:
+        "303":
+          description: Redirect to / or to /login?error=<error>.
+
+  # -- Single Sign-On ------------------------------------------------------
+  /api/v1/oidc:
+    get:
+      operationId: getOIDC
+      tags: [Single Sign-On]
+      summary: Get the OIDC settings
+      description: Returns the OIDC settings, without the client secret.
+      responses:
+        "200":
+          description: OIDC settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OIDCSettingsResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    put:
+      operationId: updateOIDC
+      tags: [Single Sign-On]
+      summary: Update the OIDC settings
+      description: Replaces the OIDC settings. Disabling OIDC or changing the issuer ends every session started through the identity provider. Enabled settings are refused unless the identity provider's discovery document can be fetched.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOIDCParams"
+      responses:
+        "200":
+          description: Updated OIDC settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OIDCSettingsResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "502":
+          description: The identity provider cannot be reached or cannot be used.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   # -- Users ---------------------------------------------------------------
   /api/v1/users/me:
@@ -712,7 +813,7 @@ paths:
       operationId: updateUser
       tags: [Users]
       summary: Update a user's role
-      description: Changes a user's role.
+      description: Sets a user's role. A role change ends the user's sessions.
       parameters:
         - $ref: "#/components/parameters/EmailPath"
       requestBody:
@@ -730,6 +831,12 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          description: The role comes from the user's groups, or the user is the last admin with a password.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     delete:
       operationId: deleteUser
       tags: [Users]
@@ -744,6 +851,12 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          description: The user is the last admin with a password.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /api/v1/users/{email}/password:
     put:
@@ -766,6 +879,46 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteUserPassword
+      tags: [Users]
+      summary: Remove a user's password (admin)
+      description: Removes a user's password, so the user signs in only through the identity provider, and ends the user's sessions.
+      parameters:
+        - $ref: "#/components/parameters/EmailPath"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The user has no password, or is the last admin with a password.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/users/{email}/oidc:
+    delete:
+      operationId: unlinkUser
+      tags: [Users]
+      summary: Unlink a user from the identity provider (admin)
+      description: Unlinks a user from their account at the identity provider, and ends the sessions started through it.
+      parameters:
+        - $ref: "#/components/parameters/EmailPath"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -4936,7 +5089,13 @@ components:
           type: integer
           description: "1 = Admin, 2 = ReadOnly, 3 = NetworkManager."
           enum: [1, 2, 3]
-      required: [email, role_id]
+        password_set:
+          type: boolean
+          description: The user has a password.
+        oidc_linked:
+          type: boolean
+          description: The user is linked to an account at the current identity provider.
+      required: [email, role_id, password_set, oidc_linked]
 
     UserResponseEnvelope:
       type: object
@@ -4967,13 +5126,14 @@ components:
 
     CreateUserParams:
       type: object
-      required: [email, password, role_id]
+      required: [email, role_id]
       properties:
         email:
           type: string
           format: email
         password:
           type: string
+          description: Without it, the user signs in only through the identity provider.
         role_id:
           type: integer
           description: "1 = Admin, 2 = ReadOnly, 3 = NetworkManager."
@@ -4986,6 +5146,139 @@ components:
         role_id:
           type: integer
           enum: [1, 2, 3]
+
+    # -- Single Sign-On --------------------------------------------------
+    LogoutResponse:
+      type: object
+      properties:
+        redirect_url:
+          type: string
+      required: [redirect_url]
+
+    LogoutResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/LogoutResponse"
+
+    OIDCLoginResponse:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        display_name:
+          type: string
+      required: [enabled]
+
+    OIDCLoginResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/OIDCLoginResponse"
+
+    OIDCGroupRole:
+      type: object
+      required: [group, role_id]
+      properties:
+        group:
+          type: string
+        role_id:
+          type: integer
+          enum: [1, 2, 3]
+
+    OIDCSettingsResponse:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        external_url:
+          type: string
+        redirect_url:
+          type: string
+        post_logout_redirect_url:
+          type: string
+        issuer:
+          type: string
+        client_id:
+          type: string
+        client_secret_set:
+          type: boolean
+        display_name:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        session_lifetime_seconds:
+          type: integer
+        trust_unverified_email:
+          type: boolean
+        ca_certificate:
+          type: string
+        ca_certificates:
+          type: array
+          items:
+            $ref: "#/components/schemas/OIDCCACertificate"
+        groups_claim:
+          type: string
+        group_roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/OIDCGroupRole"
+      required: [enabled, external_url, redirect_url, post_logout_redirect_url, issuer, client_id, client_secret_set, display_name, scopes, session_lifetime_seconds, trust_unverified_email, ca_certificate, ca_certificates, groups_claim, group_roles]
+
+    OIDCCACertificate:
+      type: object
+      properties:
+        subject:
+          type: string
+        not_after:
+          type: string
+          format: date-time
+      required: [subject, not_after]
+
+    OIDCSettingsResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/OIDCSettingsResponse"
+
+    UpdateOIDCParams:
+      type: object
+      required: [enabled, scopes, session_lifetime_seconds]
+      properties:
+        enabled:
+          type: boolean
+        external_url:
+          type: string
+        issuer:
+          type: string
+        client_id:
+          type: string
+        client_secret:
+          type: string
+          description: Empty or absent keeps the stored secret, unless the issuer or the client ID changes.
+        display_name:
+          type: string
+        scopes:
+          type: array
+          items:
+            type: string
+        session_lifetime_seconds:
+          type: integer
+          minimum: 300
+          maximum: 2592000
+        trust_unverified_email:
+          type: boolean
+        ca_certificate:
+          type: string
+        groups_claim:
+          type: string
+        group_roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/OIDCGroupRole"
+
 
     UpdatePasswordParams:
       type: object

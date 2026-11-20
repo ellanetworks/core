@@ -639,6 +639,18 @@ func (m *Manager) AppliedIndex() uint64 {
 	return m.fsm.AppliedIndex()
 }
 
+func (m *Manager) WaitApplied(ctx context.Context, index uint64) error {
+	for m.AppliedIndex() < index {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(appliedIndexPollInterval):
+		}
+	}
+
+	return nil
+}
+
 // Barrier blocks until all preceding log entries are applied to the FSM,
 // ensuring subsequent reads reflect every committed write.
 func (m *Manager) Barrier(timeout time.Duration) error {

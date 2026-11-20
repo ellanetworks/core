@@ -6,7 +6,7 @@ description: RESTful API reference for authentication.
 
 This section describes the RESTful API for system user authentication.
 
-## Login
+## Log In
 
 This path logs the user in and sets an `httpOnly` session cookie valid for 30 days.
 
@@ -55,6 +55,24 @@ None
 }
 ```
 
+## Log Out
+
+This path ends the session of the cookie, and its access tokens, and clears the cookie. For a single sign-on session, it returns the identity provider's logout URL.
+
+| Method | Path                  |
+| ------ | --------------------- |
+| POST   | `/api/v1/auth/logout` |
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "redirect_url": "https://idp.example.com/realms/ella/protocol/openid-connect/logout?client_id=ella-core&post_logout_redirect_uri=https%3A%2F%2Fcore.example.com%2Flogin"
+    }
+}
+```
+
 ## Lookup a JWT Token
 
 This path returns whether a JWT token is valid. The token must be sent in the `Authorization` header.
@@ -98,3 +116,59 @@ None
     }
 }
 ```
+
+## Get the Single Sign-On Option
+
+This path returns whether single sign-on is enabled.
+
+| Method | Path                |
+| ------ | ------------------- |
+| GET    | `/api/v1/auth/oidc` |
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "enabled": true,
+        "display_name": "Keycloak"
+    }
+}
+```
+
+## Log In Through the Identity Provider
+
+This path redirects the browser to the identity provider.
+
+| Method | Path                      |
+| ------ | ------------------------- |
+| GET    | `/api/v1/auth/oidc/login` |
+
+### Query Parameters
+
+- `link` (string, optional): `1` links the identity provider account to the user of the session cookie, and redirects to `/profile`.
+
+## Return From the Identity Provider
+
+This path is the redirect URL. On success, it sets the session cookie and redirects to `/`. Otherwise, it redirects to `/login?error=<error>`.
+
+| Method | Path                         |
+| ------ | ---------------------------- |
+| GET    | `/api/v1/auth/oidc/callback` |
+
+### Errors
+
+| Error                | Description |
+| -------------------- | ----------- |
+| `rate_limited`       | Too many login attempts. |
+| `unavailable`        | Single sign-on is disabled, or the identity provider is unreachable. |
+| `failed`             | The login is invalid or expired. |
+| `denied`             | The identity provider refused access. |
+| `not_set_up`         | No user can be matched. |
+| `email_not_verified` | The email is not verified. |
+| `linked_elsewhere`   | The user is linked to another account. |
+| `link_required`      | The user has a password and must link the account from their profile. |
+| `no_group`           | No group of the user is mapped to a role. |
+| `groups_overage`     | The identity provider did not list the groups. |
+| `too_many_users`     | The user limit is reached. |
+| `error`              | Internal error. |

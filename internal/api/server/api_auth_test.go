@@ -958,7 +958,7 @@ func TestLogout(t *testing.T) {
 	}
 
 	// Test that old token still works (it shouldn't be invalidated by logout)
-	t.Run("Old JWT token still works after logout", func(t *testing.T) {
+	t.Run("Old JWT token is invalid after logout", func(t *testing.T) {
 		statusCode, response, err := lookupToken(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't lookup token: %s", err)
@@ -968,9 +968,8 @@ func TestLogout(t *testing.T) {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
 
-		// Token should still be valid (JWTs are stateless)
-		if !response.Result.Valid {
-			t.Fatalf("expected JWT token to still be valid after logout")
+		if response.Result.Valid {
+			t.Fatalf("expected JWT token to be invalid after logout")
 		}
 	})
 }

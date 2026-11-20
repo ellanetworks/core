@@ -14,7 +14,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 import { CircularProgress, Box } from "@mui/material";
 import { refresh } from "@/queries/auth";
-import { setOnUnauthorized } from "@/queries/utils";
+import { setAccessTokenRenewer, setOnUnauthorized } from "@/queries/utils";
 
 type AuthState = { email: string; role: string };
 interface AuthContextType {
@@ -78,7 +78,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const location = useLocation();
   const tokenRef = useRef<string | null>(null);
   const refreshTimerRef = useRef<number | null>(null);
-  const refreshingRef = useRef(false);
+  const inflightRef = useRef<Promise<string | null> | null>(null);
   const pathnameRef = useRef(location.pathname);
   const silentRefreshRef = useRef<() => void>(() => {});
 
@@ -110,40 +110,50 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     [clearRefreshTimer],
   );
 
-  const silentRefresh = useCallback(async () => {
-    if (refreshingRef.current) return;
-    refreshingRef.current = true;
-    try {
-      const resp = await refresh();
-      const token = (resp?.token as string) || "";
-      if (!token) throw new Error("Missing token");
+  const silentRefresh = useCallback((): Promise<string | null> => {
+    inflightRef.current ??= (async (): Promise<string | null> => {
+      try {
+        const resp = await refresh();
+        const token = (resp?.token as string) || "";
+        if (!token) throw new Error("Missing token");
 
-      tokenRef.current = token;
-      setAccessToken(token);
+        tokenRef.current = token;
+        setAccessToken(token);
 
-      const decoded = jwtDecode<DecodedToken>(token);
-      const role = roleToString(decoded.role_id);
-      setAuthData({ email: decoded.email, role });
+        const decoded = jwtDecode<DecodedToken>(token);
+        const role = roleToString(decoded.role_id);
+        setAuthData({ email: decoded.email, role });
 
-      if (tokenExpiringSoon(token)) {
+        if (tokenExpiringSoon(token)) {
+          clearRefreshTimer();
+          refreshTimerRef.current = window.setTimeout(() => {
+            silentRefreshRef.current();
+          }, MIN_REFRESH_DELAY_MS);
+        } else {
+          scheduleRefresh(token);
+        }
+        return token;
+      } catch {
+        tokenRef.current = null;
+        setAccessToken(null);
+        setAuthData(null);
         clearRefreshTimer();
-        refreshTimerRef.current = window.setTimeout(() => {
-          silentRefreshRef.current();
-        }, MIN_REFRESH_DELAY_MS);
-      } else {
-        scheduleRefresh(token);
+        navigate("/login", { state: { from: pathnameRef.current } });
+        return null;
+      } finally {
+        setAuthReady(true);
       }
-    } catch {
-      tokenRef.current = null;
-      setAccessToken(null);
-      setAuthData(null);
-      clearRefreshTimer();
-      navigate("/login", { state: { from: pathnameRef.current } });
-    } finally {
-      refreshingRef.current = false;
-      setAuthReady(true);
-    }
+    })().finally(() => {
+      inflightRef.current = null;
+    });
+    return inflightRef.current;
+    // oxlint-disable-next-line react/memo-dependencies
   }, [navigate, scheduleRefresh, clearRefreshTimer]);
+
+  useEffect(() => {
+    setAccessTokenRenewer(silentRefresh);
+    return () => setAccessTokenRenewer(null);
+  }, [silentRefresh]);
 
   useEffect(() => {
     silentRefreshRef.current = () => void silentRefresh();

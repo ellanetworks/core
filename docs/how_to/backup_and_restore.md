@@ -11,7 +11,7 @@ Ella Core stores all persistent data in an embedded database. You can create bac
 1. Open Ella Core in your web browser.
 2. Navigate to the **Backup and Restore** tab in the left-hand menu.
 3. Click on the **Backup** button.
-4. The backup file will be downloaded to your computer. It contains sensitive data, store and transfer it encrypted.
+4. The backup file will be downloaded to your computer. It contains sensitive data. Store and transfer it encrypted.
 
 !!! note
     This operation can also be done using the API. Please see the [backup API documentation](../reference/api/backup.md) for more information.

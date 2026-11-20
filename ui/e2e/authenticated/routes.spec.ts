@@ -44,6 +44,11 @@ const ROUTES = [
   { label: "Traffic flows", route: "/traffic/flows", heading: "Traffic" },
   { label: "My profile", route: "/profile", heading: "My Profile" },
   { label: "Users", route: "/users", heading: /^Users/ },
+  {
+    label: "Single Sign-On",
+    route: "/single-sign-on",
+    heading: "Single Sign-On",
+  },
   { label: "Audit logs", route: "/audit-logs", heading: "Audit Logs" },
   {
     label: "Backup and restore",

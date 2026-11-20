@@ -18,11 +18,19 @@ export const login = async (
   });
 };
 
-export const logout = async (): Promise<void> => {
-  await apiFetchVoid("/api/v1/auth/logout", {
-    method: "POST",
-    credentials: "include",
-  });
+export type LogoutResponse = {
+  redirect_url: string;
+};
+
+export const logout = async (): Promise<string | undefined> => {
+  const resp = await apiFetch<LogoutResponse | undefined>(
+    "/api/v1/auth/logout",
+    {
+      method: "POST",
+      credentials: "include",
+    },
+  );
+  return resp?.redirect_url || undefined;
 };
 
 export const refresh = async (): Promise<AuthTokenResponse> => {
