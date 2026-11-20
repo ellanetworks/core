@@ -58,20 +58,10 @@ Create a backup with [Backup and Restore](backup_and_restore.md#backup).
 
     === "Kubernetes"
 
-        If you installed Ella Core with the `k8s` manifests of v1.22.0 or earlier, first move it to the Helm chart:
-
-        1. Delete the old resources. The data volume is kept:
-
-            ```bash
-            kubectl -n ella delete statefulset/ella-core service/ella-core configmap/core-config network-attachment-definitions/core-ran
-            ```
-
-        2. Create `values.yaml` with the `master` interface and N2/N3 address from your old `core-ran-nad.yaml`, as in [Install](install.md). Keep the release name `ella-core` so that the chart reuses the data volume.
-
         Upgrade the chart:
 
         ```bash
-        helm upgrade --install ella-core oci://ghcr.io/ellanetworks/charts/ella-core --version <target-version> --namespace ella -f values.yaml
+        helm upgrade ella-core oci://ghcr.io/ellanetworks/charts/ella-core --version <target-version> --namespace ella -f values.yaml
         ```
 
         Wait for the rollout to complete:

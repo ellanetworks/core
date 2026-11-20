@@ -118,6 +118,20 @@ jobs:
           expected_results: .github/cnti/expected.yaml
           badge_branch: ${{ github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch && 'badges' || '' }}
 
+      - name: Install the chart and run helm test
+        run: |
+          kubectl delete namespace ella --ignore-not-found --wait --timeout=5m
+          kubectl create namespace ella
+          kubectl label namespace ella pod-security.kubernetes.io/enforce=privileged
+          helm install ella-core charts/ella-core --namespace ella
+          kubectl -n ella wait --for=jsonpath='{.status.phase}'=Running pod/ella-core-0 --timeout=10m
+          kubectl -n ella port-forward pod/ella-core-0 5002:5002 &
+          sleep 5
+          curl -fsS -X POST http://localhost:5002/api/v1/init -H 'Content-Type: application/json' \
+            -d '{"email":"admin@ellanetworks.com","password":"'"$(openssl rand -hex 16)"'"}' > /dev/null
+          kubectl -n ella wait --for=condition=Ready pod/ella-core-0 --timeout=5m
+          helm test ella-core --namespace ella --logs --timeout 5m
+
       - name: Collect deployment diagnostics
         if: failure()
         run: |

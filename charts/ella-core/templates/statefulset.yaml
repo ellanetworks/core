@@ -5,17 +5,6 @@
 {{- $name := include "ella-core.nodeName" (dict "root" $root "ordinal" $ordinal) }}
 {{- $config := include "ella-core.config" (dict "root" $root "name" $name) }}
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ $name }}
-  namespace: {{ $root.Release.Namespace }}
-  labels:
-    {{- include "ella-core.labels" $root | nindent 4 }}
-data:
-  config.yaml: |
-    {{- $config | nindent 4 }}
----
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:

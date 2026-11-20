@@ -5,6 +5,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "ella-core.labels" . | nindent 4 }}
+    ellanetworks.com/service: api
   {{- with .Values.service.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -21,27 +22,3 @@ spec:
       {{- if and .Values.service.nodePort (eq .Values.service.type "NodePort") }}
       nodePort: {{ .Values.service.nodePort }}
       {{- end }}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ include "ella-core.headlessServiceName" . }}
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "ella-core.labels" . | nindent 4 }}
-spec:
-  clusterIP: None
-  publishNotReadyAddresses: true
-  selector:
-    {{- include "ella-core.selectorLabels" . | nindent 4 }}
-  ports:
-    - name: http
-      protocol: TCP
-      port: 5002
-      targetPort: http
-    {{- if include "ella-core.ha" . }}
-    - name: cluster
-      protocol: TCP
-      port: 7000
-      targetPort: cluster
-    {{- end }}

@@ -13,6 +13,7 @@ spec:
   selector:
     matchLabels:
       {{- include "ella-core.selectorLabels" . | nindent 6 }}
+      ellanetworks.com/service: api
   endpoints:
     - port: http
       path: /api/v1/metrics
