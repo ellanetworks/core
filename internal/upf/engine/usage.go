@@ -292,6 +292,63 @@ func (conn *SessionEngine) TakeUsage(session *Session, trigger models.UsageRepor
 	return reports, errors.Join(errs...)
 }
 
+func (conn *SessionEngine) PeekUsage(session *Session) ([]models.UsageReport, error) {
+	l := &session.usage
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if l.closed {
+		return nil, nil
+	}
+
+	var (
+		errs    []error
+		reports []models.UsageReport
+	)
+
+	for _, id := range slices.Sorted(maps.Keys(l.urrs)) {
+		m := l.urrs[id]
+		d := m.pending
+		lastNs := m.lastPacketNs
+
+		if conn.BpfObjects != nil {
+			current, err := conn.BpfObjects.ReadUrr(session.SEID, id)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("read URR %d: %w", id, err))
+				continue
+			}
+
+			unread, _ := counterDelta(m.counted, current)
+			d.add(unread)
+
+			if unread.packets() > 0 {
+				lastNs = max(lastNs, unread.latestLastNs)
+			}
+		}
+
+		now, bootNow := usageClock()
+
+		end := now
+		if end.Before(m.start) {
+			end = m.start
+		}
+
+		reports = append(reports, models.UsageReport{
+			URRID:           id,
+			StartTime:       m.start,
+			EndTime:         end,
+			LastPacket:      bootToWall(lastNs, end, bootNow, m.start),
+			UplinkVolume:    d.uplink,
+			DownlinkVolume:  d.downlink,
+			UplinkPackets:   d.uplinkPackets,
+			DownlinkPackets: d.downlinkPackets,
+		})
+	}
+
+	return reports, errors.Join(errs...)
+}
+
 func (conn *SessionEngine) finalReportsLocked(ctx context.Context, session *Session, ids []uint32) ([]models.UsageReport, error) {
 	l := &session.usage
 

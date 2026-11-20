@@ -697,3 +697,48 @@ func TestEstablishSessionRefusesAPDRWithoutItsURR(t *testing.T) {
 		t.Fatal("EstablishSession accepted a PDR whose URR the request does not create")
 	}
 }
+
+func TestPeekUsageReadsUnreportedUsageWithoutTakingIt(t *testing.T) {
+	conn, obj := newUsageBPFEngine(t)
+	session := addUsageSession(t, conn, obj, 37)
+
+	setURR(t, obj, 37, usageUplinkURR, up(100), up(50))
+	setURR(t, obj, 37, usageDownlinkURR, down(10))
+
+	for range 2 {
+		got, err := conn.PeekUsage(session)
+		if err != nil {
+			t.Fatalf("PeekUsage: %v", err)
+		}
+
+		if !volumeIs(got, 150, 10) {
+			t.Fatalf("PeekUsage = %+v, want the unreported 150/10", got)
+		}
+	}
+
+	got, err := conn.TakeUsage(session, models.UsageTriggerPeriodic)
+	if err != nil {
+		t.Fatalf("TakeUsage: %v", err)
+	}
+
+	if !volumeIs(got, 150, 10) || got[0].SequenceNumber != 0 {
+		t.Fatalf("TakeUsage after peeking = %+v, want the first report of 150/10", got)
+	}
+
+	got, _ = conn.PeekUsage(session)
+	if !volumeIs(got, 0, 0) {
+		t.Fatalf("PeekUsage after a report = %+v, want nothing unreported", got)
+	}
+
+	setURR(t, obj, 37, usageUplinkURR, up(130), up(50))
+
+	got, _ = conn.PeekUsage(session)
+	if !volumeIs(got, 30, 0) {
+		t.Fatalf("PeekUsage = %+v, want the 30 counted since the report", got)
+	}
+
+	got, _ = conn.TakeUsage(session, models.UsageTriggerPeriodic)
+	if !volumeIs(got, 30, 0) {
+		t.Fatalf("TakeUsage = %+v, want the 30 the peek saw", got)
+	}
+}

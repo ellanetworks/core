@@ -56,6 +56,8 @@ type dedicatedBearer struct {
 	ruleIndex    map[string]uint8
 	ruleIdentity map[string]ruleIdentity
 	fiveGSQoS    bool
+
+	traffic Traffic
 }
 
 func (c bearerConfig) clone() *bearerConfig {
