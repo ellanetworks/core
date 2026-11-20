@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import {
   screen,
   waitFor,
@@ -19,6 +19,24 @@ import EditMyUserPasswordModal from "./EditMyUserPasswordModal";
 import { RoleID } from "@/queries/users";
 
 const api = setupApiServer();
+
+beforeEach(() => {
+  api.get("/api/v1/oidc", () => ({
+    enabled: false,
+    external_url: "",
+    redirect_url: "",
+    issuer: "",
+    client_id: "",
+    client_secret_set: false,
+    display_name: "",
+    scopes: ["openid", "email"],
+    session_lifetime_seconds: 86400,
+    trust_unverified_email: false,
+    ca_certificate: "",
+    groups_claim: "",
+    group_roles: [],
+  }));
+});
 
 const dialog = () => screen.getByRole("dialog");
 const submitButton = (name: RegExp) =>
@@ -132,6 +150,8 @@ describe("EditUserModal", () => {
   const initialData = {
     email: "ops@ellanetworks.com",
     role_id: RoleID.ReadOnly,
+    password_set: true,
+    oidc_linked: false,
   };
 
   it("seeds from initialData and submits the changed role", async () => {

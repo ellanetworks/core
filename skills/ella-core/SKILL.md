@@ -4,7 +4,7 @@ description: >
   Manage and inspect a running Ella Core private mobile network via its REST API.
   Use when the user asks to provision, update, list, inspect, or delete subscribers,
   profiles, slices, policies, data networks, radios, routes, BGP peers, NAT, operators,
-  or users; or asks about live status, data usage, flow reports, audit logs, AMF/SMF/UPF
+  users, or single sign-on (OIDC); or asks about live status, data usage, flow reports, audit logs, AMF/SMF/UPF
   state, PDU sessions, gNB connections, IMSIs, S-NSSAIs, DNNs, 5QI, AMBR, ARP, or any
   runtime telemetry of an Ella Core instance.
 metadata:
@@ -57,6 +57,7 @@ Many resources live under sub-paths — never assume top-level. Common groups:
 - `/api/v1/operator/*` — operator code, ID, home-network-keys, NAS security
 - `/api/v1/integrations/*` — SMS, SMSCs, IMS, IMS peers, roaming, Diameter status
 - `/api/v1/cluster/*` — HA cluster management
+- `/api/v1/oidc` — single sign-on settings (see `references/auth.md`)
 - `/api/v1/subscribers`, `/api/v1/profiles`, `/api/v1/policies`, `/api/v1/slices` — top-level
 - `/api/v1/subscriber-usage`, `/api/v1/flow-reports` — top-level
 
@@ -85,7 +86,7 @@ For any `POST`, `PUT`, `PATCH`, or `DELETE`:
 
 | File | Read when |
 |------|-----------|
-| `references/auth.md` | Setting up tokens, hitting 401/403, reasoning about RBAC |
+| `references/auth.md` | Setting up tokens, hitting 401/403, reasoning about RBAC, managing users or single sign-on |
 | `references/data-model.md` | Provisioning new resources or explaining the data model |
 | `references/conventions.md` | Questions about IMSI, K/OPc, 5QI, ARP, AMBR, bitrate strings, byte conversion, BGP/NAT specifics |
 | `references/examples.md` | Looking for a recipe before fetching the full OpenAPI |

@@ -28,11 +28,18 @@ var tracer = otel.Tracer("ella-core/api/authentication_middleware")
 const AuthenticationAction = "user_authentication"
 
 type claims struct {
-	ID     string `json:"id"`
-	Email  string `json:"email"`
-	RoleID RoleID `json:"role_id"`
+	ID        string `json:"id"`
+	Email     string `json:"email"`
+	RoleID    RoleID `json:"role_id"`
+	SessionID string `json:"sid"`
+	Index     uint64 `json:"idx,omitempty"`
 	jwt.RegisteredClaims
 }
+
+const (
+	sessionCatchUpTimeout = 2 * time.Second
+	sessionCatchUpPoll    = 50 * time.Millisecond
+)
 
 type contextKey string
 
@@ -175,6 +182,10 @@ func authenticateRequest(r *http.Request, jwtSecret *JWTSecret, store *db.Databa
 		return "", "", 0, err
 	}
 
+	if err := checkSession(ctx, store, cl); err != nil {
+		return "", "", 0, err
+	}
+
 	u, err := store.GetUserByID(ctx, cl.ID)
 	if err != nil || u == nil {
 		return "", "", 0, errors.New("user not found")
@@ -183,6 +194,36 @@ func authenticateRequest(r *http.Request, jwtSecret *JWTSecret, store *db.Databa
 	success = true
 
 	return u.ID, u.Email, RoleID(u.RoleID), nil
+}
+
+func checkSession(ctx context.Context, store *db.Database, cl *claims) error {
+	if cl.SessionID == "" {
+		if store.SessionsBound(ctx) {
+			return errors.New("token has no session")
+		}
+
+		return nil
+	}
+
+	s, err := store.GetSessionByID(ctx, cl.SessionID)
+	if errors.Is(err, db.ErrNotFound) && cl.Index > store.AppliedIndex() {
+		wait, cancel := context.WithTimeout(ctx, sessionCatchUpTimeout)
+		defer cancel()
+
+		if store.WaitApplied(wait, cl.Index) == nil {
+			s, err = store.GetSessionByID(ctx, cl.SessionID)
+		}
+	}
+
+	if err != nil {
+		return fmt.Errorf("session: %w", err)
+	}
+
+	if s.UserID != cl.ID || time.Now().Unix() >= s.ExpiresAt {
+		return errors.New("session ended")
+	}
+
+	return nil
 }
 
 // putIdentity adds identity to context.

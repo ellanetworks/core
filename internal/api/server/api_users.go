@@ -43,8 +43,10 @@ type UpdateMyUserPasswordParams struct {
 }
 
 type User struct {
-	Email  string `json:"email"`
-	RoleID RoleID `json:"role_id"`
+	Email       string `json:"email"`
+	RoleID      RoleID `json:"role_id"`
+	PasswordSet bool   `json:"password_set"`
+	OIDCLinked  bool   `json:"oidc_linked"`
 }
 
 type ListUsersResponse struct {
@@ -85,7 +87,11 @@ const (
 	DeleteAPITokenAction     = "delete_api_token"
 	CreateUserAPITokenAction = "create_user_api_token" // #nosec: G101
 	DeleteUserAPITokenAction = "delete_user_api_token" // #nosec: G101
+	DeleteUserPasswordAction = "delete_user_password"  // #nosec: G101
+	UnlinkUserAction         = "unlink_user_oidc"
 )
+
+const lastPasswordAdmin = "At least one admin must keep a password" // #nosec: G101
 
 const (
 	MaxNumUsers     = 50
@@ -145,10 +151,7 @@ func ListUsers(dbInstance *db.Database) http.Handler {
 		items := make([]User, 0, len(dbUsers))
 
 		for _, user := range dbUsers {
-			items = append(items, User{
-				Email:  user.Email,
-				RoleID: RoleID(user.RoleID),
-			})
+			items = append(items, userResponse(user))
 		}
 
 		users := ListUsersResponse{
@@ -182,12 +185,7 @@ func GetUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		resp := User{
-			Email:  dbUser.Email,
-			RoleID: RoleID(dbUser.RoleID),
-		}
-
-		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, userResponse(*dbUser), http.StatusOK, logger.APILog)
 	})
 }
 
@@ -213,12 +211,7 @@ func GetLoggedInUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		user := User{
-			Email:  dbUser.Email,
-			RoleID: RoleID(dbUser.RoleID),
-		}
-
-		writeResponse(r.Context(), w, user, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, userResponse(*dbUser), http.StatusOK, logger.APILog)
 	})
 }
 
@@ -239,11 +232,6 @@ func CreateUser(dbInstance *db.Database, bcryptCost int) http.Handler {
 			return
 		}
 
-		if newUser.Password == "" {
-			writeError(r.Context(), w, http.StatusBadRequest, "password is missing", errors.New("missing password"), logger.APILog)
-			return
-		}
-
 		if !isValidEmail(newUser.Email) {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid email format", errors.New("invalid email format"), logger.APILog)
 			return
@@ -254,10 +242,16 @@ func CreateUser(dbInstance *db.Database, bcryptCost int) http.Handler {
 			return
 		}
 
-		hashedPassword, err := hashPassword(newUser.Password, bcryptCost)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to hash password", err, logger.APILog)
-			return
+		var hashedPassword string
+
+		if newUser.Password != "" {
+			var err error
+
+			hashedPassword, err = hashPassword(newUser.Password, bcryptCost)
+			if err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to hash password", err, logger.APILog)
+				return
+			}
 		}
 
 		numUsers, err := dbInstance.CountUsers(r.Context())
@@ -301,7 +295,7 @@ func CreateUser(dbInstance *db.Database, bcryptCost int) http.Handler {
 	})
 }
 
-func UpdateUser(dbInstance *db.Database) http.Handler {
+func UpdateUser(dbInstance *db.Database, oidcSettings OIDCSettings) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 
@@ -335,10 +329,32 @@ func UpdateUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		targetUser, err := dbInstance.GetUser(r.Context(), emailParam)
+		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(r.Context(), w, http.StatusNotFound, "User not found", nil, logger.APILog)
+				return
+			}
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get user", err, logger.APILog)
+
+			return
+		}
+
+		if db.RoleID(updateUserParams.RoleID) != targetUser.RoleID && roleFromGroups(oidcSettings, targetUser) {
+			writeError(r.Context(), w, http.StatusConflict, "This user's role comes from their identity provider groups", nil, logger.APILog)
+			return
+		}
+
 		err = dbInstance.UpdateUser(r.Context(), emailParam, db.RoleID(updateUserParams.RoleID))
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "User not found", nil, logger.APILog)
+				return
+			}
+
+			if errors.Is(err, db.ErrLastPasswordAdmin) {
+				writeError(r.Context(), w, http.StatusConflict, lastPasswordAdmin, nil, logger.APILog)
 				return
 			}
 
@@ -347,16 +363,10 @@ func UpdateUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		targetUser, err := dbInstance.GetUser(r.Context(), emailParam)
-		if err == nil {
-			if err := dbInstance.DeleteAllSessionsForUser(r.Context(), targetUser.ID); err != nil {
-				logger.APILog.Warn("Failed to invalidate sessions after role change", zap.Error(err))
-			}
-		}
-
 		writeResponse(r.Context(), w, SuccessResponse{Message: "User updated successfully"}, http.StatusOK, logger.APILog)
 
-		logger.LogAuditEvent(r.Context(), UpdateUserAction, requester, getClientIP(r), "User updated user: "+emailParam)
+		logger.LogAuditEvent(r.Context(), UpdateUserAction, requester, getClientIP(r),
+			fmt.Sprintf("User updated user: %s with role: %d", emailParam, updateUserParams.RoleID))
 	})
 }
 
@@ -445,6 +455,17 @@ func UpdateMyUserPassword(dbInstance *db.Database, bcryptCost int) http.Handler 
 			return
 		}
 
+		user, err := dbInstance.GetUser(r.Context(), email)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve user", err, logger.APILog)
+			return
+		}
+
+		if user.HashedPassword == "" {
+			writeError(r.Context(), w, http.StatusConflict, "You have no password, since you sign in with single sign-on", nil, logger.APILog)
+			return
+		}
+
 		if updateUserParams.CurrentPassword == "" {
 			writeError(r.Context(), w, http.StatusBadRequest, "current_password is missing", errors.New("missing current_password"), logger.APILog)
 			return
@@ -452,12 +473,6 @@ func UpdateMyUserPassword(dbInstance *db.Database, bcryptCost int) http.Handler 
 
 		if updateUserParams.Password == "" {
 			writeError(r.Context(), w, http.StatusBadRequest, "password is missing", errors.New("missing password"), logger.APILog)
-			return
-		}
-
-		user, err := dbInstance.GetUser(r.Context(), email)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve user", err, logger.APILog)
 			return
 		}
 
@@ -521,10 +536,6 @@ func DeleteUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if err := dbInstance.DeleteAllSessionsForUser(r.Context(), targetUser.ID); err != nil {
-			logger.APILog.Warn("Failed to invalidate sessions before user deletion", zap.Error(err))
-		}
-
 		err = dbInstance.DeleteUser(r.Context(), emailParam)
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
@@ -532,9 +543,18 @@ func DeleteUser(dbInstance *db.Database) http.Handler {
 				return
 			}
 
+			if errors.Is(err, db.ErrLastPasswordAdmin) {
+				writeError(r.Context(), w, http.StatusConflict, lastPasswordAdmin, nil, logger.APILog)
+				return
+			}
+
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to delete user", err, logger.APILog)
 
 			return
+		}
+
+		if err := dbInstance.DeleteAllSessionsForUser(r.Context(), targetUser.ID); err != nil {
+			logger.APILog.Warn("Failed to invalidate sessions after user deletion", zap.Error(err))
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "User deleted successfully"}, http.StatusOK, logger.APILog)

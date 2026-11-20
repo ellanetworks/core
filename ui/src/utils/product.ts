@@ -16,6 +16,7 @@ export const PRODUCT = {
   haDocsUrl: `${DOCS_URL}/explanation/high_availability/`,
   backupRestoreDocsUrl: `${DOCS_URL}/how_to/backup_and_restore/`,
   roamingDocsUrl: `${DOCS_URL}/how_to/configure_roaming/`,
+  ssoDocsUrl: `${DOCS_URL}/how_to/configure_single_sign_on/`,
 };
 
 export const logoAlt = () => `${PRODUCT.name} Logo`;

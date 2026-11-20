@@ -19,6 +19,7 @@ import (
 	"github.com/ellanetworks/core/internal/lmf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
+	"github.com/ellanetworks/core/internal/oidc"
 	"github.com/ellanetworks/core/internal/smf"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -46,6 +47,7 @@ type HandlerConfig struct {
 	SEPP                SEPPRuntime
 	DatapathAttachMode  func() string
 	Context             context.Context
+	OIDC                OIDCSettings
 }
 
 func NewHandler(cfg HandlerConfig) http.Handler {
@@ -63,6 +65,11 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	reconcileRoutes := cfg.ReconcileRoutes
 	registerExtraRoutes := cfg.RegisterExtraRoutes
 	lmfInstance := cfg.LMF
+
+	oidcSettings := cfg.OIDC
+	if oidcSettings == nil {
+		oidcSettings = newOIDCSettings(cfg.Context, dbInstance)
+	}
 
 	mux := http.NewServeMux()
 
@@ -99,8 +106,11 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 
 	mux.HandleFunc("POST /api/v1/auth/login", Login(dbInstance, jwtSecret, secureCookie, loginLimiter).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/auth/refresh", Refresh(dbInstance, jwtSecret, secureCookie).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/auth/logout", Logout(dbInstance, secureCookie).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/auth/logout", Logout(dbInstance, oidcSettings, secureCookie).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/auth/lookup-token", rateLimit(lookupTokenLimiter, LookupToken(dbInstance, jwtSecret)).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/auth/oidc", GetOIDCLogin(oidcSettings).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/auth/oidc/login", StartOIDCLogin(dbInstance, oidcSettings, jwtSecret, loginLimiter).ServeHTTP)
+	mux.HandleFunc("GET "+oidc.CallbackPath, OIDCCallback(dbInstance, oidcSettings, jwtSecret, secureCookie).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/auth/rotate-secret", Authenticate(jwtSecret, dbInstance, Authorize(PermRotateSecret, RotateSecret(dbInstance, jwtSecret))).ServeHTTP)
 
 	// Initialization (Unauthenticated)
@@ -114,10 +124,15 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("DELETE /api/v1/users/me/api-tokens/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteMyAPIToken, DeleteMyAPIToken(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/users", Authenticate(jwtSecret, dbInstance, Authorize(PermListUsers, ListUsers(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/users", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateUser, CreateUser(dbInstance, bcryptCost))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/users/{email}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateUser, UpdateUser(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/users/{email}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateUser, UpdateUser(dbInstance, oidcSettings))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/users/{email}/password", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateUserPassword, UpdateUserPassword(dbInstance, bcryptCost))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/users/{email}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadUser, GetUser(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/users/{email}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteUser, DeleteUser(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/users/{email}/password", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteUserPassword, DeleteUserPassword(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/users/{email}/oidc", Authenticate(jwtSecret, dbInstance, Authorize(PermUnlinkUser, UnlinkUser(dbInstance))).ServeHTTP)
+
+	mux.HandleFunc("GET /api/v1/oidc", Authenticate(jwtSecret, dbInstance, Authorize(PermReadOIDC, GetOIDC(oidcSettings))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/oidc", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOIDC, UpdateOIDC(oidcSettings))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/users/{email}/api-tokens", Authenticate(jwtSecret, dbInstance, Authorize(PermListUserAPITokens, ListUserAPITokens(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/users/{email}/api-tokens", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateUserAPIToken, CreateUserAPIToken(dbInstance, bcryptCost))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/users/{email}/api-tokens/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteUserAPIToken, DeleteUserAPIToken(dbInstance))).ServeHTTP)

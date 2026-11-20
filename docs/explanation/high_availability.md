@@ -26,7 +26,7 @@ Within those bounds, surviving voters keep accepting writes, radio traffic, and 
 
 ## What replicates, and what does not
 
-Network-wide resources (subscribers, profiles, policies, slices, data networks, network rules, IP leases, users, API tokens, the operator configuration) replicate across the cluster. If a node dies, the survivors hold the same state, automatically elect a new leader, and keep accepting writes.
+Network-wide resources (subscribers, profiles, policies, slices, data networks, network rules, IP leases, users, API tokens, single sign-on settings, the operator configuration) replicate across the cluster. If a node dies, the survivors hold the same state, automatically elect a new leader, and keep accepting writes.
 
 Per-node configuration (local data-plane and routing settings) does not replicate. Configure those settings on every node.
 

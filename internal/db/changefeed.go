@@ -37,6 +37,7 @@ const (
 	TopicJWTSecret              Topic = "jwt_secret"
 	TopicRoaming                Topic = "roaming"
 	TopicSEPPIdentity           Topic = "sepp_identity"
+	TopicOIDC                   Topic = "oidc"
 )
 
 // Changefeed is an in-process publish/subscribe broker. One per

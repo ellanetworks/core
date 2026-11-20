@@ -1,0 +1,85 @@
+{
+  "realm": "ella",
+  "enabled": true,
+  "sslRequired": "all",
+  "loginWithEmailAllowed": true,
+  "registrationAllowed": false,
+  "groups": [
+    { "name": "core-operators", "path": "/core-operators" },
+    { "name": "core-viewers", "path": "/core-viewers" }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "email": "alice@example.com",
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Linked",
+      "enabled": true,
+      "credentials": [
+        { "type": "password", "value": "alice-password", "temporary": false }
+      ]
+    },
+    {
+      "username": "bob",
+      "email": "bob@example.com",
+      "emailVerified": true,
+      "firstName": "Bob",
+      "lastName": "Unknown",
+      "enabled": true,
+      "credentials": [
+        { "type": "password", "value": "bob-password", "temporary": false }
+      ]
+    },
+    {
+      "username": "carol",
+      "email": "carol@example.com",
+      "emailVerified": true,
+      "firstName": "Carol",
+      "lastName": "Operator",
+      "enabled": true,
+      "groups": ["/core-operators", "/core-viewers"],
+      "credentials": [
+        { "type": "password", "value": "carol-password", "temporary": false }
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "ella-core",
+      "name": "Ella Core",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "e2e-client-secret",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["https://localhost:*"],
+      "webOrigins": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
+      },
+      "defaultClientScopes": ["profile", "email"],
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "groups",
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "false",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ]
+}

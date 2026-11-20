@@ -6,7 +6,7 @@ description: RESTful API reference for managing Ella Core.
 
 ## Authentication
 
-Almost every operation requires a client token. The client token must be sent as Authorization HTTP Header using the Bearer <token> scheme. That token can either be the JWT returned by the [login](auth.md/#login) endpoint or an [API token](users.md/#create-an-api-token).
+Almost every operation requires a client token. The client token must be sent as Authorization HTTP Header using the Bearer <token> scheme. That token can either be the JWT returned by the [login](auth.md/#log-in) endpoint or an [API token](users.md/#create-an-api-token).
 
 ## Responses
 
@@ -37,8 +37,15 @@ GET /api/v1/openapi.yaml  # Unauthenticated
 - 201 - Created.
 - 400 - Bad request.
 - 401 - Unauthorized.
+- 403 - Forbidden.
+- 404 - Not found.
+- 409 - Conflict.
 - 429 - Too many requests.
 - 500 - Internal server error.
+- 501 - Not implemented.
+- 502 - Bad gateway.
+- 503 - Service unavailable.
+- 504 - Gateway timeout.
 
 ## Client
 

@@ -1,0 +1,5 @@
+# Runs the Ella Core built from this checkout, UI included, in the image of the last build.
+services:
+  ella-core:
+    volumes:
+      - ${ELLA_E2E_CORE_BINARY:-../.build/core}:/bin/core:ro

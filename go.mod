@@ -4,6 +4,7 @@ go 1.27.3
 
 require (
 	github.com/cilium/ebpf v0.22.0
+	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/ellanetworks/core/diameter v0.0.0-20261022122753-8d5c8bdaaf89
 	github.com/ellanetworks/core/lppa v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/nas v0.0.0-00010101000000-000000000000
@@ -14,6 +15,7 @@ require (
 	github.com/ellanetworks/core/sctp v0.0.0-20260928204907-fc197c42dc3f
 	github.com/ellanetworks/ims v0.0.0-20261022130621-a2851bd8ae6a
 	github.com/ellanetworks/ims/sip v0.0.0-20261022130621-a2851bd8ae6a
+	github.com/go-jose/go-jose/v4 v4.1.9
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/gopacket v1.1.19
 	github.com/google/nftables v0.3.0
@@ -44,6 +46,7 @@ require (
 	go.uber.org/zap/exp v0.3.0
 	golang.org/x/crypto v0.59.0
 	golang.org/x/net v0.62.0
+	golang.org/x/oauth2 v0.38.0
 	golang.org/x/sync v0.25.0
 	golang.org/x/sys v0.50.0
 	gopkg.in/yaml.v2 v2.4.0

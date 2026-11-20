@@ -85,11 +85,17 @@ CREATE INDEX idx_network_logs_remote_address ON network_logs(remote_address);
 -- index idx_network_logs_timestamp
 CREATE INDEX idx_network_logs_timestamp ON network_logs(timestamp);
 
+-- index idx_oidc_used_states_expires
+CREATE INDEX idx_oidc_used_states_expires ON oidc_used_states(expiresAt);
+
 -- index idx_roaming_partner_plmns_partner
 CREATE INDEX idx_roaming_partner_plmns_partner ON roaming_partner_plmns(partnerID);
 
 -- index idx_roaming_partners_sepp_fqdn
 CREATE UNIQUE INDEX idx_roaming_partners_sepp_fqdn ON roaming_partners(seppFQDN)WHERE seppFQDN IS NOT NULL;
+
+-- index idx_sessions_identity
+CREATE INDEX idx_sessions_identity ON sessions(identity_id);
 
 -- index idx_slice_data_networks_data_network
 CREATE INDEX idx_slice_data_networks_data_network ON slice_data_networks(dataNetworkID);
@@ -111,6 +117,9 @@ CREATE INDEX idx_ue_registrations_node ON ue_registrations(nodeID);
 
 -- index idx_ue_registrations_version
 CREATE INDEX idx_ue_registrations_version ON ue_registrations(version);
+
+-- index idx_user_identities_user
+CREATE INDEX idx_user_identities_user ON user_identities(userID);
 
 -- index idx_visitors_partner
 CREATE INDEX idx_visitors_partner ON visitors(partnerID);
@@ -226,6 +235,15 @@ CREATE TABLE "network_rules"(id TEXT PRIMARY KEY,policy_id TEXT NOT NULL,descrip
 -- table network_slices
 CREATE TABLE "network_slices"(id TEXT PRIMARY KEY,sst INTEGER NOT NULL,sd TEXT,name TEXT NOT NULL UNIQUE,UNIQUE(sst,sd));
 
+-- table oidc_group_roles
+CREATE TABLE oidc_group_roles(position INTEGER PRIMARY KEY CHECK(position > 0),groupName TEXT NOT NULL UNIQUE CHECK(groupName != ''),roleID INTEGER NOT NULL CHECK(roleID IN(1,2,3)));
+
+-- table oidc_settings
+CREATE TABLE oidc_settings(singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK(singleton),enabled BOOLEAN NOT NULL,externalURL TEXT NOT NULL,issuer TEXT NOT NULL,clientID TEXT NOT NULL,clientSecret TEXT NOT NULL,displayName TEXT NOT NULL,scopes TEXT NOT NULL,sessionLifetime INTEGER NOT NULL CHECK(sessionLifetime > 0),trustUnverifiedEmail BOOLEAN NOT NULL,caCertificate TEXT NOT NULL,groupsClaim TEXT NOT NULL,CHECK(NOT enabled OR(externalURL != '' AND issuer != '' AND clientID != '' AND clientSecret != '' AND displayName != '' AND scopes != '')));
+
+-- table oidc_used_states
+CREATE TABLE oidc_used_states(stateHash BLOB PRIMARY KEY CHECK(length(stateHash)= 32),expiresAt INTEGER NOT NULL)WITHOUT ROWID;
+
 -- table operator
 CREATE TABLE "operator"(id INTEGER PRIMARY KEY CHECK(id = 1),mcc TEXT NOT NULL,mnc TEXT NOT NULL,operatorCode TEXT NOT NULL,supportedTACs TEXT DEFAULT '[]',ciphering TEXT NOT NULL DEFAULT '["NEA2","NEA1"]',integrity TEXT NOT NULL DEFAULT '["NIA2","NIA1"]',spnFullName TEXT NOT NULL DEFAULT 'Ella Networks',spnShortName TEXT NOT NULL DEFAULT 'Ella',amfRegionID INTEGER NOT NULL DEFAULT 1,amfSetID INTEGER NOT NULL DEFAULT 1,clusterID TEXT NOT NULL DEFAULT '');
 
@@ -260,7 +278,7 @@ CREATE TABLE sepp_ca(singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK(singleton)
 CREATE TABLE sepp_identities(seppID INTEGER PRIMARY KEY CHECK(seppID BETWEEN 1 AND 63),fqdn TEXT NOT NULL UNIQUE CHECK(fqdn != '' AND fqdn = lower(fqdn)),source TEXT NOT NULL CHECK(source IN('generated','imported')),certChainPEM TEXT NOT NULL CHECK(certChainPEM != ''),keyPEM TEXT NOT NULL CHECK(keyPEM != ''));
 
 -- table sessions
-CREATE TABLE "sessions"(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,token_hash BLOB NOT NULL UNIQUE,created_at INTEGER NOT NULL DEFAULT(strftime('%s','now')),expires_at INTEGER NOT NULL,FOREIGN KEY(user_id)REFERENCES users(id)ON DELETE CASCADE);
+CREATE TABLE "sessions"(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,token_hash BLOB NOT NULL UNIQUE,created_at INTEGER NOT NULL DEFAULT(strftime('%s','now')),expires_at INTEGER NOT NULL,method TEXT NOT NULL DEFAULT 'password' CHECK(method IN('password','oidc')),identity_id TEXT REFERENCES user_identities(id)ON DELETE CASCADE,FOREIGN KEY(user_id)REFERENCES users(id)ON DELETE CASCADE);
 
 -- table slice_data_networks
 CREATE TABLE slice_data_networks(sliceID TEXT NOT NULL REFERENCES network_slices(id)ON DELETE RESTRICT,dataNetworkID TEXT NOT NULL REFERENCES data_networks(id)ON DELETE RESTRICT,nat BOOLEAN NOT NULL CHECK(nat IN(0,1)),localSwitch BOOLEAN NOT NULL CHECK(localSwitch IN(0,1)),networkInstance TEXT NOT NULL DEFAULT 'default',PRIMARY KEY(sliceID,dataNetworkID));
@@ -288,6 +306,9 @@ CREATE TABLE "subscribers"(id TEXT PRIMARY KEY,imsi TEXT NOT NULL UNIQUE CHECK(l
 
 -- table ue_registrations
 CREATE TABLE "ue_registrations"(imsi TEXT NOT NULL CHECK(length(imsi)BETWEEN 6 AND 15 AND imsi NOT GLOB '*[^0-9]*'),type TEXT NOT NULL,nodeID TEXT NOT NULL,purged INTEGER NOT NULL DEFAULT 0,version INTEGER NOT NULL,PRIMARY KEY(imsi,type));
+
+-- table user_identities
+CREATE TABLE user_identities(id TEXT PRIMARY KEY,userID TEXT NOT NULL REFERENCES users(id)ON DELETE CASCADE,issuer TEXT NOT NULL CHECK(issuer != ''),subject TEXT NOT NULL CHECK(length(CAST(subject AS BLOB))BETWEEN 1 AND 255),email TEXT NOT NULL,createdAt INTEGER NOT NULL,lastLoginAt INTEGER NOT NULL,UNIQUE(issuer,subject),UNIQUE(userID,issuer));
 
 -- table users
 CREATE TABLE "users"(id TEXT PRIMARY KEY,email TEXT NOT NULL UNIQUE,roleID INTEGER NOT NULL,hashedPassword TEXT NOT NULL);

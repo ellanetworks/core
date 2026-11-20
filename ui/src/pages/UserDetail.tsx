@@ -16,12 +16,19 @@ import {
   listAuditLogs,
   type ListAuditLogsResponse,
 } from "@/queries/audit_logs";
-import { deleteUser } from "@/queries/users";
+import { deleteUser, removeUserPassword, unlinkUser } from "@/queries/users";
+import {
+  getOIDC,
+  OIDC_QUERY_KEY,
+  roleFromGroups,
+  type OIDCSettings,
+} from "@/queries/oidc";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import EditUserModal from "@/components/EditUserModal";
 import EditUserPasswordModal from "@/components/EditUserPasswordModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
+import ConfirmDialog from "@/components/form/ConfirmDialog";
 import UserAccountCard from "@/components/UserAccountCard";
 import UserPasswordCard from "@/components/UserPasswordCard";
 import UserAPITokensCard from "@/components/UserAPITokensCard";
@@ -29,6 +36,19 @@ import UserAuditLogsCard from "@/components/UserAuditLogsCard";
 import QueryState from "@/components/QueryState";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import PageTitle from "@/components/PageTitle";
+
+const removePasswordDescription = (
+  email: string,
+  ssoEnabled: boolean,
+  linked: boolean,
+) => {
+  const consequence = !ssoEnabled
+    ? "Single sign-on is off, so they cannot sign in until it is on."
+    : linked
+      ? "They can then sign in only with single sign-on."
+      : "They have not signed in with single sign-on yet.";
+  return `Remove the password of ${email}? ${consequence} Their sessions end.`;
+};
 
 const UserDetail: React.FC = () => {
   const { email } = useParams<{ email: string }>();
@@ -42,6 +62,9 @@ const UserDetail: React.FC = () => {
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isEditPasswordModalOpen, setEditPasswordModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [confirming, setConfirming] = useState<
+    "removePassword" | "unlink" | null
+  >(null);
 
   useEffect(() => {
     if (authReady && !accessToken) navigate("/login");
@@ -52,6 +75,13 @@ const UserDetail: React.FC = () => {
     queryFn: () => getUser(accessToken!, email!),
     enabled: authReady && !!accessToken && !!email,
     refetchInterval: 5000,
+    retry: false,
+  });
+
+  const oidcQuery = useQuery<OIDCSettings>({
+    queryKey: OIDC_QUERY_KEY,
+    queryFn: () => getOIDC(accessToken!),
+    enabled: authReady && !!accessToken && isAdmin,
     retry: false,
   });
 
@@ -82,6 +112,26 @@ const UserDetail: React.FC = () => {
       setDeleteConfirmOpen(false);
       showSnackbar(
         `Failed to delete user: ${err instanceof Error ? err.message : "Unknown error"}`,
+        "error",
+      );
+    }
+  };
+
+  const handleUserChange = async (
+    request: () => Promise<void>,
+    done: string,
+    failed: string,
+  ) => {
+    try {
+      await request();
+      setConfirming(null);
+      void queryClient.invalidateQueries({ queryKey: ["users"] });
+      void queryClient.invalidateQueries({ queryKey: ["user", email] });
+      showSnackbar(done, "success");
+    } catch (err) {
+      setConfirming(null);
+      showSnackbar(
+        `${failed}: ${err instanceof Error ? err.message : "Unknown error"}`,
         "error",
       );
     }
@@ -167,11 +217,30 @@ const UserDetail: React.FC = () => {
                   user={user}
                   canEdit={isAdmin && !isSelf}
                   onEdit={() => setEditModalOpen(true)}
+                  fromGroups={roleFromGroups(user, oidcQuery.data)}
+                  onUnlink={
+                    isAdmin && !isSelf
+                      ? () => setConfirming("unlink")
+                      : undefined
+                  }
                 />
               </Box>
               <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
                 <UserPasswordCard
+                  description={
+                    user.password_set
+                      ? undefined
+                      : "This user has no password and signs in only with single sign-on."
+                  }
+                  changeLabel={
+                    user.password_set ? "Change Password" : "Set Password"
+                  }
                   onChangePassword={() => setEditPasswordModalOpen(true)}
+                  onRemovePassword={
+                    isAdmin && !isSelf && user.password_set
+                      ? () => setConfirming("removePassword")
+                      : undefined
+                  }
                   disabled={!isAdmin}
                 />
               </Box>
@@ -216,7 +285,7 @@ const UserDetail: React.FC = () => {
                   userQuery.refetch();
                   showSnackbar("User updated successfully.", "success");
                 }}
-                initialData={{ email: user.email, role_id: user.role_id }}
+                initialData={user}
               />
             )}
             {isEditPasswordModalOpen && (
@@ -224,6 +293,8 @@ const UserDetail: React.FC = () => {
                 open
                 onClose={() => setEditPasswordModalOpen(false)}
                 onSuccess={() => {
+                  void queryClient.invalidateQueries({ queryKey: ["users"] });
+                  void userQuery.refetch();
                   showSnackbar("Password updated successfully.", "success");
                 }}
                 initialData={{ email: user.email }}
@@ -232,6 +303,41 @@ const UserDetail: React.FC = () => {
           </>
         )}
       </QueryState>
+
+      <ConfirmDialog
+        open={confirming === "removePassword"}
+        onClose={() => setConfirming(null)}
+        onConfirm={() =>
+          handleUserChange(
+            () => removeUserPassword(accessToken!, email!),
+            "Password removed successfully.",
+            "Failed to remove the password",
+          )
+        }
+        title="Remove Password"
+        description={removePasswordDescription(
+          email ?? "",
+          oidcQuery.data?.enabled === true,
+          userQuery.data?.oidc_linked === true,
+        )}
+        confirmLabel="Remove"
+        confirmingLabel="Removing…"
+      />
+      <ConfirmDialog
+        open={confirming === "unlink"}
+        onClose={() => setConfirming(null)}
+        onConfirm={() =>
+          handleUserChange(
+            () => unlinkUser(accessToken!, email!),
+            "User unlinked successfully.",
+            "Failed to unlink the user",
+          )
+        }
+        title="Unlink from Identity Provider"
+        description={`Unlink ${email} from their identity provider account? Their single sign-on sessions end, and their next sign-in links them again.`}
+        confirmLabel="Unlink"
+        confirmingLabel="Unlinking…"
+      />
 
       {isDeleteConfirmOpen && (
         <DeleteConfirmationModal

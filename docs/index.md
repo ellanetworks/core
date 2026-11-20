@@ -20,6 +20,7 @@ Use Ella Core where you need mobile connectivity: in a factory, a warehouse, a f
 - **Highly Available**: Deploy Ella Core as a high-availability cluster to ensure continuous operation with failover capabilities.
 - **Data, Voice, and SMS**: Data is built in. Integrate with an IMS for VoLTE and VoNR voice and video calls, and with an SMSC for SMS.
 - **Enterprise Network Integration**: Plug into your existing network with BGP, VLANs, and VRFs. Define permitted network flows per subscriber, enforce them in the user plane, and track subscriber traffic and usage in real time.
+- **Single Sign-On**: Users log in through an identity provider, such as Google, Microsoft or Okta, over OpenID Connect.
 - **AI-Native API**: Complete RESTful API and Go client for automation and integration. Manage your network programmatically or let AI agents do it securely using the OpenAPI specification and AI agent skill.
 - **Easy to Operate**: Manage your private network through a user-friendly embedded web interface. Monitor network health with real-time observability: logs, metrics (Prometheus), traces (OTel), profiles, and dashboards. Keep track of who did what and when with audit logs, and back up and restore your data in 1 click.
 

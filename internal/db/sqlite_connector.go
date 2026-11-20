@@ -24,7 +24,7 @@ func newSQLiteConnector(dsn string) *sqliteConnector {
 	return &sqliteConnector{dsn: dsn, driver: &sqlite3.SQLiteDriver{}}
 }
 
-func (c *sqliteConnector) Connect(context.Context) (driver.Conn, error) {
+func (c *sqliteConnector) Connect(ctx context.Context) (driver.Conn, error) {
 	c.opening.RLock()
 	defer c.opening.RUnlock()
 
@@ -39,6 +39,11 @@ func (c *sqliteConnector) Connect(context.Context) (driver.Conn, error) {
 	if !ok {
 		_ = conn.Close()
 		return nil, fmt.Errorf("unexpected sqlite driver conn type %T", conn)
+	}
+
+	if _, err := sqliteConn.ExecContext(ctx, "PRAGMA temp_store = MEMORY", nil); err != nil {
+		_ = sqliteConn.Close()
+		return nil, fmt.Errorf("set temp_store: %w", err)
 	}
 
 	return &generationConn{SQLiteConn: sqliteConn, generation: generation, connector: c}, nil

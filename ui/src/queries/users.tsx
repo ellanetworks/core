@@ -25,6 +25,8 @@ export enum RoleID {
 export type APIUser = {
   email: string;
   role_id: RoleID;
+  password_set: boolean;
+  oidc_linked: boolean;
 };
 
 export type ListUsersResponse = {
@@ -97,6 +99,35 @@ export const updateUser = async (
     body: { role_id },
   });
 };
+
+export const removeUserPassword = async (
+  authToken: string,
+  email: string,
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/users/${email}/password`, {
+    method: "DELETE",
+    authToken,
+  });
+};
+
+export const unlinkUser = async (
+  authToken: string,
+  email: string,
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/users/${email}/oidc`, {
+    method: "DELETE",
+    authToken,
+  });
+};
+
+export const signInMethods = (user: APIUser): string[] => {
+  const methods = [];
+  if (user.password_set) methods.push("Password");
+  if (user.oidc_linked) methods.push("Single sign-on");
+  return methods;
+};
+
+export const NOT_LINKED_YET = "Single sign-on, not linked yet";
 
 export const deleteUser = async (
   authToken: string,

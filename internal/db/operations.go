@@ -524,6 +524,18 @@ var forwardCodes = []struct {
 	{ellaraft.ForwardCodeRoamingConflict, ErrRoamingConflict},
 	{ellaraft.ForwardCodeInUse, ErrInUse},
 	{ellaraft.ForwardCodeSubscriberLimit, ErrSubscriberLimit},
+	{ellaraft.ForwardCodeLastPassAdmin, ErrLastPasswordAdmin},
+	{ellaraft.ForwardCodeNoPassword, ErrNoPassword},
+	{ellaraft.ForwardCodeUserLimit, ErrUserLimit},
+	{ellaraft.ForwardCodeOIDCDisabled, ErrOIDCDisabled},
+	{ellaraft.ForwardCodeOIDCChanged, ErrOIDCChanged},
+	{ellaraft.ForwardCodeNotLinked, ErrNotLinked},
+	{ellaraft.ForwardCodeNoUser, ErrNoUser},
+	{ellaraft.ForwardCodeAmbiguousEmail, ErrAmbiguousEmail},
+	{ellaraft.ForwardCodeNoRole, ErrNoRole},
+	{ellaraft.ForwardCodeLinkedElsewhere, ErrLinkedElsewhere},
+	{ellaraft.ForwardCodeStateUsed, ErrStateUsed},
+	{ellaraft.ForwardCodeLinkRequired, ErrLinkRequired},
 }
 
 func sentinelForForwardCode(code string) error {

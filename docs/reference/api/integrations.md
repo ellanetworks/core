@@ -372,14 +372,6 @@ A Diameter peer matches an allowed IMS peer when it connects from one of the `ad
 }
 ```
 
-### Responses
-
-| Status | Condition |
-| ------ | --------- |
-| `201`  | Returns the created allowed IMS peer. |
-| `400`  | Invalid parameters. |
-| `409`  | The name is taken, or another allowed IMS peer has the same Origin-Host, realm and addresses. |
-
 ### Sample Response
 
 ```json
@@ -802,15 +794,6 @@ This path creates a new roaming partner.
 }
 ```
 
-### Responses
-
-| Status | Condition |
-| ------ | --------- |
-| `201`  | Returns the created partner. |
-| `400`  | Invalid parameters. |
-| `404`  | The profile or the roaming Diameter peer does not exist. |
-| `409`  | The name is taken, or a PLMN ID conflicts. |
-
 ### Sample Response
 
 ```json
@@ -856,15 +839,6 @@ This path updates an existing roaming partner. When a removed PLMN ID or agreeme
 
 The parameters of [Create a Roaming Partner](#create-a-roaming-partner).
 
-### Responses
-
-| Status | Condition |
-| ------ | --------- |
-| `200`  | The partner is updated. |
-| `400`  | Invalid parameters. |
-| `404`  | The partner, the profile or the roaming Diameter peer does not exist. |
-| `409`  | The name is taken, a PLMN ID conflicts, or the roamers were not all deregistered within one minute. Nothing is changed. |
-
 ### Sample Response
 
 ```json
@@ -887,14 +861,6 @@ This path deletes a roaming partner. Its roamers are first deregistered on every
 
 None
 
-### Responses
-
-| Status | Condition |
-| ------ | --------- |
-| `200`  | The partner is deleted. |
-| `404`  | The partner does not exist. |
-| `409`  | The roamers were not all deregistered within one minute. Nothing is changed. |
-
 ### Sample Response
 
 ```json
@@ -916,14 +882,6 @@ This path starts a new N32-c handshake with the partner's SEPP on this node. It 
 ### Parameters
 
 None
-
-### Responses
-
-| Status | Condition |
-| ------ | --------- |
-| `202`  | The handshake started. |
-| `404`  | The partner does not exist. |
-| `409`  | The partner has no 5G agreement, or this node has no `interfaces.n32`. |
 
 ### Sample Response
 
@@ -985,14 +943,6 @@ This path creates a new roaming Diameter peer.
 - `address` (string): The IPv4 or IPv6 address of the peer.
 - `port` (integer, optional): The peer's SCTP port. Defaults to `3868`.
 - `originHost` (string, optional): The peer's Origin-Host. When set, the peer must give this Origin-Host when it connects.
-
-### Responses
-
-| Status | Condition |
-| ------ | --------- |
-| `201`  | Returns the created peer. |
-| `400`  | Invalid parameters. |
-| `409`  | Another Diameter peer has the identity or the address. |
 
 ### Sample Response
 
@@ -1146,14 +1096,6 @@ This path replaces a node's SEPP certificate with one issued by your CA. When th
 - `privateKeyPEM` (string): The certificate's private key: ECDSA P-256 or P-384, or RSA of at least 2048 bits.
 - `fqdn` (string, optional): The node's SEPP FQDN, when the certificate has several DNS names. Defaults to the subject CN.
 
-### Responses
-
-| Status | Condition |
-| ------ | --------- |
-| `200`  | Returns the imported certificate, as listed in [Get the SEPP Status](#get-the-sepp-status), with `warnings`: a missing extendedKeyUsage, a validity over 3 years, or a trust anchor that partners must import. |
-| `400`  | Invalid certificate or key. |
-| `409`  | Another node has this FQDN. |
-
 ### Sample Response
 
 ```json
@@ -1187,14 +1129,6 @@ This path deletes a node's SEPP certificate, generated or imported. The node the
 ### Parameters
 
 None
-
-### Responses
-
-| Status | Condition |
-| ------ | --------- |
-| `200`  | The certificate was deleted. |
-| `400`  | `seppID` is not between 1 and 63. |
-| `404`  | The node has no SEPP certificate. |
 
 ## Regenerate the SEPP CA
 

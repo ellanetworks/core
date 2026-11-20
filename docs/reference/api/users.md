@@ -29,7 +29,9 @@ This path returns the list of system users.
         "items": [
             {
                 "email": "admin@ellanetworks.com",
-                "role_id": 1
+                "role_id": 1,
+                "password_set": true,
+                "oidc_linked": false
             }
         ],
         "page": 1,
@@ -41,7 +43,7 @@ This path returns the list of system users.
 
 ## Create a User
 
-This path creates a new system user.
+This path creates a new system user. At most 50 users.
 
 | Method | Path            |
 | ------ | --------------- |
@@ -50,7 +52,7 @@ This path creates a new system user.
 ### Parameters
 
 - `email` (string): The email of the user.
-- `password` (string): The password of the user.
+- `password` (string, optional): The password of the user.
 - `role_id` (int): The role ID of the user. Allowed values:
     - 1 (admin): Administrator user with full access to network and system resources.
     - 2 (read only): Read-only user with only read access to network resources.
@@ -68,7 +70,7 @@ This path creates a new system user.
 
 ## Update a User
 
-This path updates an existing system user.
+This path sets the role of a user. A role change ends the user's sessions. An Admin cannot change its own role, and the last Admin with a password stays an Admin.
 
 | Method | Path                    |
 | ------ | ----------------------- |
@@ -109,14 +111,25 @@ None
 {
     "result": {
         "email": "admin@ellanetworks.com",
-        "role_id": 1
+        "role_id": 1,
+        "password_set": true,
+        "oidc_linked": false
     }
 }
 ```
 
+### Response Fields
+
+| Field          | Type    | Description |
+| -------------- | ------- | ----------- |
+| `email`        | string  | Email address. |
+| `role_id`      | int     | `1` Admin, `2` Read Only, `3` Network Manager. |
+| `password_set` | boolean | The user has a password. |
+| `oidc_linked`  | boolean | The user is linked to an account at the current [identity provider](oidc.md). |
+
 ## Delete a User
 
-This path deletes a user from Ella Core.
+This path deletes a user from Ella Core, with its sessions and API tokens. An Admin cannot delete itself, and the last Admin with a password cannot be deleted.
 
 | Method | Path                    |
 | ------ | ----------------------- |
@@ -177,6 +190,50 @@ This path updates the password of a specific system user. After a successful pas
 {
     "result": {
         "message": "User password updated successfully"
+    }
+}
+```
+
+## Remove a User's Password
+
+This path removes the password of a user and ends their sessions.
+
+| Method | Path                             |
+| ------ | -------------------------------- |
+| DELETE | `/api/v1/users/{email}/password` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Password removed successfully"
+    }
+}
+```
+
+## Unlink a User
+
+This path unlinks a user from the identity provider and ends their single sign-on sessions.
+
+| Method | Path                         |
+| ------ | ---------------------------- |
+| DELETE | `/api/v1/users/{email}/oidc` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "User unlinked successfully"
     }
 }
 ```

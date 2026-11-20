@@ -7,6 +7,25 @@ export function setOnUnauthorized(cb: (() => void) | null) {
   onUnauthorized = cb;
 }
 
+let renewAccessToken: (() => Promise<string | null>) | null = null;
+
+export function setAccessTokenRenewer(
+  renew: (() => Promise<string | null>) | null,
+) {
+  renewAccessToken = renew;
+}
+
+const renewedToken = async (
+  status: number,
+  authToken: string | undefined,
+  retried: boolean,
+): Promise<string | null> => {
+  if (status !== 401 || !authToken || retried || !renewAccessToken) {
+    return null;
+  }
+  return renewAccessToken();
+};
+
 export type ApiErrorKind = "network" | "auth" | "forbidden" | "http";
 
 /**
@@ -91,6 +110,7 @@ interface ApiFetchOptions {
 export async function apiFetch<T = unknown>(
   url: string,
   options: ApiFetchOptions = {},
+  retried = false,
 ): Promise<T> {
   const { method = "GET", authToken, body, credentials } = options;
 
@@ -118,6 +138,11 @@ export async function apiFetch<T = unknown>(
     });
   }
 
+  const renewed = await renewedToken(response.status, authToken, retried);
+  if (renewed) {
+    return apiFetch<T>(url, { ...options, authToken: renewed }, true);
+  }
+
   if (response.status === 401) {
     onUnauthorized?.();
   }
@@ -142,6 +167,7 @@ export async function apiFetch<T = unknown>(
 export async function apiFetchVoid(
   url: string,
   options: ApiFetchOptions = {},
+  retried = false,
 ): Promise<void> {
   const { method = "GET", authToken, body, credentials } = options;
 
@@ -167,6 +193,11 @@ export async function apiFetchVoid(
     throw new ApiError("network", "Cannot reach the server.", {
       detail: `Network request to ${url} failed`,
     });
+  }
+
+  const renewed = await renewedToken(response.status, authToken, retried);
+  if (renewed) {
+    return apiFetchVoid(url, { ...options, authToken: renewed }, true);
   }
 
   if (response.status === 401) {
