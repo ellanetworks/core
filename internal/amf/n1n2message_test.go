@@ -165,8 +165,8 @@ func (f *fakeSmf) UpdateSmContextN2InfoPduResSetupFail(context.Context, string, 
 	return nil
 }
 
-func (f *fakeSmf) UpdateSmContextN2InfoPduResRelRsp(context.Context, string) (bool, error) {
-	return false, nil
+func (f *fakeSmf) UpdateSmContextN2InfoPduResRelRsp(context.Context, string) error {
+	return nil
 }
 
 func (f *fakeSmf) UpdateSmContextCauseDuplicatePDUSessionID(context.Context, string) ([]byte, error) {

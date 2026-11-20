@@ -177,10 +177,8 @@ func deregistrationRelease(reason wire.DeregistrationReason) smf.HPLMNRelease {
 	switch reason {
 	case wire.DeregPDUSessionReactivationRequired:
 		return smf.HPLMNReleaseReactivate
-	case wire.DeregDuplicatePDUSession, wire.DeregSMFContextTransferred:
+	case wire.DeregDuplicatePDUSession, wire.DeregSMFContextTransferred, wire.DeregDuplicatePDUSessionEPDG:
 		return smf.HPLMNReleaseDuplicate
-	case wire.DeregDuplicatePDUSessionEPDG:
-		return smf.HPLMNReleaseDuplicateNotify
 	default:
 		return smf.HPLMNReleaseDeactivate
 	}

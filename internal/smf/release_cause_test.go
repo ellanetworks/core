@@ -63,7 +63,7 @@ func completeRelease(t *testing.T, s *smf.SMF, sc *smf.SMContext, pti uint8) {
 		t.Fatalf("release complete: %v", err)
 	}
 
-	if _, err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, sc.Ref); err != nil {
+	if err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, sc.Ref); err != nil {
 		t.Fatalf("N2 release response: %v", err)
 	}
 }
@@ -200,7 +200,7 @@ func TestDuplicatePDUSessionIDRelease(t *testing.T) {
 		t.Fatalf("UpdateSmContextCauseDuplicatePDUSessionID: %v", err)
 	}
 
-	if _, err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref); err != nil {
+	if err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref); err != nil {
 		t.Fatalf("N2 release response: %v", err)
 	}
 

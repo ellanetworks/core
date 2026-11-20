@@ -658,10 +658,10 @@ func (amf *AMF) nextLCSCorrelationID() []byte {
 	return id
 }
 
-func (amf *AMF) SessionDropped(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte) {
+func (amf *AMF) SMContextStatusNotifyRelease(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, ref string, n2Transfer []byte) {
 	ctx, span := tracer.Start(
 		ctx,
-		"amf/session_dropped",
+		"amf/sm_context_status_notify_release",
 		trace.WithAttributes(
 			attrs.SUPI(supi.String()),
 			attrs.PDUSessionID(pduSessionID),
@@ -675,13 +675,13 @@ func (amf *AMF) SessionDropped(ctx context.Context, supi etsi.SUPI, pduSessionID
 	}
 
 	if !ue.DeleteSmContextRef(pduSessionID, ref) {
-		logger.From(ctx, logger.AmfLog).Debug("ignoring a transfer report for a session this AMF no longer routes",
+		logger.From(ctx, logger.AmfLog).Debug("ignoring an SM context release notification for an SM context this AMF no longer holds",
 			logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID), zap.String("ref", ref))
 
 		return
 	}
 
-	logger.From(ctx, logger.AmfLog).Info("PDU session moved to EPS; dropping the 5GS routing context",
+	logger.From(ctx, logger.AmfLog).Info("SM context released by the SMF; dropping it",
 		logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
 
 	if n2Transfer == nil {

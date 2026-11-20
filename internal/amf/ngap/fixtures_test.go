@@ -67,7 +67,6 @@ type fakeSmfSbi struct {
 	PduResSetupRspCalls         []*SmfN2InfoCall
 	PduResSetupFailCalls        []*SmfN2InfoCall
 	PduResRelRspCalls           []string
-	PduResRelRspRemoved         bool
 	PduResRelRspHook            func(smContextRef string)
 	DeactivateSmContextCalls    []string
 	N2HandoverCompleteCalls     []string
@@ -201,14 +200,14 @@ func (f *fakeSmfSbi) UpdateSmContextN2InfoPduResSetupFail(_ context.Context, smC
 	return nil
 }
 
-func (f *fakeSmfSbi) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, smContextRef string) (bool, error) {
+func (f *fakeSmfSbi) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, smContextRef string) error {
 	f.PduResRelRspCalls = append(f.PduResRelRspCalls, smContextRef)
 
 	if f.PduResRelRspHook != nil {
 		f.PduResRelRspHook(smContextRef)
 	}
 
-	return f.PduResRelRspRemoved, nil
+	return nil
 }
 
 func (f *fakeSmfSbi) UpdateSmContextN2HandoverPreparing(_ context.Context, smContextRef string, n2Data []byte) ([]byte, error) {

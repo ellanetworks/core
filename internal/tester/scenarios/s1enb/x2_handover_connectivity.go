@@ -39,11 +39,15 @@ func init() {
 // the post-switch ping from the target's tunnel proves the MME reprogrammed the
 // UPF downlink to the target eNB.
 func runS1ENBX2HandoverConnectivity(ctx context.Context, env scenarios.Env, _ any) error {
+	return x2HandoverConnectivity(ctx, env, handoverConnectivityOpts{imsi: x2ConnIMSI})
+}
+
+func x2HandoverConnectivity(ctx context.Context, env scenarios.Env, opts handoverConnectivityOpts) error {
 	if len(env.GNBs) < 2 {
 		return fmt.Errorf("x2_handover_connectivity requires at least 2 eNB radios, got %d", len(env.GNBs))
 	}
 
-	s1mme, err := s1mmeAddress(env.FirstCore())
+	s1mme, err := opts.mmeAddresses(env)
 	if err != nil {
 		return err
 	}
@@ -62,7 +66,7 @@ func runS1ENBX2HandoverConnectivity(ctx context.Context, env scenarios.Env, _ an
 
 	source, err := s1enb.Start(&s1enb.StartOpts{
 		ENBID: uint32(enbID), MCC: scenarios.DefaultMCC, MNC: scenarios.DefaultMNC, TAC: scenarios.DefaultTAC,
-		Name: "Source-S1eNB", CoreS1MMEAddress: s1mme,
+		Name: "Source-S1eNB", CoreS1MMEAddresses: s1mme, ConnectAll: opts.connectAll,
 		ENBAddress: sourceSpec.N2Address, ENBN3Address: sourceSpec.N3Address, EnableDatapath: true,
 	})
 	if err != nil {
@@ -73,7 +77,7 @@ func runS1ENBX2HandoverConnectivity(ctx context.Context, env scenarios.Env, _ an
 
 	target, err := s1enb.Start(&s1enb.StartOpts{
 		ENBID: uint32(enbID) + 1, MCC: scenarios.DefaultMCC, MNC: scenarios.DefaultMNC, TAC: scenarios.DefaultTAC,
-		Name: "Target-S1eNB", CoreS1MMEAddress: s1mme,
+		Name: "Target-S1eNB", CoreS1MMEAddresses: s1mme, ConnectAll: opts.connectAll,
 		ENBAddress: targetSpec.N2Address, ENBN3Address: targetSpec.N3Address, EnableDatapath: true,
 	})
 	if err != nil {
@@ -82,13 +86,15 @@ func runS1ENBX2HandoverConnectivity(ctx context.Context, env scenarios.Env, _ an
 
 	defer func() { _ = target.Close() }()
 
-	ue := source.NewUE(x2ConnIMSI, k, opc)
+	ue := source.NewUE(opts.imsi, k, opc)
 	ue.RequestPDNType(env.PDUSessionType())
 
 	res, err := source.Attach(ue, attachTimeout)
 	if err != nil {
 		return fmt.Errorf("attach on source eNB: %w", err)
 	}
+
+	sourceMME := source.ServingMMEAddress(res.ENBUES1APID)
 
 	sourceTunnel, err := handoverTunnelOpts(env, res, res.DLTEID, x2ConnSourceTun)
 	if err != nil {
@@ -109,6 +115,10 @@ func runS1ENBX2HandoverConnectivity(ctx context.Context, env scenarios.Env, _ an
 	}
 
 	targetENBUEID := target.AllocateENBUEIDFor(ue)
+
+	if err := target.InheritServingMME(targetENBUEID, source, res.ENBUES1APID); err != nil {
+		return fmt.Errorf("select the MME by the GUMMEI the source eNB passed over X2: %w", err)
+	}
 
 	dlTEID, err := target.SendPathSwitchRequest(targetENBUEID, res.MMEUES1APID, res.ERABID, ue.S1APSecurityCapabilities())
 	if err != nil {
@@ -143,5 +153,5 @@ func runS1ENBX2HandoverConnectivity(ctx context.Context, env scenarios.Env, _ an
 		return fmt.Errorf("ping after X2 path switch via target eNB (UPF downlink not switched?): %w", err)
 	}
 
-	return nil
+	return opts.finish(ctx, env, sourceMME, target.ServingMMEAddress(targetENBUEID), res.UEIPv4, targetENBUEID)
 }

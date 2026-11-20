@@ -18,7 +18,7 @@ import (
 // §4.3.4.2 step 2) and no sweep re-derives a UE-requested release.
 //
 // Caller must hold smContext.Mutex.
-func (s *SMF) handle5GSMStatus(ctx context.Context, smContext *SMContext, pti uint8, cause fgs.GSMCause) bool {
+func (s *SMF) handle5GSMStatus(ctx context.Context, smContext *SMContext, pti uint8, cause fgs.GSMCause) {
 	logger.From(ctx, logger.SmfLog).Warn("N1 Msg 5GSM STATUS received",
 		zap.Uint8("pti", pti), logger.Cause(cause.String()),
 		logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
@@ -32,9 +32,5 @@ func (s *SMF) handle5GSMStatus(ctx context.Context, smContext *SMContext, pti ui
 
 	if cause == fgs.GSMCauseInvalidPDUSessionIdentity || establishmentMismatch || smContext.releasing {
 		s.teardownAndRemove(ctx, smContext, models.ReleaseFor(models.ReleaseProtocolError).WithRanNas(models.Received5GSMCause(uint8(cause))))
-
-		return true
 	}
-
-	return false
 }

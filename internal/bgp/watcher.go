@@ -5,6 +5,7 @@ package bgp
 
 import (
 	"context"
+	"maps"
 	"net/netip"
 	"time"
 
@@ -56,7 +57,7 @@ func (b *BGPService) syncRoutes(ctx context.Context) {
 	server := b.server
 	peers := b.peers
 	filter := b.filter
-	ownedPaths := b.paths
+	ownedPaths := maps.Clone(b.paths)
 	n6AddrV4 := b.n6AddrV4
 	b.mu.RUnlock()
 
