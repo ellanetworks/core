@@ -186,6 +186,49 @@
       },
       "description": "Service that exposes the API."
     },
+    "ingress": {
+      "description": "Ingress that exposes the API and UI over HTTPS, for a stable URL such as the single sign-on redirect URL.",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Create the Ingress."
+        },
+        "className": {
+          "type": "string",
+          "description": "IngressClass name. Empty uses the cluster default."
+        },
+        "host": {
+          "type": "string",
+          "description": "Host name of the API and UI."
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Ingress annotations, e.g. for cert-manager."
+        },
+        "tls": {
+          "type": "array",
+          "description": "Ingress TLS entries, each with secretName and hosts."
+        }
+      },
+      "if": {
+        "properties": {
+          "enabled": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "host"
+        ],
+        "properties": {
+          "host": {
+            "minLength": 1
+          }
+        }
+      }
+    },
     "persistence": {
       "type": "object",
       "properties": {

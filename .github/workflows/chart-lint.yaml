@@ -42,6 +42,7 @@ jobs:
       - name: Render standalone and high availability
         run: |
           helm template ella-core charts/ella-core --namespace ella > /dev/null
+          helm template ella-core charts/ella-core --namespace ella --set ingress.enabled=true --set ingress.host=ella.example.com > /dev/null
           helm template ella-core charts/ella-core --namespace ella \
             --set-json 'nodes=[{"ranAddress":"192.168.252.3/24"},{"ranAddress":"192.168.252.4/24"},{"ranAddress":"192.168.252.5/24"}]' > /dev/null
           helm template ella-core charts/ella-core --namespace ella \
