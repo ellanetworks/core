@@ -85,6 +85,10 @@ var replicatedChangesetTables = []string{
 	VisitorsTableName,
 	SEPPCATableName,
 	SEPPIdentitiesTableName,
+	UserIdentitiesTableName,
+	OIDCSettingsTableName,
+	OIDCGroupRolesTableName,
+	OIDCUsedStatesTableName,
 	"schema_version",
 }
 

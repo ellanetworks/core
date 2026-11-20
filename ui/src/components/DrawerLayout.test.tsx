@@ -1,12 +1,13 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { ThemeProvider } from "@mui/material/styles";
 import theme from "@/utils/theme";
+import { logout } from "@/queries/auth";
 import DrawerLayout from "./DrawerLayout";
 
 vi.mock("@/contexts/AuthContext", () => ({
@@ -123,5 +124,55 @@ describe("DrawerLayout theme control", () => {
     await openAccountMenu(user);
     expect(modeItem("Dark theme")).toHaveAttribute("aria-checked", "true");
     expect(modeItem("System theme")).toHaveAttribute("aria-checked", "false");
+  });
+});
+
+describe("DrawerLayout logout", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const renderWithLogin = () =>
+    render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <Routes>
+          <Route path="/login" element={<span>login page</span>} />
+          <Route
+            path="*"
+            element={
+              <DrawerLayout>
+                <div />
+              </DrawerLayout>
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+  it("goes to the login page after a password session", async () => {
+    const user = userEvent.setup();
+    vi.mocked(logout).mockResolvedValue(undefined);
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign });
+    renderWithLogin();
+
+    await openAccountMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: "Log Out" }));
+
+    expect(await screen.findByText("login page")).toBeInTheDocument();
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("goes through the identity provider's logout after single sign-on", async () => {
+    const user = userEvent.setup();
+    vi.mocked(logout).mockResolvedValue("https://idp.example.com/logout");
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign });
+    renderWithLogin();
+
+    await openAccountMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: "Log Out" }));
+
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledWith("https://idp.example.com/logout"),
+    );
   });
 });

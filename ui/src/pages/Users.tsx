@@ -13,10 +13,18 @@ import {
 import EntityGrid from "@/components/grid/EntityGrid";
 import {
   listUsers,
+  NOT_LINKED_YET,
   roleIDToLabel,
+  signInMethods,
   type ListUsersResponse,
   type APIUser,
 } from "@/queries/users";
+import {
+  getOIDC,
+  OIDC_QUERY_KEY,
+  roleFromGroups,
+  type OIDCSettings,
+} from "@/queries/oidc";
 import CreateUserModal from "@/components/CreateUserModal";
 import EmptyState from "@/components/EmptyState";
 import QueryState from "@/components/QueryState";
@@ -26,6 +34,11 @@ import { Link } from "react-router-dom";
 import ListPageHeader from "@/components/ListPageHeader";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import { PRODUCT } from "@/utils/product";
+
+const roleSource = (user: APIUser, oidc?: OIDCSettings) => {
+  if (roleFromGroups(user, oidc)) return " (from groups)";
+  return "";
+};
 
 const UserPage: React.FC = () => {
   const { accessToken, authReady } = useAuth();
@@ -48,6 +61,14 @@ const UserPage: React.FC = () => {
     enabled: authReady && !!accessToken,
     placeholderData: (prev) => prev,
   });
+
+  const oidcQuery = useQuery<OIDCSettings>({
+    queryKey: OIDC_QUERY_KEY,
+    queryFn: () => getOIDC(accessToken!),
+    enabled: authReady && !!accessToken,
+    retry: false,
+  });
+  const oidc = oidcQuery.data;
 
   const knownCount = usersQuery.data?.total_count;
 
@@ -92,11 +113,21 @@ const UserPage: React.FC = () => {
         field: "roleID",
         headerName: "Role",
         flex: 0.6,
-        minWidth: 120,
-        valueGetter: (_v, row) => roleIDToLabel(row.role_id),
+        minWidth: 200,
+        valueGetter: (_v, row) =>
+          roleIDToLabel(row.role_id) + roleSource(row, oidc),
+      },
+      {
+        field: "sign_in",
+        headerName: "Sign-in",
+        flex: 0.8,
+        minWidth: 240,
+        sortable: false,
+        valueGetter: (_v, row) =>
+          signInMethods(row).join(", ") || NOT_LINKED_YET,
       },
     ],
-    [theme.palette.link],
+    [theme.palette.link, oidc],
   );
 
   const descriptionText = `Manage user accounts. Users can have different roles with varying levels of access to the ${PRODUCT.name} UI and API.`;

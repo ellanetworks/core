@@ -57,12 +57,15 @@ jobs:
   ui-e2e:
     needs: [go-unit-test, go-vet, go-lint, image-build]
     uses: ./.github/workflows/ui-e2e.yaml
+  ui-e2e-oidc:
+    needs: [go-unit-test, go-vet, go-lint, image-build]
+    uses: ./.github/workflows/ui-e2e-oidc.yaml
   integration-tests:
     needs: [go-unit-test, go-vet, go-lint, image-build, image-build-tester]
     uses: ./.github/workflows/integration.yaml
   image-publish:
     if: github.event_name == 'push'
-    needs: [image-build, ui-e2e, integration-tests]
+    needs: [image-build, ui-e2e, ui-e2e-oidc, integration-tests]
     uses: ./.github/workflows/image-publish.yaml
     permissions:
       contents: read

@@ -80,6 +80,8 @@ nav:
     - Integrate with a Radio: how_to/integrate_with_radio.md
     - Integrate with an IMS: how_to/integrate_with_ims.md
     - Backup and Restore: how_to/backup_and_restore.md
+    - Configure Single Sign-On: how_to/configure_single_sign_on.md
+    - Manage Single Sign-On Users: how_to/manage_single_sign_on_users.md
     - Scale Up a High Availability Cluster: how_to/scale_up_ha_cluster.md
     - Upgrade: how_to/upgrade.md
     - Tune Network Performance: how_to/performance_tuning.md
@@ -110,6 +112,7 @@ nav:
       - Radios: reference/api/radios.md
       - Restore: reference/api/restore.md
       - Roamers: reference/api/roamers.md
+      - Single Sign-On: reference/api/oidc.md
       - Slices: reference/api/slices.md
       - Status: reference/api/status.md
       - Subscribers: reference/api/subscribers.md
@@ -155,6 +158,7 @@ nav:
     - Architecture: explanation/architecture.md
     - High Availability: explanation/high_availability.md
     - Platform Security: explanation/platform_security.md
+    - Single Sign-On: explanation/single_sign_on.md
     - Subscriber Security: explanation/subscriber_security.md
     - User Plane Packet processing with eBPF: explanation/user_plane_packet_processing_with_ebpf.md
     - Advertising and receiving routes via BGP: explanation/bgp.md

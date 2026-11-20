@@ -26,6 +26,8 @@ Initial setup and configuration of Ella Core.
 Ongoing management and maintenance of a running Ella Core deployment.
 
 - [Backup and Restore](backup_and_restore.md)
+- [Configure Single Sign-On](configure_single_sign_on.md)
+- [Manage Single Sign-On Users](manage_single_sign_on_users.md)
 - [Scale Up a High Availability Cluster](scale_up_ha_cluster.md)
 - [Upgrade](upgrade.md)
 - [Tune Network Performance](performance_tuning.md)

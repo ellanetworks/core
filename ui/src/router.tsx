@@ -32,6 +32,7 @@ import RoamingTab from "./pages/integrations/RoamingTab";
 import Operator from "./pages/Operator";
 import Users from "./pages/Users";
 import UserDetail from "./pages/UserDetail";
+import SingleSignOn from "./pages/SingleSignOn";
 import Profile from "./pages/Profile";
 import AuditLogs from "./pages/AuditLogs";
 import BackupRestore from "./pages/BackupRestore";
@@ -98,6 +99,7 @@ export default function AppRouter() {
         <Route element={<RequireAdmin />}>
           <Route path="users" element={<Users />} />
           <Route path="users/:email" element={<UserDetail />} />
+          <Route path="single-sign-on" element={<SingleSignOn />} />
           <Route path="audit-logs" element={<AuditLogs />} />
           <Route path="backup-restore" element={<BackupRestore />} />
           <Route path="cluster" element={<Cluster />} />

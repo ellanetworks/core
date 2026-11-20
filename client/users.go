@@ -64,8 +64,10 @@ type APIToken struct {
 }
 
 type User struct {
-	Email  string `json:"email"`
-	RoleID RoleID `json:"role_id"`
+	Email       string `json:"email"`
+	RoleID      RoleID `json:"role_id"`
+	PasswordSet bool   `json:"password_set"`
+	OIDCLinked  bool   `json:"oidc_linked"`
 }
 
 type ListUsersResponse struct {
@@ -109,7 +111,7 @@ func (c *Client) ListUsers(ctx context.Context, p *ListParams) (*ListUsersRespon
 func (c *Client) CreateUser(ctx context.Context, opts *CreateUserOptions) error {
 	payload := struct {
 		Email    string `json:"email"`
-		Password string `json:"password"`
+		Password string `json:"password,omitempty"`
 		RoleID   RoleID `json:"role_id"`
 	}{
 		Email:    opts.Email,
@@ -184,6 +186,26 @@ func (c *Client) UpdateUser(ctx context.Context, email string, opts *UpdateUserO
 	}
 
 	return nil
+}
+
+func (c *Client) RemoveUserPassword(ctx context.Context, email string) error {
+	_, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "DELETE",
+		Path:   "api/v1/users/" + url.PathEscape(email) + "/password",
+	})
+
+	return err
+}
+
+func (c *Client) UnlinkUser(ctx context.Context, email string) error {
+	_, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "DELETE",
+		Path:   "api/v1/users/" + url.PathEscape(email) + "/oidc",
+	})
+
+	return err
 }
 
 func (c *Client) DeleteUser(ctx context.Context, opts *DeleteUserOptions) error {

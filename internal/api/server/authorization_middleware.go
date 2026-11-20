@@ -199,6 +199,11 @@ const (
 	// Auth permissions
 	PermRotateSecret = "auth:rotate_secret" // #nosec: G101
 
+	PermReadOIDC           = "oidc:read"
+	PermUpdateOIDC         = "oidc:update"
+	PermDeleteUserPassword = "user:delete_password" // #nosec: G101
+	PermUnlinkUser         = "user:unlink"
+
 	// Audit Log permissions
 	PermGetAuditLogRetentionPolicy = "audit_logs:get_retention"
 	PermSetAuditLogRetentionPolicy = "audit_logs:set_retention"

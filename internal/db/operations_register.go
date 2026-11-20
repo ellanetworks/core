@@ -67,6 +67,15 @@ var (
 	opDeleteUser         = registerChangesetOp("DeleteUser", (*Database).applyDeleteUser)
 )
 
+// Single sign-on
+var (
+	opUpdateOIDC       = registerChangesetOp("UpdateOIDC", (*Database).applyUpdateOIDC, RequireSchema(oidcSchema), AffectsTopic(TopicOIDC))
+	opUnlinkUser       = registerChangesetOp("UnlinkUser", (*Database).applyUnlinkUser, RequireSchema(oidcSchema))
+	opUseOIDCState     = registerChangesetOp("UseOIDCState", (*Database).applyUseOIDCState, RequireSchema(oidcSchema))
+	opLinkOIDCIdentity = registerChangesetOp("LinkOIDCIdentity", (*Database).applyLinkOIDCIdentity, RequireSchema(oidcSchema))
+	opLogInWithOIDC    = registerChangesetOpReturning[OIDCLogin, OIDCLoginResult]("LogInWithOIDC", (*Database).applyLogInWithOIDC, RequireSchema(oidcSchema))
+)
+
 // Profiles
 var (
 	opCreateProfile = registerChangesetOp("CreateProfile", (*Database).applyCreateProfile)

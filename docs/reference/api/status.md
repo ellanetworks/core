@@ -110,14 +110,6 @@ This path returns whether the node is ready to receive traffic, and the result o
 | `checks[].ok`     | boolean | Whether it passes. |
 | `checks[].detail` | string  | Why it fails. Empty when it passes. |
 
-### Response Codes
-
-| Code  | Description |
-| ----- | ----------- |
-| `200` | Every check passes. |
-| `400` | `cluster` is not `true` or `false`. |
-| `503` | A check fails. |
-
 ### Sample Response
 
 ```json

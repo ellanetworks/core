@@ -3,7 +3,9 @@
 
 import React from "react";
 import { useForm } from "react-hook-form";
+import { useQuery } from "@tanstack/react-query";
 import { updateUser, RoleID, APIUser, roleIDToLabel } from "@/queries/users";
+import { getOIDC, OIDC_QUERY_KEY, roleFromGroups } from "@/queries/oidc";
 import { useAuth } from "@/contexts/AuthContext";
 import FormDialog from "@/components/form/FormDialog";
 import TextControl from "@/components/form/TextControl";
@@ -33,11 +35,22 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   onSuccess,
   initialData,
 }) => {
-  const { accessToken } = useAuth();
+  const { accessToken, authReady } = useAuth();
+
+  const oidc = useQuery({
+    queryKey: OIDC_QUERY_KEY,
+    queryFn: () => getOIDC(accessToken!),
+    enabled: authReady && !!accessToken,
+  }).data;
 
   const form = useForm<FormValues>({
-    values: { email: initialData.email, role: initialData.role_id },
+    values: {
+      email: initialData.email,
+      role: initialData.role_id,
+    },
   });
+
+  const fromGroups = roleFromGroups(initialData, oidc);
 
   const submit = async (values: FormValues) => {
     if (!accessToken) return false;
@@ -63,6 +76,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
         options={ROLE_OPTIONS}
         numeric
         autoFocus
+        disabled={fromGroups}
       />
     </FormDialog>
   );
