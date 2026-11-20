@@ -21,13 +21,8 @@ Ella Core should work on most Kubernetes distributions. It has been validated on
 | Requirement | Value |
 |-------------|-------|
 | **Nodes** | Meet the host requirements above |
-| **RAN network** | Radios reach the pod's N2/N3 address directly. The Helm chart uses [Multus](https://github.com/k8snetworkplumbingwg/multus-cni) with the `macvlan`, `static`, and `tuning` [CNI plugins](https://github.com/containernetworking/plugins). |
+| **RAN network** | Radios reach the pod's N2/N3 address directly. The Helm chart uses [Multus](https://github.com/k8snetworkplumbingwg/multus-cni) with the `macvlan`, `static`, and `tuning` [CNI plugins](https://github.com/containernetworking/plugins). The `tuning` plugin must be allowed to set `net.ipv4.ip_forward` and `net.ipv6.conf.all.forwarding`. |
 | **Pod Security** | `privileged` |
 | **Capabilities** | `NET_ADMIN`, `NET_RAW`, `NET_BIND_SERVICE`, `BPF`, `PERFMON`, `SYS_RESOURCE` |
 | **Storage** | A default StorageClass with `ReadWriteOnce` volumes, one per pod |
 | **High availability** | Three nodes |
-
-On OpenShift, the chart creates the SecurityContextConstraints that Ella Core needs. The cluster also needs:
-
-- The `sctp` module loaded on every node with a MachineConfig. RHCOS blocks it by default.
-- `^net.ipv4.ip_forward$` and `^net.ipv6.conf.all.forwarding$` added to the `cni-sysctl-allowlist` ConfigMap in the `openshift-multus` namespace.
