@@ -1,0 +1,14 @@
+{{- if include "ella-core.ha" . }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ella-core.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ella-core.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ add1 (div (len .Values.nodes) 2) }}
+  selector:
+    matchLabels:
+      {{- include "ella-core.selectorLabels" . | nindent 6 }}
+{{- end }}

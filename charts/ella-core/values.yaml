@@ -1,0 +1,80 @@
+image:
+  repository: ghcr.io/ellanetworks/ella-core
+  tag: ""
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+clusterDomain: cluster.local
+
+nodes:
+  - ranAddress: 192.168.252.3/24
+
+ran:
+  interface: n3
+  networkAttachment:
+    create: true
+    name: ""
+    master: eth1
+    mode: bridge
+    routes: []
+
+config:
+  logging:
+    system:
+      level: info
+      output: stdout
+    audit:
+      output: stdout
+  datapath:
+    attach-mode: tcx
+
+service:
+  type: ClusterIP
+  port: 5002
+  nodePort: null
+  annotations: {}
+
+persistence:
+  size: 10Gi
+  storageClassName: ""
+
+resources:
+  requests:
+    cpu: "1"
+    memory: 1Gi
+  limits:
+    cpu: "4"
+    memory: 8Gi
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+openshift:
+  securityContextConstraints:
+    create: auto
+
+seLinuxOptions: {}
+
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+priorityClassName: ""
+
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  labels: {}
+
+tests:
+  image:
+    repository: registry.access.redhat.com/ubi10/ubi-minimal
+    tag: "10.2"

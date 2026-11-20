@@ -1,0 +1,23 @@
+apiVersion: v2
+name: ella-core
+description: Ella Core, a 5G and 4G mobile core network.
+type: application
+version: 1.22.0
+appVersion: v1.22.0
+kubeVersion: ">=1.30.0-0"
+home: https://docs.ellanetworks.com/core/
+icon: https://raw.githubusercontent.com/ellanetworks/core/main/docs/images/logo-mark.svg
+sources:
+  - https://github.com/ellanetworks/core
+keywords:
+  - 5g
+  - 4g
+  - mobile-core
+  - cnf
+maintainers:
+  - name: Ella Networks
+    url: https://ellanetworks.com
+annotations:
+  charts.openshift.io/name: Ella Core
+  charts.openshift.io/provider: Ella Networks
+  charts.openshift.io/supportURL: https://github.com/ellanetworks/core/issues

@@ -1,0 +1,20 @@
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "ella-core.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ella-core.labels" . | nindent 4 }}
+    {{- with .Values.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "ella-core.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: http
+      path: /api/v1/metrics
+      interval: {{ .Values.serviceMonitor.interval }}
+{{- end }}
