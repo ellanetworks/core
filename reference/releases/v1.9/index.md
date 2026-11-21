@@ -1,0 +1,33 @@
+# v1.9
+
+- **Release date**: April 9, 2026
+- **GitHub release**: [v1.9.0](https://github.com/ellanetworks/core/releases/tag/v1.9.0)
+
+## New features
+
+- **Subscriber Policy rules**: Enforce network access patterns for your 5G subscribers - define which uplink and downlink flows are permitted. The user plane eBPF program applies those rules and drops traffic that does not match. This network security feature is especially useful for IoT deployments where devices should only communicate on predictable paths. Configure rules via Profiles->Policies and view dropped flows via Traffic->Flows page.
+- **Multi Data Network & Multi Network Slices**: Provision subscribers with more than one PDU session across different data networks and/or network slices. Subscriber access is now managed through Profiles — each Profile holds one or more policies targeting a specific slice/data network combination, with optional network rules per policy.
+- **Data network details page**: Click on a data network and view all IP leases for that data network. Useful for provisioning, troubleshooting, and audit.
+
+## Maintenance
+
+- **UI Improvements**: Responsive layouts for smaller screens (though not mobile), Revamped NGAP message details panel, URL routes for tabs, link contrast.
+- **XDP Profiling metrics (for developers)**: View exactly how much time is spent in each part of the XDP user plane program. Useful for making performance-related engineering decisions.
+- **Improved NGAP message decoding**: Increase NGAP message coverage and decode integrity protected (non-ciphered) NAS messages.
+- Bug fixes
+- Dependency updates
+
+## Documentation
+
+- **[Getting Started with 5G hardware tutorial](https://docs.ellanetworks.com/core/tutorials/getting_started_hardware/index.md) (new)**
+
+## Patch releases
+
+### v1.9.1
+
+- **Release date**: April 9, 2026
+- **GitHub release**: [v1.9.1](https://github.com/ellanetworks/core/releases/tag/v1.9.1)
+
+#### Bug fixes
+
+- Deadlock in SetBPFObjects ([#1238](https://github.com/ellanetworks/core/pull/1238))

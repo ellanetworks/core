@@ -1,0 +1,24 @@
+# v1.1
+
+- **Release date**: January 22, 2026
+- **GitHub release**: [v1.1.0](https://github.com/ellanetworks/core/releases/tag/v1.1.0)
+
+## New features
+
+- **Profiling API endpoints (pprof)**: Exposed pprof endpoints to help operators and developers analyze performance and troubleshoot CPU and memory issues.
+- **Backup & restore support in Go API client**: Added new functions to allow automating backup & restore using the Go client.
+- **Improved primary UI dashboard**: The primary dashboard has been refined for better usability and visibility into system status.
+
+## Documentation
+
+- Added TRex performance test results
+- Added Baicells and Vankom to the list of supported commercial radios
+- Included links to YouTube and other social channels
+
+## Maintenance
+
+- Expanded unit testing coverage:
+  - Bootstrapped unit testing suite for UE-specific NGAP messages
+  - Increased coverage of edge-cases in API testing suite
+- Bug fixes and security improvements
+- Dependency updates
