@@ -24,6 +24,7 @@ var errNoRouteToNeighbour = errors.New("no route to neighbour")
 var (
 	neighRouteGetWithOptions = netlink.RouteGetWithOptions
 	neighSet                 = netlink.NeighSet
+	neighList                = netlink.NeighList
 )
 
 // AddNeighbourOnLink adds the provided IP as a neighbour on one specific link.
@@ -151,6 +152,15 @@ func addNeighbourForLink(neigh net.IP, link netlink.Link) error {
 }
 
 func setNeighbour(ifindex int, ip net.IP) error {
+	static, err := hasStaticNeighbour(ifindex, ip)
+	if err != nil {
+		return err
+	}
+
+	if static {
+		return nil
+	}
+
 	nlNeigh := netlink.Neigh{
 		LinkIndex: ifindex,
 		IP:        ip,
@@ -158,4 +168,24 @@ func setNeighbour(ifindex int, ip net.IP) error {
 	}
 
 	return neighSet(&nlNeigh)
+}
+
+func hasStaticNeighbour(ifindex int, ip net.IP) (bool, error) {
+	family := netlink.FAMILY_V6
+	if ip.To4() != nil {
+		family = netlink.FAMILY_V4
+	}
+
+	neighs, err := neighList(ifindex, family)
+	if err != nil {
+		return false, fmt.Errorf("could not list neighbours on link %d: %w", ifindex, err)
+	}
+
+	for _, n := range neighs {
+		if n.LinkIndex == ifindex && n.IP.Equal(ip) {
+			return n.State&(netlink.NUD_PERMANENT|netlink.NUD_NOARP) != 0, nil
+		}
+	}
+
+	return false, nil
 }
