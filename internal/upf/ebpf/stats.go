@@ -36,6 +36,7 @@ const (
 	ActionPass     = 2
 	ActionTx       = 3
 	ActionRedirect = 4
+	ActionSlowPath = 5
 
 	// UPFMaxAction is the width of the forwarding counter array.
 	UPFMaxAction = 8
@@ -317,6 +318,9 @@ var dropReasonNames = [...]string{
 	"qer_meter_missing",
 	"ni_mismatch",
 	"ni_unrouted",
+	"frag_tx_ring_full",
+	"frag_tx_too_large",
+	"internal_frag_tx_failed",
 }
 
 // DropReasonNames returns every reason's label value, indexed by reason.

@@ -34,6 +34,7 @@ type SessionEngine struct {
 	BpfObjects              *ebpf.BpfObjects
 	// Downlink packet buffering; nil disables it.
 	dlBuffer             DownlinkBuffer
+	dlQueue              DownlinkQueue
 	FteIDResourceManager *FteIDResourceManager
 	SdfIndexAllocator    *SdfIndexAllocator
 	natPurge             natPurger
@@ -57,6 +58,7 @@ type SessionEngine struct {
 	lastDNTag uint16
 
 	endMarkers endMarkerSender
+	gtpu       *gtpuSockets
 
 	programs ebpf.ProgramWaiter
 }
@@ -314,8 +316,10 @@ func NewSessionEngine(addr string, nodeID string, n3IPv4 netip.Addr, n3IPv6 neti
 		filtersByKey:            make(map[string]uint32),
 		classes:                 NewTrafficClasses(),
 		radios:                  NewRadios(),
-		endMarkers:              &endMarkerSockets{},
 	}
+
+	conn.gtpu = &gtpuSockets{}
+	conn.endMarkers = conn.gtpu
 
 	return conn, nil
 }

@@ -83,6 +83,15 @@ func TestIntegration4GUserPlane(t *testing.T) {
 		t.Fatal("no downlink S1-U GTP-U SDU for the ICMP reply in srsenb logs; traffic did not traverse the tunnel")
 	}
 
+	out, _ = dockerClient.Exec(ctx, srsue,
+		[]string{"sh", "-c", `DEV=$(ip -o -4 addr show | awk '/inet 10\.45\./{print $2; exit}'); ip link set "$DEV" mtu 1500; ping -M dont -s 1472 -c 5 -W 2 ` + N6RouterIPv4Address()},
+		false, 25*time.Second, logWriter{t})
+
+	if !strings.Contains(out, " 0% packet loss") {
+		dumpLogs(ctx, t, dockerClient, "ella-core", "srsue", "srsenb")
+		t.Fatalf("1500-byte packets did not cross a 1500-byte S1-U, whose GTP-U the eNB fragments; ping output:\n%s", out)
+	}
+
 	t.Log("4G user-plane forwarding verified over the S1-U GTP-U tunnel (srsenb logged uplink + downlink SDUs)")
 }
 

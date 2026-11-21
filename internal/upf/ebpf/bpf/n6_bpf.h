@@ -41,6 +41,7 @@
 #include "bpf/utils/nocp.h"
 #include "bpf/utils/ringbuf_lost.h"
 #include "bpf/utils/dl_buffer.h"
+#include "bpf/utils/gtpu_frag.h"
 
 #include "bpf/utils/pdr_maps.h"
 
@@ -86,6 +87,12 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 
 		ctx->statistics->packet_counters.tx++;
 
+		const int offered6 = frag_tx_offer(ctx, ctx->ip6);
+		if (offered6 == FRAG_TX_CAPTURED)
+			return CTX_ACT_SLOW_PATH;
+		if (offered6 != FRAG_TX_FITS)
+			return drop_with(ctx, frag_tx_drop_reason(offered6));
+
 		const __u32 key6 = 0;
 		struct route_stat *route_stat6 =
 			bpf_map_lookup_elem(&downlink_route_stats, &key6);
@@ -95,7 +102,8 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 		PROFILE_START(PROF_N6_FIB_ROUTING);
 		upf_printk("upf: send gtp pdu %pI6c -> %pI6c", &ctx->ip6->saddr,
 			   &ctx->ip6->daddr);
-		enum ctx_action fib_ret6 = route_ipv6(ctx, route_stat6, false);
+		enum ctx_action fib_ret6 =
+			route_ipv6(ctx, route_stat6, false, true);
 		PROFILE_END(PROF_N6_FIB_ROUTING);
 		return fib_ret6;
 	} else {
@@ -118,6 +126,12 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 
 		ctx->statistics->packet_counters.tx++;
 
+		const int offered4 = frag_tx_offer(ctx, ctx->ip4);
+		if (offered4 == FRAG_TX_CAPTURED)
+			return CTX_ACT_SLOW_PATH;
+		if (offered4 != FRAG_TX_FITS)
+			return drop_with(ctx, frag_tx_drop_reason(offered4));
+
 		const __u32 key4 = 0;
 		struct route_stat *route_stat4 =
 			bpf_map_lookup_elem(&downlink_route_stats, &key4);
@@ -127,7 +141,8 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 		PROFILE_START(PROF_N6_FIB_ROUTING);
 		upf_printk("upf: send gtp pdu %pI4 -> %pI4", &ctx->ip4->saddr,
 			   &ctx->ip4->daddr);
-		enum ctx_action fib_ret4 = route_ipv4(ctx, route_stat4, false);
+		enum ctx_action fib_ret4 =
+			route_ipv4(ctx, route_stat4, false, true);
 		PROFILE_END(PROF_N6_FIB_ROUTING);
 		return fib_ret4;
 	}
@@ -233,12 +248,13 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		encap_size -=
 			GTP_PSC_EXT_SIZE; /* S1-U: no PDU session container */
 	}
-	ret = bpf_check_mtu(ctx->ctx_buff, n3_ifindex, &mtu_len, encap_size, 0);
+	ret = bpf_check_mtu(ctx->ctx_buff, n3_mtu_ifindex(), &mtu_len, encap_size,
+			    0);
 	PROFILE_END(PROF_N6_MTU_CHECK);
 	if (ret < 0) {
 		return abort_with(ctx, UPF_DROP_INTERNAL_MTU_CHECK_FAILED);
 	}
-	if (ret > 0) {
+	if (ret > 0 && !downlink_fragments_outer_ipv4(ctx->ip4)) {
 		upf_printk("upf: n6 packet too large");
 		mtu_len -= encap_size;
 		/* The error must quote the packet as the sender sent it for the
@@ -427,14 +443,15 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 			GTP_PSC_EXT_SIZE; /* S1-U: no PDU session container */
 	}
 	__u32 mtu_len = 0;
-	long ret = bpf_check_mtu(ctx->ctx_buff, n3_ifindex, &mtu_len,
+	long ret = bpf_check_mtu(ctx->ctx_buff, n3_mtu_ifindex(), &mtu_len,
 				 encap_size, 0);
 	if (ret < 0) {
 		return abort_with(ctx, UPF_DROP_INTERNAL_MTU_CHECK_FAILED);
 	}
-	if (ret > 0) {
+	if (ret > 0 &&
+	    !downlink_fragments_outer_ipv6(ip6, mtu_len - encap_size)) {
 		upf_printk("upf: n6 ipv6 packet too large");
-		mtu_len -= encap_size;
+		mtu_len = ipv6_packet_too_big_mtu(mtu_len - encap_size);
 		traffic_class_settle(UPF_DROP_MTU_EXCEEDED);
 		return frag_needed(ctx, mtu_len);
 	}
