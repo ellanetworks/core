@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "ella-core.fullname" . }}-test-status
+  namespace: {{ .Release.Namespace }}
+  labels:
+    helm.sh/chart: {{ include "ella-core.chart" . }}
+    app.kubernetes.io/name: {{ include "ella-core.name" . }}-test
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: test
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: status
+      image: "{{ .Values.tests.image.repository }}:{{ .Values.tests.image.tag }}"
+      command: ["curl", "--fail", "--insecure", "--silent", "--show-error", "--max-time", "10", "{{ lower (include "ella-core.apiScheme" .) }}://{{ include "ella-core.fullname" . }}:{{ .Values.service.port }}/api/v1/status"]
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi

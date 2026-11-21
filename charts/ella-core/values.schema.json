@@ -1,0 +1,370 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": [
+    "image",
+    "nodes",
+    "ran",
+    "service",
+    "persistence"
+  ],
+  "properties": {
+    "image": {
+      "type": "object",
+      "required": [
+        "repository"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Image repository."
+        },
+        "tag": {
+          "type": "string",
+          "description": "Image tag. Defaults to the chart appVersion."
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^(sha256:[a-f0-9]{64})?$",
+          "description": "Image digest. Takes precedence over tag."
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ],
+          "description": "Image pull policy."
+        }
+      },
+      "description": "Ella Core container image."
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Image pull secrets."
+    },
+    "nameOverride": {
+      "type": "string",
+      "description": "Overrides the chart name."
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Overrides the resource name prefix."
+    },
+    "clusterDomain": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Kubernetes cluster domain, used in the cluster addresses of high-availability nodes."
+    },
+    "nodes": {
+      "description": "One entry per Ella Core node. One entry deploys a standalone node; three or more deploy a high-availability cluster.",
+      "type": "array",
+      "minItems": 1,
+      "not": {
+        "minItems": 2,
+        "maxItems": 2
+      },
+      "items": {
+        "type": "object",
+        "required": [
+          "ranAddress"
+        ],
+        "properties": {
+          "ranAddress": {
+            "description": "N2/N3 address of the node, in CIDR notation.",
+            "type": "string",
+            "minLength": 1
+          },
+          "nodeSelector": {
+            "type": "object",
+            "description": "Node selector for this node only. Overrides nodeSelector."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "ran": {
+      "type": "object",
+      "required": [
+        "interface",
+        "networkAttachment"
+      ],
+      "properties": {
+        "interface": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name of the N2/N3 interface in the pod."
+        },
+        "networkAttachment": {
+          "type": "object",
+          "properties": {
+            "create": {
+              "type": "boolean",
+              "description": "Create a macvlan NetworkAttachmentDefinition. Set to false to use your own."
+            },
+            "name": {
+              "type": "string",
+              "description": "Name of the NetworkAttachmentDefinition."
+            },
+            "master": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Host interface that connects to the radios."
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "bridge",
+                "private",
+                "vepa",
+                "passthru"
+              ],
+              "description": "macvlan mode."
+            },
+            "routes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "dst"
+                ],
+                "properties": {
+                  "dst": {
+                    "type": "string"
+                  },
+                  "gw": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "description": "Routes through the N2/N3 interface, for radios behind a router."
+            }
+          },
+          "description": "NetworkAttachmentDefinition for the N2/N3 interface."
+        }
+      },
+      "description": "N2/N3 network of the pods."
+    },
+    "config": {
+      "description": "Ella Core configuration file content, merged over the settings the chart manages.",
+      "type": "object"
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "ClusterIP",
+            "NodePort",
+            "LoadBalancer"
+          ],
+          "description": "Service type."
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Service port."
+        },
+        "nodePort": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Node port, when type is NodePort."
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Service annotations."
+        }
+      },
+      "description": "Service that exposes the API."
+    },
+    "api": {
+      "type": "object",
+      "description": "API and UI server settings.",
+      "properties": {
+        "tls": {
+          "type": "object",
+          "description": "TLS served by the pod itself.",
+          "properties": {
+            "secretName": {
+              "type": "string",
+              "description": "Name of a kubernetes.io/tls Secret. When set, the API and UI are served over HTTPS with its tls.crt and tls.key, and the probes use HTTPS."
+            }
+          }
+        }
+      }
+    },
+    "ingress": {
+      "description": "Ingress that exposes the API and UI over HTTPS, for a stable URL such as the single sign-on redirect URL.",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Create the Ingress."
+        },
+        "className": {
+          "type": "string",
+          "description": "IngressClass name. Empty uses the cluster default."
+        },
+        "host": {
+          "type": "string",
+          "description": "Host name of the API and UI."
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Ingress annotations, e.g. for cert-manager."
+        },
+        "tls": {
+          "type": "array",
+          "description": "Ingress TLS entries, each with secretName and hosts."
+        }
+      },
+      "if": {
+        "properties": {
+          "enabled": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "host"
+        ],
+        "properties": {
+          "host": {
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "size": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Size of each node's data volume."
+        },
+        "storageClassName": {
+          "type": "string",
+          "description": "StorageClass of the data volumes. Empty uses the default StorageClass."
+        }
+      },
+      "description": "Data volume of each node."
+    },
+    "resources": {
+      "type": "object",
+      "description": "Container resources."
+    },
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "description": "Create a service account."
+        },
+        "name": {
+          "type": "string",
+          "description": "Service account name."
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Service account annotations."
+        }
+      },
+      "description": "Service account of the pods."
+    },
+    "openshift": {
+      "type": "object",
+      "properties": {
+        "securityContextConstraints": {
+          "type": "object",
+          "properties": {
+            "create": {
+              "enum": [
+                "auto",
+                true,
+                false
+              ],
+              "description": "auto creates it on OpenShift only."
+            }
+          },
+          "description": "SecurityContextConstraints that grants the pod its capabilities."
+        }
+      },
+      "description": "OpenShift settings."
+    },
+    "seLinuxOptions": {
+      "type": "object",
+      "description": "SELinux options of the container. Defaults to type spc_t on OpenShift."
+    },
+    "podAnnotations": {
+      "type": "object",
+      "description": "Extra pod annotations."
+    },
+    "podLabels": {
+      "type": "object",
+      "description": "Extra pod labels."
+    },
+    "nodeSelector": {
+      "type": "object",
+      "description": "Node selector."
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Tolerations."
+    },
+    "affinity": {
+      "type": "object",
+      "description": "Affinity. Replaces the default one-node-per-Kubernetes-node anti-affinity in high availability."
+    },
+    "priorityClassName": {
+      "type": "string",
+      "description": "Priority class."
+    },
+    "serviceMonitor": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Create the ServiceMonitor."
+        },
+        "interval": {
+          "type": "string",
+          "description": "Scrape interval."
+        },
+        "labels": {
+          "type": "object",
+          "description": "Extra ServiceMonitor labels."
+        }
+      },
+      "description": "Prometheus Operator ServiceMonitor for /api/v1/metrics."
+    },
+    "tests": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": {
+              "type": "string"
+            },
+            "tag": {
+              "type": "string"
+            }
+          },
+          "description": "Image of the test pod."
+        }
+      },
+      "description": "helm test settings."
+    }
+  }
+}

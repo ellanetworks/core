@@ -9,6 +9,7 @@ path = [
   "**/*.sh", "**/*.sql", "**/*.proto", "**/*.tmpl", "**/*.html", "**/*.css",
   "go.mod", "go.sum", "**/go.mod", "**/go.sum", "**/Dockerfile", "Dockerfile",
   ".gitignore", ".dockerignore", "**/.gitignore", "**/.prettierignore",
+  "**/*.tpl", "**/.helmignore",
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "Ella Networks Inc."

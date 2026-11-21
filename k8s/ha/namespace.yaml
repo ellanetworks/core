@@ -1,7 +1,0 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: ella
-  labels:
-    app.kubernetes.io/name: ella-core
-    pod-security.kubernetes.io/enforce: privileged

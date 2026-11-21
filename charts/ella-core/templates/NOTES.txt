@@ -1,0 +1,13 @@
+Ella Core {{ .Chart.AppVersion }} is deployed in namespace {{ .Release.Namespace }} with {{ len .Values.nodes }} node(s).
+
+Open the API and UI:
+
+  kubectl -n {{ .Release.Namespace }} port-forward service/{{ include "ella-core.fullname" . }} 5002:{{ .Values.service.port }}
+
+Then browse to {{ lower (include "ella-core.apiScheme" .) }}://localhost:5002.
+{{- if include "ella-core.ha" . }}
+
+Initialize node 1, then join the other nodes using node 1's cluster address:
+
+  {{ include "ella-core.nodeName" (dict "root" . "ordinal" 1) }}-0.{{ include "ella-core.headlessServiceName" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:7000
+{{- end }}

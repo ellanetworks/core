@@ -1,0 +1,161 @@
+{{- $root := . }}
+{{- $ha := include "ella-core.ha" . }}
+{{- range $index, $node := .Values.nodes }}
+{{- $ordinal := add1 $index }}
+{{- $name := include "ella-core.nodeName" (dict "root" $root "ordinal" $ordinal) }}
+{{- $config := include "ella-core.config" (dict "root" $root "name" $name) }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $name }}
+  namespace: {{ $root.Release.Namespace }}
+  labels:
+    {{- include "ella-core.labels" $root | nindent 4 }}
+spec:
+  replicas: 1
+  serviceName: {{ include "ella-core.headlessServiceName" $root }}
+  {{- if $ha }}
+  updateStrategy:
+    type: OnDelete
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "ella-core.selectorLabels" $root | nindent 6 }}
+      ellanetworks.com/node: {{ $ordinal | quote }}
+  template:
+    metadata:
+      labels:
+        {{- include "ella-core.labels" $root | nindent 8 }}
+        ellanetworks.com/node: {{ $ordinal | quote }}
+        {{- with $root.Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ $config | sha256sum }}
+        k8s.v1.cni.cncf.io/networks: {{ list (dict "name" (include "ella-core.networkAttachmentName" $root) "interface" $root.Values.ran.interface "ips" (list $node.ranAddress)) | toJson | quote }}
+        {{- with $root.Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "ella-core.serviceAccountName" $root }}
+      automountServiceAccountToken: false
+      {{- with $root.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with (default $root.Values.nodeSelector $node.nodeSelector) }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if or $ha $root.Values.affinity }}
+      affinity:
+        {{- if $root.Values.affinity }}
+        {{- toYaml $root.Values.affinity | nindent 8 }}
+        {{- else }}
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  {{- include "ella-core.selectorLabels" $root | nindent 18 }}
+              topologyKey: kubernetes.io/hostname
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: core
+          image: {{ include "ella-core.image" $root }}
+          imagePullPolicy: {{ $root.Values.image.pullPolicy }}
+          command: ["core"]
+          args: ["--config", "/config/config.yaml"]
+          terminationMessagePolicy: FallbackToLogsOnError
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            {{- if $root.Values.seLinuxOptions }}
+            seLinuxOptions:
+              {{- toYaml $root.Values.seLinuxOptions | nindent 14 }}
+            {{- else if include "ella-core.openshiftSCC" $root }}
+            seLinuxOptions:
+              type: spc_t
+            {{- end }}
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_ADMIN", "NET_RAW", "NET_BIND_SERVICE", "BPF", "PERFMON", "SYS_RESOURCE"]
+          {{- with $root.Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          startupProbe:
+            httpGet:
+              scheme: {{ include "ella-core.apiScheme" $root }}
+              path: /api/v1/livez
+              port: http
+            periodSeconds: 2
+            timeoutSeconds: 3
+            failureThreshold: 150
+          readinessProbe:
+            httpGet:
+              scheme: {{ include "ella-core.apiScheme" $root }}
+              path: /api/v1/readyz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              scheme: {{ include "ella-core.apiScheme" $root }}
+              path: /api/v1/livez
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 5
+          ports:
+            - name: http
+              containerPort: 5002
+            {{- if $ha }}
+            - name: tcp-cluster
+              containerPort: 7000
+            {{- end }}
+          volumeMounts:
+            {{- if $root.Values.api.tls.secretName }}
+            - name: api-tls
+              mountPath: /tls/api
+              readOnly: true
+            {{- end }}
+            - name: config
+              mountPath: /config
+            - name: data
+              mountPath: /core/data
+      volumes:
+        {{- if $root.Values.api.tls.secretName }}
+        - name: api-tls
+          secret:
+            secretName: {{ $root.Values.api.tls.secretName }}
+        {{- end }}
+        - name: config
+          configMap:
+            name: {{ $name }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with $root.Values.persistence.storageClassName }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $root.Values.persistence.size }}
+{{- end }}
