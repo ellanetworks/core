@@ -85,11 +85,13 @@ func TestNexthopsFromRoutes_NoUsableRoute(t *testing.T) {
 func stubNeighNetlink(t *testing.T, routes map[string][]netlink.Route) *[]netlink.Neigh {
 	t.Helper()
 
-	oldRouteGet, oldNeighSet := neighRouteGetWithOptions, neighSet
+	oldRouteGet, oldNeighSet, oldNeighGet := neighRouteGetWithOptions, neighSet, neighGet
 
 	t.Cleanup(func() {
-		neighRouteGetWithOptions, neighSet = oldRouteGet, oldNeighSet
+		neighRouteGetWithOptions, neighSet, neighGet = oldRouteGet, oldNeighSet, oldNeighGet
 	})
+
+	neighGet = func(int, net.IP) (*netlink.Neigh, error) { return nil, nil }
 
 	neighRouteGetWithOptions = func(dst net.IP, opts *netlink.RouteGetOptions) ([]netlink.Route, error) {
 		vrf := ""
@@ -259,6 +261,131 @@ func TestRoutesToNeighbourSelectsTable(t *testing.T) {
 
 		if gotOpts.VrfName != tc.wantVRF {
 			t.Errorf("routesToNeighbour(%q) looked up VRF %q, want %q", tc.device, gotOpts.VrfName, tc.wantVRF)
+		}
+	}
+}
+
+func stubNeighTable(t *testing.T, existing []netlink.Neigh, listErr error) *[]netlink.Neigh {
+	t.Helper()
+
+	oldNeighSet, oldNeighGet := neighSet, neighGet
+
+	t.Cleanup(func() {
+		neighSet, neighGet = oldNeighSet, oldNeighGet
+	})
+
+	neighGet = func(linkIndex int, ip net.IP) (*netlink.Neigh, error) {
+		if listErr != nil {
+			return nil, listErr
+		}
+
+		for _, n := range existing {
+			if n.LinkIndex == linkIndex && n.IP.Equal(ip) {
+				return &n, nil
+			}
+		}
+
+		return nil, nil
+	}
+
+	seeded := &[]netlink.Neigh{}
+
+	neighSet = func(n *netlink.Neigh) error {
+		*seeded = append(*seeded, *n)
+		return nil
+	}
+
+	return seeded
+}
+
+func TestSetNeighbour_KeepsStaticEntries(t *testing.T) {
+	gw := net.ParseIP("169.254.1.1")
+	gw6 := net.ParseIP("fe80::1")
+
+	for _, tc := range []struct {
+		name  string
+		ip    net.IP
+		state int
+	}{
+		{"permanent v4", gw, netlink.NUD_PERMANENT},
+		{"noarp v4", gw, netlink.NUD_NOARP},
+		{"permanent v6", gw6, netlink.NUD_PERMANENT},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			seeded := stubNeighTable(t, []netlink.Neigh{
+				{LinkIndex: 2, IP: tc.ip, State: tc.state},
+			}, nil)
+
+			if err := setNeighbour(2, tc.ip); err != nil {
+				t.Fatalf("setNeighbour: %v", err)
+			}
+
+			if len(*seeded) != 0 {
+				t.Errorf("expected the static entry to be left alone, got %+v", *seeded)
+			}
+		})
+	}
+}
+
+func TestSetNeighbour_ManagesDynamicEntry(t *testing.T) {
+	gw := net.ParseIP("10.6.0.3")
+
+	seeded := stubNeighTable(t, []netlink.Neigh{
+		{LinkIndex: 2, IP: gw, State: netlink.NUD_REACHABLE},
+	}, nil)
+
+	if err := setNeighbour(2, gw); err != nil {
+		t.Fatalf("setNeighbour: %v", err)
+	}
+
+	if len(*seeded) != 1 || (*seeded)[0].FlagsExt != netlink.NTF_EXT_MANAGED || !(*seeded)[0].IP.Equal(gw) {
+		t.Errorf("expected a managed entry for %s, got %+v", gw, *seeded)
+	}
+}
+
+func TestSetNeighbour_CreatesMissingEntry(t *testing.T) {
+	gw := net.ParseIP("10.6.0.3")
+
+	seeded := stubNeighTable(t, []netlink.Neigh{
+		{LinkIndex: 2, IP: net.ParseIP("10.6.0.4"), State: netlink.NUD_PERMANENT},
+		{LinkIndex: 3, IP: gw, State: netlink.NUD_PERMANENT},
+	}, nil)
+
+	if err := setNeighbour(2, gw); err != nil {
+		t.Fatalf("setNeighbour: %v", err)
+	}
+
+	if len(*seeded) != 1 || (*seeded)[0].LinkIndex != 2 || (*seeded)[0].FlagsExt != netlink.NTF_EXT_MANAGED {
+		t.Errorf("expected a managed entry for %s on link 2, got %+v", gw, *seeded)
+	}
+}
+
+func TestSetNeighbour_ListError(t *testing.T) {
+	errList := errors.New("netlink: get failed")
+
+	seeded := stubNeighTable(t, nil, errList)
+
+	if err := setNeighbour(2, net.ParseIP("10.6.0.3")); !errors.Is(err, errList) {
+		t.Fatalf("expected wrapped list error, got %v", err)
+	}
+
+	if len(*seeded) != 0 {
+		t.Errorf("expected no entry written when the lookup fails, got %+v", *seeded)
+	}
+}
+
+func TestNeighFamilyAndAddr(t *testing.T) {
+	for _, tc := range []struct {
+		ip         string
+		wantFamily uint8
+		wantLen    int
+	}{
+		{"169.254.1.1", unix.AF_INET, 4},
+		{"fe80::1", unix.AF_INET6, 16},
+	} {
+		family, addr := neighFamilyAndAddr(net.ParseIP(tc.ip))
+		if family != tc.wantFamily || len(addr) != tc.wantLen {
+			t.Errorf("%s: got family %d with %d-byte address, want %d with %d bytes", tc.ip, family, len(addr), tc.wantFamily, tc.wantLen)
 		}
 	}
 }
