@@ -4,7 +4,7 @@ Open the API and UI:
 
   kubectl -n {{ .Release.Namespace }} port-forward service/{{ include "ella-core.fullname" . }} 5002:{{ .Values.service.port }}
 
-Then browse to http://localhost:5002.
+Then browse to {{ lower (include "ella-core.apiScheme" .) }}://localhost:5002.
 {{- if include "ella-core.ha" . }}
 
 Initialize node 1, then join the other nodes using node 1's cluster address:
