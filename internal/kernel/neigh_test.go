@@ -85,13 +85,13 @@ func TestNexthopsFromRoutes_NoUsableRoute(t *testing.T) {
 func stubNeighNetlink(t *testing.T, routes map[string][]netlink.Route) *[]netlink.Neigh {
 	t.Helper()
 
-	oldRouteGet, oldNeighSet, oldNeighList := neighRouteGetWithOptions, neighSet, neighList
+	oldRouteGet, oldNeighSet, oldNeighGet := neighRouteGetWithOptions, neighSet, neighGet
 
 	t.Cleanup(func() {
-		neighRouteGetWithOptions, neighSet, neighList = oldRouteGet, oldNeighSet, oldNeighList
+		neighRouteGetWithOptions, neighSet, neighGet = oldRouteGet, oldNeighSet, oldNeighGet
 	})
 
-	neighList = func(int, int) ([]netlink.Neigh, error) { return nil, nil }
+	neighGet = func(int, net.IP) (*netlink.Neigh, error) { return nil, nil }
 
 	neighRouteGetWithOptions = func(dst net.IP, opts *netlink.RouteGetOptions) ([]netlink.Route, error) {
 		vrf := ""
@@ -268,26 +268,24 @@ func TestRoutesToNeighbourSelectsTable(t *testing.T) {
 func stubNeighTable(t *testing.T, existing []netlink.Neigh, listErr error) *[]netlink.Neigh {
 	t.Helper()
 
-	oldNeighSet, oldNeighList := neighSet, neighList
+	oldNeighSet, oldNeighGet := neighSet, neighGet
 
 	t.Cleanup(func() {
-		neighSet, neighList = oldNeighSet, oldNeighList
+		neighSet, neighGet = oldNeighSet, oldNeighGet
 	})
 
-	neighList = func(linkIndex, family int) ([]netlink.Neigh, error) {
+	neighGet = func(linkIndex int, ip net.IP) (*netlink.Neigh, error) {
 		if listErr != nil {
 			return nil, listErr
 		}
 
-		var out []netlink.Neigh
-
 		for _, n := range existing {
-			if n.LinkIndex == linkIndex && n.Family == family {
-				out = append(out, n)
+			if n.LinkIndex == linkIndex && n.IP.Equal(ip) {
+				return &n, nil
 			}
 		}
 
-		return out, nil
+		return nil, nil
 	}
 
 	seeded := &[]netlink.Neigh{}
@@ -314,13 +312,8 @@ func TestSetNeighbour_KeepsStaticEntries(t *testing.T) {
 		{"permanent v6", gw6, netlink.NUD_PERMANENT},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			family := netlink.FAMILY_V6
-			if tc.ip.To4() != nil {
-				family = netlink.FAMILY_V4
-			}
-
 			seeded := stubNeighTable(t, []netlink.Neigh{
-				{LinkIndex: 2, Family: family, IP: tc.ip, State: tc.state},
+				{LinkIndex: 2, IP: tc.ip, State: tc.state},
 			}, nil)
 
 			if err := setNeighbour(2, tc.ip); err != nil {
@@ -338,7 +331,7 @@ func TestSetNeighbour_ManagesDynamicEntry(t *testing.T) {
 	gw := net.ParseIP("10.6.0.3")
 
 	seeded := stubNeighTable(t, []netlink.Neigh{
-		{LinkIndex: 2, Family: netlink.FAMILY_V4, IP: gw, State: netlink.NUD_REACHABLE},
+		{LinkIndex: 2, IP: gw, State: netlink.NUD_REACHABLE},
 	}, nil)
 
 	if err := setNeighbour(2, gw); err != nil {
@@ -354,8 +347,8 @@ func TestSetNeighbour_CreatesMissingEntry(t *testing.T) {
 	gw := net.ParseIP("10.6.0.3")
 
 	seeded := stubNeighTable(t, []netlink.Neigh{
-		{LinkIndex: 2, Family: netlink.FAMILY_V4, IP: net.ParseIP("10.6.0.4"), State: netlink.NUD_PERMANENT},
-		{LinkIndex: 3, Family: netlink.FAMILY_V4, IP: gw, State: netlink.NUD_PERMANENT},
+		{LinkIndex: 2, IP: net.ParseIP("10.6.0.4"), State: netlink.NUD_PERMANENT},
+		{LinkIndex: 3, IP: gw, State: netlink.NUD_PERMANENT},
 	}, nil)
 
 	if err := setNeighbour(2, gw); err != nil {
@@ -368,7 +361,7 @@ func TestSetNeighbour_CreatesMissingEntry(t *testing.T) {
 }
 
 func TestSetNeighbour_ListError(t *testing.T) {
-	errList := errors.New("netlink: dump failed")
+	errList := errors.New("netlink: get failed")
 
 	seeded := stubNeighTable(t, nil, errList)
 
@@ -378,5 +371,21 @@ func TestSetNeighbour_ListError(t *testing.T) {
 
 	if len(*seeded) != 0 {
 		t.Errorf("expected no entry written when the lookup fails, got %+v", *seeded)
+	}
+}
+
+func TestNeighFamilyAndAddr(t *testing.T) {
+	for _, tc := range []struct {
+		ip         string
+		wantFamily uint8
+		wantLen    int
+	}{
+		{"169.254.1.1", unix.AF_INET, 4},
+		{"fe80::1", unix.AF_INET6, 16},
+	} {
+		family, addr := neighFamilyAndAddr(net.ParseIP(tc.ip))
+		if family != tc.wantFamily || len(addr) != tc.wantLen {
+			t.Errorf("%s: got family %d with %d-byte address, want %d with %d bytes", tc.ip, family, len(addr), tc.wantFamily, tc.wantLen)
+		}
 	}
 }

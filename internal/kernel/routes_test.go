@@ -225,13 +225,13 @@ func TestEnsureGatewaysSeedsVRFTableRoutes(t *testing.T) {
 	n6 := &netlink.Device{LinkAttrs: netlink.LinkAttrs{Name: "n6", Index: 6, MasterIndex: 10}}
 	gw := net.ParseIP("10.6.0.3")
 
-	oldByName, oldByIndex, oldListFiltered, oldNeighSet, oldNeighList := kernelLinkByName, netutil.LinkByIndex, kernelRouteListFiltered, neighSet, neighList
+	oldByName, oldByIndex, oldListFiltered, oldNeighSet, oldNeighGet := kernelLinkByName, netutil.LinkByIndex, kernelRouteListFiltered, neighSet, neighGet
 
 	t.Cleanup(func() {
-		kernelLinkByName, netutil.LinkByIndex, kernelRouteListFiltered, neighSet, neighList = oldByName, oldByIndex, oldListFiltered, oldNeighSet, oldNeighList
+		kernelLinkByName, netutil.LinkByIndex, kernelRouteListFiltered, neighSet, neighGet = oldByName, oldByIndex, oldListFiltered, oldNeighSet, oldNeighGet
 	})
 
-	neighList = func(int, int) ([]netlink.Neigh, error) { return nil, nil }
+	neighGet = func(int, net.IP) (*netlink.Neigh, error) { return nil, nil }
 
 	kernelLinkByName = func(name string) (netlink.Link, error) {
 		if name == "n6" {
@@ -291,14 +291,14 @@ func TestRouteOperationsUseVRFTable(t *testing.T) {
 	n6 := &netlink.Device{LinkAttrs: netlink.LinkAttrs{Name: "n6", Index: 6, MasterIndex: 10}}
 
 	oldByName, oldByIndex := kernelLinkByName, netutil.LinkByIndex
-	oldAdd, oldDel, oldReplace, oldListFiltered, oldNeighSet, oldNeighList := kernelRouteAdd, kernelRouteDel, kernelRouteReplace, kernelRouteListFiltered, neighSet, neighList
+	oldAdd, oldDel, oldReplace, oldListFiltered, oldNeighSet, oldNeighGet := kernelRouteAdd, kernelRouteDel, kernelRouteReplace, kernelRouteListFiltered, neighSet, neighGet
 
 	t.Cleanup(func() {
 		kernelLinkByName, netutil.LinkByIndex = oldByName, oldByIndex
-		kernelRouteAdd, kernelRouteDel, kernelRouteReplace, kernelRouteListFiltered, neighSet, neighList = oldAdd, oldDel, oldReplace, oldListFiltered, oldNeighSet, oldNeighList
+		kernelRouteAdd, kernelRouteDel, kernelRouteReplace, kernelRouteListFiltered, neighSet, neighGet = oldAdd, oldDel, oldReplace, oldListFiltered, oldNeighSet, oldNeighGet
 	})
 
-	neighList = func(int, int) ([]netlink.Neigh, error) { return nil, nil }
+	neighGet = func(int, net.IP) (*netlink.Neigh, error) { return nil, nil }
 
 	kernelLinkByName = func(name string) (netlink.Link, error) {
 		if name == "n6" {

@@ -11,6 +11,7 @@ import (
 	"net/netip"
 
 	"github.com/vishvananda/netlink"
+	"github.com/vishvananda/netlink/nl"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -24,7 +25,7 @@ var errNoRouteToNeighbour = errors.New("no route to neighbour")
 var (
 	neighRouteGetWithOptions = netlink.RouteGetWithOptions
 	neighSet                 = netlink.NeighSet
-	neighList                = netlink.NeighList
+	neighGet                 = getNeighbour
 )
 
 // AddNeighbourOnLink adds the provided IP as a neighbour on one specific link.
@@ -171,21 +172,45 @@ func setNeighbour(ifindex int, ip net.IP) error {
 }
 
 func hasStaticNeighbour(ifindex int, ip net.IP) (bool, error) {
-	family := netlink.FAMILY_V6
-	if ip.To4() != nil {
-		family = netlink.FAMILY_V4
-	}
-
-	neighs, err := neighList(ifindex, family)
+	n, err := neighGet(ifindex, ip)
 	if err != nil {
-		return false, fmt.Errorf("could not list neighbours on link %d: %w", ifindex, err)
+		return false, fmt.Errorf("could not look up neighbour %s on link %d: %w", ip, ifindex, err)
 	}
 
-	for _, n := range neighs {
-		if n.LinkIndex == ifindex && n.IP.Equal(ip) {
-			return n.State&(netlink.NUD_PERMANENT|netlink.NUD_NOARP) != 0, nil
-		}
+	if n == nil {
+		return false, nil
 	}
 
-	return false, nil
+	return n.State&(netlink.NUD_PERMANENT|netlink.NUD_NOARP) != 0, nil
+}
+
+func neighFamilyAndAddr(ip net.IP) (uint8, []byte) {
+	if v4 := ip.To4(); v4 != nil {
+		return unix.AF_INET, v4
+	}
+
+	return unix.AF_INET6, ip.To16()
+}
+
+func getNeighbour(ifindex int, ip net.IP) (*netlink.Neigh, error) {
+	family, addr := neighFamilyAndAddr(ip)
+
+	req := nl.NewNetlinkRequest(unix.RTM_GETNEIGH, 0)
+	req.AddData(&netlink.Ndmsg{Family: family, Index: uint32(ifindex)})
+	req.AddData(nl.NewRtAttr(unix.NDA_DST, addr))
+
+	msgs, err := req.Execute(unix.NETLINK_ROUTE, unix.RTM_NEWNEIGH)
+	if errors.Is(err, unix.ENOENT) {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(msgs) == 0 {
+		return nil, nil
+	}
+
+	return netlink.NeighDeserialize(msgs[0])
 }
