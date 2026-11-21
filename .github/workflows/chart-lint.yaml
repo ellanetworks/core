@@ -1,0 +1,50 @@
+name: Helm Chart Lint
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+env:
+  HELM_VERSION: v4.3.1
+  HELM_SHA256: 0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b
+
+jobs:
+  lint:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install Helm
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/helm.tgz" "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
+          printf '%s  %s\n' "$HELM_SHA256" "$RUNNER_TEMP/helm.tgz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/helm.tgz" -C "$RUNNER_TEMP" linux-amd64/helm
+          echo "$RUNNER_TEMP/linux-amd64" >> "$GITHUB_PATH"
+
+      - name: Check the chart version matches the release version
+        run: |
+          version="$(cat version/VERSION)"
+          app_version="$(yq '.appVersion' charts/ella-core/Chart.yaml)"
+          chart_version="$(yq '.version' charts/ella-core/Chart.yaml)"
+          if [ "${app_version}" != "${version}" ] || [ "${chart_version}" != "${version#v}" ]; then
+            echo "::error::charts/ella-core/Chart.yaml (version ${chart_version}, appVersion ${app_version}) does not match version/VERSION ${version}"
+            exit 1
+          fi
+
+      - name: Lint
+        run: helm lint --strict charts/ella-core
+
+      - name: Render standalone and high availability
+        run: |
+          helm template ella-core charts/ella-core --namespace ella > /dev/null
+          helm template ella-core charts/ella-core --namespace ella --set ingress.enabled=true --set ingress.host=ella.example.com > /dev/null
+          helm template ella-core charts/ella-core --namespace ella --set api.tls.secretName=api-tls > /dev/null
+          helm template ella-core charts/ella-core --namespace ella \
+            --set-json 'nodes=[{"ranAddress":"192.168.252.3/24"},{"ranAddress":"192.168.252.4/24"},{"ranAddress":"192.168.252.5/24"}]' > /dev/null
+          helm template ella-core charts/ella-core --namespace ella \
+            --api-versions security.openshift.io/v1/SecurityContextConstraints > /dev/null

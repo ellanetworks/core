@@ -7,7 +7,7 @@ description: Step-by-step instructions to deploy an Ella Core high-availability 
 Run Ella Core in the cloud while your radios stay on site. Deploy a three-node cluster across three zones and connect a radio to it over IPsec.
 
 !!! note
-    This guide uses cloud instances. Ella Core can also run on managed Kubernetes, such as GKE or EKS.
+    This guide uses cloud instances. Ella Core can also run on managed Kubernetes, such as GKE or EKS. See the [Kubernetes requirements](../reference/system_reqs.md#kubernetes).
 
 === "Google Cloud"
 

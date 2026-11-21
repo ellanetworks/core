@@ -58,24 +58,10 @@ Create a backup with [Backup and Restore](backup_and_restore.md#backup).
 
     === "Kubernetes"
 
-        Download the manifests of the target release:
+        Upgrade the chart:
 
         ```bash
-        git clone --depth 1 --branch <target-version> https://github.com/ellanetworks/core.git core-<target-version>
-        ```
-
-        Reapply your changes to `core-<target-version>/k8s/core-ran-nad.yaml` and `core-<target-version>/k8s/core-configmap.yaml`.
-
-        Delete the StatefulSet, keeping its pod and volume:
-
-        ```bash
-        kubectl -n ella delete statefulset ella-core --cascade=orphan
-        ```
-
-        Apply the manifests:
-
-        ```bash
-        kubectl apply -k core-<target-version>/k8s
+        helm upgrade ella-core oci://ghcr.io/ellanetworks/charts/ella-core --version <target-version> --namespace ella -f values.yaml
         ```
 
         Wait for the rollout to complete:
@@ -103,33 +89,25 @@ Create a backup with [Backup and Restore](backup_and_restore.md#backup).
 
     === "Kubernetes"
 
-        Download the manifests of the target release:
+        Upgrade the chart. The pods keep running the current release until you restart them:
 
         ```bash
-        git clone --depth 1 --branch <target-version> https://github.com/ellanetworks/core.git core-<target-version>
+        helm upgrade ella-core oci://ghcr.io/ellanetworks/charts/ella-core --version <target-version> --namespace ella -f values.yaml
         ```
-
-        Reapply your changes to `core-<target-version>/k8s/ha/core-ran-nad.yaml`, `core-1.yaml`, `core-2.yaml` and `core-3.yaml`.
 
         Upgrade the followers first and the leader last. Repeat these steps for each node `<n>`:
 
         1. Open the **Cluster** page on any healthy node other than the one you are about to upgrade.
         2. Click **Drain** next to the node. Wait until its **Drain State** is `drained`.
-        3. Apply the node's manifest and wait for the rollout to complete:
+        3. Restart the node's pod and wait for it to be ready:
 
             ```bash
-            kubectl -n ella apply -f core-<target-version>/k8s/ha/core-<n>.yaml
-            kubectl -n ella rollout status statefulset/ella-core-<n>
+            kubectl -n ella delete pod ella-core-<n>-0
+            kubectl -n ella wait --for=condition=Ready pod/ella-core-<n>-0 --timeout=10m
             ```
 
         4. On the **Cluster** page, wait for the node to return to **Healthy**.
         5. Click **Resume** next to the node. Wait until its **Drain State** is `active`.
-
-        Apply the remaining manifests:
-
-        ```bash
-        kubectl apply -k core-<target-version>/k8s/ha
-        ```
 
 ## 4. Verify
 
@@ -244,23 +222,10 @@ Create a backup with [Backup and Restore](backup_and_restore.md#backup).
             kubectl -n ella delete pod restore
             ```
 
-        4. Download the manifests of the previous release:
+        4. Roll the chart back to the previous release. This also scales Ella Core up:
 
             ```bash
-            git clone --depth 1 --branch <previous-version> https://github.com/ellanetworks/core.git core-<previous-version>
-            ```
-
-        5. Reapply your changes to `core-<previous-version>/k8s/core-ran-nad.yaml` and `core-<previous-version>/k8s/core-configmap.yaml`.
-        6. Apply the manifests:
-
-            ```bash
-            kubectl apply -k core-<previous-version>/k8s
-            ```
-
-        7. Scale Ella Core up:
-
-            ```bash
-            kubectl -n ella scale statefulset/ella-core --replicas=1
+            helm rollback ella-core --namespace ella
             ```
 
 === "High Availability"
