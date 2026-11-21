@@ -95,6 +95,7 @@ spec:
           {{- end }}
           startupProbe:
             httpGet:
+              scheme: {{ include "ella-core.apiScheme" $root }}
               path: /api/v1/livez
               port: http
             periodSeconds: 2
@@ -102,6 +103,7 @@ spec:
             failureThreshold: 150
           readinessProbe:
             httpGet:
+              scheme: {{ include "ella-core.apiScheme" $root }}
               path: /api/v1/readyz
               port: http
             periodSeconds: 5
@@ -109,6 +111,7 @@ spec:
             failureThreshold: 3
           livenessProbe:
             httpGet:
+              scheme: {{ include "ella-core.apiScheme" $root }}
               path: /api/v1/livez
               port: http
             periodSeconds: 10
@@ -126,11 +129,21 @@ spec:
               containerPort: 7000
             {{- end }}
           volumeMounts:
+            {{- if $root.Values.api.tls.secretName }}
+            - name: api-tls
+              mountPath: /tls/api
+              readOnly: true
+            {{- end }}
             - name: config
               mountPath: /config
             - name: data
               mountPath: /core/data
       volumes:
+        {{- if $root.Values.api.tls.secretName }}
+        - name: api-tls
+          secret:
+            secretName: {{ $root.Values.api.tls.secretName }}
+        {{- end }}
         - name: config
           configMap:
             name: {{ $name }}

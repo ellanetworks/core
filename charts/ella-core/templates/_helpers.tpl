@@ -89,5 +89,12 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- $advertise := printf "%s-0.%s.%s.svc.%s:7000" .name (include "ella-core.headlessServiceName" $root) $root.Release.Namespace $root.Values.clusterDomain }}
 {{- $_ := set $base "cluster" (dict "bind-address" "0.0.0.0:7000" "advertise-address" $advertise) }}
 {{- end }}
+{{- if $root.Values.api.tls.secretName }}
+{{- $_ := set $base.interfaces.api "tls" (dict "cert" "/tls/api/tls.crt" "key" "/tls/api/tls.key") }}
+{{- end }}
 {{- toYaml (mustMergeOverwrite $base (deepCopy $root.Values.config)) }}
+{{- end }}
+
+{{- define "ella-core.apiScheme" -}}
+{{- if .Values.api.tls.secretName }}HTTPS{{ else }}HTTP{{ end }}
 {{- end }}

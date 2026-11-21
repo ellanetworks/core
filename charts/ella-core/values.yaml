@@ -39,6 +39,10 @@ service:
   nodePort: null
   annotations: {}
 
+api:
+  tls:
+    secretName: ""
+
 ingress:
   enabled: false
   className: ""

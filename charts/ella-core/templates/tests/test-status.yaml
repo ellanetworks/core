@@ -21,7 +21,7 @@ spec:
   containers:
     - name: status
       image: "{{ .Values.tests.image.repository }}:{{ .Values.tests.image.tag }}"
-      command: ["curl", "--fail", "--silent", "--show-error", "--max-time", "10", "http://{{ include "ella-core.fullname" . }}:{{ .Values.service.port }}/api/v1/status"]
+      command: ["curl", "--fail", "--insecure", "--silent", "--show-error", "--max-time", "10", "{{ lower (include "ella-core.apiScheme" .) }}://{{ include "ella-core.fullname" . }}:{{ .Values.service.port }}/api/v1/status"]
       securityContext:
         allowPrivilegeEscalation: false
         capabilities:

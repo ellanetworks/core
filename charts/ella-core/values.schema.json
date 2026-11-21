@@ -186,6 +186,22 @@
       },
       "description": "Service that exposes the API."
     },
+    "api": {
+      "type": "object",
+      "description": "API and UI server settings.",
+      "properties": {
+        "tls": {
+          "type": "object",
+          "description": "TLS served by the pod itself.",
+          "properties": {
+            "secretName": {
+              "type": "string",
+              "description": "Name of a kubernetes.io/tls Secret. When set, the API and UI are served over HTTPS with its tls.crt and tls.key, and the probes use HTTPS."
+            }
+          }
+        }
+      }
+    },
     "ingress": {
       "description": "Ingress that exposes the API and UI over HTTPS, for a stable URL such as the single sign-on redirect URL.",
       "type": "object",
