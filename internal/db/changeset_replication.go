@@ -89,6 +89,7 @@ var replicatedChangesetTables = []string{
 	OIDCSettingsTableName,
 	OIDCGroupRolesTableName,
 	OIDCUsedStatesTableName,
+	RadioEventSettingsTableName,
 	"schema_version",
 }
 

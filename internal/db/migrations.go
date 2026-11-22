@@ -51,6 +51,7 @@ var migrations = []migration{
 	{27, "add local-breakout roaming: roaming_partners and their roaming_partner_plmns, visitors (inbound roamers, apart from subscribers), roaming diameter peers, ue_registrations, ip_leases and flow_reports keyed by IMSI without a subscriber FK, daily_usage keyed by IMSI with its home PLMN (no subscriber FK, so no idx_daily_usage_imsi), sepp_ca and per-node sepp_identities; add ims_settings (configurable IMS home domain) and ims_peers (allowlist of inbound IMS Diameter peers)", migrateV27},
 	{28, "add radio_ref column to network_logs: radio events keyed by the Global eNB / RAN Node ID, not the optional, mutable name", migrateV28},
 	{29, "add single sign-on: user_identities (accounts at the identity provider), sessions.method and identity_id, oidc_settings, oidc_group_roles and oidc_used_states", migrateV29},
+	{30, "add radio_event_settings: whether radio events are stored", migrateV30},
 }
 
 // baselineVersion is the highest migration that runs locally during

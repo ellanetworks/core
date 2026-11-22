@@ -40,4 +40,5 @@ func runRadioEventsMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	}
 
 	t.Run("retention", func(t *testing.T) { runRadioEventsRetentionMatrix(ctx, t, c) })
+	t.Run("settings", func(t *testing.T) { runRadioEventSettingsMatrix(ctx, t, c) })
 }

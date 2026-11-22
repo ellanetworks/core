@@ -38,6 +38,7 @@ const (
 	TopicRoaming                Topic = "roaming"
 	TopicSEPPIdentity           Topic = "sepp_identity"
 	TopicOIDC                   Topic = "oidc"
+	TopicRadioEventSettings     Topic = "radio_event_settings"
 )
 
 // Changefeed is an in-process publish/subscribe broker. One per

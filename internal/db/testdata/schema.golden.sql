@@ -256,6 +256,9 @@ CREATE TABLE "policies"(id TEXT PRIMARY KEY,name TEXT NOT NULL UNIQUE,profileID 
 -- table profiles
 CREATE TABLE "profiles"(id TEXT PRIMARY KEY,name TEXT NOT NULL UNIQUE,ueAmbrUplink TEXT NOT NULL,ueAmbrDownlink TEXT NOT NULL,allow4G INTEGER NOT NULL DEFAULT 1,allow5G INTEGER NOT NULL DEFAULT 1);
 
+-- table radio_event_settings
+CREATE TABLE radio_event_settings(singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK(singleton),enabled BOOLEAN NOT NULL);
+
 -- table retention_policies
 CREATE TABLE "retention_policies"(id TEXT PRIMARY KEY,category TEXT NOT NULL UNIQUE,retention_days INTEGER NOT NULL CHECK(retention_days >= 1));
 
