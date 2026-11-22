@@ -272,6 +272,13 @@ func (db *Database) collectSupportConfiguration(ctx context.Context, out support
 		sections["flow_accounting_settings"] = sections["flow_accounting_settings"].WithCount(1)
 	}
 
+	if radioEventsEnabled, err := db.IsRadioEventsEnabled(ctx); err != nil {
+		failure("radio_event_settings", err)
+	} else {
+		out["radio_event_settings"] = map[string]any{"enabled": radioEventsEnabled}
+		sections["radio_event_settings"] = sections["radio_event_settings"].WithCount(1)
+	}
+
 	if n3Settings, err := db.GetN3Settings(ctx); err != nil {
 		failure("n3_settings", err)
 	} else {

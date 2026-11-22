@@ -3,9 +3,12 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
+  Alert,
   Autocomplete,
   Box,
   Button,
+  FormControlLabel,
+  Switch,
   Typography,
   Tooltip,
   IconButton,
@@ -40,7 +43,7 @@ import {
   type ListRadiosResponse,
 } from "@/queries/radios";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useMutation, useQuery, keepPreviousData } from "@tanstack/react-query";
 import QueryState from "@/components/QueryState";
 import EmptyState from "@/components/EmptyState";
 
@@ -48,7 +51,10 @@ import {
   listRadioEvents,
   clearRadioEvents,
   getRadioEventRetentionPolicy,
+  getRadioEventSettings,
+  updateRadioEventSettings,
   type RadioEventRetentionPolicy,
+  type RadioEventSettings,
   type APIRadioEvent,
   type ListRadioEventsResponse,
 } from "@/queries/radio_events";
@@ -347,6 +353,41 @@ export default function RadioEvents() {
     queryKey: ["networkLogRetention"],
     enabled: authReady && !!accessToken && !isNetworkEditModalOpen,
     queryFn: () => getRadioEventRetentionPolicy(accessToken!),
+  });
+
+  const settingsQuery = useQuery<RadioEventSettings>({
+    queryKey: ["radioEventSettings"],
+    enabled: authReady && !!accessToken,
+    queryFn: () => getRadioEventSettings(accessToken!),
+  });
+  const storingEvents = settingsQuery.data?.enabled ?? true;
+
+  const { mutate: setStoringEvents, isPending: updatingSettings } = useMutation<
+    void,
+    unknown,
+    boolean
+  >({
+    mutationFn: (enabled: boolean) =>
+      updateRadioEventSettings(accessToken || "", enabled),
+    onSuccess: (_data, enabled) => {
+      showSnackbar(
+        enabled
+          ? "Radio events will be stored."
+          : "Radio events will no longer be stored.",
+        "success",
+      );
+      void settingsQuery.refetch();
+    },
+    onError: (error: unknown) => {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "An unexpected error occurred.";
+      showSnackbar(
+        `Failed to update radio event settings: ${message}`,
+        "error",
+      );
+    },
   });
 
   const timeFilter = useMemo(() => timeRangeFilter(timeRange), [timeRange]);
@@ -761,6 +802,23 @@ export default function RadioEvents() {
             </Button>
           )}
           <Box sx={{ flex: 1 }} />
+          <FormControlLabel
+            control={
+              <Switch
+                size="small"
+                checked={storingEvents}
+                onChange={(_, checked) => setStoringEvents(checked)}
+                disabled={!canEdit || updatingSettings || !settingsQuery.data}
+                slotProps={{ input: { "aria-label": "store radio events" } }}
+              />
+            }
+            label={
+              <Typography variant="body2" color="textSecondary">
+                Store events
+              </Typography>
+            }
+            sx={{ mr: 0 }}
+          />
           <Typography
             variant="body2"
             color="textSecondary"
@@ -780,6 +838,14 @@ export default function RadioEvents() {
           </Typography>
         </Box>
 
+        {!storingEvents && (
+          <Alert severity="info">
+            Radio events are not being stored. Signalling with radios is not
+            recorded until storage is turned back on. Events already stored are
+            kept until the retention period removes them.
+          </Alert>
+        )}
+
         <QueryState
           query={networkLogsQuery}
           resource="radio events"
@@ -794,7 +860,11 @@ export default function RadioEvents() {
           empty={
             <EmptyState
               primaryText="No radio events yet"
-              secondaryText="Signalling exchanged with connected radios will appear here."
+              secondaryText={
+                storingEvents
+                  ? "Signalling exchanged with connected radios will appear here."
+                  : "Radio event storage is off."
+              }
             />
           }
         >

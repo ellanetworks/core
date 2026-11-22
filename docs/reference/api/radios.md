@@ -357,3 +357,47 @@ None
     }
 }
 ```
+
+## Get Radio Event Settings
+
+This path returns whether radio events are stored. Radio events are stored by default.
+
+| Method | Path                          |
+| ------ | ----------------------------- |
+| GET    | `/api/v1/ran/events/settings` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "enabled": true
+    }
+}
+```
+
+## Update Radio Event Settings
+
+This path turns storing radio events on or off. The setting applies to every node in a cluster. Turning it off does not delete radio events already stored.
+
+| Method | Path                          |
+| ------ | ----------------------------- |
+| PUT    | `/api/v1/ran/events/settings` |
+
+### Parameters
+
+- `enabled` (boolean): Whether radio events are stored.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Radio event settings updated successfully"
+    }
+}
+```

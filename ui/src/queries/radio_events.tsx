@@ -98,3 +98,26 @@ export const updateRadioEventRetentionPolicy = async (
     body: { days },
   });
 };
+
+export type RadioEventSettings = {
+  enabled: boolean;
+};
+
+export const getRadioEventSettings = async (
+  authToken: string,
+): Promise<RadioEventSettings> => {
+  return apiFetch<RadioEventSettings>(`/api/v1/ran/events/settings`, {
+    authToken,
+  });
+};
+
+export const updateRadioEventSettings = async (
+  authToken: string,
+  enabled: boolean,
+): Promise<void> => {
+  await apiFetchVoid(`/api/v1/ran/events/settings`, {
+    method: "PUT",
+    authToken,
+    body: { enabled },
+  });
+};

@@ -151,7 +151,8 @@ var (
 
 // Retention
 var (
-	opSetRetentionPolicy = registerChangesetOp("SetRetentionPolicy", (*Database).applySetRetentionPolicy)
+	opSetRetentionPolicy       = registerChangesetOp("SetRetentionPolicy", (*Database).applySetRetentionPolicy)
+	opUpdateRadioEventSettings = registerChangesetOp("UpdateRadioEventSettings", (*Database).applyUpdateRadioEventSettings, RequireSchema(radioEventSettingsSchema), AffectsTopic(TopicRadioEventSettings))
 )
 
 // Operator

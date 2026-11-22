@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ellanetworks/core/internal/dbwriter"
@@ -50,6 +51,8 @@ var (
 	openFiles []*os.File
 
 	dbInstance dbwriter.DBWriter
+
+	radioEventsDisabled atomic.Bool
 )
 
 // Default: console only, info level.
@@ -179,6 +182,10 @@ func StdLogger(l *zap.Logger) *stdlog.Logger {
 
 func SetDb(db dbwriter.DBWriter) {
 	dbInstance = db
+}
+
+func SetRadioEventsEnabled(enabled bool) {
+	radioEventsDisabled.Store(!enabled)
 }
 
 func SwapSystemCore(core zapcore.Core) func() {
@@ -417,6 +424,10 @@ func LogNetworkEvent(
 		zap.String("radio_name", radioName),
 		zap.String("radio_ref", radioRef),
 	)
+
+	if radioEventsDisabled.Load() {
+		return
+	}
 
 	if dbInstance == nil {
 		log.Warn("cannot persist radio event: no database configured")
