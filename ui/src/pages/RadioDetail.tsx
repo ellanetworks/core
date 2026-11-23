@@ -64,6 +64,7 @@ const RadioDetail: React.FC = () => {
   const { ref } = useParams<{ ref: string }>();
   const navigate = useNavigate();
   const { accessToken, authReady, role } = useAuth();
+  const canViewEventDetails = role === "Admin" || role === "Network Manager";
   const { showSnackbar } = useSnackbar();
 
   const theme = useTheme();
@@ -624,14 +625,20 @@ const RadioDetail: React.FC = () => {
                       getRowId={(row) => row.id}
                       hideFooter
                       defaultPageSize={100}
-                      onRowClick={(params) => {
-                        navigate(
-                          `/radios/events?radio=${encodeURIComponent(radio.ref)}&event=${params.row.id}`,
-                        );
-                      }}
+                      onRowClick={
+                        canViewEventDetails
+                          ? (params) => {
+                              navigate(
+                                `/radios/events?radio=${encodeURIComponent(radio.ref)}&event=${params.row.id}`,
+                              );
+                            }
+                          : undefined
+                      }
                       variant="embedded"
                       sx={{
-                        "& .MuiDataGrid-row": { cursor: "pointer" },
+                        "& .MuiDataGrid-row": {
+                          cursor: canViewEventDetails ? "pointer" : "default",
+                        },
                       }}
                     />
                   )}
