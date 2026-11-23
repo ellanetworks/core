@@ -233,6 +233,10 @@ func TestBuildPathSwitchRequestAcknowledgeTransfer(t *testing.T) {
 	if ip != [4]byte{172, 16, 0, 1} {
 		t.Errorf("IP: got %v, want [172 16 0 1]", ip)
 	}
+
+	if transfer.SecurityIndication != nil {
+		t.Errorf("Security Indication: got %+v, want none", transfer.SecurityIndication)
+	}
 }
 
 func TestBuildPathSwitchRequestAcknowledgeTransfer_IPv6Only(t *testing.T) {
