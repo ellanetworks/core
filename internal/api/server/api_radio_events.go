@@ -46,7 +46,6 @@ type RadioEvent struct {
 	Radio       string `json:"radio"`
 	RadioRef    string `json:"radio_ref"`
 	Address     string `json:"address"`
-	Raw         []byte `json:"raw"`
 	Details     string `json:"details"`
 }
 
@@ -214,7 +213,6 @@ func ListRadioEvents(dbInstance *db.Database) http.Handler {
 				Radio:       log.RadioName,
 				RadioRef:    log.RadioRef,
 				Address:     log.RemoteAddress,
-				Raw:         log.Raw,
 				Details:     log.Details,
 			}
 		}

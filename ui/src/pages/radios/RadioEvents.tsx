@@ -285,6 +285,7 @@ const makeSelection = (ids: GridRowId[] = []): GridRowSelectionModel => ({
 export default function RadioEvents() {
   const { role, accessToken, authReady } = useAuth();
   const canEdit = role === "Admin";
+  const canViewDetails = role === "Admin" || role === "Network Manager";
   const theme = useTheme();
 
   const { showSnackbar } = useSnackbar();
@@ -454,7 +455,7 @@ export default function RadioEvents() {
   }
 
   const viewEventDrawerOpen =
-    !!eventIdParam && selectedRow?.id === eventIdParam;
+    canViewDetails && !!eventIdParam && selectedRow?.id === eventIdParam;
 
   const selectionModel = useMemo(
     () => makeSelection(viewEventDrawerOpen ? [Number(eventIdParam)] : []),
@@ -881,11 +882,15 @@ export default function RadioEvents() {
               rowCount={subRowCount}
               paginationModel={paginationModel}
               onPaginationModelChange={setPaginationModel}
-              onRowClick={handleRowClick}
+              onRowClick={canViewDetails ? handleRowClick : undefined}
               rowSelectionModel={selectionModel}
-              onRowSelectionModelChange={handleSelectionChange}
+              onRowSelectionModelChange={
+                canViewDetails ? handleSelectionChange : undefined
+              }
               sx={{
-                "& .MuiDataGrid-row:hover": { cursor: "pointer" },
+                "& .MuiDataGrid-row:hover": {
+                  cursor: canViewDetails ? "pointer" : "default",
+                },
                 "& .MuiDataGrid-row.Mui-selected": {
                   backgroundColor: (t) => t.palette.action.selected,
                   "&:hover": {

@@ -36,7 +36,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermReadIntegrations,
 		PermGetFlowAccountingInfo,
 		PermGetSubscriberUsageRetentionPolicy, PermGetSubscriberUsage,
-		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermGetRadioEvent, PermGetRadioEventSettings,
+		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermGetRadioEventSettings,
 		PermGetFlowReportsRetentionPolicy, PermListFlowReports,
 		PermListNetworkRules, PermReadNetworkRule,
 		PermReadLocation,
