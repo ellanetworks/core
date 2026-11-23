@@ -156,12 +156,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	ellaraft.RegisterMetrics()
 
-	apiScheme := "http"
-	if cfg.Interfaces.API.TLS.Cert != "" && cfg.Interfaces.API.TLS.Key != "" {
-		apiScheme = "https"
-	}
-
-	apiAddress := fmt.Sprintf("%s://%s:%d", apiScheme, cfg.Interfaces.API.Address, cfg.Interfaces.API.Port)
+	apiAddress := advertisedAPIAddress(cfg)
 
 	dataDir := filepath.Dir(cfg.DB.Path)
 

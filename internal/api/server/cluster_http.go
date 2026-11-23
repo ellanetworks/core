@@ -144,6 +144,8 @@ func peerNodeIDConnContext(ctx context.Context, c net.Conn) context.Context {
 		return ctx
 	}
 
+	ctx = context.WithValue(ctx, clusterConnCtxKey{}, oc.Conn)
+
 	if clusterListenerForPeerLookup == nil {
 		return ctx
 	}
@@ -162,4 +164,11 @@ func peerNodeIDConnContext(ctx context.Context, c net.Conn) context.Context {
 func peerNodeIDFromContext(ctx context.Context) (string, bool) {
 	v, ok := ctx.Value(peerNodeIDCtxKey{}).(string)
 	return v, ok
+}
+
+type clusterConnCtxKey struct{}
+
+func clusterConnFromContext(ctx context.Context) net.Conn {
+	c, _ := ctx.Value(clusterConnCtxKey{}).(net.Conn)
+	return c
 }

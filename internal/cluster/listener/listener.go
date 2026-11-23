@@ -455,6 +455,10 @@ func (l *Listener) untrackConn(c *tls.Conn) {
 // removed voter's active mTLS sessions drop sub-second instead of
 // at the next handshake. Returns the count of connections closed.
 func (l *Listener) CloseByPeerFingerprint(fingerprint string) int {
+	return l.CloseByPeerFingerprintExcept(fingerprint, nil)
+}
+
+func (l *Listener) CloseByPeerFingerprintExcept(fingerprint string, keep net.Conn) int {
 	if fingerprint == "" {
 		return 0
 	}
@@ -463,7 +467,13 @@ func (l *Listener) CloseByPeerFingerprint(fingerprint string) int {
 
 	var victims []*tls.Conn
 
+	keepTLS, _ := TLSConn(keep)
+
 	for c := range l.conns {
+		if keepTLS != nil && c == keepTLS {
+			continue
+		}
+
 		state := c.ConnectionState()
 		if len(state.PeerCertificates) == 0 {
 			continue

@@ -49,7 +49,9 @@ const maxClusterJoinBodyBytes = 4096
 // and a small set of leader-only or node-targeted RPCs (autopilot
 // state, side-effect hooks). Destructive cluster-membership operations
 // (remove, promote) live on the public API under
-// /api/v1/cluster/members/*, gated by JWT + PermManageCluster.
+// /api/v1/cluster/members/*, gated by JWT + PermManageCluster; followers
+// forward them to the leader through InternalForwardPath, where the
+// leader runs that same chain.
 func newClusterMux(dbInstance *db.Database) *http.ServeMux {
 	mux := http.NewServeMux()
 
@@ -57,6 +59,7 @@ func newClusterMux(dbInstance *db.Database) *http.ServeMux {
 	mux.Handle("POST /cluster/members", LeaderOnly(dbInstance, selfRegistrationGuard(AddClusterMember(dbInstance))))
 	mux.Handle("GET "+InternalAutopilotPath, removedNodeFence(dbInstance, LeaderOnly(dbInstance, ClusterAutopilotState(dbInstance))))
 	mux.Handle("POST "+raft.ProposeForwardPath, removedNodeFence(dbInstance, ClusterPropose(dbInstance)))
+	mux.Handle("POST "+InternalForwardPath, removedNodeFence(dbInstance, LeaderOnly(dbInstance, ClusterForward(dbInstance))))
 
 	// PKI register endpoint on the cluster HTTP ALPN. The issuer
 	// service becomes available after the first leader election;

@@ -51,7 +51,7 @@ None
 
 ## Remove a Cluster Member
 
-This path removes a node from the Raft cluster. The node must be drained first (`drainState == "drained"`) unless `force=true` is set. The current leader cannot be removed regardless of `force`. Must be sent to the leader. Requires admin privileges.
+This path removes a node from the Raft cluster. The node must be drained first (`drainState == "drained"`) unless `force=true` is set. The current leader cannot be removed regardless of `force`. Requires admin privileges.
 
 | Method | Path                            |
 | ------ | ------------------------------- |
@@ -75,7 +75,7 @@ This path removes a node from the Raft cluster. The node must be drained first (
 
 ## Promote a Cluster Member
 
-This path promotes a nonvoter node to a voter in the Raft cluster. Must be sent to the leader. Requires admin privileges.
+This path promotes a nonvoter node to a voter in the Raft cluster. Requires admin privileges.
 
 | Method | Path                                    |
 | ------ | --------------------------------------- |

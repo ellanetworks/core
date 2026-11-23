@@ -639,6 +639,22 @@ func (m *Manager) AppliedIndex() uint64 {
 	return m.fsm.AppliedIndex()
 }
 
+func (m *Manager) CommitIndex() uint64 {
+	return m.raft.CommitIndex()
+}
+
+func (m *Manager) WaitLogApplied(ctx context.Context, index uint64) error {
+	for m.raft.AppliedIndex() < index {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(appliedIndexPollInterval):
+		}
+	}
+
+	return nil
+}
+
 func (m *Manager) WaitApplied(ctx context.Context, index uint64) error {
 	for m.AppliedIndex() < index {
 		select {
