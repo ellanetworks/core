@@ -5,14 +5,11 @@ package integration_test
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/ellanetworks/core/client"
 )
-
-const notLeaderAttempts = 3
 
 func leaderAndFollower(ctx context.Context, t *testing.T, h *haMatrixEnv) (*client.Client, client.ClusterMember) {
 	t.Helper()
@@ -38,42 +35,29 @@ func leaderAndFollower(ctx context.Context, t *testing.T, h *haMatrixEnv) (*clie
 	return nil, client.ClusterMember{}
 }
 
-func assertNamesTheLeader(ctx context.Context, t *testing.T, h *haMatrixEnv, call func(*client.Client) error) {
-	t.Helper()
-
-	for attempt := range notLeaderAttempts {
+func runClusterRoutingHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
+	t.Run("promote_on_a_follower_reaches_the_leader", func(t *testing.T) {
 		follower, leader := leaderAndFollower(ctx, t, h)
 
-		err := call(follower)
-		if err == nil || !strings.Contains(err.Error(), "not the cluster leader") {
-			t.Logf("attempt %d: got %v, want a not-leader rejection; leadership may have moved, retrying", attempt+1, err)
-			continue
+		err := follower.PromoteClusterMember(ctx, leader.NodeID)
+		if err == nil || !strings.Contains(err.Error(), "already a voter") {
+			t.Fatalf("PromoteClusterMember on a follower: got %v, want the leader's already-a-voter conflict", err)
+		}
+	})
+
+	t.Run("members_advertise_a_usable_api_address", func(t *testing.T) {
+		follower, _ := leaderAndFollower(ctx, t, h)
+
+		members, err := follower.ListClusterMembers(ctx)
+		if err != nil {
+			t.Fatalf("list cluster members: %v", err)
 		}
 
-		if !strings.Contains(err.Error(), string(leader.NodeID)) {
-			t.Fatalf("rejection %q does not name the leader %s", err, leader.NodeID)
-		}
-
-		if !strings.Contains(err.Error(), leader.APIAddress) {
-			t.Fatalf("rejection %q does not name the leader's API address %s", err, leader.APIAddress)
-		}
-
-		return
-	}
-
-	t.Fatalf("no not-leader rejection after %d attempts", notLeaderAttempts)
-}
-
-func runClusterRoutingHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
-	t.Run("promote_names_the_leader", func(t *testing.T) {
-		assertNamesTheLeader(ctx, t, h, func(follower *client.Client) error {
-			status, err := follower.GetStatus(ctx)
-			if err != nil {
-				return fmt.Errorf("get status: %w", err)
+		for _, m := range members {
+			if m.APIAddress == "" || strings.Contains(m.APIAddress, "0.0.0.0") || strings.Contains(m.APIAddress, "[::]") {
+				t.Errorf("member %s advertises API address %q", m.NodeID, m.APIAddress)
 			}
-
-			return follower.PromoteClusterMember(ctx, status.Cluster.NodeID)
-		})
+		}
 	})
 
 	t.Run("mint_join_token_works_on_a_follower", func(t *testing.T) {

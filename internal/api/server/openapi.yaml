@@ -4214,8 +4214,10 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
-        "421":
-          $ref: "#/components/responses/NotLeader"
+        "502":
+          $ref: "#/components/responses/LeaderOutcomeUnknown"
+        "503":
+          $ref: "#/components/responses/LeaderUnavailable"
 
   /api/v1/cluster/members/{id}/display-name:
     put:
@@ -4276,8 +4278,10 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
-        "421":
-          $ref: "#/components/responses/NotLeader"
+        "502":
+          $ref: "#/components/responses/LeaderOutcomeUnknown"
+        "503":
+          $ref: "#/components/responses/LeaderUnavailable"
 
   /api/v1/cluster/autopilot:
     get:
@@ -4888,12 +4892,20 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
-    NotLeader:
-      description: This node is not the cluster leader.
+
+    LeaderUnavailable:
+      description: No cluster leader could be reached. The request was not applied.
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/NotLeaderResponse"
+            $ref: "#/components/schemas/ErrorResponse"
+
+    LeaderOutcomeUnknown:
+      description: The connection to the cluster leader was lost after the request was sent. The request may have been applied.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
 
   schemas:
     # -- Common ----------------------------------------------------------
@@ -4901,19 +4913,6 @@ components:
       type: object
       properties:
         error:
-          type: string
-      required: [error]
-
-    NotLeaderResponse:
-      type: object
-      properties:
-        error:
-          type: string
-        leaderNodeId:
-          type: string
-        leaderAddress:
-          type: string
-        leaderAPIAddress:
           type: string
       required: [error]
 

@@ -325,6 +325,22 @@ func (db *Database) AppliedIndex() uint64 {
 	return db.raftManager.AppliedIndex()
 }
 
+func (db *Database) CommitIndex() uint64 {
+	if db.raftManager == nil {
+		return 0
+	}
+
+	return db.raftManager.CommitIndex()
+}
+
+func (db *Database) WaitLogApplied(ctx context.Context, index uint64) error {
+	if db.raftManager == nil {
+		return nil
+	}
+
+	return db.raftManager.WaitLogApplied(ctx, index)
+}
+
 func (db *Database) WaitApplied(ctx context.Context, index uint64) error {
 	if db.raftManager == nil {
 		return nil
@@ -460,6 +476,14 @@ func (db *Database) DoLeaderRequest(ctx context.Context, method, path string, bo
 	}
 
 	return db.raftManager.LeaderRequest(ctx, method, path, body, contentType)
+}
+
+func (db *Database) DoLeaderRequestWithTimeout(ctx context.Context, method, path string, body []byte, contentType string, timeout time.Duration) (*ellaraft.LeaderResponse, error) {
+	if db.raftManager == nil {
+		return nil, fmt.Errorf("clustering not enabled")
+	}
+
+	return db.raftManager.LeaderRequestWithTimeout(ctx, method, path, body, contentType, timeout)
 }
 
 // RaftState returns the current Raft state as a string (Leader, Follower, etc.).

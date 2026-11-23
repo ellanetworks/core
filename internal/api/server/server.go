@@ -72,6 +72,12 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	}
 
 	mux := http.NewServeMux()
+	leaderMux := http.NewServeMux()
+
+	leaderRoute := func(pattern string, h http.Handler) {
+		mux.Handle(pattern, ForwardToLeader(dbInstance, h))
+		leaderMux.Handle(pattern, h)
+	}
 
 	// Status (Unauthenticated)
 	ready := cfg.Ready
@@ -329,9 +335,9 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 
 	// Cluster (Authenticated; admin only except the health read)
 	mux.HandleFunc("GET /api/v1/cluster/members", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, ListClusterMembers(dbInstance))).ServeHTTP)
-	mux.HandleFunc("DELETE /api/v1/cluster/members/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, LeaderOnly(dbInstance, RemoveClusterMember(dbInstance)))).ServeHTTP)
+	leaderRoute("DELETE /api/v1/cluster/members/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, RemoveClusterMember(dbInstance))))
 	mux.HandleFunc("PUT /api/v1/cluster/members/{id}/display-name", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, SetClusterMemberDisplayName(dbInstance))).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/cluster/members/{id}/promote", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, LeaderOnly(dbInstance, PromoteClusterMember(dbInstance)))).ServeHTTP)
+	leaderRoute("POST /api/v1/cluster/members/{id}/promote", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, PromoteClusterMember(dbInstance))))
 	mux.HandleFunc("POST /api/v1/cluster/members/{id}/drain", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, DrainClusterMember(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/cluster/members/{id}/resume", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, ResumeClusterMember(dbInstance))).ServeHTTP)
 
@@ -361,6 +367,8 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	if registerExtraRoutes != nil {
 		registerExtraRoutes(mux)
 	}
+
+	SetLeaderForwardTarget(leaderMux)
 
 	var handler http.Handler = mux
 

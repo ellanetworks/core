@@ -363,6 +363,10 @@ type LeaderResponse struct {
 // transient miss is preferable to amplifying load on a flapping
 // leader.
 func (m *Manager) LeaderRequest(ctx context.Context, method, path string, body []byte, contentType string) (*LeaderResponse, error) {
+	return m.LeaderRequestWithTimeout(ctx, method, path, body, contentType, m.ProposeTimeout())
+}
+
+func (m *Manager) LeaderRequestWithTimeout(ctx context.Context, method, path string, body []byte, contentType string, timeout time.Duration) (*LeaderResponse, error) {
 	leaderAddr, leaderID := m.LeaderAddressAndID()
 	if m.leaderClient == nil || leaderAddr == "" || leaderID == "" {
 		return nil, hraft.ErrNotLeader
@@ -374,7 +378,7 @@ func (m *Manager) LeaderRequest(ctx context.Context, method, path string, body [
 		contentType:      contentType,
 		body:             body,
 		maxResponseBytes: maxForwardResponseBytes,
-		timeout:          m.ProposeTimeout(),
+		timeout:          timeout,
 	})
 	if err != nil {
 		return nil, err

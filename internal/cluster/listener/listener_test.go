@@ -5,6 +5,7 @@ package listener_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"strings"
@@ -466,5 +467,68 @@ func TestListener_CloseByPeerFingerprintClosesHandedOffConn(t *testing.T) {
 
 	if n := ln1.CloseByPeerFingerprint(fp); n != 0 {
 		t.Fatalf("CloseByPeerFingerprint closed %d connections after the handler closed it, want 0", n)
+	}
+}
+
+func TestListener_CloseByPeerFingerprintExceptKeepsOneConn(t *testing.T) {
+	p := testutil.GenTestPKI(t, []string{"1", "2"})
+
+	ln1 := newTestListener(t, p, "1")
+
+	handed := make(chan net.Conn, 2)
+
+	ln1.Register(listener.ALPNRaft, func(conn net.Conn) {
+		handed <- conn
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := ln1.Start(ctx); err != nil {
+		t.Fatalf("start listener: %v", err)
+	}
+
+	defer ln1.Stop()
+
+	ln2 := newTestListener(t, p, "2")
+	defer ln2.Stop()
+
+	servers := make([]net.Conn, 0, 2)
+
+	for range 2 {
+		client, err := ln2.Dial(ctx, ln1.BoundAddress(), "1", listener.ALPNRaft, 2*time.Second)
+		if err != nil {
+			t.Fatalf("dial: %v", err)
+		}
+
+		defer func() { _ = client.Close() }()
+
+		select {
+		case server := <-handed:
+			servers = append(servers, server)
+
+			defer func() { _ = server.Close() }()
+		case <-time.After(5 * time.Second):
+			t.Fatal("handler never received the connection")
+		}
+	}
+
+	fp := pki.Fingerprint(p.Nodes["2"].Cert)
+
+	if n := ln1.CloseByPeerFingerprintExcept(fp, servers[0]); n != 1 {
+		t.Fatalf("CloseByPeerFingerprintExcept closed %d connections, want 1", n)
+	}
+
+	_ = servers[0].SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+
+	var netErr net.Error
+	if _, err := servers[0].Read(make([]byte, 1)); !errors.As(err, &netErr) || !netErr.Timeout() {
+		t.Fatalf("kept connection: read error %v, want a timeout on an open connection", err)
+	}
+
+	_ = servers[1].SetReadDeadline(time.Now().Add(5 * time.Second))
+
+	if _, err := servers[1].Read(make([]byte, 1)); err == nil || (errors.As(err, &netErr) && netErr.Timeout()) {
+		t.Fatalf("other connection: read error %v, want it closed", err)
 	}
 }
