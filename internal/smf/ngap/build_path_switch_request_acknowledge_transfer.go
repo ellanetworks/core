@@ -23,10 +23,6 @@ func BuildPathSwitchRequestAcknowledgeTransfer(teid uint32, n3IPv4 netip.Addr, n
 		ULNGUUPTNLInformation: &libngap.UPTransportLayerInformation{
 			GTPTunnel: &libngap.GTPTunnel{TransportLayerAddress: tla, GTPTEID: libngap.GTPTEID(teid)},
 		},
-		SecurityIndication: &libngap.SecurityIndication{
-			IntegrityProtectionIndication:       libngap.IntegrityProtectionNotNeeded,
-			ConfidentialityProtectionIndication: libngap.ConfidentialityProtectionNotNeeded,
-		},
 	}
 
 	buf, err := transfer.Marshal()

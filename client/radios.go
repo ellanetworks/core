@@ -99,7 +99,6 @@ type RadioEvent struct {
 	Direction   string `json:"direction"`
 	Radio       string `json:"radio"`
 	Address     string `json:"address"`
-	Raw         string `json:"raw"`
 	Details     string `json:"details"`
 }
 
