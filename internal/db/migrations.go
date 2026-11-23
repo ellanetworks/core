@@ -52,6 +52,7 @@ var migrations = []migration{
 	{28, "add radio_ref column to network_logs: radio events keyed by the Global eNB / RAN Node ID, not the optional, mutable name", migrateV28},
 	{29, "add single sign-on: user_identities (accounts at the identity provider), sessions.method and identity_id, oidc_settings, oidc_group_roles and oidc_used_states", migrateV29},
 	{30, "add radio_event_settings: whether radio events are stored", migrateV30},
+	{31, "replicate commands instead of changesets: check that no replicated row breaks a foreign key, since every node now applies writes with foreign keys on; add subscriber_count, the number of subscribers and visitors, kept by the writes that add or remove them; index ip_leases by pool and creation for the next free address search", migrateV31},
 }
 
 // baselineVersion is the highest migration that runs locally during

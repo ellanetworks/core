@@ -21,7 +21,7 @@ const DataNetworksTableName = "data_networks"
 const dataNetworkIMSSchema = 25
 
 const (
-	listDataNetworksPagedSQL = "SELECT id, name, ipPool, ipv6Pool, dns, mtu, ims, COUNT(*) OVER() from " + DataNetworksTableName + " LIMIT ? OFFSET ?"
+	listDataNetworksPagedSQL = "SELECT id, name, ipPool, ipv6Pool, dns, mtu, ims, COUNT(*) OVER() from " + DataNetworksTableName + " ORDER BY id LIMIT ? OFFSET ?"
 	listAllDataNetworksSQL   = "SELECT id, name, ipPool, ipv6Pool, dns, mtu, ims FROM " + DataNetworksTableName + " ORDER BY id ASC"
 	getDataNetworkSQL        = "SELECT id, name, ipPool, ipv6Pool, dns, mtu, ims from " + DataNetworksTableName + " WHERE name==?"
 	getDataNetworkByIDSQL    = "SELECT id, name, ipPool, ipv6Pool, dns, mtu, ims FROM " + DataNetworksTableName + " WHERE id==?"
@@ -34,7 +34,7 @@ const (
 const dataNetworkColumnsPreV25 = "id, name, ipPool, ipv6Pool, dns, mtu, iif(name = '" + models.IMSDataNetworkName + "', TRUE, FALSE)"
 
 const (
-	listDataNetworksPagedPreV25SQL = "SELECT " + dataNetworkColumnsPreV25 + ", COUNT(*) OVER() from " + DataNetworksTableName + " LIMIT ? OFFSET ?"
+	listDataNetworksPagedPreV25SQL = "SELECT " + dataNetworkColumnsPreV25 + ", COUNT(*) OVER() from " + DataNetworksTableName + " ORDER BY id LIMIT ? OFFSET ?"
 	listAllDataNetworksPreV25SQL   = "SELECT " + dataNetworkColumnsPreV25 + " FROM " + DataNetworksTableName + " ORDER BY id ASC"
 	getDataNetworkPreV25SQL        = "SELECT " + dataNetworkColumnsPreV25 + " from " + DataNetworksTableName + " WHERE name==?"
 	getDataNetworkByIDPreV25SQL    = "SELECT " + dataNetworkColumnsPreV25 + " FROM " + DataNetworksTableName + " WHERE id==?"

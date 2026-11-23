@@ -1,0 +1,611 @@
+entry 1 SetJWTSecret
+  -> null
+  state b7e810991837608eeb3b7bf702a6103979e3036ead76940562f47c633b03830e
+entry 2 CreateHomeNetworkKey
+  -> null
+  state 0c2b450e988d0e25d87a66c2abd9eaa3ca01e5169585ce848414ce9499a30cb0
+entry 3 SetRetentionPolicy
+  -> null
+  state 443ce54fda64cede40a2fc2a63889c57efde3cf5e44b7e98e648e8dc9ae6296f
+entry 4 SetRetentionPolicy
+  -> null
+  state 00cec5e629e6c204d854e1b03b66d2a1ea74bbae4ca2d7de69653e3ffcd38218
+entry 5 SetRetentionPolicy
+  -> null
+  state 6cd8cbb0792f52775ddc334ec9415096b37721195fb1d0f4fa928cf2f39008dc
+entry 6 SetRetentionPolicy
+  -> null
+  state bb05b2bcfe921c44186236d056a4b1cfc2005bf50fc9bec8cbf386dc581b79bd
+entry 7 CreateDataNetwork
+  -> null
+  state cb0b7bad5f1d6bc8708f62425c3a64be00c40e971e0041a7f669bf240cadb2cb
+entry 8 CreateNetworkSlice
+  -> null
+  state fa0dad9dc64a3cc31c437cbc2b84a853058a9b428f51f3117386178f73018062
+entry 9 CreateProfile
+  -> null
+  state 89453c507562cf6a4bb7cc8f871ef1f5bfc5ac39fadb2242f50962d16c7bb821
+entry 10 CreateSliceDataNetwork
+  -> null
+  state 5fb53837da23d3514de68dc2560b8ece00364671569d2d7838e89aa97d95c223
+entry 11 CreatePolicy
+  -> null
+  state 579e5de4ecf9e030677d546e73cb0301c4b83f4d8a0b227a1500f0c00adbf66d
+entry 12 SetDefaultPolicy
+  -> null
+  state 001a2b3054f04f8575f9659b60274ba5c2db2da79e4c609cad744a13aff739ec
+entry 13 InitializeOperator
+  -> null
+  state 571733243d3fb4cba7993ac6551d36b49c3fdec3fb599a7127d6ef72ff17eb34
+entry 14 SetJWTSecret
+  -> null
+  state ca35379843e3f870f05f6028d35253f628c70a15a1c807e885b7d19629f7b2d5
+entry 15 RotateJWTSecret
+  -> null
+  state 9764a2fa36e6374a681aabb39fb3a53ee0a3a4c62349d4c399d3cc745b87e12b
+entry 16 UpdateRadioEventSettings
+  -> null
+  state 007f44a2bea8658d927a5890a369d108e0b627ac4f3affb467b6d47818e8b5b1
+entry 17 SetRetentionPolicy
+  -> null
+  state c6d542f7e251c2bba959de19ae11e0f00ccb1cdc2592bc4c2870fa05201e09cb
+entry 18 UpdateOperatorTracking
+  -> null
+  state 54c841085ac8d0267a359e8a316c2766d8865c9e3997316851decd26b358818a
+entry 19 UpdateOperatorCode
+  -> null
+  state 4499cdcd40cec72c5a0216f3fe9c064774ff521780d2e6469b7ba7951fc0e1db
+entry 20 UpdateOperatorSecurityAlgorithms
+  -> null
+  state 09f9c3b077c757222e0c83c1ddf5860055066798ea964a77968051aa07520a3d
+entry 21 UpdateOperatorSPN
+  -> null
+  state d2f8032e309cdaed1ca8fb2f5452b46b44fbb769f00a5cc190a340fe0314aa2b
+entry 22 UpdateOperatorAMFIdentity
+  -> null
+  state 428232fade3a4d9b27d51ee346afdbacc25a7f4f44706ce2f4eee4b4ec3b01ed
+entry 23 UpdateOperatorClusterID
+  -> null
+  state 8830f3e0a2f7a15d381bcc3cecff3d3c680ff7ed68bfe30d9f0f23d5ba487fda
+entry 24 UpdateOperatorID
+  -> false
+  state 8830f3e0a2f7a15d381bcc3cecff3d3c680ff7ed68bfe30d9f0f23d5ba487fda
+entry 25 CreateHomeNetworkKey
+  -> null
+  state 5685c46c3695ac3251d31897e98b8d20c08155e8bf1e676807970bde38e98204
+entry 26 DeleteHomeNetworkKey
+  -> null
+  state 8830f3e0a2f7a15d381bcc3cecff3d3c680ff7ed68bfe30d9f0f23d5ba487fda
+entry 27 CreateDataNetwork
+  -> null
+  state f63679f0d905cc609014dd4abe1b83c3074a49362867a67ff7b48501406c4d42
+entry 28 UpdateDataNetwork
+  -> null
+  state 550128bf744d836265007b470db62b329dea1cdf2fccf57ab3a5c6592350a953
+entry 29 CreateNetworkSlice
+  -> null
+  state 66056c72b8a4380d52a48deb70cde740c2f1cb7d7d7d8dceb65e6de6122c3fe1
+entry 30 UpdateNetworkSlice
+  -> null
+  state 835c375db302b218d65b12ea68d20549af9d031dd6eaa31dae136c5a0d9d464f
+entry 31 CreateSliceDataNetwork
+  -> null
+  state c71959eeae26e40dcac86f42225731445058b26149060a350d886ea12298a9b3
+entry 32 UpdateSliceDataNetwork
+  -> null
+  state 39d4c4f72eb31726c68aaf3fde4df1abf4a7b5e013d28bc2a1f48d2652c1ef44
+entry 33 CreateProfile
+  -> null
+  state 67397b09d777259d39b1c49908fd24462bf3df3377acf876421dba459a8b8410
+entry 34 UpdateProfile
+  -> null
+  state 6ce840b14db156352e7c7fb7d35a4ddbfcdc721cab61a33c41e8ffe0c9cf7fe8
+entry 35 CreatePolicy
+  -> null
+  state 4d758c1761b64e56b0af0ad324d0c6181da148069e8b533737338038844fe09c
+entry 36 UpdatePolicy
+  -> null
+  state 5f2b37b669899d1143ac0d18781bc2e964c7a30f18e4e0e6b708eae069004e7a
+entry 37 SetDefaultPolicy
+  -> null
+  state d63c6a5704780ac4aaab6dc1c332fb6e8201ac7d638e6dcfc84daa354f4bc38e
+entry 38 CreateNetworkRule
+  -> null
+  state 99c862484a70be43460c7be7dd47852336580417f5199c691fedcf4de9f81b33
+entry 39 UpdateNetworkRule
+  -> null
+  state 46b2de1a8b5b9d8d5e0ceb3bb17bbdf0b7f3a937c0fe395688a2154abec53da5
+entry 40 DeleteNetworkRule
+  -> null
+  state d63c6a5704780ac4aaab6dc1c332fb6e8201ac7d638e6dcfc84daa354f4bc38e
+entry 41 CreatePolicyWithRules
+  -> null
+  state d30be43caef80cd68a047ed0e71c491b3109cd88bad76da882eabb62fc46dce1
+entry 42 UpdatePolicyWithRules
+  -> null
+  state 4e82f813b2542bc629c1bf4b6d457d8924353a0756a482a83b6b7bc3239f8e00
+entry 43 DeleteNetworkRulesByPolicy
+  -> null
+  state 3876307cb35b059fc0af14b771809460b761011002f41a0d811d8153388f2988
+entry 44 DeletePolicy
+  -> null
+  state d63c6a5704780ac4aaab6dc1c332fb6e8201ac7d638e6dcfc84daa354f4bc38e
+entry 45 CreateSubscriber
+  -> null
+  state 97f2196233f17a04acabefeb752d5edb164094f1a505e14f05fba3ad52450a4b
+entry 46 CreateSubscriber
+  -> null
+  state 6c08a0af24e5ec3c42f3eb1c53d192f670085f164b85c22677927ece2e48c048
+entry 47 CreateSubscriber
+  -> null
+  state 27f91e002772450af2cdf4b78664b772a18a6ba4991e5ed2c3074a922ae97791
+entry 48 UpdateSubscriberProfile
+  -> null
+  state 5cd6b2f9f5c699f4dfbdb1c1d397b3ef9eee253cdb5bac46b645823f90e71eca
+entry 49 EditSubscriberSeqNum
+  -> null
+  state 85882ca78478597d5b4170616028eacac74909482cfa018c6a60c05048f8bc49
+entry 50 AdvanceSubscriberSQN
+  -> {"permanentKey":"465b5ce8b199b49faa5f0a2ee238a6bc","opc":"cd63cb71954a9f4e48a5994e37a02baf","sequenceNumber":"000000000060"}
+  state 9a2e54f6780df9800ff4b75dd2ac1c06b4fb99f193815643081bc41638afe7e3
+entry 51 AdvanceSubscriberSQN
+  -> {"permanentKey":"465b5ce8b199b49faa5f0a2ee238a6bc","opc":"cd63cb71954a9f4e48a5994e37a02baf","sequenceNumber":"000000000221"}
+  state 379f6023b4a1a6b1e00be3035655904514510b9d31ff8d13b21d3410723ba491
+entry 52 DeleteSubscriber
+  -> null
+  state f465b707dfdb575df84197754114066157be9e64aa397835d743900448d17edb
+entry 53 IncrementDailyUsage
+  -> null
+  state 406ec1019af5db8f66389742c9b8746b365c0d7b978704a1606a73201a6664a5
+entry 54 IncrementDailyUsageBatch
+  -> {"Rows":0,"BytesUplink":0,"BytesDownlink":0}
+  state b1b26139a93cc1776ae3027456cfb4f2f9726000257a340cbd6dea9c09d0a844
+entry 55 DeleteOldDailyUsage
+  -> null
+  state b1b26139a93cc1776ae3027456cfb4f2f9726000257a340cbd6dea9c09d0a844
+entry 56 ClearDailyUsage
+  -> null
+  state f465b707dfdb575df84197754114066157be9e64aa397835d743900448d17edb
+entry 57 AllocateIPLease
+  -> "10.77.0.1"
+  state cb00af7fdac471de00f015c746e7e324d6f8075d358621eba1ffce78453bb9f2
+entry 58 AllocateIPLease
+  -> "10.77.0.2"
+  state f990b8632ecdec97d00829fc0ed30a68dc85c9c79f8c07b04710e703759ec799
+entry 59 AllocateIPLease
+  -> "10.77.0.3"
+  state 6689ca74bb34907c243fe344581ab5cb9313c3b501a6d0156211fc54af3f9d9c
+entry 60 AllocateIPLease
+  -> "10.77.0.4"
+  state 2ef05e0589f8bbd87942b610efcc0236172939e91454277b697583dae19cb902
+entry 61 ReleaseIPLease
+  -> "10.77.0.2"
+  state 16b4b29e62e124e438603321e708ab7050131c8b1b1701a1da178b0b5ea37c21
+entry 62 AllocateIPv6Lease
+  -> "2001:db8:77::"
+  state a7069aaf60cc7645bf55f60fae9470ef997b2111d70f483f8dc8627678ad1e77
+entry 63 UpdateLeaseSession
+  -> null
+  state db5eeaf05a375f57c093d4e98438fb135cc5eda6d115777661ade275ea1fafbc
+entry 64 UpdateLeaseNode
+  -> null
+  state 8d66b71f0c3764ec4a14b6487af9369e8052b301d197a20dbdd26560bd5e1124
+entry 65 DeleteDynamicLease
+  -> null
+  state a7c1cf1a1f2231147bfe87fae2a18ca89e52ee9410f3a3a732e7665a84de8e11
+entry 66 CreateLease
+  -> null
+  state 38e56ff1cc8fa81a9e7601b484806870ab858c641a11a30b7c53fa5188ab53a4
+entry 67 DeleteDynamicLeasesByNode
+  -> null
+  state a7c1cf1a1f2231147bfe87fae2a18ca89e52ee9410f3a3a732e7665a84de8e11
+entry 68 DeleteAllDynamicLeases
+  -> null
+  state f465b707dfdb575df84197754114066157be9e64aa397835d743900448d17edb
+entry 69 CreateStaticLease
+  -> null
+  state 2c168b4bccf60c68a81dbd4bb7f28bbbe6305fbcad2e95938d203768fb1a8493
+entry 70 UpdateStaticLeaseAddress
+  -> null
+  state 6961f83144e9c3cd9131098a1576dc8d043b98a772330084a6b2df39184977d0
+entry 71 DeleteStaticLease
+  -> null
+  state f465b707dfdb575df84197754114066157be9e64aa397835d743900448d17edb
+entry 72 ReplaceFramedRoutes
+  -> null
+  state 3b846c378d6283fa0bfbd7985047a24b5b52101485fbef86feb2ae0cda2a4873
+entry 73 CreateUser
+  -> 1
+  state 836ff333cffda909a89e732911e0d56520ee42b9e3885945a86a7ed18b99279f
+entry 74 CreateUser
+  -> 2
+  state 4d53b81b55c4b42eb5e5d1a6c19825546f8122d7ab1c079425edc452540553e3
+entry 75 UpdateUser
+  -> null
+  state 72ad5a1bfb1da896d9802e3ac2f02509e1920789c1e28316f16e9a28919093f3
+entry 76 UpdateUserPassword
+  -> null
+  state 7c7aa12dae59cdd2dc983f150cdd9fe2056715d8e7bc7dc143c8fbe32c6f4432
+entry 77 CreateAPIToken
+  -> null
+  state c487126bebf601cb6a2ef8a2c20da92a403435f311c72f9d3e5f9297dde59a97
+entry 78 DeleteAPIToken
+  -> null
+  state 7c7aa12dae59cdd2dc983f150cdd9fe2056715d8e7bc7dc143c8fbe32c6f4432
+entry 79 CreateSession
+  -> null
+  state f5e7ea226000bae09e62ae12e567de6edfd0f9b4b81e7c9af11244b10816c1c5
+entry 80 CreateSession
+  -> null
+  state 836a3967495d5c704f3fe9d583d76c1d4ff01fd30a38a122315eea1f269c7c03
+entry 81 CreateSession
+  -> null
+  state 763870d72bd58a32433a8795e0b7590406df784e7dd710d613bb31e8c1a10571
+entry 82 CreateSession
+  -> null
+  state 78ea53fa28ce196c598809bccee353d9491ba6c4b38781621e8341456b67b93f
+entry 83 CreateSession
+  -> null
+  state 6ff298f66b3000369335388ba9266c3674052d11ad6dd8e7bec32cca62e58401
+entry 84 CreateSession
+  -> null
+  state 13237b6aaa7f0f9e63702e8d3c29866be5578df0af3c81990ee45d460e5475de
+entry 85 DeleteOldestSessions
+  -> null
+  state 16e1d098d2bcd4cd4377358ee14f35c0863e8acc399f5d24c76e29196f93ce8c
+entry 86 DeleteSessionByTokenHash
+  -> null
+  state 801938b09982aca5957cf7277173a7c4bd8f9afe9a1c8319653a29c1fa90bb85
+entry 87 DeleteExpiredSessions
+  -> 0
+  state 801938b09982aca5957cf7277173a7c4bd8f9afe9a1c8319653a29c1fa90bb85
+entry 88 DeleteAllSessionsForUser
+  -> null
+  state 7c7aa12dae59cdd2dc983f150cdd9fe2056715d8e7bc7dc143c8fbe32c6f4432
+entry 89 CreateSession
+  -> null
+  state a159ec986623ca0dcfbe5ba8ba4f669c355e69dadaa85e11acd471214e0c8768
+entry 90 DeleteAllSessions
+  -> null
+  state 7c7aa12dae59cdd2dc983f150cdd9fe2056715d8e7bc7dc143c8fbe32c6f4432
+entry 91 UpdateOIDC
+  -> null
+  state ce25cd44c8eba7a5418781873f531b26f1ea75e602569bbbf092fd4c49b0fa29
+entry 92 UseOIDCState
+  -> null
+  state 0437632c3b45cb50f02db21340c2f93569c7abff9e015c3eb65a9e9e159762c2
+entry 93 LinkOIDCIdentity
+  -> null
+  state e6ff1efe3750bd330926aa14d206723c56155b76bf722ecee75ff5b99ed88841
+entry 94 LogInWithOIDC
+  -> {"user":{"ID":"01890000-0000-7000-8000-00000000d002","Email":"new@example.com","RoleID":1,"HashedPassword":"","HasIdentity":true},"identityID":"01890000-0000-7000-8000-00000000d003","sessionID":"01890000-0000-7000-8000-00000000d004","linked":false,"created":true,"previousRole":1,"roleKept":false}
+  state e84c64c37144c6cdd1d39c66a45c073070fcac9c128d8a38213f7b0c8a7f32e6
+entry 95 UnlinkUser
+  -> null
+  state ca7dca91a4fe2ea6de4ffc069ed6df47c0bca42de01cf580eeb89a2bcacb550a
+entry 96 DeleteUser
+  -> null
+  state f832d5d5f5d3663e17a0b9127b0b8202081d1d78ebf3f2a125852a1fe6b8a308
+entry 97 CreateCellPosition
+  -> null
+  state fe437e6334e4278e01d349d53cbdebbd3615abcb2dec2e36011f091e543afda4
+entry 98 UpdateCellPosition
+  -> null
+  state 37530b516f72289cfe4f1f8f4d5180792e7fdafb04dd5e6cff61a2f6e41578cd
+entry 99 DeleteCellPosition
+  -> null
+  state f832d5d5f5d3663e17a0b9127b0b8202081d1d78ebf3f2a125852a1fe6b8a308
+entry 100 UpsertClusterMember
+  -> null
+  state 4643c7fde6024ba136f0e581dc32e51492f6e17a9b25df8c16f8f5780a5939c1
+entry 101 UpsertClusterMember
+  -> null
+  state 5d42e2df67f8cb1dbf2f4fd8b5e5b0ea78c9beb2fc58975db37947f6f029a5ce
+entry 102 SetDisplayName
+  -> null
+  state 71d5918df5b1714fd00ccfcb88ed97eb0394eeb75cd064f1af8d232178c8d4cc
+entry 103 SetDrainState
+  -> "draining"
+  state 3d8cf6512533e0e89fbae9e14c550cc7ca4dc83df63e8ba8dda6e0a899670a23
+entry 104 InitClusterJoinHMACKey
+  -> null
+  state 058bbda4fa8afeff781492a6fd3e4b091292908e9176fdde008d160aa89837a6
+entry 105 MintJoinToken
+  -> null
+  state ddc3fb0a85dad7bf9edb981d48716969eb5701631f92c6153d59e9acdadbd0f3
+entry 106 MintJoinToken
+  -> null
+  state 60f6eb392a2663d2c452599256a5401ba9f9f4067fce6278a2c2c8803b15576a
+entry 107 MintJoinToken
+  -> null
+  state ea2b833291f78f487d079279b996a38c51be68fd85ffd6178c81930ce5ba00ae
+entry 108 ConsumeJoinToken
+  -> null
+  state 2fdab90c4d7b12f3e1d85b73b7793d0030ab4f71290f71ceb6a2e8943e6dd976
+entry 109 RedeemJoinToken
+  -> {"pins":[{"NodeID":"4","Fingerprint":"sha256:44","CertPEM":"PEM-4","AddedAt":1795464757}]}
+  state 294d87433a747a790184666ecdcecea9e3635aebab8243526269cd05b9fc3595
+entry 110 UpsertClusterNodeCert
+  -> null
+  state 830b2315698d6abd6d5506ee9b014c124c83d2b6623c63710f3fc763eb53225c
+entry 111 DeleteClusterNodeCert
+  -> null
+  state 294d87433a747a790184666ecdcecea9e3635aebab8243526269cd05b9fc3595
+entry 112 DeleteStaleJoinTokens
+  -> null
+  state 204ac21702fe308f12608d84d21457ff07dde8561d4c55dfe353c99befef00ee
+entry 113 RegisterUE
+  -> 113
+  state 3834be7359bf16183fbd8a9ad580d547853108eb02e44d805b7143faeda0cd60
+entry 114 RegisterUE
+  -> 114
+  state a6ed722a9154e89296886ff9a600db4a367adfa107515970314d9e8922c9b698
+entry 115 PurgeUERegistration
+  -> null
+  state a124687ecbd82cf61c70b672973a1d9962ec5c00a8396253d6e44109c30ca4ef
+entry 116 UpdateSMSSettings
+  -> null
+  state ff3924e46d48c22e7cddad43434384c647e914df3394c8c032be736a20403671
+entry 117 CreateSMSC
+  -> null
+  state d4ba7a2629dde1df29a707e324adb13e74dd8e202f9cf4fa6e8b5247a8a03ca6
+entry 118 UpdateSMSC
+  -> null
+  state 181a21dc8c6263a0a7cf910792cfead1a658adc0c1fe28bea21fcda89a5c8546
+entry 119 RecordSMSWaiting
+  -> null
+  state 5af7f482eb8fbce770692b3964cab236d01111528cb7dd0810992eda65631d27
+entry 120 ClearSMSMemoryFull
+  -> null
+  state f4a8d6b7a9d097516dd209fe2c308cdc9eedf074ecbb585cdf2f7ac2173943b5
+entry 121 RemoveSMSWaitingCentre
+  -> null
+  state 181a21dc8c6263a0a7cf910792cfead1a658adc0c1fe28bea21fcda89a5c8546
+entry 122 RecordSMSWaiting
+  -> null
+  state 19936f7225daae12f06c39a924faf039fb301862bc38b151bac884259640461e
+entry 123 DeleteSMSWaiting
+  -> null
+  state 181a21dc8c6263a0a7cf910792cfead1a658adc0c1fe28bea21fcda89a5c8546
+entry 124 RecordSMSWaiting
+  -> null
+  state 5a4a5ff4bc2a3a2bded58c6dc9a1849802be1b3f93b60c966b8be34ca0ab45b1
+entry 125 DeleteStaleSMSWaiting
+  -> null
+  state 5a4a5ff4bc2a3a2bded58c6dc9a1849802be1b3f93b60c966b8be34ca0ab45b1
+entry 126 DeleteSMSC
+  -> null
+  state 22b4f963edad24efebd755bfa721ef20a6b4d8c12458560e5f47565233961caf
+entry 127 CreateSMSCPeer
+  -> error: forwarded operation is retired: SMSC peers are now SMSC nodes
+  state 22b4f963edad24efebd755bfa721ef20a6b4d8c12458560e5f47565233961caf
+entry 128 UpdateSMSCPeer
+  -> error: forwarded operation is retired: SMSC peers are now SMSC nodes
+  state 22b4f963edad24efebd755bfa721ef20a6b4d8c12458560e5f47565233961caf
+entry 129 DeleteSMSCPeer
+  -> error: forwarded operation is retired: SMSC peers are now SMSC nodes
+  state 22b4f963edad24efebd755bfa721ef20a6b4d8c12458560e5f47565233961caf
+entry 130 UpdateIMSSettings
+  -> null
+  state 883a5682d828e7de36373cd84b90d723c6c8ec0fa3916f9955cc222856ba64c2
+entry 131 ReplacePCSCFAddresses
+  -> null
+  state afcca6f6d3655539697551d7fd81c0e560b1eec0fe224a40ea17f3af5420d55f
+entry 132 CreateIMSPeer
+  -> null
+  state 0c9d816cce683c3007ec5302305d3c6d6bf20b9140d5141f289484ab29f7da8c
+entry 133 UpdateIMSPeer
+  -> null
+  state 8b8dc5cdd3e9e3beff7af879899e23ebea0da59b22606cf54831b8ada5829593
+entry 134 DeleteIMSPeer
+  -> null
+  state afcca6f6d3655539697551d7fd81c0e560b1eec0fe224a40ea17f3af5420d55f
+entry 135 CreateIMSApplicationServer
+  -> null
+  state 0cfc6ed1229631505c90ad608726039e6259ae2e9fab1747c2c7815e16299654
+entry 136 UpdateIMSApplicationServer
+  -> null
+  state b30d5a63edfaa1049ca7b38942b358c93efdfe7906520e0ab624d399200aeb30
+entry 137 CreateIMSServiceProfile
+  -> null
+  state 4d530f106e926197b8d57aff4c37babdf7bf69c8c92b08a5e518b040413aa3ee
+entry 138 UpdateIMSServiceProfile
+  -> null
+  state 4d530f106e926197b8d57aff4c37babdf7bf69c8c92b08a5e518b040413aa3ee
+entry 139 SetProfileIMSServiceProfiles
+  -> null
+  state b5eae435dafe314a61673917c48e6c2b57e415d322458c90e7b37287447e2cf6
+entry 140 SetProfileIMSServiceProfiles
+  -> null
+  state 4d530f106e926197b8d57aff4c37babdf7bf69c8c92b08a5e518b040413aa3ee
+entry 141 DeleteIMSServiceProfile
+  -> null
+  state b30d5a63edfaa1049ca7b38942b358c93efdfe7906520e0ab624d399200aeb30
+entry 142 DeleteIMSApplicationServer
+  -> null
+  state afcca6f6d3655539697551d7fd81c0e560b1eec0fe224a40ea17f3af5420d55f
+entry 143 CompareAndSwapIMSRegistrationSets
+  -> {"swapped":true,"current":{"imsi":"001010000000101","serverName":"sip:scscf.ims.example.org","originHost":"scscf.ims.example.org","originRealm":"ims.example.org","privateIdentity":"","sets":{"mmtel":{"state":0,"authPending":true,"defaultIdentity":"","profileDigest":"","emergency":false}}}}
+  state 4dbe8edde39ba4eefb9e42c5bb0b975cf65597e825294e0344f1e9aa2f8678b5
+entry 144 PutIPSMGWRegistration
+  -> null
+  state fdbfdf98e6efe8430dbab55bb5134c2b1eb90da4fac5d9600c6af7d83edf1b03
+entry 145 DeleteIPSMGWRegistration
+  -> null
+  state 4dbe8edde39ba4eefb9e42c5bb0b975cf65597e825294e0344f1e9aa2f8678b5
+entry 146 CreateRoamingDiameterPeer
+  -> null
+  state 61e9488a959bc35ed0acad86c3dee4caee785e22f540939530eab2b7127e6104
+entry 147 UpdateRoamingDiameterPeer
+  -> null
+  state 2f38fcb4c31eec972409819d71442e6a0ac80204364be24b6a6fd1049d38a025
+entry 148 CreateRoamingPartner
+  -> null
+  state c1020003bef74c33a61400cb1fcaa0e3fe9f54312ca1d017524f185d86335554
+entry 149 UpdateRoamingPartner
+  -> null
+  state 1ca310f1ff062f57e79baef4388320b4285f86fba1a2b846d194c21dcef8f823
+entry 150 RegisterVisitorUE
+  -> 150
+  state 367fa272090699f340c89f08df0cd4f5130ada6e5eeaaa7d5e74c22d405d3e41
+entry 151 SetVisitorMSISDN
+  -> null
+  state e2a41e977af31e4ff54adaaf3e89206937ceaf8e977a5e9d5f8c4e5f0425e0cb
+entry 152 SetVisitorDeregistering
+  -> null
+  state bdcb5a4de575d2a8e3233c1d9efdd834dc3e360e4dbd6ad423b197c8bcfa13f2
+entry 153 SetRoamingPartnerWithdrawing
+  -> null
+  state 4d56d6ed95cf06c0af05ef2e595db508d88a37819e5a4ccc01c94ad1ab9f32b5
+entry 154 InitSEPPCA
+  -> true
+  state 3b04e0f3edbed9c27b69a22d99a59bcee596b2b144b20b175a3e71b679755de4
+entry 155 PutGeneratedSEPPIdentity
+  -> null
+  state 91442351ea0d12572743b224cb061d85d1e5aea83abaf94a0a587cb969add40a
+entry 156 PutSEPPIdentity
+  -> null
+  state 60bce867de4ee42f77ef599f41295d8b833d5f639dd3ec048b2e1e4778db4fe1
+entry 157 DeleteSEPPIdentity
+  -> null
+  state 3b04e0f3edbed9c27b69a22d99a59bcee596b2b144b20b175a3e71b679755de4
+entry 158 ReplaceSEPPCA
+  -> null
+  state 7eb715886bb614e09eee476e681eaea7a9abe0d1324b1056b181e6c2051579da
+entry 159 DeleteClusterMember
+  -> null
+  state 0adf96e367268052c972d212f18ce69c30d9735f1f3f08f4f39c5d798c76f9f1
+entry 160 VerifyState
+  -> 160
+  state 0adf96e367268052c972d212f18ce69c30d9735f1f3f08f4f39c5d798c76f9f1
+entry 161 DeletePolicy
+  -> null
+  state 722449e58e0178080d50a0400f4f1136ded3306f48c075da3ece969a2574bcd1
+entry 162 DeleteSliceDataNetwork
+  -> null
+  state 3de89a3e3b10d9aa710048e4adf59854d30c3829e690ddd26645cf96073d62ef
+entry 163 DeleteNetworkSlice
+  -> null
+  state 8e0dd9119e339fb78d7e077902774aaa297f23534f775019282f29a057fb5da7
+entry 164 CreateDataNetwork
+  -> null
+  state 34c8b6887cd38f0549c0fdc317ecc2d65208a26ac0e329b42f955836acb603f6
+entry 165 DeleteDataNetwork
+  -> null
+  state 8e0dd9119e339fb78d7e077902774aaa297f23534f775019282f29a057fb5da7
+entry 166 CreateProfile
+  -> null
+  state feed2552bdc74bc631436ae8ee65195bc4258fbbd5e06ce4fd610785b36d35fc
+entry 167 DeleteProfile
+  -> null
+  state 8e0dd9119e339fb78d7e077902774aaa297f23534f775019282f29a057fb5da7
+entry 168 PurgeUERegistration
+  -> null
+  state eb65d40c7c66eed9def8f16bfcb313bf333a85f32ce8f9f3eaf38ee79a543916
+entry 169 DeleteRoamingPartner
+  -> null
+  state 6e1986101519307a4266f77df7866262386356fb8532b2c1a801882bc3c76180
+entry 170 DeleteRoamingDiameterPeer
+  -> null
+  state ab61797e2c4802e24eed8e1cd446d8428acc9fd0f9725be3ed41b4415dccf069
+entry 171 SetRetentionPolicy,CreateProfile,UpdateRadioEventSettings
+  -> null
+  -> error: already exists
+  -> null
+  state fd83ab14a0a4c95efc739fda28ced5541b622f930fce9240b11f967152fd4cc0
+table api_tokens (id, token_id, name, token_hash, user_id, expires_at)
+table cell_positions (id, rat, mcc, mnc, cell_identity, gnb_id, latitude, longitude, altitude, uncertainty_semi_major, uncertainty_semi_minor, orientation_major, confidence, source, created_at, updated_at)
+table cluster_join_hmac (id, hmacKey)
+  1 | x'0101010101010101010101010101010101010101010101010101010101010101'
+table cluster_join_tokens (id, claimsJSON, expiresAt, consumedAt, consumedBy)
+  "token-a" | "{}" | 4102444800 | 1795464757 | "3"
+  "token-b" | "{}" | 4102444800 | 1795464757 | "4"
+table cluster_members (nodeID, apiAddress, binaryVersion, drainState, drainUpdatedAt, amfPointer, displayName)
+  "2" | "https://10.0.0.2:5002" | "v1" | "draining" | 1795464757 | 2 | "node two"
+table cluster_node_certs (nodeID, fingerprint, certPEM, addedAt)
+  "4" | "sha256:44" | "PEM-4" | 1795464757
+table daily_usage (epochDay, imsi, mcc, mnc, bytesUplink, bytesDownlink)
+table data_networks (id, name, ipPool, dns, mtu, ipv6Pool, ims)
+  "01a20a09-ff5f-745e-88b3-8949abc61555" | "internet" | "10.45.0.0/22" | "8.8.8.8" | 1400 | "" | 0
+  "01a20a09-ff60-7dde-a5fa-b36926e4d424" | "golden" | "10.77.0.0/24" | "8.8.8.8" | 1420 | "2001:db8:77::/48" | 0
+table diameter_peers (id, role, diameterIdentity, address, port, smscId)
+table home_network_keys (id, key_identifier, scheme, private_key)
+  "01a20a09-ff5e-7b8e-bde9-120b93501645" | 0 | "A" | "2022f287d7b1475d41ce3eb1b7ad9920816e5115e03f637481907a651639d45e"
+table ims_application_servers (id, name, serverName)
+table ims_initial_filter_criteria (serviceProfileID, position, applicationServerID, triggerPoint, profilePart, defaultHandling, serviceInfo, includeRegisterRequest, includeRegisterResponse)
+table ims_peers (id, name, originHost, realm, addresses)
+table ims_public_service_identities (identity, applicationServerID)
+table ims_registration_sets (imsi, registrationSet, state, authPending, defaultIdentity, profileDigest, emergency)
+  "001010000000101" | "mmtel" | 0 | 1 | "" | "" | 0
+table ims_registrations (imsi, serverName, originHost, originRealm, privateIdentity)
+  "001010000000101" | "sip:scscf.ims.example.org" | "scscf.ims.example.org" | "ims.example.org" | ""
+table ims_service_profile_assignments (profileID, registrationSet, serviceProfileID)
+table ims_service_profiles (id, name)
+table ims_settings (singleton, homeDomain, advertiseVoice, restrictPeers)
+  1 | "ims.example.org" | 1 | 0
+table ip_leases (id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType)
+table ip_sm_gw_registrations (imsi, number, diameterHost, diameterRealm)
+table jwt_secret (singleton, secret)
+  1 | x'0808080808080808080808080808080808080808080808080808080808080808'
+table network_rules (id, policy_id, description, direction, remote_prefix, protocol, port_low, port_high, action, precedence, created_at, updated_at)
+table network_slices (id, sst, sd, name)
+  "01a20a09-ff5f-7615-b926-53f698d4bd0e" | 1 | NULL | "default"
+table oidc_group_roles (position, groupName, roleID)
+  1 | "admins" | 1
+table oidc_settings (singleton, enabled, externalURL, issuer, clientID, clientSecret, displayName, scopes, sessionLifetime, trustUnverifiedEmail, caCertificate, groupsClaim)
+  1 | 1 | "https://core.example.com" | "https://idp.example.com" | "core" | "secret" | "IdP" | "openid email" | 3600 | 0 | "" | ""
+table oidc_used_states (stateHash, expiresAt)
+  x'0303030303030303030303030303030303030303030303030303030303030303' | 4102444800
+table operator (id, mcc, mnc, operatorCode, supportedTACs, ciphering, integrity, spnFullName, spnShortName, amfRegionID, amfSetID, clusterID)
+  1 | "001" | "01" | "0123456789abcdef0123456789abcdef" | "[\"000001\",\"000002\"]" | "[\"NEA2\",\"NEA1\",\"NEA0\"]" | "[\"NIA2\",\"NIA1\"]" | "Golden Network" | "Golden" | 2 | 3 | "golden-cluster"
+table pcscf_addresses (priority, address)
+  0 | "10.0.0.21"
+  1 | "10.0.0.22"
+table policies (id, name, profileID, sliceID, dataNetworkID, var5qi, arp, sessionAmbrUplink, sessionAmbrDownlink, isDefault, preemptionCapability, preemptionVulnerability)
+  "01a20a09-ff5f-7a76-9bed-82bd2017ddda" | "default" | "01a20a09-ff5f-77a0-8464-6a8673216151" | "01a20a09-ff5f-7615-b926-53f698d4bd0e" | "01a20a09-ff5f-745e-88b3-8949abc61555" | 9 | 1 | "200 Mbps" | "200 Mbps" | 1 | "NOT_PREEMPT" | "NOT_PREEMPTABLE"
+table profiles (id, name, ueAmbrUplink, ueAmbrDownlink, allow4G, allow5G)
+  "01a20a09-ff5f-77a0-8464-6a8673216151" | "default" | "200 Mbps" | "200 Mbps" | 1 | 1
+  "01a20a09-ff61-757d-b15b-3746f413559f" | "golden-profile" | "500 Mbps" | "2 Gbps" | 1 | 1
+table radio_event_settings (singleton, enabled)
+  1 | 1
+table retention_policies (id, category, retention_days)
+  "01a20a09-ff5e-7d7d-b297-d06803ae0b87" | "audit" | 11
+  "01a20a09-ff5f-7032-ac9c-5c87c5abadb0" | "radio" | 7
+  "01a20a09-ff5f-7185-b17e-ab9f75fea46c" | "usage" | 365
+  "01a20a09-ff5f-7305-96ae-3575fd5d888b" | "flow_reports" | 7
+table roaming_partner_plmns (partnerID, mcc, mnc, nrfAPIRoot)
+table roaming_partners (id, name, profileID, seppFQDN, seppN32cURI, seppN32fURI, seppTrustAnchorPEM, diameterPeerID, withdrawingUntil)
+table schema_version (id, version)
+  1 | 31
+table sepp_ca (singleton, certPEM, keyPEM)
+  1 | "-----BEGIN CERTIFICATE-----\nMIIB+TCCAZ6gAwIBAgIUE8Ly3eJDI/8/grSupOahYdRagUkwCgYIKoZIzj0EAwIw\nPjEqMCgGA1UECgwhNWdjLm1uYzAwMS5tY2MwMDEuM2dwcG5ldHdvcmsub3JnMRAw\nDgYDVQQDDAdTRVBQIENBMB4XDTI2MTEyMzIwMTEzN1oXDTM2MTEyMzIwMTEzN1ow\nPjEqMCgGA1UECgwhNWdjLm1uYzAwMS5tY2MwMDEuM2dwcG5ldHdvcmsub3JnMRAw\nDgYDVQQDDAdTRVBQIENBMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAELpP/u4ni\nnFwrsfPQRuJ03B1qoTGb299MpQkVrLGf1M1rf23Tm//cTrsJ8jsLwGZoz/pIWBRM\ndSdFvXgdDuLi26N6MHgwDgYDVR0PAQH/BAQDAgEGMBIGA1UdEwEB/wQIMAYBAf8C\nAQAwHQYDVR0OBBYEFD1zB83kYoIUcU1fLHvxT4MFnYANMDMGA1UdHgEB/wQpMCeg\nJTAjgiE1Z2MubW5jMDAxLm1jYzAwMS4zZ3BwbmV0d29yay5vcmcwCgYIKoZIzj0E\nAwIDSQAwRgIhAKmj8+4pJIlaOOgE+C5M0W2PDOISSfs7FTBWYx5zYqY7AiEA+Hwp\nf8kOhrmhNvRWMPOThpawqFPrFCgQoo0tk1q8HEg=\n-----END CERTIFICATE-----\n" | "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgtB20asD5t79FWznC\nl4cotwF9Z0f0xaO4qGZrNqvKg2ShRANCAAQuk/+7ieKcXCux89BG4nTcHWqhMZvb\n30ylCRWssZ/UzWt/bdOb/9xOuwnyOwvAZmjP+khYFEx1J0W9eB0O4uLb\n-----END PRIVATE KEY-----\n"
+table sepp_identities (seppID, fqdn, source, certChainPEM, keyPEM)
+table sessions (id, user_id, token_hash, created_at, expires_at, method, identity_id)
+  "01890000-0000-7000-8000-00000000d004" | "01890000-0000-7000-8000-00000000d002" | x'2a' | 1767225600 | 4102444800 | "oidc" | "01890000-0000-7000-8000-00000000d003"
+table slice_data_networks (sliceID, dataNetworkID, nat, localSwitch, networkInstance)
+  "01a20a09-ff5f-7615-b926-53f698d4bd0e" | "01a20a09-ff5f-745e-88b3-8949abc61555" | 1 | 0 | "default"
+table sms_message_waiting (imsi, mcef, updatedAt)
+  "001010000000102" | 0 | 1795464757
+table sms_message_waiting_centres (imsi, serviceCentre)
+  "001010000000102" | "15550004"
+table sms_settings (singleton, smsNumber)
+  1 | "15550001"
+table sms_smsc_service_centres (serviceCentre, smscId)
+table sms_smscs (id, name)
+table subscriber_count (singleton, total)
+  1 | 2
+table subscriber_framed_routes (id, imsi, dataNetworkID, prefix)
+  "01a20a09-ff65-76d3-aa3c-40d2172551aa" | "001010000000101" | "01a20a09-ff60-7dde-a5fa-b36926e4d424" | "10.200.0.0/24"
+  "01a20a09-ff65-76d5-aec0-102aa7de6a5f" | "001010000000101" | "01a20a09-ff60-7dde-a5fa-b36926e4d424" | "10.201.0.0/24"
+table subscribers (id, imsi, sequenceNumber, permanentKey, opc, profileID, description, msisdn)
+  "01a20a09-ff62-77ce-96ab-ee43023c5d23" | "001010000000101" | "000000000221" | "465b5ce8b199b49faa5f0a2ee238a6bc" | "cd63cb71954a9f4e48a5994e37a02baf" | "01a20a09-ff61-757d-b15b-3746f413559f" | "" | ""
+  "01a20a09-ff62-79e3-b5e0-941dd553be79" | "001010000000102" | "000000000020" | "465b5ce8b199b49faa5f0a2ee238a6bc" | "cd63cb71954a9f4e48a5994e37a02baf" | "01a20a09-ff61-757d-b15b-3746f413559f" | "" | ""
+table ue_registrations (imsi, type, nodeID, purged, version)
+  "001010000000101" | "mme" | "1" | 1 | 115
+  "001010000000102" | "mme" | "3" | 1 | 159
+table user_identities (id, userID, issuer, subject, email, createdAt, lastLoginAt)
+  "01890000-0000-7000-8000-00000000d003" | "01890000-0000-7000-8000-00000000d002" | "https://idp.example.com" | "sub-2" | "new@example.com" | 1767225600 | 1767225600
+table users (id, email, roleID, hashedPassword)
+  "01890000-0000-7000-8000-00000000d002" | "new@example.com" | 1 | ""
+  "01a20a09-ff65-7866-a86b-a724938b214c" | "golden@example.com" | 1 | "hash-1"
+table visitors (imsi, partnerID, msisdn, since, deregisterUntil)

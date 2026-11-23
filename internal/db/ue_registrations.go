@@ -174,13 +174,7 @@ func (db *Database) nextUERegistrationVersion(ctx context.Context) (int64, error
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	next := version + 1
-
-	if db.raftManager != nil {
-		next = max(next, int64(db.raftManager.AppliedIndex())+1)
-	}
-
-	return next, nil
+	return max(version+1, applyIndexFloor(ctx, db)), nil
 }
 
 func (db *Database) applyRegisterUE(ctx context.Context, p *registerUEPayload) (any, error) {

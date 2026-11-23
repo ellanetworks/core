@@ -147,12 +147,12 @@ func (db *Database) checkSEPPIdentity(ctx context.Context, s *SEPPIdentity) erro
 
 	caCert, err := ca.Certificate()
 	if err != nil {
-		return fmt.Errorf("stored SEPP CA: %w", err)
+		return invalidCommand(fmt.Errorf("stored SEPP CA: %w", err))
 	}
 
 	chain, err := pki.ParseCertChainPEM([]byte(s.CertChainPEM))
 	if err != nil {
-		return err
+		return invalidCommand(err)
 	}
 
 	if !chain[len(chain)-1].Equal(caCert) {
@@ -247,7 +247,7 @@ func (db *Database) applyPutSEPPIdentity(ctx context.Context, s *SEPPIdentity) (
 
 func (db *Database) applyPutGeneratedSEPPIdentity(ctx context.Context, s *SEPPIdentity) (any, error) {
 	if s.Source != SEPPIdentityGenerated {
-		return nil, fmt.Errorf("a generated SEPP identity must have source %q, got %q", SEPPIdentityGenerated, s.Source)
+		return nil, invalidCommand(fmt.Errorf("a generated SEPP identity must have source %q, got %q", SEPPIdentityGenerated, s.Source))
 	}
 
 	if err := db.checkSEPPIdentity(ctx, s); err != nil {

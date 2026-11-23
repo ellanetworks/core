@@ -44,6 +44,9 @@ type Database struct {
 	restoreMu      sync.Mutex
 	proposeMu      sync.Mutex
 	groupCommit    groupCommitter
+	batcherMu      sync.Mutex
+	batcher        *commandBatcher
+	local          localProposer
 	raftManager    *ellaraft.Manager
 	proposeTimeout time.Duration
 	maxSubscribers int
@@ -71,6 +74,7 @@ type Database struct {
 	// appliedSchemaCache mirrors schema_version.version for the
 	// op-gate / apply-gate hot path. Updated by refreshAppliedSchema.
 	appliedSchemaCache atomic.Int64
+	appliedLeaderTime  atomic.Int64
 	amfPointer         atomic.Int32
 
 	// Field-injected so tests can stub them.
@@ -78,6 +82,10 @@ type Database struct {
 	probeMemberStatus func(ctx context.Context, nodeID string, raftAddr string) (ellaraft.PeerStatus, error)
 	raftMemberIDs     func() []string
 	raftServers       func() []ellaraft.Server
+	probeStateHash    func(ctx context.Context, nodeID string, raftAddr string) (ellaraft.StateHash, error)
+
+	stateHash stateHashRecord
+	diverged  divergedNodes
 }
 
 // conn returns the current *sql.DB handle.
@@ -240,10 +248,24 @@ func (db *Database) openReaderPool(ctx context.Context) error {
 	return nil
 }
 
+var observeClose func(db *Database)
+
 // Close closes the database connection and shuts down the raft manager.
 // Both are always attempted and any errors are joined.
 func (db *Database) Close() error {
 	var raftErr, readErr, connErr error
+
+	if observeClose != nil {
+		observeClose(db)
+	}
+
+	db.batcherMu.Lock()
+	batcher := db.batcher
+	db.batcherMu.Unlock()
+
+	if batcher != nil {
+		batcher.close()
+	}
 
 	if db.raftManager != nil {
 		raftErr = db.raftManager.Shutdown()
@@ -480,7 +502,7 @@ func (db *Database) AutopilotState() *autopilot.State {
 		return nil
 	}
 
-	return db.raftManager.AutopilotState()
+	return db.diverged.overlay(db.raftManager.AutopilotState())
 }
 
 func (db *Database) DiscoveryPending() bool {
@@ -498,6 +520,7 @@ func (db *Database) adoptRaftManager(mgr *ellaraft.Manager) {
 	db.probeMemberStatus = mgr.ProbePeerStatus
 	db.raftMemberIDs = mgr.MemberIDs
 	db.raftServers = mgr.Servers
+	db.probeStateHash = mgr.ProbePeerStateHash
 }
 
 func (db *Database) SetBootstrap() {
@@ -1331,7 +1354,7 @@ func (db *Database) resolveAMFPointer(ctx context.Context, nodeID string) (int, 
 		}
 	}
 
-	return 0, fmt.Errorf("no AMF Pointer available: all %d values are allocated", MaxAMFPointer)
+	return 0, invalidCommand(fmt.Errorf("no AMF Pointer available: all %d values are allocated", MaxAMFPointer))
 }
 
 // NewDatabase opens (or creates) the SQLite database file at dbPath. The
@@ -1379,6 +1402,11 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 		return nil, fmt.Errorf("seed applied-schema cache: %w", err)
 	}
 
+	if err := db.loadAppliedLeaderTime(ctx); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+
 	raftMgr, err := ellaraft.NewManager(ctx, raftCfg, db, dataDir, raftOpts...)
 	if err != nil {
 		_ = db.Close()
@@ -1391,6 +1419,7 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 
 	if raftCfg.Enabled {
 		raftMgr.OnLeadership(db.runClusterCoordinator)
+		raftMgr.OnLeadership(db.runStateVerifier)
 	} else {
 		raftMgr.OnLeadership(db.runStandaloneInitializer)
 	}
@@ -1456,6 +1485,11 @@ func NewDatabaseWithoutRaft(ctx context.Context, dbPath string) (*Database, erro
 	if err := db.refreshAppliedSchema(ctx); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("seed applied-schema cache: %w", err)
+	}
+
+	if err := db.loadAppliedLeaderTime(ctx); err != nil {
+		_ = db.Close()
+		return nil, err
 	}
 
 	RegisterMetrics(db)

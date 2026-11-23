@@ -513,6 +513,7 @@ func TestGroupCommitCarriesWritesBeyondTheCaptureBudget(t *testing.T) {
 
 func TestGroupCommitRejectsWritesWhenTheQueueIsFull(t *testing.T) {
 	database := newStandaloneDB(t)
+	useChangesetPath(database)
 
 	previous := groupCommitMaxQueue
 	groupCommitMaxQueue = 0

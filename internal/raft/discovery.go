@@ -55,6 +55,13 @@ type PeerStatus struct {
 	APIAddress    string
 }
 
+const StateHashPath = "/cluster/internal/state-hash"
+
+type StateHash struct {
+	Index uint64 `json:"index"`
+	Hash  string `json:"hash"`
+}
+
 type peerProbe struct {
 	state         peerState
 	nodeID        string
@@ -426,6 +433,27 @@ func (m *Manager) ProbePeerStatus(ctx context.Context, peerNodeID string, peerAd
 		BinaryVersion: status.Result.Cluster.BinaryVersion,
 		APIAddress:    status.Result.Cluster.APIAddress,
 	}, nil
+}
+
+func (m *Manager) ProbePeerStateHash(ctx context.Context, peerNodeID string, peerAddr string) (StateHash, error) {
+	resp, err := m.clusterHTTPDo(ctx, http.MethodGet, peerAddr, peerNodeID, StateHashPath, nil)
+	if err != nil {
+		return StateHash{}, fmt.Errorf("dial peer %s: %w", peerAddr, err)
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return StateHash{}, fmt.Errorf("peer %s returned %d: %s", peerAddr, resp.StatusCode, string(body))
+	}
+
+	var hash StateHash
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&hash); err != nil {
+		return StateHash{}, fmt.Errorf("decode state hash from peer %s: %w", peerAddr, err)
+	}
+
+	return hash, nil
 }
 
 func (m *Manager) joinCluster(ctx context.Context, peerAddr string, peerNodeID string, clusterID string) error {

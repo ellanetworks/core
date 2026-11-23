@@ -53,12 +53,12 @@ func TestVisitorStateFollowsTheVisitor(t *testing.T) {
 	}
 
 	for _, imsi := range []string{visitorIMSI, "001010000000001"} {
-		if _, err := f.db.AllocateIPLease(ctx, dn.ID, "ipv4", imsi, 1, "node-1"); err != nil {
+		if _, err := f.db.AllocateIPLease(ctx, dn.ID, "ipv4", imsi, 1, "00000000-0000-4000-8000-000000000001"); err != nil {
 			t.Fatalf("AllocateIPLease for %s: %s", imsi, err)
 		}
 	}
 
-	if _, err := f.db.AllocateIPLease(ctx, dn.ID, "ipv4", "208930000000077", 1, "node-1"); !errors.Is(err, db.ErrNotFound) {
+	if _, err := f.db.AllocateIPLease(ctx, dn.ID, "ipv4", "208930000000077", 1, "00000000-0000-4000-8000-000000000001"); !errors.Is(err, db.ErrNotFound) {
 		t.Fatalf("AllocateIPLease for an unknown IMSI: err = %v, want ErrNotFound", err)
 	}
 

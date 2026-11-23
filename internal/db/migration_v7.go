@@ -119,7 +119,7 @@ func migrateV7(ctx context.Context, tx *sql.Tx) error {
 		SELECT
 			pol.name,
 			p.id,
-			(SELECT id FROM %s LIMIT 1),
+			(SELECT id FROM %s ORDER BY id LIMIT 1),
 			pol.dataNetworkID,
 			pol.var5qi,
 			pol.arp,

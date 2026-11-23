@@ -136,19 +136,21 @@ func TestDeletingAClusterMemberRemovesItsVisitors(t *testing.T) {
 
 	ctx := context.Background()
 
-	for _, nodeID := range []string{"node-1", "node-2"} {
+	for _, nodeID := range []string{"00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"} {
 		if err := f.db.UpsertClusterMember(ctx, &db.ClusterMember{NodeID: nodeID, APIAddress: "10.0.0.1:8443"}); err != nil {
 			t.Fatalf("UpsertClusterMember: %s", err)
 		}
 	}
 
-	f.registerVisitor(t, visitorIMSI)
-
-	if _, err := f.db.RegisterVisitorUE(ctx, "208930000000002", roamingPartnerID, db.UERegistrationTypeMME, "node-2", ""); err != nil {
+	if _, err := f.db.RegisterVisitorUE(ctx, visitorIMSI, roamingPartnerID, db.UERegistrationTypeMME, "00000000-0000-4000-8000-000000000001", ""); err != nil {
 		t.Fatalf("RegisterVisitorUE: %s", err)
 	}
 
-	if err := f.db.DeleteClusterMember(ctx, "node-1"); err != nil {
+	if _, err := f.db.RegisterVisitorUE(ctx, "208930000000002", roamingPartnerID, db.UERegistrationTypeMME, "00000000-0000-4000-8000-000000000002", ""); err != nil {
+		t.Fatalf("RegisterVisitorUE: %s", err)
+	}
+
+	if err := f.db.DeleteClusterMember(ctx, "00000000-0000-4000-8000-000000000001"); err != nil {
 		t.Fatalf("DeleteClusterMember: %s", err)
 	}
 

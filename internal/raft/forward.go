@@ -51,10 +51,7 @@ const (
 	maxForwardResponseBytes = 64 * 1024
 )
 
-var (
-	appliedIndexWaitMax      = 2 * time.Second
-	appliedIndexPollInterval = 5 * time.Millisecond
-)
+var appliedIndexWaitMax = 2 * time.Second
 
 // ProposeForwardRequest is the JSON envelope a follower sends to the
 // leader's /cluster/internal/propose endpoint. The leader dispatches
@@ -104,6 +101,14 @@ const (
 	ForwardCodeLinkedElsewhere = "oidc_linked_elsewhere"
 	ForwardCodeStateUsed       = "oidc_state_used"
 	ForwardCodeLinkRequired    = "oidc_link_required"
+	ForwardCodeMSISDNInUse     = "msisdn_in_use"
+	ForwardCodePSIConflict     = "psi_conflict"
+	ForwardCodeIMSPeerConflict = "ims_peer_conflict"
+	ForwardCodeIdentityBound   = "node_identity_bound"
+	ForwardCodePoolExhausted   = "ip_pool_exhausted"
+	ForwardCodeNoRows          = "no_rows"
+	ForwardCodeInvalidCommand  = "invalid_command"
+	ForwardCodeRetiredOp       = "retired_operation"
 	ForwardCodeTokenConsumed   = "join_token_consumed"      // #nosec G101 -- response code, not a credential
 	ForwardCodeTokenExpired    = "join_token_expired"       // #nosec G101 -- response code, not a credential
 	ForwardCodeTokenNodeMism   = "join_token_node_mismatch" // #nosec G101 -- response code, not a credential
@@ -294,30 +299,19 @@ func (m *Manager) waitForLocalApply(ctx context.Context, target uint64) {
 	)
 	defer span.End()
 
-	deadline := time.Now().Add(appliedIndexWaitMax)
+	waitCtx, cancel := context.WithTimeout(ctx, appliedIndexWaitMax)
+	defer cancel()
 
-	for {
-		if m.AppliedIndex() >= target {
-			return
-		}
-
-		if !time.Now().Before(deadline) {
-			span.SetAttributes(attribute.Bool("ella.raft.catch_up_timed_out", true))
-			logger.RaftLog.Warn(
-				"forward operation: follower did not catch up to leader applied index before response",
-				zap.Uint64("target_idx", target),
-				zap.Uint64("local_idx", m.AppliedIndex()),
-			)
-
-			return
-		}
-
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(appliedIndexPollInterval):
-		}
+	if err := m.fsm.WaitApplied(waitCtx, target); err == nil || ctx.Err() != nil {
+		return
 	}
+
+	span.SetAttributes(attribute.Bool("ella.raft.catch_up_timed_out", true))
+	logger.RaftLog.Warn(
+		"forward operation: follower did not catch up to leader applied index before response",
+		zap.Uint64("target_idx", target),
+		zap.Uint64("local_idx", m.AppliedIndex()),
+	)
 }
 
 // classifyForwardDeadline keeps a caller-context expiry from erasing what

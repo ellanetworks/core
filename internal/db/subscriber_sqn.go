@@ -15,10 +15,11 @@ import (
 )
 
 type AdvanceSQNPayload struct {
-	IMSI       string `json:"imsi"`
-	ResyncAuts string `json:"resyncAuts,omitempty"`
-	ResyncRand string `json:"resyncRand,omitempty"`
-	Domain     string `json:"domain,omitempty"`
+	IMSI        string `json:"imsi"`
+	ResyncAuts  string `json:"resyncAuts,omitempty"`
+	ResyncRand  string `json:"resyncRand,omitempty"`
+	ResyncSQNms string `json:"resyncSqnMs,omitempty"`
+	Domain      string `json:"domain,omitempty"`
 }
 
 const SQNDomainIMS = "ims"
@@ -46,54 +47,88 @@ func lockSQN(imsi string) *sync.Mutex {
 const maxSQNCASAttempts = 16
 
 func (db *Database) applyAdvanceSubscriberSQN(ctx context.Context, payload *AdvanceSQNPayload) (any, error) {
-	defer lockSQN(payload.IMSI).Unlock()
-
-	for range maxSQNCASAttempts {
-		row, err := scanSubscriber(db.runner(ctx).QueryRowContext(ctx, getSubscriberSQL, payload.IMSI))
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil, ErrNotFound
-			}
-
-			return nil, fmt.Errorf("read subscriber %s: %w", payload.IMSI, err)
-		}
-
-		if row.PermanentKey == "" || row.Opc == "" {
-			return nil, fmt.Errorf("subscriber %s missing key material", payload.IMSI)
-		}
-
-		next, err := nextSQN(row, payload)
+	if _, ok := applyInfoFrom(ctx); ok {
+		creds, advanced, err := db.casSubscriberSQN(ctx, payload)
 		if err != nil {
 			return nil, err
 		}
 
-		res, err := db.runner(ctx).ExecContext(ctx, casSubscriberSeqNumSQL, next, payload.IMSI, row.SequenceNumber)
-		if err != nil {
-			return nil, fmt.Errorf("query failed: %w", err)
+		if !advanced {
+			return nil, fmt.Errorf("sequence number for subscriber %s changed during apply", payload.IMSI)
 		}
 
-		rowsAffected, err := res.RowsAffected()
+		return creds, nil
+	}
+
+	defer lockSQN(payload.IMSI).Unlock()
+
+	for range maxSQNCASAttempts {
+		creds, advanced, err := db.casSubscriberSQN(ctx, payload)
 		if err != nil {
-			return nil, fmt.Errorf("rows affected: %w", err)
+			return nil, err
 		}
 
-		if rowsAffected == 1 {
-			return &AdvancedCredentials{
-				PermanentKey:   row.PermanentKey,
-				Opc:            row.Opc,
-				SequenceNumber: next,
-			}, nil
+		if advanced {
+			return creds, nil
 		}
 	}
 
 	return nil, fmt.Errorf("sequence number for subscriber %s contended beyond %d attempts", payload.IMSI, maxSQNCASAttempts)
 }
 
+func (db *Database) casSubscriberSQN(ctx context.Context, payload *AdvanceSQNPayload) (*AdvancedCredentials, bool, error) {
+	row, err := scanSubscriber(db.runner(ctx).QueryRowContext(ctx, getSubscriberSQL, payload.IMSI))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, false, ErrNotFound
+		}
+
+		return nil, false, fmt.Errorf("read subscriber %s: %w", payload.IMSI, err)
+	}
+
+	if row.PermanentKey == "" || row.Opc == "" {
+		return nil, false, invalidCommand(fmt.Errorf("subscriber %s missing key material", payload.IMSI))
+	}
+
+	next, err := nextSQN(row, payload)
+	if err != nil {
+		return nil, false, invalidCommand(err)
+	}
+
+	res, err := db.runner(ctx).ExecContext(ctx, casSubscriberSeqNumSQL, next, payload.IMSI, row.SequenceNumber)
+	if err != nil {
+		return nil, false, fmt.Errorf("query failed: %w", err)
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return nil, false, fmt.Errorf("rows affected: %w", err)
+	}
+
+	if rowsAffected != 1 {
+		return nil, false, nil
+	}
+
+	return &AdvancedCredentials{
+		PermanentKey:   row.PermanentKey,
+		Opc:            row.Opc,
+		SequenceNumber: next,
+	}, true, nil
+}
+
 func nextSQN(row Subscriber, payload *AdvanceSQNPayload) (string, error) {
 	switch payload.Domain {
 	case "":
+		if payload.ResyncSQNms != "" {
+			return sqn.NextFromResync(payload.ResyncSQNms)
+		}
+
 		return sqn.Next(row.SequenceNumber, row.Opc, row.PermanentKey, payload.ResyncAuts, payload.ResyncRand)
 	case SQNDomainIMS:
+		if payload.ResyncSQNms != "" {
+			return sqn.NextIMSFromResync(row.SequenceNumber, payload.ResyncSQNms)
+		}
+
 		if payload.ResyncAuts != "" {
 			return sqn.NextIMSResync(row.SequenceNumber, row.Opc, row.PermanentKey, payload.ResyncAuts, payload.ResyncRand)
 		}
@@ -116,6 +151,10 @@ func (db *Database) advanceSubscriberSQN(ctx context.Context, payload *AdvanceSQ
 	ctx, finish := startDBQueryNamed(ctx, "UPDATE "+SubscribersTableName+" (advance sqn)", SubscribersTableName, "UPDATE")
 	defer func() { finish(err) }()
 
+	if err := db.verifySQNResync(ctx, payload); err != nil {
+		return nil, err
+	}
+
 	creds, err := opAdvanceSubscriberSQN.Invoke(ctx, db, payload)
 	if err != nil {
 		return nil, err
@@ -127,4 +166,36 @@ func (db *Database) advanceSubscriberSQN(ctx context.Context, payload *AdvanceSQ
 	}
 
 	return creds, nil
+}
+
+func (db *Database) verifySQNResync(ctx context.Context, payload *AdvanceSQNPayload) error {
+	if payload.ResyncAuts == "" {
+		return nil
+	}
+
+	row, err := scanSubscriber(db.reader().QueryRowContext(ctx, getSubscriberSQL, payload.IMSI))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+
+		return fmt.Errorf("read subscriber %s: %w", payload.IMSI, err)
+	}
+
+	if row.PermanentKey == "" || row.Opc == "" {
+		return invalidCommand(fmt.Errorf("subscriber %s missing key material", payload.IMSI))
+	}
+
+	sqnMS, err := sqn.ResyncHex(row.Opc, row.PermanentKey, payload.ResyncAuts, payload.ResyncRand)
+	if err != nil {
+		return invalidCommand(err)
+	}
+
+	if db.commandMode(ctx) {
+		payload.ResyncSQNms = sqnMS
+		payload.ResyncAuts = ""
+		payload.ResyncRand = ""
+	}
+
+	return nil
 }

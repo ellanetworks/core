@@ -72,6 +72,16 @@ func requireChildOf(t *testing.T, child, parent tracetest.SpanStub) {
 	}
 }
 
+func hasAttr(s tracetest.SpanStub, key string) bool {
+	for _, a := range s.Attributes {
+		if string(a.Key) == key {
+			return true
+		}
+	}
+
+	return false
+}
+
 func requireAttr(t *testing.T, s tracetest.SpanStub, key, want string) {
 	t.Helper()
 
@@ -92,7 +102,30 @@ func TestProposeSpansNestUnderCaller(t *testing.T) {
 	exporter := recordTestSpans(t)
 	database := newStandaloneDB(t)
 
+	t.Run("command", func(t *testing.T) {
+		ctx, caller := otel.Tracer("test").Start(t.Context(), "test/caller")
+
+		if err := database.SetRetentionPolicy(ctx, &RetentionPolicy{Category: CategoryAuditLogs, Days: 29}); err != nil {
+			t.Fatalf("SetRetentionPolicy: %v", err)
+		}
+
+		caller.End()
+
+		spans := spansInTrace(exporter, caller.SpanContext().TraceID())
+
+		propose := requireSpan(t, spans, "db/propose")
+
+		requireChildOf(t, propose, requireSpan(t, spans, "UPSERT retention_policies"))
+		requireAttr(t, propose, "ella.raft.operation", "SetRetentionPolicy")
+
+		if !hasAttr(propose, "ella.raft.index") {
+			t.Fatalf("span %q has no raft index", propose.Name)
+		}
+	})
+
 	t.Run("changeset op", func(t *testing.T) {
+		useChangesetPath(database)
+
 		ctx, caller := otel.Tracer("test").Start(t.Context(), "test/caller")
 
 		if err := database.SetRetentionPolicy(ctx, &RetentionPolicy{Category: CategoryAuditLogs, Days: 30}); err != nil {
@@ -115,6 +148,8 @@ func TestProposeSpansNestUnderCaller(t *testing.T) {
 	})
 
 	t.Run("forwarded intent op", func(t *testing.T) {
+		useChangesetPath(database)
+
 		ctx, caller := otel.Tracer("test").Start(t.Context(), "test/caller")
 
 		payload, err := json.Marshal(int64Payload{Value: time.Now().Unix()})

@@ -79,6 +79,10 @@ func Start(
 			return nil, fmt.Errorf("could not listen on GTP-U UDP address %s: %v", enbN3Address, err)
 		}
 
+		if err := n3Conn.SetReadBuffer(gnb.N3ReadBufferBytes); err != nil {
+			return nil, fmt.Errorf("could not size the GTP-U receive buffer: %v", err)
+		}
+
 		enbN3IPAddress, err = netip.ParseAddr(enbN3Address)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse eNB N3 IP address: %v", err)

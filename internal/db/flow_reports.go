@@ -128,7 +128,7 @@ WHERE
     AND direction = 'uplink'
     AND (?10 IS NULL OR action = ?10)
 GROUP BY destination_ip
-ORDER BY COUNT(*) DESC
+ORDER BY COUNT(*) DESC, destination_ip
 LIMIT 10
 `
 

@@ -65,6 +65,10 @@ func (db *Database) GetOIDC(ctx context.Context) (_ OIDC, err error) {
 	ctx, finish := startDBQuery(ctx, OIDCSettingsTableName, "SELECT")
 	defer func() { finish(err) }()
 
+	return db.readOIDC(ctx)
+}
+
+func (db *Database) readOIDC(ctx context.Context) (OIDC, error) {
 	if !db.appliedSchemaAtLeast(ctx, oidcSchema) {
 		return DefaultOIDC(), nil
 	}
@@ -76,7 +80,7 @@ func (db *Database) GetOIDC(ctx context.Context) (_ OIDC, err error) {
 		lifetime int64
 	)
 
-	err = db.readQuerier(ctx).QueryRowContext(ctx, getOIDCSettingsSQL).Scan(&o.Enabled, &o.ExternalURL, &o.Issuer, &o.ClientID,
+	err := db.readQuerier(ctx).QueryRowContext(ctx, getOIDCSettingsSQL).Scan(&o.Enabled, &o.ExternalURL, &o.Issuer, &o.ClientID,
 		&o.ClientSecret, &o.DisplayName, &scopes, &lifetime, &o.TrustUnverifiedEmail, &o.CACertificate, &o.GroupsClaim)
 	if errors.Is(err, sql.ErrNoRows) {
 		return DefaultOIDC(), nil
@@ -117,7 +121,7 @@ func (db *Database) UpdateOIDC(ctx context.Context, o OIDC) (err error) {
 }
 
 func (db *Database) applyUpdateOIDC(ctx context.Context, o *OIDC) (any, error) {
-	current, err := db.GetOIDC(ctx)
+	current, err := db.readOIDC(ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -58,6 +58,9 @@ CREATE INDEX idx_leases_node ON ip_leases(nodeID);
 -- index idx_leases_pool
 CREATE INDEX idx_leases_pool ON ip_leases(poolID);
 
+-- index idx_leases_pool_latest
+CREATE INDEX idx_leases_pool_latest ON ip_leases(poolID,poolType,createdAt,id);
+
 -- index idx_leases_session
 CREATE INDEX idx_leases_session ON ip_leases(sessionID);
 
@@ -173,7 +176,7 @@ CREATE TABLE flow_accounting_settings(singleton BOOLEAN PRIMARY KEY DEFAULT TRUE
 CREATE TABLE "flow_reports"(id INTEGER PRIMARY KEY AUTOINCREMENT,subscriber_id TEXT NOT NULL,source_ip TEXT NOT NULL,destination_ip TEXT NOT NULL,source_port INTEGER NOT NULL DEFAULT 0,destination_port INTEGER NOT NULL DEFAULT 0,protocol INTEGER NOT NULL,packets INTEGER NOT NULL,bytes INTEGER NOT NULL,start_time INTEGER NOT NULL,end_time INTEGER NOT NULL,direction TEXT NOT NULL,action INT NOT NULL DEFAULT 0);
 
 -- table fsm_state
-CREATE TABLE fsm_state(id INTEGER PRIMARY KEY CHECK(id = 1),lastApplied INTEGER NOT NULL DEFAULT 0,lastAppliedTerm INTEGER NOT NULL DEFAULT 0,configuration BLOB,configurationIndex INTEGER NOT NULL DEFAULT 0,durableWrites INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE fsm_state(id INTEGER PRIMARY KEY CHECK(id = 1),lastApplied INTEGER NOT NULL DEFAULT 0,lastAppliedTerm INTEGER NOT NULL DEFAULT 0,configuration BLOB,configurationIndex INTEGER NOT NULL DEFAULT 0,durableWrites INTEGER NOT NULL DEFAULT 0,leaderTime INTEGER NOT NULL DEFAULT 0);
 
 -- table home_network_keys
 CREATE TABLE "home_network_keys"(id TEXT PRIMARY KEY,key_identifier INTEGER NOT NULL CHECK(key_identifier >= 0 AND key_identifier <= 255),scheme TEXT NOT NULL CHECK(scheme IN('A','B')),private_key TEXT NOT NULL,UNIQUE(key_identifier,scheme));
@@ -300,6 +303,9 @@ CREATE TABLE "sms_smsc_service_centres"(serviceCentre TEXT PRIMARY KEY,smscId TE
 
 -- table sms_smscs
 CREATE TABLE sms_smscs(id TEXT PRIMARY KEY,name TEXT NOT NULL);
+
+-- table subscriber_count
+CREATE TABLE subscriber_count(singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK(singleton),total INTEGER NOT NULL);
 
 -- table subscriber_framed_routes
 CREATE TABLE subscriber_framed_routes(id TEXT PRIMARY KEY,imsi TEXT NOT NULL,dataNetworkID TEXT NOT NULL,prefix TEXT NOT NULL UNIQUE,FOREIGN KEY(imsi)REFERENCES subscribers(imsi)ON DELETE CASCADE,FOREIGN KEY(dataNetworkID)REFERENCES data_networks(id)ON DELETE RESTRICT);

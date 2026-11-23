@@ -5,6 +5,7 @@ package integration_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -24,6 +25,8 @@ const (
 
 	rollingBaselineImage = "ella-core:rolling-baseline"
 	rollingTargetImage   = "ella-core:latest"
+
+	commandCutoverSchema = 31
 )
 
 func TestIntegrationHARollingUpgrade(t *testing.T) {
@@ -31,7 +34,7 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 
 	beginHATest(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Minute)
 	defer cancel()
 
 	if err := ensureRollingImages(ctx, t); err != nil {
@@ -274,6 +277,16 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 		}
 	}
 
+	if targetSchema < commandCutoverSchema {
+		t.Fatalf("target schema %d is below the command cut-over schema %d", targetSchema, commandCutoverSchema)
+	}
+
+	if baselineSchema < commandCutoverSchema {
+		HALogf(t, "the roll crossed the command cut-over: schema %d -> %d", baselineSchema, targetSchema)
+	} else {
+		HALogf(t, "baseline schema %d is already at or past the command cut-over schema %d", baselineSchema, commandCutoverSchema)
+	}
+
 	// Stop the writer and validate. Some transient failures during
 	// the leader-swap window are expected; permanent failures aren't.
 	writeReport, err := writer.stopAndReport()
@@ -308,11 +321,214 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 
 	assertUpgradeSeedOnAllNodes(t, ctx, clients, seed, "after the roll")
 
+	assertWritesThroughEveryNode(t, ctx, clients, "001019756182000", "after the roll")
+
+	verifiedIndex := assertReplicatedStateVerified(t, ctx, dc, 0, len(clients), "after the roll")
+
+	assertClusterHealthy(t, ctx, clients, "after the roll")
+
 	runUpgradeTraffic(t, ctx, dc, len(clients), "after the roll")
 
 	assertUpgradedClusterSurvivesRestartAndFailover(t, ctx, dc, haRollingComposeDir, clients, seed)
 
 	runUpgradeTraffic(t, ctx, dc, len(clients), "after a full restart and a leader failover")
+
+	assertWritesThroughEveryNode(t, ctx, clients, "001019756183000", "after a full restart and a leader failover")
+
+	assertReplicatedStateVerified(t, ctx, dc, verifiedIndex, len(clients)/2+1, "after a full restart and a leader failover")
+
+	assertClusterHealthy(t, ctx, clients, "after a full restart and a leader failover")
+}
+
+func assertWritesThroughEveryNode(t *testing.T, ctx context.Context, clients []*client.Client, imsiBase string, when string) {
+	t.Helper()
+
+	imsis := make([]string, 0, len(clients))
+
+	for i, c := range clients {
+		imsi, err := offsetIMSI15(imsiBase, i+1)
+		if err != nil {
+			t.Fatalf("compute IMSI: %v", err)
+		}
+
+		createSubscriberWithRetry(t, ctx, c, imsi, time.Minute)
+
+		imsis = append(imsis, imsi)
+	}
+
+	for i, c := range clients {
+		assertSubscribersPresent(t, ctx, c, imsis, fmt.Sprintf("on node %d %s", i+1, when))
+	}
+
+	HALogf(t, "writes through every node succeeded %s: %v", when, imsis)
+}
+
+const stateVerificationTimeout = 3 * time.Minute
+
+var stateDivergenceMessages = []string{
+	"Replicated state diverged from the cluster",
+	"Replicated state differs between voters",
+	"Leadership transferred away from a node whose state diverged",
+}
+
+type stateHashLogLine struct {
+	Msg   string `json:"msg"`
+	Index uint64 `json:"index"`
+	Hash  string `json:"hash"`
+}
+
+func assertReplicatedStateVerified(t *testing.T, ctx context.Context, dc *DockerClient, after uint64, minNodes int, when string) uint64 {
+	t.Helper()
+
+	deadline := time.Now().Add(stateVerificationTimeout)
+
+	var lastErr error
+
+	for {
+		index, err := matchingStateHashIndex(ctx, dc, after, minNodes)
+		if err == nil {
+			HALogf(t, "replicated state verified %s: %d or more nodes hashed index %d identically", when, minNodes, index)
+			return index
+		}
+
+		lastErr = err
+
+		if errors.Is(err, errStateDiverged) || time.Now().After(deadline) {
+			t.Fatalf("replicated state not verified %s: %v", when, lastErr)
+		}
+
+		select {
+		case <-ctx.Done():
+			t.Fatalf("replicated state not verified %s: %v (%v)", when, ctx.Err(), lastErr)
+		case <-time.After(2 * time.Second):
+		}
+	}
+}
+
+var errStateDiverged = errors.New("state divergence reported")
+
+func matchingStateHashIndex(ctx context.Context, dc *DockerClient, after uint64, minNodes int) (uint64, error) {
+	hashes := make(map[uint64]map[string]string)
+
+	for _, svc := range haNodeServices {
+		logs, err := dc.ComposeLogs(ctx, haRollingComposeDir, svc)
+		if err != nil {
+			return 0, fmt.Errorf("logs of %s: %w", svc, err)
+		}
+
+		for line := range strings.SplitSeq(logs, "\n") {
+			for _, m := range stateDivergenceMessages {
+				if strings.Contains(line, m) {
+					return 0, fmt.Errorf("%w by %s: %s", errStateDiverged, svc, line)
+				}
+			}
+
+			if !strings.Contains(line, `"msg":"State hash computed"`) {
+				continue
+			}
+
+			start := strings.Index(line, "{")
+			if start < 0 {
+				continue
+			}
+
+			var entry stateHashLogLine
+			if err := json.Unmarshal([]byte(line[start:]), &entry); err != nil || entry.Index <= after || entry.Hash == "" {
+				continue
+			}
+
+			if hashes[entry.Index] == nil {
+				hashes[entry.Index] = make(map[string]string)
+			}
+
+			hashes[entry.Index][svc] = entry.Hash
+		}
+	}
+
+	var best uint64
+
+	for index, byNode := range hashes {
+		distinct := make(map[string]bool)
+
+		for _, h := range byNode {
+			distinct[h] = true
+		}
+
+		if len(distinct) > 1 {
+			return 0, fmt.Errorf("%w: nodes hashed index %d differently: %v", errStateDiverged, index, byNode)
+		}
+
+		if len(byNode) >= minNodes && index > best {
+			best = index
+		}
+	}
+
+	if best == 0 {
+		return 0, fmt.Errorf("no state hash after index %d reported by %d nodes yet (hashes: %v)", after, minNodes, hashes)
+	}
+
+	return best, nil
+}
+
+func assertClusterHealthy(t *testing.T, ctx context.Context, clients []*client.Client, when string) {
+	t.Helper()
+
+	want := len(clients)
+
+	for i, c := range clients {
+		if err := waitForClusterHealth(ctx, c, want, 2*time.Minute); err != nil {
+			t.Fatalf("cluster health on node %d %s: %v", i+1, when, err)
+		}
+	}
+
+	_, leader, err := findLeader(ctx, clients)
+	if err != nil {
+		t.Fatalf("find leader %s: %v", when, err)
+	}
+
+	state, err := waitForAutopilotHealthy(ctx, leader, (want-1)/2, want)
+	if err != nil {
+		t.Fatalf("autopilot %s: %v", when, err)
+	}
+
+	for _, s := range state.Servers {
+		if !s.Healthy {
+			t.Fatalf("autopilot reports server %s unhealthy %s: %+v", s.NodeID, when, state)
+		}
+	}
+
+	HALogf(t, "cluster healthy %s: %d voters, failure tolerance %d", when, len(state.Voters), state.FailureTolerance)
+}
+
+func waitForClusterHealth(ctx context.Context, c *client.Client, wantVoters int, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+
+	var lastErr error
+
+	for time.Now().Before(deadline) {
+		h, err := c.GetClusterHealth(ctx)
+
+		switch {
+		case err != nil:
+			lastErr = err
+		case h.State != client.ClusterHealthHealthy:
+			lastErr = fmt.Errorf("state=%q, want %q: %+v", h.State, client.ClusterHealthHealthy, h)
+		case h.TotalVoters != wantVoters:
+			lastErr = fmt.Errorf("totalVoters=%d, want %d", h.TotalVoters, wantVoters)
+		case h.HealthyVoters == nil || *h.HealthyVoters != wantVoters:
+			lastErr = fmt.Errorf("healthyVoters=%v, want %d", h.HealthyVoters, wantVoters)
+		default:
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Second):
+		}
+	}
+
+	return fmt.Errorf("timeout after %s: %w", timeout, lastErr)
 }
 
 type schemaState struct {

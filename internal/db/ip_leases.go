@@ -12,13 +12,15 @@ import (
 	"fmt"
 	"net/netip"
 
-	"github.com/ellanetworks/core/internal/pki"
 	"github.com/ellanetworks/core/internal/tracing/attrs"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
 const IPLeasesTableName = "ip_leases"
+
+const createLatestLeaseIndexSQL = "CREATE INDEX idx_leases_pool_latest ON " + IPLeasesTableName + " (poolID, poolType, createdAt, id)"
 
 const (
 	createLeaseSQL              = "INSERT INTO " + IPLeasesTableName + " (id, poolID, poolType, addressBin, imsi, sessionID, type, createdAt, nodeID) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -35,6 +37,7 @@ const (
 	listLeasesByPoolSQL         = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==?"
 	listLeaseAddressRangeSQL    = "SELECT addressBin FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? AND addressBin >= ? AND addressBin <= ? ORDER BY addressBin"
 	getNewestLeaseInPoolSQL     = "SELECT addressBin FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? ORDER BY rowid DESC LIMIT 1"
+	getLatestLeaseInPoolSQL     = "SELECT addressBin FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? ORDER BY createdAt DESC, id DESC LIMIT 1"
 	countLeasesByPoolSQL        = "SELECT COUNT(*) FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==?"
 	countIPv4LeasesByPoolSQL    = "SELECT COUNT(*) FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? AND substr(addressBin, 1, 12) = X'00000000000000000000FFFF'"
 	countIPv6LeasesByPoolSQL    = "SELECT COUNT(*) FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? AND substr(addressBin, 1, 12) != X'00000000000000000000FFFF'"
@@ -91,13 +94,12 @@ func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType
 	ctx, finish := startDBQueryNamed(ctx, "INSERT "+IPLeasesTableName+" (allocate)", IPLeasesTableName, "INSERT")
 	defer func() { finish(err) }()
 
-	addrStr, err := opAllocateIPLease.Invoke(ctx, db, &allocateIPLeasePayload{
-		PoolID:    poolID,
-		PoolType:  poolType,
-		IMSI:      imsi,
-		SessionID: sessionID,
-		NodeID:    pki.NodeID(nodeID),
-	})
+	payload, err := newAllocateIPLeasePayload(poolID, poolType, imsi, sessionID, nodeID)
+	if err != nil {
+		return netip.Addr{}, err
+	}
+
+	addrStr, err := opAllocateIPLease.Invoke(ctx, db, payload)
 	if err != nil {
 		return netip.Addr{}, err
 	}
@@ -121,13 +123,12 @@ func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolTy
 	ctx, finish := startDBQueryNamed(ctx, "INSERT "+IPLeasesTableName+" (allocate_ipv6)", IPLeasesTableName, "INSERT")
 	defer func() { finish(err) }()
 
-	addrStr, err := opAllocateIPv6Lease.Invoke(ctx, db, &allocateIPLeasePayload{
-		PoolID:    poolID,
-		PoolType:  poolType,
-		IMSI:      imsi,
-		SessionID: sessionID,
-		NodeID:    pki.NodeID(nodeID),
-	})
+	payload, err := newAllocateIPLeasePayload(poolID, poolType, imsi, sessionID, nodeID)
+	if err != nil {
+		return netip.Addr{}, err
+	}
+
+	addrStr, err := opAllocateIPv6Lease.Invoke(ctx, db, payload)
 	if err != nil {
 		return netip.Addr{}, err
 	}
@@ -142,6 +143,27 @@ func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolTy
 	return addr, nil
 }
 
+func newAllocateIPLeasePayload(poolID, poolType, imsi string, sessionID int, nodeID string) (*allocateIPLeasePayload, error) {
+	node, err := payloadNodeID(nodeID)
+	if err != nil {
+		return nil, err
+	}
+
+	leaseID, err := uuid.NewV7()
+	if err != nil {
+		return nil, fmt.Errorf("generate lease id: %w", err)
+	}
+
+	return &allocateIPLeasePayload{
+		PoolID:    poolID,
+		PoolType:  poolType,
+		IMSI:      imsi,
+		SessionID: sessionID,
+		NodeID:    node,
+		LeaseID:   leaseID.String(),
+	}, nil
+}
+
 // CreateLease inserts a new IP lease row. The address is stored as a 16-byte
 // binary form. Returns ErrAlreadyExists if the (poolID, addressBin) unique
 // constraint is violated.
@@ -151,6 +173,15 @@ func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address net
 
 	b := address.As16()
 	lease.AddressBin = b[:]
+
+	if lease.ID == "" {
+		id, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("generate lease id: %w", err)
+		}
+
+		lease.ID = id.String()
+	}
 
 	_, err = opCreateLease.Invoke(ctx, db, lease)
 	if err != nil {
@@ -214,12 +245,17 @@ func (db *Database) ReleaseIPLease(ctx context.Context, poolID string, poolType 
 	ctx, finish := startDBQueryNamed(ctx, "DELETE "+IPLeasesTableName+" (release)", IPLeasesTableName, "DELETE")
 	defer func() { finish(err) }()
 
+	node, err := payloadNodeID(nodeID)
+	if err != nil {
+		return netip.Addr{}, err
+	}
+
 	addrStr, err := opReleaseIPLease.Invoke(ctx, db, &releaseIPLeasePayload{
 		PoolID:    poolID,
 		PoolType:  poolType,
 		IMSI:      imsi,
 		SessionID: sessionID,
-		NodeID:    pki.NodeID(nodeID),
+		NodeID:    node,
 	})
 	if err != nil {
 		return netip.Addr{}, err
@@ -272,7 +308,12 @@ func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID string
 	ctx, finish := startDBQueryNamed(ctx, "DELETE "+IPLeasesTableName+" (dynamic by node)", IPLeasesTableName, "DELETE", attrs.NodeID(nodeID))
 	defer func() { finish(err) }()
 
-	_, err = opDeleteDynamicLeasesByNode.Invoke(ctx, db, &nodeIDPayload{Value: pki.NodeID(nodeID)})
+	node, err := payloadNodeID(nodeID)
+	if err != nil {
+		return err
+	}
+
+	_, err = opDeleteDynamicLeasesByNode.Invoke(ctx, db, &nodeIDPayload{Value: node})
 	if err != nil {
 		return err
 	}
@@ -441,8 +482,14 @@ func (db *Database) CreateStaticLease(ctx context.Context, imsi, poolID, poolTyp
 	ctx, finish := startDBQueryNamed(ctx, "INSERT "+IPLeasesTableName+" (static)", IPLeasesTableName, "INSERT")
 	defer func() { finish(err) }()
 
+	id, err := uuid.NewV7()
+	if err != nil {
+		return fmt.Errorf("generate lease id: %w", err)
+	}
+
 	b := addr.As16()
 	lease := &IPLease{
+		ID:         id.String(),
 		PoolID:     poolID,
 		PoolType:   poolType,
 		AddressBin: b[:],

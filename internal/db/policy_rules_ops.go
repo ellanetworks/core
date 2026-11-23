@@ -26,8 +26,23 @@ type PolicyRulesInput struct {
 }
 
 type policyWithRulesPayload struct {
-	Policy Policy            `json:"policy"`
-	Rules  *PolicyRulesInput `json:"rules,omitempty"`
+	Policy  Policy            `json:"policy"`
+	Rules   *PolicyRulesInput `json:"rules,omitempty"`
+	RuleIDs []string          `json:"ruleIds,omitempty"`
+}
+
+func newPolicyWithRulesPayload(policy *Policy, rules *PolicyRulesInput) (*policyWithRulesPayload, error) {
+	n := 0
+	if rules != nil {
+		n = len(rules.Uplink) + len(rules.Downlink)
+	}
+
+	ids, err := newIDs(n, "network rule")
+	if err != nil {
+		return nil, err
+	}
+
+	return &policyWithRulesPayload{Policy: *policy, Rules: rules, RuleIDs: ids}, nil
 }
 
 func (db *Database) CreatePolicyWithRules(ctx context.Context, policy *Policy, rules *PolicyRulesInput) (err error) {
@@ -45,7 +60,12 @@ func (db *Database) CreatePolicyWithRules(ctx context.Context, policy *Policy, r
 		policy.ID = id.String()
 	}
 
-	_, err = opCreatePolicyWithRules.Invoke(ctx, db, &policyWithRulesPayload{Policy: *policy, Rules: rules})
+	payload, err := newPolicyWithRulesPayload(policy, rules)
+	if err != nil {
+		return err
+	}
+
+	_, err = opCreatePolicyWithRules.Invoke(ctx, db, payload)
 	if err != nil {
 		return err
 	}
@@ -59,7 +79,12 @@ func (db *Database) UpdatePolicyWithRules(ctx context.Context, policy *Policy, r
 	ctx, finish := startDBQueryNamed(ctx, querySummary, PoliciesTableName, "UPDATE")
 	defer func() { finish(err) }()
 
-	_, err = opUpdatePolicyWithRules.Invoke(ctx, db, &policyWithRulesPayload{Policy: *policy, Rules: rules})
+	payload, err := newPolicyWithRulesPayload(policy, rules)
+	if err != nil {
+		return err
+	}
+
+	_, err = opUpdatePolicyWithRules.Invoke(ctx, db, payload)
 	if err != nil {
 		return err
 	}
@@ -69,14 +94,13 @@ func (db *Database) UpdatePolicyWithRules(ctx context.Context, policy *Policy, r
 
 func (db *Database) applyCreatePolicyWithRules(ctx context.Context, payload *policyWithRulesPayload) (any, error) {
 	policy := payload.Policy
-	if policy.ID == "" {
-		id, err := uuid.NewV7()
-		if err != nil {
-			return nil, fmt.Errorf("generate policy id: %w", err)
-		}
 
-		policy.ID = id.String()
+	id, err := payloadID(ctx, policy.ID, "policy")
+	if err != nil {
+		return nil, err
 	}
+
+	policy.ID = id
 
 	policy.defaultPreemption()
 
@@ -95,7 +119,7 @@ func (db *Database) applyCreatePolicyWithRules(ctx context.Context, payload *pol
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	if err := db.applyPolicyRulesPayload(ctx, policy.ID, payload.Rules); err != nil {
+	if err := db.applyPolicyRulesPayload(ctx, policy.ID, payload.Rules, payload.RuleIDs); err != nil {
 		return nil, err
 	}
 
@@ -107,14 +131,14 @@ func (db *Database) applyUpdatePolicyWithRules(ctx context.Context, payload *pol
 		return nil, err
 	}
 
-	if err := db.applyPolicyRulesPayload(ctx, payload.Policy.ID, payload.Rules); err != nil {
+	if err := db.applyPolicyRulesPayload(ctx, payload.Policy.ID, payload.Rules, payload.RuleIDs); err != nil {
 		return nil, err
 	}
 
 	return nil, nil
 }
 
-func (db *Database) applyPolicyRulesPayload(ctx context.Context, policyID string, rules *PolicyRulesInput) error {
+func (db *Database) applyPolicyRulesPayload(ctx context.Context, policyID string, rules *PolicyRulesInput, ruleIDs []string) error {
 	if _, err := db.runner(ctx).ExecContext(ctx, deleteNetworkRulesByPolicySQL, policyID); err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
@@ -123,19 +147,19 @@ func (db *Database) applyPolicyRulesPayload(ctx context.Context, policyID string
 		return nil
 	}
 
-	now := time.Now().UTC()
-	if err := db.insertPolicyRules(ctx, policyID, "uplink", rules.Uplink, now); err != nil {
+	now := applyTime(ctx).UTC()
+	if err := db.insertPolicyRules(ctx, policyID, "uplink", rules.Uplink, ruleIDs, now); err != nil {
 		return err
 	}
 
-	if err := db.insertPolicyRules(ctx, policyID, "downlink", rules.Downlink, now); err != nil {
+	if err := db.insertPolicyRules(ctx, policyID, "downlink", rules.Downlink, ruleIDs[min(len(rules.Uplink), len(ruleIDs)):], now); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (db *Database) insertPolicyRules(ctx context.Context, policyID, direction string, rules []PolicyRuleInput, now time.Time) error {
+func (db *Database) insertPolicyRules(ctx context.Context, policyID, direction string, rules []PolicyRuleInput, ids []string, now time.Time) error {
 	for i, rule := range rules {
 		nr := &NetworkRule{
 			PolicyID:     policyID,
@@ -151,14 +175,12 @@ func (db *Database) insertPolicyRules(ctx context.Context, policyID, direction s
 			UpdatedAt:    now,
 		}
 
-		if nr.ID == "" {
-			id, err := uuid.NewV7()
-			if err != nil {
-				return fmt.Errorf("generate network rule id: %w", err)
-			}
-
-			nr.ID = id.String()
+		id, err := payloadID(ctx, indexOr(ids, i), "network rule")
+		if err != nil {
+			return err
 		}
+
+		nr.ID = id
 
 		if _, err := db.runner(ctx).ExecContext(ctx, createNetworkRuleSQL, nr.ID, nr.PolicyID, nr.Description, nr.Direction, nr.RemotePrefix, nr.Protocol, nr.PortLow, nr.PortHigh, nr.Action, nr.Precedence, nr.CreatedAt, nr.UpdatedAt); err != nil {
 			if isUniqueNameError(err) {
