@@ -34,7 +34,8 @@ import {
 import EditServingNodeNumberModal, {
   SERVING_NODE_NUMBER_HELP,
 } from "@/components/EditServingNodeNumberModal";
-import ConnectionsStatusChip from "@/components/ConnectionsStatusChip";
+import DiameterPeerStatusChip from "@/components/DiameterPeerStatusChip";
+import OneLine from "@/components/OneLine";
 import SMSCModal from "@/components/SMSCModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import { useAuth } from "@/contexts/AuthContext";
@@ -47,6 +48,13 @@ import {
 } from "@/utils/layout";
 import { useIntegrationsContext } from "./types";
 import { ThisCoreSection, formatEndpoint, useDiameterStatus } from "./diameter";
+
+const NODE_LINE_SX = {
+  minHeight: 24,
+  display: "flex",
+  alignItems: "center",
+  minWidth: 0,
+} as const;
 
 export default function SMSTab() {
   const { canEdit } = useIntegrationsContext();
@@ -117,18 +125,6 @@ export default function SMSTab() {
       {settingsQuery.isError && (
         <Alert severity="error" sx={{ mb: 2 }}>
           Failed to load SMS settings.
-        </Alert>
-      )}
-      {sms && !hasNumber && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          No serving node number is set: messages sent to your subscribers
-          cannot be delivered. Set it below.
-        </Alert>
-      )}
-      {smscsQuery.data && smscs.length === 0 && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          No SMSC is configured: subscribers cannot send or receive SMS. Add one
-          below.
         </Alert>
       )}
 
@@ -239,8 +235,8 @@ export default function SMSTab() {
             )}
             {smscs.map((smsc) => (
               <TableRow key={smsc.name} sx={{ verticalAlign: "top" }}>
-                <TableCell sx={{ wordBreak: "break-word" }}>
-                  {smsc.name}
+                <TableCell>
+                  <OneLine text={smsc.name} />
                 </TableCell>
                 <TableCell sx={{ wordBreak: "break-word" }}>
                   {smsc.serviceCentres.join(", ")}
@@ -253,23 +249,26 @@ export default function SMSTab() {
                         title={`Origin-Host: ${node.originHost || "any"}`}
                         arrow
                       >
-                        <Typography
-                          variant="body2"
-                          sx={{ wordBreak: "break-word", width: "fit-content" }}
-                        >
-                          {formatEndpoint(node.address, node.port)}
-                        </Typography>
+                        <Box sx={NODE_LINE_SX}>
+                          <OneLine
+                            text={formatEndpoint(node.address, node.port)}
+                          />
+                        </Box>
                       </Tooltip>
                     ))}
                   </Stack>
                 </TableCell>
                 <TableCell>
-                  <ConnectionsStatusChip
-                    connections={smsc.nodes.map((node) => ({
-                      label: formatEndpoint(node.address, node.port),
-                      status: node.status,
-                    }))}
-                  />
+                  <Stack spacing={0.5}>
+                    {smsc.nodes.map((node) => (
+                      <Box
+                        key={formatEndpoint(node.address, node.port)}
+                        sx={NODE_LINE_SX}
+                      >
+                        <DiameterPeerStatusChip status={node.status} />
+                      </Box>
+                    ))}
+                  </Stack>
                 </TableCell>
                 <TableCell align="right">
                   {canEdit && (

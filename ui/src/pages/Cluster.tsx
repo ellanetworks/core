@@ -92,6 +92,7 @@ function drainStateChip(state: DrainState, updatedAt?: string) {
           size="small"
           color="warning"
           variant="outlined"
+          sx={{ flexShrink: 0 }}
         />
       </Tooltip>
     );
@@ -100,11 +101,17 @@ function drainStateChip(state: DrainState, updatedAt?: string) {
     const title = updatedAt ? `Drained at ${formatDateTime(updatedAt)}.` : "";
     return (
       <Tooltip title={title}>
-        <Chip label="Drained" size="small" color="error" variant="outlined" />
+        <Chip
+          label="Drained"
+          size="small"
+          color="error"
+          variant="outlined"
+          sx={{ flexShrink: 0 }}
+        />
       </Tooltip>
     );
   }
-  return <Chip label="Active" size="small" variant="outlined" />;
+  return null;
 }
 
 const TruncatedText: React.FC<{ value: string }> = ({ value }) => (
@@ -240,7 +247,7 @@ const ClusterPage: React.FC = () => {
         field: "nodeId",
         headerName: "Node",
         flex: 1.5,
-        minWidth: 260,
+        minWidth: 240,
         renderCell: (p: GridRenderCellParams<JoinedRow>) => {
           const isLeader = sameNodeId(p.row.nodeId, currentLeaderNodeId);
           return (
@@ -259,7 +266,19 @@ const ClusterPage: React.FC = () => {
                 }
                 sx={{ fontWeight: isLeader ? 700 : 400, minWidth: 0 }}
               >
-                {nodeLabel(p.row.displayName, p.row.nodeId)}
+                {p.row.apiAddress ? (
+                  <MuiLink
+                    href={p.row.apiAddress}
+                    target="_blank"
+                    rel="noreferrer"
+                    underline="hover"
+                    color="inherit"
+                  >
+                    {nodeLabel(p.row.displayName, p.row.nodeId)}
+                  </MuiLink>
+                ) : (
+                  nodeLabel(p.row.displayName, p.row.nodeId)
+                )}
                 {p.row.displayName !== "" && (
                   <Typography
                     component="span"
@@ -291,6 +310,19 @@ const ClusterPage: React.FC = () => {
                   sx={{ flexShrink: 0 }}
                 />
               )}
+              {p.row.suffrage !== "voter" && (
+                <Chip
+                  label={
+                    p.row.suffrage === "nonvoter" ? "Nonvoter" : p.row.suffrage
+                  }
+                  size="small"
+                  color="warning"
+                  variant="outlined"
+                  sx={{ flexShrink: 0 }}
+                />
+              )}
+              {p.row.drainState !== "active" &&
+                drainStateChip(p.row.drainState, p.row.drainUpdatedAt)}
             </Stack>
           );
         },
@@ -305,46 +337,12 @@ const ClusterPage: React.FC = () => {
         ),
       },
       {
-        field: "apiAddress",
-        headerName: "API Address",
-        flex: 1,
-        minWidth: 190,
-        renderCell: (p: GridRenderCellParams<JoinedRow>) => (
-          <TruncatedText value={p.row.apiAddress} />
-        ),
-      },
-      {
         field: "originHost",
         headerName: "Origin-Host",
         flex: 1.2,
         minWidth: 220,
         renderCell: (p: GridRenderCellParams<JoinedRow>) => (
           <TruncatedText value={p.row.originHost ?? ""} />
-        ),
-      },
-      {
-        field: "suffrage",
-        headerName: "Suffrage",
-        width: 100,
-        renderCell: (p: GridRenderCellParams<JoinedRow>) => (
-          <CenteredCell>
-            <Chip
-              label={p.row.suffrage}
-              size="small"
-              color={p.row.suffrage === "voter" ? "primary" : "warning"}
-              variant={p.row.suffrage === "voter" ? "filled" : "outlined"}
-            />
-          </CenteredCell>
-        ),
-      },
-      {
-        field: "drainState",
-        headerName: "Drain",
-        width: 100,
-        renderCell: (p: GridRenderCellParams<JoinedRow>) => (
-          <CenteredCell>
-            {drainStateChip(p.row.drainState, p.row.drainUpdatedAt)}
-          </CenteredCell>
         ),
       },
       {

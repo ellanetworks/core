@@ -101,20 +101,22 @@ describe("Integrations SMS tab", () => {
     expect(b.getByText("+15550000001, +15550000002")).toBeInTheDocument();
     expect(b.getByText("[2001:db8::11]:3868")).toBeInTheDocument();
     expect(b.getByText("192.0.2.20:3869")).toBeInTheDocument();
-    expect(b.getByText("1 of 2 connected")).toBeInTheDocument();
+    expect(b.getByText("Connected")).toBeInTheDocument();
+    expect(b.getByText("Disconnected")).toBeInTheDocument();
   });
 
-  it("lists the state of each node of an SMSC on hover", async () => {
-    const user = userEvent.setup();
+  it("shows the state of each node on the line of its address", async () => {
     api.get(SMS_PATH, () => ready);
     api.get(SMSCS_PATH, () => ({ items: [backup] }));
     renderTab();
 
-    await user.hover((await row("backup")).getByText("1 of 2 connected"));
-
-    const tooltip = await screen.findByRole("tooltip");
-    expect(tooltip).toHaveTextContent("[2001:db8::11]:3868: Connected");
-    expect(tooltip).toHaveTextContent("192.0.2.20:3869: Disconnected");
+    const cells = (await row("backup")).getAllByRole("cell");
+    const lines = (cell: HTMLElement) =>
+      Array.from(cell.querySelectorAll(":scope > div > *")).map(
+        (line) => line.textContent,
+      );
+    expect(lines(cells[2])).toEqual(["[2001:db8::11]:3868", "192.0.2.20:3869"]);
+    expect(lines(cells[3])).toEqual(["Connected", "Disconnected"]);
   });
 
   it("shows why a node is disconnected", async () => {
@@ -265,21 +267,13 @@ describe("Integrations SMS tab Diameter realm", () => {
 });
 
 describe("Integrations SMS readiness", () => {
-  it("warns without a serving node number and without SMSCs", async () => {
+  it("shows no warning without a serving node number or SMSCs", async () => {
     api.get(SMS_PATH, () => ({ servingNodeNumber: "" }));
     api.get(SMSCS_PATH, () => ({ items: [] }));
     renderTab();
 
-    expect(
-      await screen.findByText(
-        /No serving node number is set: messages sent to your subscribers cannot be delivered/,
-      ),
-    ).toBeInTheDocument();
-    expect(
-      await screen.findByText(
-        /No SMSC is configured: subscribers cannot send or receive SMS/,
-      ),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("No SMSCs yet.")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("shows no warning when SMS is ready", async () => {

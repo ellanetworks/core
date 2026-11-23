@@ -3,10 +3,9 @@
 
 import React from "react";
 import {
-  Button,
+  Box,
   IconButton,
   Skeleton,
-  Stack,
   Table,
   TableBody,
   TableCell,
@@ -15,15 +14,11 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
-import {
-  ContentCopy as CopyIcon,
-  PersonAdd as AddPeerIcon,
-} from "@mui/icons-material";
-import type { DiameterPeer, DiameterStatus } from "@/queries/integrations";
-import DiameterPeerStatusChip from "@/components/DiameterPeerStatusChip";
+import { ContentCopy as CopyIcon } from "@mui/icons-material";
+import type { DiameterStatus } from "@/queries/integrations";
 import DomainName from "@/components/DomainName";
 import NotListening from "@/components/NotListening";
+import OneLine from "@/components/OneLine";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { formatEndpoint } from "@/utils/ip";
 import {
@@ -128,6 +123,68 @@ export const RealmRow: React.FC<{
   );
 };
 
+const LINE_SX = {
+  minHeight: 30,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "flex-end",
+  minWidth: 0,
+} as const;
+
+export interface Line {
+  key: string;
+  text: string;
+  note?: string;
+  copy?: string;
+}
+
+export const LinesRow: React.FC<{
+  label: string;
+  help: string;
+  lines: Line[];
+  copyAs: string;
+}> = ({ label, help, lines, copyAs }) => (
+  <TableRow>
+    <TableCell sx={SETTING_CELL_SX}>
+      <Tooltip title={help} arrow>
+        <span>{label}</span>
+      </Tooltip>
+    </TableCell>
+    <TableCell sx={VALUE_CELL_SX}>
+      <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)" }}>
+        {lines.map((line) => (
+          <Box
+            key={line.key}
+            sx={{ ...LINE_SX, justifyContent: "flex-start", gap: 1 }}
+          >
+            <OneLine text={line.text} />
+            {line.note && (
+              <Typography
+                variant="body2"
+                color="textSecondary"
+                noWrap
+                sx={{ flexShrink: 0 }}
+              >
+                {line.note}
+              </Typography>
+            )}
+          </Box>
+        ))}
+      </Box>
+    </TableCell>
+    <TableCell sx={ACTION_CELL_SX}>
+      {lines.map((line) => (
+        <Box key={line.key} sx={LINE_SX}>
+          {line.copy && <CopyButton value={line.copy} what={copyAs} />}
+        </Box>
+      ))}
+    </TableCell>
+  </TableRow>
+);
+
+const DIAMETER_ADDRESS_HELP =
+  "Where your IMS connects to Ella Core, over SCTP.";
+
 const ORIGIN_HOST_HELP =
   "Ella Core's Diameter identity. It uses this one identity on every Diameter interface, as HSS, PCRF, MME and SMSF.";
 
@@ -175,7 +232,7 @@ export const ThisCoreSection: React.FC<{
               help={realmHelp}
               showServedRealms={showServedRealms}
             />
-            {(loading || nodes.length === 0) && (
+            {loading || nodes.length === 0 ? (
               <IdentityRow
                 label="Origin-Host"
                 help={ORIGIN_HOST_HELP}
@@ -185,119 +242,52 @@ export const ThisCoreSection: React.FC<{
                   Assigned when this node joins the cluster.
                 </Typography>
               </IdentityRow>
-            )}
-            {nodes.map((node) => (
-              <IdentityRow
-                key={node.nodeId}
-                label={
-                  cluster
-                    ? `Origin-Host (${node.local ? "this node" : node.displayName || shortNodeId(node.nodeId)})`
-                    : "Origin-Host"
-                }
+            ) : (
+              <LinesRow
+                label="Origin-Host"
                 help={
                   cluster
                     ? `${ORIGIN_HOST_HELP} Each cluster node has its own: add every node as a peer.`
                     : ORIGIN_HOST_HELP
                 }
-                value={node.originHost}
+                lines={nodes.map((node) => ({
+                  key: node.nodeId,
+                  text: node.originHost,
+                  note: cluster
+                    ? node.local
+                      ? "this node"
+                      : node.displayName || shortNodeId(node.nodeId)
+                    : undefined,
+                  copy: node.originHost,
+                }))}
                 copyAs="Origin-Host"
               />
-            ))}
+            )}
             {showAddress &&
               (addresses.length === 0 ? (
                 <IdentityRow
                   label="Diameter Address"
-                  help="Where your IMS connects to Ella Core, over SCTP."
+                  help={DIAMETER_ADDRESS_HELP}
                   loading={loading}
                 >
                   <NotListening setting="interfaces.diameter" />
                 </IdentityRow>
               ) : (
-                addresses.map((address) => (
-                  <IdentityRow
-                    key={address}
-                    label="Diameter Address"
-                    help="Where your IMS connects to Ella Core, over SCTP."
-                    value={address}
-                    copyAs="Diameter address"
-                  >
-                    {address} (SCTP)
-                  </IdentityRow>
-                ))
+                <LinesRow
+                  label="Diameter Address"
+                  help={DIAMETER_ADDRESS_HELP}
+                  lines={addresses.map((address) => ({
+                    key: address,
+                    text: `${address} (SCTP)`,
+                    copy: address,
+                  }))}
+                  copyAs="Diameter address"
+                />
               ))}
             {after}
           </TableBody>
         </Table>
       </TableContainer>
     </>
-  );
-};
-
-export const UnknownPeersTable: React.FC<{
-  peers: DiameterPeer[];
-  canEdit: boolean;
-  onAdd: (peer: DiameterPeer) => void;
-}> = ({ peers, canEdit, onAdd }) => {
-  const theme = useTheme();
-
-  return (
-    <TableContainer sx={{ ...TABLE_CONTAINER_SX, mb: 3 }}>
-      <Table aria-label="Unknown peers">
-        <TableBody
-          sx={{
-            "& .MuiTableRow-root:first-of-type .MuiTableCell-root": {
-              fontWeight: 600,
-              backgroundColor: theme.palette.backgroundSubtle,
-            },
-          }}
-        >
-          <TableRow>
-            <TableCell>Origin-Host</TableCell>
-            <TableCell>Realm</TableCell>
-            <TableCell>Address</TableCell>
-            <TableCell>Status</TableCell>
-            <TableCell align="right">Actions</TableCell>
-          </TableRow>
-          {peers.map((peer) => (
-            <TableRow key={`${peer.id}-${peer.address}`}>
-              <TableCell>
-                {peer.originHost ? <DomainName name={peer.originHost} /> : "—"}
-              </TableCell>
-              <TableCell>
-                {peer.realm ? <DomainName name={peer.realm} /> : "—"}
-              </TableCell>
-              <TableCell sx={{ whiteSpace: "nowrap" }}>
-                {peer.address}
-              </TableCell>
-              <TableCell>
-                <DiameterPeerStatusChip
-                  status={{
-                    state: peer.state,
-                    originHost: peer.originHost,
-                    realm: peer.realm,
-                    since: peer.since,
-                    error: peer.error,
-                  }}
-                />
-              </TableCell>
-              <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
-                {canEdit && (
-                  <Stack direction="row" sx={{ justifyContent: "flex-end" }}>
-                    <Button
-                      size="small"
-                      startIcon={<AddPeerIcon />}
-                      onClick={() => onAdd(peer)}
-                      aria-label={`Add ${peer.originHost || peer.address} as allowed peer`}
-                    >
-                      Add as allowed peer
-                    </Button>
-                  </Stack>
-                )}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
   );
 };
