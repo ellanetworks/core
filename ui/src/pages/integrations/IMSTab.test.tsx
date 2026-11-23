@@ -772,8 +772,9 @@ describe("Integrations IMS tab Diameter identity", () => {
 
     const table = await screen.findByRole("table", { name: "This core" });
     const origin = within(
-      (await within(table).findByText("this node")).closest("tr")!,
+      (await within(table).findByText("core-2")).closest("tr")!,
     );
+    expect(origin.getByText("this node")).toBeInTheDocument();
     expect(origin.getByText("core-2")).toBeInTheDocument();
     expect(
       origin.getAllByRole("button", { name: "Copy Origin-Host" }),

@@ -456,25 +456,33 @@ export default function RoamingTab() {
               <>
                 <TableRow>
                   <TableCell sx={SETTING_CELL_SX}>Certificate</TableCell>
-                  <TableCell sx={{ ...VALUE_CELL_SX, wordBreak: "break-word" }}>
+                  <TableCell sx={VALUE_CELL_SX}>
                     {ownCertificate?.notAfter ? (
-                      <InlineValue>
-                        <span>
-                          {[
-                            ownCertificate.fqdn,
-                            sourceLabels[ownCertificate.source],
-                            `Expires ${formatDateTime(ownCertificate.notAfter)}`,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </span>
-                        {now > 0 && (
-                          <ExpiryChip
-                            notAfter={ownCertificate.notAfter}
-                            now={now}
-                          />
+                      <>
+                        {ownCertificate.fqdn && (
+                          <OneLine text={ownCertificate.fqdn} />
                         )}
-                      </InlineValue>
+                        <InlineValue>
+                          <Typography
+                            variant="body2"
+                            color="textSecondary"
+                            component="span"
+                          >
+                            {[
+                              sourceLabels[ownCertificate.source],
+                              `Expires ${formatDateTime(ownCertificate.notAfter)}`,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </Typography>
+                          {now > 0 && (
+                            <ExpiryChip
+                              notAfter={ownCertificate.notAfter}
+                              now={now}
+                            />
+                          )}
+                        </InlineValue>
+                      </>
                     ) : (
                       <Muted />
                     )}
