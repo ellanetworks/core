@@ -55,7 +55,7 @@ import RoamingDiameterPeerModal from "@/components/RoamingDiameterPeerModal";
 import ImportSEPPCertificateModal from "@/components/ImportSEPPCertificateModal";
 import N32StatusChip from "@/components/N32StatusChip";
 import DiameterPeerStatusChip from "@/components/DiameterPeerStatusChip";
-import DomainName from "@/components/DomainName";
+import OneLine from "@/components/OneLine";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import ConfirmDialog from "@/components/form/ConfirmDialog";
 import { useAuth } from "@/contexts/AuthContext";
@@ -456,25 +456,33 @@ export default function RoamingTab() {
               <>
                 <TableRow>
                   <TableCell sx={SETTING_CELL_SX}>Certificate</TableCell>
-                  <TableCell sx={{ ...VALUE_CELL_SX, wordBreak: "break-word" }}>
+                  <TableCell sx={VALUE_CELL_SX}>
                     {ownCertificate?.notAfter ? (
-                      <InlineValue>
-                        <span>
-                          {[
-                            ownCertificate.fqdn,
-                            sourceLabels[ownCertificate.source],
-                            `Expires ${formatDateTime(ownCertificate.notAfter)}`,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </span>
-                        {now > 0 && (
-                          <ExpiryChip
-                            notAfter={ownCertificate.notAfter}
-                            now={now}
-                          />
+                      <>
+                        {ownCertificate.fqdn && (
+                          <OneLine text={ownCertificate.fqdn} />
                         )}
-                      </InlineValue>
+                        <InlineValue>
+                          <Typography
+                            variant="body2"
+                            color="textSecondary"
+                            component="span"
+                          >
+                            {[
+                              sourceLabels[ownCertificate.source],
+                              `Expires ${formatDateTime(ownCertificate.notAfter)}`,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </Typography>
+                          {now > 0 && (
+                            <ExpiryChip
+                              notAfter={ownCertificate.notAfter}
+                              now={now}
+                            />
+                          )}
+                        </InlineValue>
+                      </>
                     ) : (
                       <Muted />
                     )}
@@ -605,8 +613,8 @@ export default function RoamingTab() {
                 : undefined;
               return (
                 <TableRow key={partner.id}>
-                  <TableCell sx={{ wordBreak: "break-word" }}>
-                    {partner.name}
+                  <TableCell>
+                    <OneLine text={partner.name} />
                   </TableCell>
                   <TableCell sx={{ wordBreak: "break-word" }}>
                     {partner.plmns.map(formatPLMN).join(", ")}
@@ -626,7 +634,7 @@ export default function RoamingTab() {
                     {partner.diameterPeerID ? (
                       peer ? (
                         peer.originHost ? (
-                          <DomainName name={peer.originHost} />
+                          <OneLine text={peer.originHost} />
                         ) : (
                           formatEndpoint(peer.address, peer.port)
                         )
@@ -730,15 +738,15 @@ export default function RoamingTab() {
                 <TableRow key={peer.id}>
                   <TableCell>
                     {peer.originHost ? (
-                      <DomainName name={peer.originHost} />
+                      <OneLine text={peer.originHost} />
                     ) : (
                       <Typography variant="body2" color="textSecondary">
                         Any
                       </Typography>
                     )}
                   </TableCell>
-                  <TableCell sx={{ wordBreak: "break-word" }}>
-                    {endpoint}
+                  <TableCell>
+                    <OneLine text={endpoint} />
                   </TableCell>
                   <TableCell sx={{ wordBreak: "break-word" }}>
                     {names.length ? names.join(", ") : <Muted />}

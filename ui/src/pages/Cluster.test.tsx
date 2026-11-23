@@ -375,6 +375,43 @@ describe("Cluster page Diameter identity", () => {
   });
 });
 
+describe("Cluster page nodes table", () => {
+  it("shows only the columns that fit and flags non-default states by the name", async () => {
+    seedStatus();
+    seedAutopilot();
+    api.get(MEMBERS, () => [
+      member({ nodeId: 1, isLeader: true, displayName: "core-1" }),
+      member({ nodeId: 2, drainState: "draining" }),
+      { ...member({ nodeId: 3 }), suffrage: "nonvoter" },
+    ]);
+
+    await renderCluster();
+
+    const grid = await screen.findByRole("grid");
+    await within(grid).findByText("core-1");
+    expect(
+      within(grid)
+        .getAllByRole("columnheader")
+        .map((h) => h.textContent),
+    ).toEqual([
+      "Node",
+      "Cluster Address",
+      "Origin-Host",
+      "Version",
+      "Healthy",
+      "Actions",
+    ]);
+    expect(within(grid).getByRole("link", { name: "core-1" })).toHaveAttribute(
+      "href",
+      "10.0.0.1:5002",
+    );
+    expect(within(grid).getByText("Draining")).toBeInTheDocument();
+    expect(within(grid).getByText("Nonvoter")).toBeInTheDocument();
+    expect(within(grid).queryByText("Active")).not.toBeInTheDocument();
+    expect(within(grid).queryByText("voter")).not.toBeInTheDocument();
+  });
+});
+
 describe("Cluster page row actions", () => {
   it("offers only the actions that apply to each node", async () => {
     seedStatus();

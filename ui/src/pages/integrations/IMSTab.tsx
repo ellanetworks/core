@@ -7,8 +7,8 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   IconButton,
-  Link as MuiLink,
   Skeleton,
   Stack,
   Table,
@@ -19,12 +19,12 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { useTheme, type Theme } from "@mui/material/styles";
-import { Link as RouterLink } from "react-router-dom";
+import { useTheme } from "@mui/material/styles";
 import {
   Add as AddIcon,
   Delete as DeleteIcon,
   Edit as EditIcon,
+  PersonAdd as AddPeerIcon,
 } from "@mui/icons-material";
 import {
   deleteIMSPeer,
@@ -33,7 +33,6 @@ import {
   primaryHomeDomain,
   type IMSPeer,
   type IMSSettings,
-  type IMSVoiceStatus,
 } from "@/queries/integrations";
 import {
   deleteIMSApplicationServer,
@@ -54,8 +53,9 @@ import EditRestrictPeersModal, {
   RESTRICT_PEERS_HELP,
 } from "@/components/EditRestrictPeersModal";
 import IMSPeerModal, { toCIDR } from "@/components/IMSPeerModal";
-import ConnectionsStatusChip from "@/components/ConnectionsStatusChip";
+import DiameterPeerStatusChip from "@/components/DiameterPeerStatusChip";
 import DomainName from "@/components/DomainName";
+import OneLine from "@/components/OneLine";
 import IMSApplicationServerModal from "@/components/IMSApplicationServerModal";
 import IMSServiceProfileModal from "@/components/IMSServiceProfileModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
@@ -69,81 +69,30 @@ import {
 } from "@/utils/layout";
 import { IMS_DATA_NETWORK } from "@/utils/voice";
 import { useIntegrationsContext } from "./types";
-import {
-  ThisCoreSection,
-  UnknownPeersTable,
-  useDiameterStatus,
-} from "./diameter";
-
-export const OPEN_PEER_POLICY_WARNING =
-  "Any system that can reach the Diameter port can query subscriber credentials. Turn on Restrict to Allowed Peers to block them.";
-
-export const EMPTY_ALLOWLIST_WARNING =
-  "No allowed peers: every IMS node is rejected.";
-
-const linkSx = { color: (theme: Theme) => theme.palette.link };
-
-const VoiceStatusAlert: React.FC<{
-  status: IMSVoiceStatus;
-  advertiseVoice: boolean;
-}> = ({ status, advertiseVoice }) => {
-  if (status === "enabled") {
-    return advertiseVoice ? null : (
-      <Alert severity="info" sx={{ mb: 2 }}>
-        IMS voice is ready, but phones are not told it is available: Advertise
-        IMS Voice is off.
-      </Alert>
-    );
-  }
-
-  if (!advertiseVoice) return null;
-
-  return (
-    <Alert severity="warning" sx={{ mb: 2 }}>
-      Phones are told IMS voice is available, but calls fail until this is
-      fixed:{" "}
-      {status === "no_pcscf" && (
-        <>
-          no P-CSCF address is set. Set the P-CSCF addresses below so handsets
-          can reach your IMS.
-        </>
-      )}
-      {status === "no_ims_data_network" && (
-        <>
-          there is no IMS data network named {IMS_DATA_NETWORK}. Create it, or
-          mark it as IMS, in{" "}
-          <MuiLink
-            component={RouterLink}
-            to="/networking/data-networks"
-            sx={linkSx}
-          >
-            Networking › Data Networks
-          </MuiLink>
-          .
-        </>
-      )}
-      {status === "ip_family_mismatch" && (
-        <>
-          no P-CSCF address matches the {IMS_DATA_NETWORK} data network&apos;s
-          IP family. Add a P-CSCF address of the same family as its IP pool, or
-          give the data network a pool of the P-CSCF&apos;s family.
-        </>
-      )}
-    </Alert>
-  );
-};
+import { ThisCoreSection, useDiameterStatus } from "./diameter";
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Unknown error occurred.";
 
-const PeerConnections: React.FC<{ peer: IMSPeer }> = ({ peer }) => (
-  <ConnectionsStatusChip
-    connections={peer.connections.map((status) => ({
-      label: status.originHost || "Unknown host",
-      status,
-    }))}
-  />
+const Muted: React.FC<{ text: string }> = ({ text }) => (
+  <Typography variant="body2" color="textSecondary">
+    {text}
+  </Typography>
 );
+
+const PeerConnections: React.FC<{ peer: IMSPeer }> = ({ peer }) =>
+  peer.connections.length === 0 ? (
+    <Chip label="Not connected" size="small" variant="outlined" />
+  ) : (
+    <Stack spacing={0.5} sx={{ alignItems: "flex-start" }}>
+      {peer.connections.map((status, i) => (
+        <DiameterPeerStatusChip
+          key={`${status.originHost ?? ""}-${i}`}
+          status={status}
+        />
+      ))}
+    </Stack>
+  );
 
 export default function IMSTab() {
   const { canEdit } = useIntegrationsContext();
@@ -315,12 +264,6 @@ export default function IMSTab() {
           Failed to load IMS settings.
         </Alert>
       )}
-      {ims && (
-        <VoiceStatusAlert
-          status={ims.voiceStatus}
-          advertiseVoice={ims.advertiseVoice}
-        />
-      )}
 
       <ThisCoreSection
         diameter={diameter}
@@ -363,7 +306,10 @@ export default function IMSTab() {
             </TableRow>
             <TableRow>
               <TableCell sx={SETTING_CELL_SX}>
-                <Tooltip title={HOME_DOMAIN_HELP} arrow>
+                <Tooltip
+                  title={`${HOME_DOMAIN_HELP} The default is derived from the Operator ID (MCC/MNC).`}
+                  arrow
+                >
                   <span>Home Domain</span>
                 </Tooltip>
               </TableCell>
@@ -374,23 +320,21 @@ export default function IMSTab() {
                   "N/A"
                 ) : ims.homeDomain ? (
                   <>
-                    <Typography variant="body2">{ims.homeDomain}</Typography>
+                    <Typography variant="body2">
+                      <DomainName name={ims.homeDomain} />
+                    </Typography>
                     {ims.derivedHomeDomain &&
                       ims.derivedHomeDomain !== ims.homeDomain && (
                         <Typography variant="body2" color="textSecondary">
-                          Also accepted: {ims.derivedHomeDomain}
+                          Also accepted:{" "}
+                          <DomainName name={ims.derivedHomeDomain} />
                         </Typography>
                       )}
                   </>
+                ) : ims.derivedHomeDomain ? (
+                  <DomainName name={ims.derivedHomeDomain} />
                 ) : (
-                  <>
-                    <Typography variant="body2">
-                      {ims.derivedHomeDomain || "N/A"}
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      Default
-                    </Typography>
-                  </>
+                  "N/A"
                 )}
               </TableCell>
               <TableCell sx={ACTION_CELL_SX}>
@@ -477,14 +421,15 @@ export default function IMSTab() {
       />
 
       <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
-        Allowed IMS Peers
+        IMS Peers
       </Typography>
       <Stack
         direction="row"
         sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}
       >
         <Typography variant="body2" color="textSecondary">
-          IMS nodes allowed to connect to Ella Core.
+          IMS nodes that connect to Ella Core. Add the unknown ones you trust as
+          allowed peers.
         </Typography>
         {canEdit && (
           <Button
@@ -500,24 +445,14 @@ export default function IMSTab() {
           </Button>
         )}
       </Stack>
-      {ims && !ims.restrictPeers && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          {OPEN_PEER_POLICY_WARNING}
-        </Alert>
-      )}
-      {ims?.restrictPeers && !peersLoading && peers.length === 0 && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          {EMPTY_ALLOWLIST_WARNING}
-        </Alert>
-      )}
       <TableContainer sx={{ ...TABLE_CONTAINER_SX, mb: 3 }}>
-        <Table sx={{ tableLayout: "fixed" }} aria-label="Allowed IMS peers">
+        <Table sx={{ tableLayout: "fixed" }} aria-label="IMS peers">
           <TableBody sx={headerRowSx}>
             <TableRow>
-              <TableCell sx={{ width: "15%" }}>Name</TableCell>
+              <TableCell sx={{ width: "12%" }}>Name</TableCell>
               <TableCell>Origin-Host</TableCell>
-              <TableCell sx={{ width: "20%" }}>Realm</TableCell>
-              <TableCell sx={{ width: "17%" }}>Source Addresses</TableCell>
+              <TableCell sx={{ width: "22%" }}>Realm</TableCell>
+              <TableCell sx={{ width: "15%" }}>Source Addresses</TableCell>
               <TableCell sx={{ width: 160 }}>Status</TableCell>
               <TableCell align="right" sx={{ width: 100 }}>
                 Actions
@@ -530,36 +465,32 @@ export default function IMSTab() {
                 </TableCell>
               </TableRow>
             )}
-            {!peersLoading && peers.length === 0 && (
+            {!peersLoading && peers.length + unknownPeers.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6}>
                   <Typography variant="body2" color="textSecondary">
-                    No allowed peers yet.
+                    No IMS peers yet.
                   </Typography>
                 </TableCell>
               </TableRow>
             )}
             {peers.map((peer) => (
-              <TableRow key={peer.name}>
-                <TableCell sx={{ wordBreak: "break-word" }}>
-                  {peer.name}
+              <TableRow key={peer.name} sx={{ verticalAlign: "top" }}>
+                <TableCell>
+                  <OneLine text={peer.name} />
                 </TableCell>
                 <TableCell>
                   {peer.originHost ? (
-                    <DomainName name={peer.originHost} />
+                    <OneLine text={peer.originHost} />
                   ) : (
-                    <Typography variant="body2" color="textSecondary">
-                      Any
-                    </Typography>
+                    <Muted text="Any" />
                   )}
                 </TableCell>
                 <TableCell>
                   {peer.realm ? (
-                    <DomainName name={peer.realm} />
+                    <OneLine text={peer.realm} />
                   ) : (
-                    <Typography variant="body2" color="textSecondary">
-                      Any
-                    </Typography>
+                    <Muted text="Any" />
                   )}
                 </TableCell>
                 <TableCell sx={{ wordBreak: "break-word" }}>
@@ -594,35 +525,65 @@ export default function IMSTab() {
                 </TableCell>
               </TableRow>
             ))}
+            {unknownPeers.map((peer) => (
+              <TableRow
+                key={`${peer.id}-${peer.address}`}
+                sx={{ verticalAlign: "top" }}
+              >
+                <TableCell>
+                  <Muted text="—" />
+                </TableCell>
+                <TableCell>
+                  {peer.originHost ? (
+                    <OneLine text={peer.originHost} />
+                  ) : (
+                    <Muted text="—" />
+                  )}
+                </TableCell>
+                <TableCell>
+                  {peer.realm ? (
+                    <OneLine text={peer.realm} />
+                  ) : (
+                    <Muted text="—" />
+                  )}
+                </TableCell>
+                <TableCell sx={{ wordBreak: "break-word" }}>
+                  {peer.address}
+                </TableCell>
+                <TableCell>
+                  <Tooltip
+                    title="Connected without matching any allowed peer."
+                    arrow
+                  >
+                    <Chip label="Unknown" size="small" variant="outlined" />
+                  </Tooltip>
+                </TableCell>
+                <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
+                  {canEdit && (
+                    <Tooltip title="Add as allowed peer" arrow>
+                      <IconButton
+                        size="small"
+                        onClick={() =>
+                          setPeerModal({
+                            initialValues: {
+                              name: peer.originHost?.split(".")[0] ?? "",
+                              originHost: peer.originHost ?? "",
+                              addresses: [toCIDR(peer.address)],
+                            },
+                          })
+                        }
+                        aria-label={`Add ${peer.originHost || peer.address} as allowed peer`}
+                      >
+                        <AddPeerIcon fontSize="small" color="primary" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </TableContainer>
-
-      {unknownPeers.length > 0 && (
-        <>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
-            Unknown Peers ({unknownPeers.length})
-          </Typography>
-          <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-            Diameter peers that connected without matching any allowed peer.
-            They are accepted only while the list above is empty: add the ones
-            you trust.
-          </Typography>
-          <UnknownPeersTable
-            peers={unknownPeers}
-            canEdit={canEdit}
-            onAdd={(peer) =>
-              setPeerModal({
-                initialValues: {
-                  name: peer.originHost?.split(".")[0] ?? "",
-                  originHost: peer.originHost ?? "",
-                  addresses: [toCIDR(peer.address)],
-                },
-              })
-            }
-          />
-        </>
-      )}
 
       <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
         Application Servers
@@ -653,8 +614,8 @@ export default function IMSTab() {
         <Table sx={{ tableLayout: "fixed" }}>
           <TableBody sx={headerRowSx}>
             <TableRow>
-              <TableCell sx={{ width: "20%" }}>Name</TableCell>
-              <TableCell sx={{ width: "30%" }}>Server Name</TableCell>
+              <TableCell sx={{ width: "15%" }}>Name</TableCell>
+              <TableCell sx={{ width: "40%" }}>Server Name</TableCell>
               <TableCell>Public Service Identities</TableCell>
               <TableCell align="right" sx={{ width: 100 }}>
                 Actions
@@ -678,16 +639,18 @@ export default function IMSTab() {
             )}
             {servers.map((as) => (
               <TableRow key={as.name}>
-                <TableCell sx={{ wordBreak: "break-word" }}>
-                  {as.name}
+                <TableCell>
+                  <OneLine text={as.name} />
                 </TableCell>
-                <TableCell sx={{ wordBreak: "break-word" }}>
-                  {as.serverName}
+                <TableCell>
+                  <OneLine text={as.serverName} />
                 </TableCell>
-                <TableCell sx={{ wordBreak: "break-word" }}>
-                  {as.publicServiceIdentities.length > 0
-                    ? as.publicServiceIdentities.join(", ")
-                    : "None"}
+                <TableCell sx={{ overflowWrap: "anywhere" }}>
+                  {as.publicServiceIdentities.length > 0 ? (
+                    <DomainName name={as.publicServiceIdentities.join(", ")} />
+                  ) : (
+                    "None"
+                  )}
                 </TableCell>
                 <TableCell align="right">
                   {canEdit && (
@@ -779,8 +742,8 @@ export default function IMSTab() {
             )}
             {serviceProfiles.map((sp) => (
               <TableRow key={sp.name}>
-                <TableCell sx={{ wordBreak: "break-word" }}>
-                  {sp.name}
+                <TableCell>
+                  <OneLine text={sp.name} />
                 </TableCell>
                 <TableCell sx={{ wordBreak: "break-word" }}>
                   {sp.initialFilterCriteria.length === 0
