@@ -208,7 +208,6 @@ This path returns the list of radio events.
                 "protocol": "NGAP",
                 "message_type": "PDU Session Establishment Accept",
                 "direction": "inbound",
-                "raw": "ABUAOQAABAAbAAkAAPEQMAASNFAAUkAMBIBnbmIwMDEyMzQ1AGYAEAAAAAABAADxEAAAEAgQIDAAFUABQA",
                 "details": "{\"pduSessionID\":1}"
             }
         ],
@@ -223,7 +222,9 @@ This path returns the list of radio events.
 
 ## Get Radio Event
 
-This path returns a specific radio event by its ID.
+This path returns a specific radio event by its ID, with its raw and decoded message.
+
+Requires the admin or network manager role.
 
 | Method | Path                         |
 | ------ | ---------------------------- |

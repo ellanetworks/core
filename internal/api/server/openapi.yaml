@@ -3825,7 +3825,7 @@ paths:
       operationId: getRadioEvent
       tags: [Radio Events]
       summary: Get a radio event
-      description: Returns a radio event with its raw and decoded message.
+      description: Returns a radio event with its raw and decoded message. Requires the Admin or Network Manager role.
       parameters:
         - name: id
           in: path
@@ -8100,10 +8100,6 @@ components:
         address:
           type: string
           description: Radio address.
-        raw:
-          type: string
-          format: byte
-          description: Raw message (base64).
         details:
           type: string
       required: [id, timestamp, protocol, message_type, direction, radio, radio_ref, address]

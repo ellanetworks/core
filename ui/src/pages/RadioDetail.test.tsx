@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 import { describe, it, expect } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router-dom";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { setupApiServer } from "@/test/apiServer";
@@ -43,14 +44,15 @@ const seedRadio = (name: string) => {
   );
 };
 
-const renderDetail = () =>
+const renderDetail = (role?: string) =>
   renderWithProviders(
     <Routes>
       <Route path="/radios/:ref" element={<RadioDetail />} />
+      <Route path="/radios/events" element={<p>Events page</p>} />
     </Routes>,
     {
       initialEntries: [`/radios/${encodeURIComponent(REF)}`],
-      auth: {},
+      auth: role ? { role } : {},
     },
   );
 
@@ -87,4 +89,26 @@ describe("Radio detail", () => {
       );
     },
   );
+
+  it("opens an event from its row", async () => {
+    const user = userEvent.setup();
+    seedRadio("MacroeNB");
+    renderDetail();
+
+    const grid = await screen.findByRole("grid");
+    await user.click(await within(grid).findByText("InitialUEMessage"));
+
+    expect(await screen.findByText("Events page")).toBeInTheDocument();
+  });
+
+  it("does not open an event for a read-only user", async () => {
+    const user = userEvent.setup();
+    seedRadio("MacroeNB");
+    renderDetail("Read Only");
+
+    const grid = await screen.findByRole("grid");
+    await user.click(await within(grid).findByText("InitialUEMessage"));
+
+    expect(screen.queryByText("Events page")).not.toBeInTheDocument();
+  });
 });
