@@ -430,7 +430,7 @@ describe("Integrations IMS home domain", () => {
     expect(
       await home.findByText("ims.mnc001.mcc001.3gppnetwork.org"),
     ).toBeInTheDocument();
-    expect(home.getByText("Default")).toBeInTheDocument();
+    expect(home.queryByText("Default")).not.toBeInTheDocument();
     expect(home.queryByText(/Also accepted/)).not.toBeInTheDocument();
   });
 
@@ -555,16 +555,12 @@ const icscf = {
 };
 
 describe("Integrations IMS Diameter peers", () => {
-  it("warns while any peer can connect", async () => {
+  it("does not warn while any peer can connect", async () => {
     api.get(IMS_PATH, () => imsSettings([], { restrictPeers: false }));
     renderTab();
 
-    expect(
-      await screen.findByText(
-        "Any system that can reach the Diameter port can query subscriber credentials. Turn on Restrict to Allowed Peers to block them.",
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByText("No allowed peers yet.")).toBeInTheDocument();
+    expect(await screen.findByText("No IMS peers yet.")).toBeInTheDocument();
+    expect(screen.queryByText(/Diameter port/)).not.toBeInTheDocument();
   });
 
   it("lists each peer with its connections", async () => {
@@ -579,9 +575,6 @@ describe("Integrations IMS Diameter peers", () => {
     expect(i.getByText("Any")).toBeInTheDocument();
     expect(i.getByText("10.6.0.0/24")).toBeInTheDocument();
     expect(i.getByText("Not connected")).toBeInTheDocument();
-    expect(
-      screen.queryByText(/Any system that can reach the Diameter port/),
-    ).not.toBeInTheDocument();
   });
 
   it("adds a peer by realm and source address", async () => {
@@ -685,9 +678,7 @@ describe("Integrations IMS Diameter peers", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("Delete Allowed Peer");
     await user.click(screen.getByRole("button", { name: "Confirm" }));
 
-    expect(
-      await screen.findByText("No allowed peers yet."),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("No IMS peers yet.")).toBeInTheDocument();
   });
 
   it("hides peer writes from a read-only user", async () => {
@@ -779,10 +770,15 @@ describe("Integrations IMS tab Diameter identity", () => {
     });
     renderTab();
 
+    const table = await screen.findByRole("table", { name: "This core" });
+    const origin = within(
+      (await within(table).findByText("core-2")).closest("tr")!,
+    );
+    expect(origin.getByText("this node")).toBeInTheDocument();
+    expect(origin.getByText("core-2")).toBeInTheDocument();
     expect(
-      await screen.findByText("Origin-Host (this node)"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Origin-Host (core-2)")).toBeInTheDocument();
+      origin.getAllByRole("button", { name: "Copy Origin-Host" }),
+    ).toHaveLength(2);
   });
 
   it("says when Diameter is not listening", async () => {
@@ -815,7 +811,9 @@ describe("Integrations IMS tab Diameter identity", () => {
     api.post(IMS_PEERS_PATH, () => ({}));
     renderTab();
 
-    expect(await screen.findByText("Unknown Peers (1)")).toBeInTheDocument();
+    const rogue = within((await screen.findByText("10.0.0.66")).closest("tr")!);
+    expect(rogue.getByText("Unknown")).toBeInTheDocument();
+    expect(rogue.getByText("—")).toBeInTheDocument();
     await user.click(
       screen.getByRole("button", {
         name: "Add rogue.other.example.org as allowed peer",
@@ -844,18 +842,41 @@ describe("Integrations IMS tab Diameter identity", () => {
     );
   });
 
-  it("hides unknown peers when there are none", async () => {
+  it("shows no unknown peer when there are none", async () => {
     renderTab();
 
-    await screen.findByRole("table", { name: "This core" });
-    expect(screen.queryByText(/Unknown Peers/)).not.toBeInTheDocument();
+    await screen.findByRole("table", { name: "IMS peers" });
+    expect(screen.queryByText("Unknown")).not.toBeInTheDocument();
+  });
+
+  it("shows the state of each connection of a peer on its own line", async () => {
+    api.get(IMS_PEERS_PATH, () => ({
+      items: [
+        {
+          ...scscf,
+          connections: [
+            scscf.connections[0],
+            {
+              ...scscf.connections[0],
+              originHost: "scscf-2.ims.example.org",
+              state: "down",
+            },
+          ],
+        },
+      ],
+    }));
+    renderTab();
+
+    const s = await row("scscf");
+    expect(s.getByText("Connected")).toBeInTheDocument();
+    expect(s.getByText("Disconnected")).toBeInTheDocument();
   });
 
   it("puts the status right before the actions", async () => {
     renderTab();
 
     const headers = within(
-      await screen.findByRole("table", { name: "Allowed IMS peers" }),
+      await screen.findByRole("table", { name: "IMS peers" }),
     )
       .getAllByRole("cell")
       .slice(0, 6)
@@ -1006,70 +1027,15 @@ describe("Integrations IMS This Core", () => {
 });
 
 describe("Integrations IMS voice readiness", () => {
-  beforeEach(() => {
-    api.get(IMS_PEERS_PATH, () => ({ items: [icscf] }));
-  });
-
-  it.each([
-    ["no_pcscf", /no P-CSCF address is set/],
-    ["no_ims_data_network", /there is no IMS data network named ims/],
-    ["ip_family_mismatch", /no P-CSCF address matches the ims data network/],
-  ])("warns that calls fail when %s", async (voiceStatus, cause) => {
-    api.get(IMS_PATH, () => imsSettings([], { voiceStatus }));
-    renderTab();
-
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent(
-      /Phones are told IMS voice is available, but calls fail/,
-    );
-    expect(alert).toHaveTextContent(cause);
-  });
-
-  it("links to the data networks when there is no IMS data network", async () => {
+  it("shows no alert when calls would fail", async () => {
     api.get(IMS_PATH, () =>
       imsSettings([], { voiceStatus: "no_ims_data_network" }),
     );
-    renderTab();
-
-    expect(
-      within(await screen.findByRole("alert")).getByRole("link", {
-        name: "Networking › Data Networks",
-      }),
-    ).toHaveAttribute("href", "/networking/data-networks");
-  });
-
-  it("says phones are not told when voice is ready but not advertised", async () => {
-    api.get(IMS_PATH, () =>
-      imsSettings(["10.6.0.5"], {
-        voiceStatus: "enabled",
-        advertiseVoice: false,
-      }),
-    );
-    renderTab();
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "IMS voice is ready, but phones are not told it is available: Advertise IMS Voice is off.",
-    );
-  });
-
-  it("shows no alert when voice is ready and advertised", async () => {
-    api.get(IMS_PATH, () =>
-      imsSettings(["10.6.0.5"], { voiceStatus: "enabled" }),
-    );
-    api.get(IMS_PEERS_PATH, () => ({ items: [icscf] }));
-    renderTab();
-
-    await (await row("P-CSCF Addresses")).findByText("10.6.0.5");
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-  });
-
-  it("does not warn about calls when voice is not advertised", async () => {
-    api.get(IMS_PATH, () => imsSettings([], { advertiseVoice: false }));
     api.get(IMS_PEERS_PATH, () => ({ items: [icscf] }));
     renderTab();
 
     expect(
-      await (await row("Advertise IMS Voice")).findByText("Off"),
+      await (await row("Advertise IMS Voice")).findByText("On"),
     ).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
@@ -1131,35 +1097,13 @@ describe("Integrations IMS peer restriction", () => {
     ).toBeInTheDocument();
   });
 
-  it("warns that every IMS node is rejected when no peer is allowed", async () => {
+  it("does not warn when restricted to no peer", async () => {
     renderTab();
 
+    expect(await screen.findByText("No IMS peers yet.")).toBeInTheDocument();
     expect(
-      await screen.findByText("No allowed peers: every IMS node is rejected."),
-    ).toBeInTheDocument();
-  });
-
-  it("does not warn when restricted to a listed peer", async () => {
-    api.get(IMS_PEERS_PATH, () => ({ items: [icscf] }));
-    renderTab();
-
-    await row("icscf");
-    expect(
-      screen.queryByText("No allowed peers: every IMS node is rejected."),
+      screen.queryByText(/every IMS node is rejected/),
     ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText(/Any system that can reach the Diameter port/),
-    ).not.toBeInTheDocument();
-  });
-
-  it("warns while unrestricted even with allowed peers", async () => {
-    api.get(IMS_PATH, () => imsSettings([], { restrictPeers: false }));
-    api.get(IMS_PEERS_PATH, () => ({ items: [icscf] }));
-    renderTab();
-
-    expect(
-      await screen.findByText(/Any system that can reach the Diameter port/),
-    ).toBeInTheDocument();
   });
 
   it("turns the restriction on and keeps the other settings", async () => {

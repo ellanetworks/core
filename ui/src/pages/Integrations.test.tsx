@@ -81,7 +81,7 @@ describe("Integrations routes", () => {
   it("opens IMS by default", async () => {
     renderAt("/integrations");
 
-    expect(await screen.findByText("Allowed IMS Peers")).toBeInTheDocument();
+    expect(await screen.findByText("IMS Peers")).toBeInTheDocument();
     expect(location()).toBe("/integrations/ims");
     expect(selectedTab()).toBe("IMS");
   });
@@ -89,14 +89,14 @@ describe("Integrations routes", () => {
   it("redirects the former overview to IMS", async () => {
     renderAt("/integrations/overview");
 
-    expect(await screen.findByText("Allowed IMS Peers")).toBeInTheDocument();
+    expect(await screen.findByText("IMS Peers")).toBeInTheDocument();
     expect(location()).toBe("/integrations/ims");
   });
 
   it("has no overview tab", async () => {
     renderAt("/integrations/ims");
 
-    await screen.findByText("Allowed IMS Peers");
+    await screen.findByText("IMS Peers");
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "IMS",
       "SMS",
@@ -105,7 +105,7 @@ describe("Integrations routes", () => {
   });
 
   it.each([
-    ["/integrations/ims", "IMS", "Allowed IMS Peers"],
+    ["/integrations/ims", "IMS", "IMS Peers"],
     ["/integrations/sms", "SMS", "Serving Node Number"],
     ["/integrations/roaming", "Roaming", "No roaming partners yet."],
   ])("renders %s", async (path, tab, content) => {
