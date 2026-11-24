@@ -111,20 +111,6 @@ After adding a migration:
 go test ./internal/db/ -run TestSchemaGolden -update
 ```
 
-### Update the Golden Command Log
-
-After adding a replicated operation, add it to `runGoldenWorkload` in `internal/db/golden_commands_internal_test.go`, then:
-
-```shell
-go test ./internal/db/ -run 'TestGoldenCommandLog|TestCommandPayloadsChangeOnlyWithASchema' -update
-```
-
-### Replay Recorded Operations Under Every Perturbation
-
-```shell
-ELLA_DB_REPLAY=full go test -count=1 ./internal/db/
-```
-
 ### View Test Coverage
 
 ```shell
