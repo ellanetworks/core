@@ -842,17 +842,6 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 	}
 
 	for v := current + 1; v <= target; v++ {
-		if blocked, violations, err := db.commandSchemaBlocked(ctx, v-1, target); err != nil {
-			return err
-		} else if blocked {
-			logger.From(ctx, logger.DBLog).Warn("Migration deferred: replicated rows break a foreign key",
-				zap.Int("target_version", v),
-				zap.Int("count", len(violations)),
-				zap.Strings("violations", violations[:min(len(violations), 10)]))
-
-			return nil
-		}
-
 		logger.From(ctx, logger.DBLog).Info("Proposing migration over Raft",
 			zap.Int("target_version", v))
 
@@ -882,19 +871,6 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 	return nil
 }
 
-func (db *Database) commandSchemaBlocked(ctx context.Context, current, target int) (bool, []string, error) {
-	if current != commandSchema-1 || target < commandSchema || !db.raftManager.ClusterEnabled() {
-		return false, nil, nil
-	}
-
-	violations, err := foreignKeyViolationsOf(ctx, db.reader())
-	if err != nil {
-		return false, nil, fmt.Errorf("check foreign keys before migration %d: %w", commandSchema, err)
-	}
-
-	return len(violations) > 0, violations, nil
-}
-
 // PendingMigrationStatus is a read-only snapshot of cluster
 // migration readiness; surfaced on /api/v1/status.
 const (
@@ -902,7 +878,6 @@ const (
 	LaggardReasonNoMemberRow              = "no_member_row"
 	LaggardReasonCapabilityUnknown        = "capability_unknown"
 	LaggardReasonConfigurationUnavailable = "configuration_unavailable"
-	LaggardReasonForeignKeyViolations     = "foreign_key_violations"
 )
 
 type PendingMigrationStatus struct {
@@ -945,14 +920,6 @@ func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationS
 	target := binaryMax
 	if floor < target {
 		target = floor
-	}
-
-	if blocked, _, err := db.commandSchemaBlocked(ctx, current, target); err != nil {
-		return PendingMigrationStatus{}, err
-	} else if blocked {
-		target = commandSchema - 1
-		laggard = ""
-		reason = LaggardReasonForeignKeyViolations
 	}
 
 	if target < current {

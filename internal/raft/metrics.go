@@ -9,9 +9,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var changesetBytesTotal = prometheus.NewCounter(prometheus.CounterOpts{
-	Name: "app_raft_changeset_bytes_total",
-	Help: "Total number of replicated write bytes, SQLite changesets or commands, applied through the Raft FSM.",
+var writeBytesTotal = prometheus.NewCounter(prometheus.CounterOpts{
+	Name: "app_raft_write_bytes_total",
+	Help: "Total number of replicated write bytes applied through the Raft FSM.",
 })
 
 // RegisterMetrics wires a hashicorp/go-metrics Prometheus sink as the global
@@ -32,10 +32,10 @@ func RegisterMetrics() {
 		_, _ = gometrics.NewGlobal(conf, sink)
 	}
 
-	prometheus.MustRegister(changesetBytesTotal)
+	prometheus.MustRegister(writeBytesTotal)
 }
 
-// ObserveChangesetBytes records the size of an applied changeset or command batch.
-func ObserveChangesetBytes(sizeBytes int) {
-	changesetBytesTotal.Add(float64(sizeBytes))
+// ObserveWriteBytes records the size of an applied replicated write.
+func ObserveWriteBytes(sizeBytes int) {
+	writeBytesTotal.Add(float64(sizeBytes))
 }

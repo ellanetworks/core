@@ -69,18 +69,3 @@ func TestMigrationV31KeepsGoingWhenRowsBreakAForeignKey(t *testing.T) {
 		t.Fatalf("commit: %v", err)
 	}
 }
-
-func TestStandaloneNodesDoNotHoldTheCommandSchemaForForeignKeys(t *testing.T) {
-	database := newStandaloneDB(t)
-
-	seedOrphanSubscriber(t, database)
-
-	blocked, _, err := database.commandSchemaBlocked(t.Context(), commandSchema-1, commandSchema)
-	if err != nil {
-		t.Fatalf("commandSchemaBlocked: %v", err)
-	}
-
-	if blocked {
-		t.Fatal("a standalone node has no other node to diverge from and must not hold the command schema")
-	}
-}

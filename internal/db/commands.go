@@ -8,7 +8,6 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -59,11 +58,9 @@ func encodeCommandBatch(b commandBatch) ([]byte, error) {
 		return nil, fmt.Errorf("encode command batch: %w", err)
 	}
 
-	data := make([]byte, 2+len(body))
-	binary.BigEndian.PutUint16(data[:2], uint16(ellaraft.CmdBatch))
-	copy(data[2:], body)
+	cmd := ellaraft.Command{Type: ellaraft.CmdBatch, Payload: body}
 
-	return data, nil
+	return cmd.MarshalBinary()
 }
 
 type commandResult struct {

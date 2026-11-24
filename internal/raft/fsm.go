@@ -207,7 +207,7 @@ func (f *FSM) ApplyBatch(logs []*raft.Log) []interface{} {
 	for i, l := range logs {
 		if l.Type == raft.LogCommand && len(l.Data) >= 2 && CommandType(binary.BigEndian.Uint16(l.Data[:2])) == CmdBatch {
 			if l.Index > lastApplied {
-				ObserveChangesetBytes(len(l.Data) - 2)
+				ObserveWriteBytes(len(l.Data) - 2)
 			}
 
 			pending = append(pending, Entry{Index: l.Index, Term: l.Term, Data: l.Data[2:]})
@@ -258,7 +258,7 @@ func (f *FSM) ApplyBatch(logs []*raft.Log) []interface{} {
 
 		result, applyErr := f.applier.ApplyCommand(ctx, cmd, l.Index, l.Term)
 		if cmd.Type == CmdChangeset || cmd.Type == CmdChangesetBatch {
-			ObserveChangesetBytes(len(cmd.Payload))
+			ObserveWriteBytes(len(cmd.Payload))
 		}
 
 		if applyErr != nil {
