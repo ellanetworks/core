@@ -190,7 +190,7 @@ func (db *Database) WithheldLeaseOwners(ctx context.Context, nodeID string) (_ m
 		JOIN %s p ON p.profileID = s.profileID
 		JOIN %s sdn ON sdn.sliceID = p.sliceID AND sdn.dataNetworkID = p.dataNetworkID
 		JOIN %s d ON d.id = p.dataNetworkID
-		WHERE EXISTS (SELECT 1 FROM %s l WHERE l.imsi = s.imsi AND l.poolID = p.dataNetworkID AND l.nodeID = ?)
+		WHERE (s.imsi, p.dataNetworkID) IN (SELECT imsi, poolID FROM %s WHERE nodeID = ?)
 		GROUP BY s.imsi, p.dataNetworkID`,
 		owners, PoliciesTableName, SliceDataNetworksTableName, DataNetworksTableName, IPLeasesTableName) // #nosec: G201 -- table names are constants
 
