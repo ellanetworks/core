@@ -625,12 +625,16 @@ func (db *Database) nextLeaderTime(last int64) int64 {
 	return next
 }
 
+func (db *Database) appliedPreviousTerms() bool {
+	return db.raftManager == nil || db.writeBarrier() == nil
+}
+
 func (db *Database) proposeCommand(ctx context.Context, op string, payload json.RawMessage) (_ *ellaraft.ProposeResult, err error) {
 	ctx, span := db.startProposeSpan(ctx, op)
 
 	defer func() { endSpan(span, err) }()
 
-	if h, ok := changesetOps[op]; ok && h.unchanged != nil {
+	if h, ok := changesetOps[op]; ok && h.unchanged != nil && db.appliedPreviousTerms() {
 		if value, skip, err := h.unchanged(db, ctx, payload); err == nil && skip {
 			return &ellaraft.ProposeResult{Value: value}, nil
 		}

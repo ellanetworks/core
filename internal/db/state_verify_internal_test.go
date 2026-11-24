@@ -241,6 +241,25 @@ func TestJudgeStateHashesUsesTheVoterMajority(t *testing.T) {
 	}
 }
 
+func TestJudgeStateHashesNeedsAMajorityOfAllVoters(t *testing.T) {
+	database := newInitializedCommandTestDB(t)
+	ctx := context.Background()
+	voters := map[string]bool{"1": true, "2": true, "3": true, "4": true, "5": true}
+
+	if database.judgeStateHashes(ctx, 10, "1", map[string]string{"1": "a", "2": "b", "3": "b"}, voters) {
+		t.Fatal("two of five voters must not outvote the leader")
+	}
+
+	want := map[string]bool{"1": false, "2": false, "3": false}
+	if got := flagged(database, "1", "2", "3"); !maps.Equal(got, want) {
+		t.Fatalf("flagged = %v, want %v", got, want)
+	}
+
+	if !database.judgeStateHashes(ctx, 11, "1", map[string]string{"1": "a", "2": "b", "3": "b", "4": "b"}, voters) {
+		t.Fatal("three of five voters must outvote the leader")
+	}
+}
+
 func TestJudgeStateHashesFlagsNoNodeWithoutAMajority(t *testing.T) {
 	database := newInitializedCommandTestDB(t)
 	ctx := context.Background()

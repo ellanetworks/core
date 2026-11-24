@@ -552,19 +552,25 @@ func (db *Database) judgeStateHashes(ctx context.Context, index uint64, selfID s
 	log := logger.From(ctx, logger.DBLog)
 
 	counts := make(map[string]int)
-	voterReports := 0
 
 	for nodeID, sum := range reports {
 		if voters[nodeID] {
 			counts[sum]++
-			voterReports++
+		}
+	}
+
+	totalVoters := 0
+
+	for _, voter := range voters {
+		if voter {
+			totalVoters++
 		}
 	}
 
 	reference := ""
 
 	for sum, n := range counts {
-		if n*2 > voterReports {
+		if n > totalVoters/2 {
 			reference = sum
 		}
 	}
