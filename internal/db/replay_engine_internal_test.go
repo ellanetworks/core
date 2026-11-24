@@ -23,12 +23,13 @@ import (
 const replayModeEnv = "ELLA_DB_REPLAY"
 
 var replayExclusions = map[string]string{
-	"TestApplyEntriesHaltsOnAnUnclassifiedError":            "applies an operation registered only for the test",
-	"TestApplyEntriesHaltsOnOperationAboveTheAppliedSchema": "applies an operation registered only for the test",
+	"TestApplyEntriesReturnsAnUnclassifiedErrorAsTheResult": "applies an operation registered only for the test",
+	"TestApplyEntriesHaltsOnAStorageError":                  "applies an operation registered only for the test",
+	"TestApplyEntriesRejectsOperationAboveTheAppliedSchema": "applies an operation registered only for the test",
 	"TestApplyEntriesHaltsOnUnknownOperation":               "applies an unregistered operation",
 	"TestApplyEntriesIsolatesAFailingCommand":               "applies an operation registered only for the test",
 	"TestApplyEntriesKeepsLeaderTimeMonotonic":              "applies an operation registered only for the test",
-	"TestApplyEntriesRecoversFromAPanickingCommand":         "applies an operation registered only for the test",
+	"TestApplyEntriesHaltsOnAPanickingCommand":              "applies an operation registered only for the test",
 	"TestApplyEntriesRunsForeignKeyCascades":                "applies an operation registered only for the test",
 	"TestChangesetPathAcceptsPayloadsWithoutIDs":            "writes through the changeset path below the command schema",
 	"TestChangesetPathKeepsTheOldSQNPayloadShape":           "writes through the changeset path below the command schema",

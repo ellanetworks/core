@@ -9,16 +9,20 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
 
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	hraft "github.com/hashicorp/raft"
+	"github.com/mattn/go-sqlite3"
 )
 
-func useChangesetPath(database *Database) {
-	database.appliedSchemaCache.Store(commandSchema - 1)
+func useChangesetPath(t *testing.T, database *Database) {
+	t.Helper()
+
+	atChangesetSchema(t, database)
 }
 
 func newCommandTestDB(t *testing.T) *Database {
@@ -41,7 +45,7 @@ func registerTestCommand(t *testing.T, name string, minSchema int, apply func(db
 		t.Fatalf("test command %s is already registered", name)
 	}
 
-	changesetOps[name] = changesetOpHandler{minSchema: minSchema, applyJSON: decodeAndApply(name, apply)}
+	changesetOps[name] = changesetOpHandler{minSchema: minSchema, payload: reflect.TypeFor[json.RawMessage](), checkJSON: checkPayload[json.RawMessage], applyJSON: decodeAndApply(apply)}
 
 	t.Cleanup(func() { delete(changesetOps, name) })
 }
@@ -203,43 +207,88 @@ func TestApplyEntriesHaltsOnRetiredOperation(t *testing.T) {
 	requireFatal(t, err)
 }
 
-func TestApplyEntriesHaltsOnOperationAboveTheAppliedSchema(t *testing.T) {
+func requireMigrationPending(t *testing.T, out []any, err error) {
+	t.Helper()
+
+	if err != nil {
+		t.Fatalf("ApplyEntries: %v", err)
+	}
+
+	if got := resultsOf(t, out, 0)[0].err; !errors.Is(got, ErrMigrationPending) {
+		t.Fatalf("result = %v, want ErrMigrationPending", got)
+	}
+}
+
+func TestApplyEntriesRejectsOperationAboveTheAppliedSchema(t *testing.T) {
 	database := newCommandTestDB(t)
 
 	registerTestCommand(t, "TestFutureOperation", SchemaVersion()+1, func(*Database, context.Context, *json.RawMessage) (any, error) {
 		return nil, nil
 	})
 
-	_, err := database.ApplyEntries(t.Context(), []ellaraft.Entry{entry(t, nextIndex(t, database), 1,
+	out, err := database.ApplyEntries(t.Context(), []ellaraft.Entry{entry(t, nextIndex(t, database), 1,
 		wireCommand{Op: "TestFutureOperation", Payload: json.RawMessage(`null`)},
 	)})
-	requireFatal(t, err)
+	requireMigrationPending(t, out, err)
 }
 
 func TestApplyEntriesRequiresTheCommandSchema(t *testing.T) {
 	database := newDatabaseAtVersion(t, commandSchema-1)
 
-	_, err := database.ApplyEntries(t.Context(), []ellaraft.Entry{entry(t, 1, 1,
+	out, err := database.ApplyEntries(t.Context(), []ellaraft.Entry{entry(t, 1, 1,
 		command(t, "SetRetentionPolicy", &RetentionPolicy{Category: CategoryAuditLogs, Days: 3}),
 	)})
-	requireFatal(t, err)
+	requireMigrationPending(t, out, err)
 }
 
-func TestApplyEntriesHaltsOnAnUnclassifiedError(t *testing.T) {
+func TestApplyEntriesReturnsAnUnclassifiedErrorAsTheResult(t *testing.T) {
 	database := newCommandTestDB(t)
-	before := fsmState(t, database)
+	index := nextIndex(t, database)
 
 	registerTestCommand(t, "TestWriteThenFail", 1, func(db *Database, ctx context.Context, p *json.RawMessage) (any, error) {
 		if _, err := db.applyCreateProfile(ctx, newTestProfile(t, "partial")); err != nil {
 			return nil, err
 		}
 
-		return nil, errors.New("disk on fire")
+		return nil, errors.New("not allowed")
+	})
+
+	out, err := database.ApplyEntries(t.Context(), []ellaraft.Entry{
+		entry(t, index, 10, command(t, "CreateProfile", newTestProfile(t, "earlier-entry"))),
+		entry(t, index+1, 20, wireCommand{Op: "TestWriteThenFail", Payload: json.RawMessage(`null`)}),
+	})
+	if err != nil {
+		t.Fatalf("ApplyEntries: %v", err)
+	}
+
+	if got := resultsOf(t, out, 1)[0].err; got == nil || got.Error() != "not allowed" {
+		t.Fatalf("result = %v, want the apply function's error", got)
+	}
+
+	if !profileExists(t, database, "earlier-entry") || profileExists(t, database, "partial") {
+		t.Fatal("the failing command must roll back alone")
+	}
+
+	if got := fsmState(t, database).lastApplied; got != index+1 {
+		t.Fatalf("lastApplied = %d, want %d", got, index+1)
+	}
+}
+
+func TestApplyEntriesHaltsOnAStorageError(t *testing.T) {
+	database := newCommandTestDB(t)
+	before := fsmState(t, database)
+
+	registerTestCommand(t, "TestStorageFailure", 1, func(db *Database, ctx context.Context, p *json.RawMessage) (any, error) {
+		if _, err := db.applyCreateProfile(ctx, newTestProfile(t, "partial")); err != nil {
+			return nil, err
+		}
+
+		return nil, fmt.Errorf("write: %w", sqlite3.Error{Code: sqlite3.ErrIoErr})
 	})
 
 	_, err := database.ApplyEntries(t.Context(), []ellaraft.Entry{
 		entry(t, before.lastApplied+1, 10, command(t, "CreateProfile", newTestProfile(t, "earlier-entry"))),
-		entry(t, before.lastApplied+2, 20, wireCommand{Op: "TestWriteThenFail", Payload: json.RawMessage(`null`)}),
+		entry(t, before.lastApplied+2, 20, wireCommand{Op: "TestStorageFailure", Payload: json.RawMessage(`null`)}),
 	})
 	requireFatal(t, err)
 
@@ -254,18 +303,19 @@ func TestApplyEntriesHaltsOnAnUnclassifiedError(t *testing.T) {
 	}
 }
 
-func TestApplyEntriesRejectsAnUndecodablePayload(t *testing.T) {
-	database := newCommandTestDB(t)
+func TestApplyEntriesHaltsOnAnUndecodablePayload(t *testing.T) {
+	for name, payload := range map[string]string{
+		"wrong type":    `"not a profile"`,
+		"unknown field": `{"id":"p","name":"p","fieldFromANewerRelease":1}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			database := newCommandTestDB(t)
 
-	out, err := database.ApplyEntries(t.Context(), []ellaraft.Entry{entry(t, nextIndex(t, database), 1,
-		wireCommand{Op: "CreateProfile", Payload: json.RawMessage(`"not a profile"`)},
-	)})
-	if err != nil {
-		t.Fatalf("ApplyEntries: %v", err)
-	}
-
-	if got := resultsOf(t, out, 0)[0].err; !errors.Is(got, ErrInvalidCommand) {
-		t.Fatalf("result = %v, want ErrInvalidCommand", got)
+			_, err := database.ApplyEntries(t.Context(), []ellaraft.Entry{entry(t, nextIndex(t, database), 1,
+				wireCommand{Op: "CreateProfile", Payload: json.RawMessage(payload)},
+			)})
+			requireFatal(t, err)
+		})
 	}
 }
 
@@ -328,8 +378,8 @@ func TestApplyEntriesKeepsLeaderTimeMonotonic(t *testing.T) {
 	}
 
 	want := []applyInfo{
-		{index: index, term: 1, leaderTime: base + 100},
-		{index: index + 1, term: 1, leaderTime: base + 100},
+		{index: index, term: 1, leaderTime: base + 100, schema: SchemaVersion()},
+		{index: index + 1, term: 1, leaderTime: base + 100, schema: SchemaVersion()},
 	}
 
 	if len(seen) != len(want) || seen[0] != want[0] || seen[1] != want[1] {
@@ -426,7 +476,7 @@ func TestRaftWritesUseChangesetsBelowTheCommandSchema(t *testing.T) {
 	database := newStandaloneDB(t)
 	ctx := t.Context()
 
-	useChangesetPath(database)
+	useChangesetPath(t, database)
 
 	before := fsmState(t, database)
 
@@ -439,7 +489,7 @@ func TestRaftWritesUseChangesetsBelowTheCommandSchema(t *testing.T) {
 		t.Fatalf("fsm_state %+v -> %+v: a changeset write must advance lastApplied without a leader time", before, after)
 	}
 
-	database.appliedSchemaCache.Store(0)
+	setSchemaVersion(t, database, SchemaVersion())
 
 	if err := database.SetRetentionPolicy(ctx, &RetentionPolicy{Category: CategoryAuditLogs, Days: 6}); err != nil {
 		t.Fatalf("SetRetentionPolicy: %v", err)
@@ -539,12 +589,41 @@ func TestCommandBatcherRejectsWritesWhenTheQueueIsFull(t *testing.T) {
 
 func TestCommandBatcherFailsQueuedWritesOnClose(t *testing.T) {
 	database := newStandaloneDB(t)
-	b := database.commandBatcher()
+
+	b, err := database.commandBatcher()
+	if err != nil {
+		t.Fatalf("commandBatcher: %v", err)
+	}
 
 	b.close()
 
 	if _, _, err := b.propose(wireCommand{Op: "CreateProfile"}); !errors.Is(err, ErrProposeTimeout) {
 		t.Fatalf("a closed batcher must return a retryable error, got %v", err)
+	}
+}
+
+func TestPausedCommandsReturnARetryableError(t *testing.T) {
+	database := newStandaloneDB(t)
+
+	b, err := database.commandBatcher()
+	if err != nil {
+		t.Fatalf("commandBatcher: %v", err)
+	}
+
+	resume := database.pauseCommands()
+
+	if _, _, err := b.propose(wireCommand{Op: "CreateProfile"}); !errors.Is(err, ErrProposeTimeout) {
+		t.Fatalf("the batcher in use when commands paused must return a retryable error, got %v", err)
+	}
+
+	if _, err := database.commandBatcher(); !errors.Is(err, ErrProposeTimeout) {
+		t.Fatalf("commandBatcher while paused: err = %v, want a retryable error", err)
+	}
+
+	resume()
+
+	if _, err := database.commandBatcher(); err != nil {
+		t.Fatalf("commandBatcher after resuming: %v", err)
 	}
 }
 

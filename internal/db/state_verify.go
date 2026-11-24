@@ -72,9 +72,13 @@ func (db *Database) captureStateHash(index uint64) {
 	ctx, cancel := context.WithTimeout(context.Background(), stateHashReaderTimeout)
 	defer cancel()
 
-	conn, err := db.reader().Conn(ctx)
+	if db.hashConnection == nil {
+		return
+	}
+
+	conn, err := db.hashConnection.Conn(ctx)
 	if err != nil {
-		logger.DBLog.Warn("State hash skipped: no reader connection", zap.Uint64("index", index), zap.Error(err))
+		logger.DBLog.Warn("State hash skipped: no hash connection", zap.Uint64("index", index), zap.Error(err))
 		return
 	}
 
@@ -130,18 +134,106 @@ const (
 	hashTagReal
 	hashTagText
 	hashTagBlob
+	hashTagStructure
 )
+
+func hashReplicatedRows(ctx context.Context, q rowQuerier) (string, error) {
+	h := sha256.New()
+
+	if err := writeReplicatedRows(ctx, q, h); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func writeReplicatedRows(ctx context.Context, q rowQuerier, h hash.Hash) error {
+	for _, table := range slices.Sorted(slices.Values(replicatedChangesetTables)) {
+		if err := hashTable(ctx, q, h, table); err != nil {
+			return fmt.Errorf("hash %s: %w", table, err)
+		}
+	}
+
+	return nil
+}
 
 func hashReplicatedState(ctx context.Context, q rowQuerier) (string, error) {
 	h := sha256.New()
 
+	if err := writeReplicatedRows(ctx, q, h); err != nil {
+		return "", err
+	}
+
 	for _, table := range slices.Sorted(slices.Values(replicatedChangesetTables)) {
-		if err := hashTable(ctx, q, h, table); err != nil {
-			return "", fmt.Errorf("hash %s: %w", table, err)
+		if err := hashTableStructure(ctx, q, h, table); err != nil {
+			return "", fmt.Errorf("hash the structure of %s: %w", table, err)
 		}
 	}
 
+	if err := hashQuery(ctx, q, h, "SELECT leaderTime FROM fsm_state WHERE id = 1"); err != nil {
+		return "", fmt.Errorf("hash fsm_state: %w", err)
+	}
+
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func hashTableStructure(ctx context.Context, q rowQuerier, h hash.Hash, table string) error {
+	h.Write([]byte{hashTagStructure})
+	writeHashBytes(h, []byte(table))
+
+	queries := []struct {
+		query string
+		args  []any
+	}{
+		{"SELECT cid, name, type, \"notnull\", dflt_value, pk, hidden FROM pragma_table_xinfo(?) ORDER BY cid", []any{table}},
+		{"SELECT id, seq, \"table\", \"from\", \"to\", on_update, on_delete, \"match\" FROM pragma_foreign_key_list(?) ORDER BY id, seq", []any{table}},
+		{"SELECT il.name, il.\"unique\", il.origin, il.partial, ii.seqno, ii.cid, ii.name, ii.\"desc\", ii.coll, ii.key FROM pragma_index_list(?) AS il, pragma_index_xinfo(il.name) AS ii ORDER BY il.name, ii.seqno", []any{table}},
+	}
+
+	for _, s := range queries {
+		if err := hashQuery(ctx, q, h, s.query, s.args...); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func hashQuery(ctx context.Context, q rowQuerier, h hash.Hash, query string, args ...any) error {
+	rows, err := q.QueryContext(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+
+	defer func() { _ = rows.Close() }()
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return err
+	}
+
+	values := make([]any, len(columns))
+	targets := make([]any, len(columns))
+
+	for i := range values {
+		targets[i] = &values[i]
+	}
+
+	for rows.Next() {
+		if err := rows.Scan(targets...); err != nil {
+			return err
+		}
+
+		h.Write([]byte{hashTagRow})
+
+		for _, v := range values {
+			if err := writeHashValue(h, v); err != nil {
+				return err
+			}
+		}
+	}
+
+	return rows.Err()
 }
 
 func hashTable(ctx context.Context, q rowQuerier, h hash.Hash, table string) error {
@@ -477,18 +569,13 @@ func (db *Database) judgeStateHashes(ctx context.Context, index uint64, selfID s
 		}
 	}
 
-	hasMajority := reference != ""
-
-	if !hasMajority {
-		reference = reports[selfID]
-		if reference == "" {
-			return false
-		}
-
+	if reference == "" {
 		if len(counts) > 1 {
-			log.Error("Replicated state differs between voters and no hash has a majority; flagging nodes that differ from the leader",
+			log.Error("Replicated state differs between voters and no hash has a majority",
 				zap.Uint64("index", index), zap.Any("hashes", reports))
 		}
+
+		return false
 	}
 
 	selfDiverged := false
@@ -508,8 +595,7 @@ func (db *Database) judgeStateHashes(ctx context.Context, index uint64, selfID s
 			zap.String("node_id", nodeID),
 			zap.Uint64("index", index),
 			zap.String("hash", sum),
-			zap.String("reference_hash", reference),
-			zap.Bool("majority", hasMajority))
+			zap.String("reference_hash", reference))
 
 		if nodeID == selfID {
 			selfDiverged = true

@@ -535,7 +535,7 @@ func replayGoldenLog(t *testing.T, entries []goldenEntry) (string, map[string]in
 			fmt.Fprintf(&out, "  -> %s\n", line)
 		}
 
-		hash, err := hashReplicatedState(ctx, database.writer())
+		hash, err := hashReplicatedRows(ctx, database.writer())
 		if err != nil {
 			t.Fatalf("hash after golden entry %d: %v", e.Index, err)
 		}
@@ -648,6 +648,14 @@ func commandOperations() []string {
 
 func TestGoldenCommandLog(t *testing.T) {
 	if *updateSchemaGolden {
+		if _, err := os.Stat(goldenLogPath); err == nil {
+			compareGoldenState(t)
+
+			if t.Failed() {
+				return
+			}
+		}
+
 		database := newDatabaseAtVersion(t, commandSchema)
 		runGoldenWorkload(t, database)
 
@@ -659,6 +667,12 @@ func TestGoldenCommandLog(t *testing.T) {
 			t.Fatalf("write golden state: %v", err)
 		}
 	}
+
+	compareGoldenState(t)
+}
+
+func compareGoldenState(t *testing.T) {
+	t.Helper()
 
 	entries := readGoldenLog(t)
 	got, _ := replayGoldenLog(t, entries)
@@ -804,7 +818,7 @@ func TestGoldenCommandLogReplaysUnderPerturbations(t *testing.T) {
 
 				last := group[size-1].Index
 
-				got, err := hashReplicatedState(ctx, database.writer())
+				got, err := hashReplicatedRows(ctx, database.writer())
 				if err != nil {
 					t.Fatalf("hash: %v", err)
 				}

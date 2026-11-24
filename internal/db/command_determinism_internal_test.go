@@ -455,7 +455,7 @@ func TestCommandsRequireCallerGeneratedIDs(t *testing.T) {
 func TestChangesetPathAcceptsPayloadsWithoutIDs(t *testing.T) {
 	database := newInitializedCommandTestDB(t)
 	createTestSubscriber(t, database, determinismIMSI)
-	useChangesetPath(database)
+	useChangesetPath(t, database)
 
 	dn, err := database.GetDataNetwork(t.Context(), InitialDataNetworkName)
 	if err != nil {
@@ -747,7 +747,7 @@ func TestChangesetPathKeepsTheOldSQNPayloadShape(t *testing.T) {
 
 	database := newInitializedCommandTestDB(t)
 	createTestSubscriber(t, database, determinismIMSI)
-	useChangesetPath(database)
+	useChangesetPath(t, database)
 
 	rand := make([]byte, 16)
 	auts := generateAUTS(t, rand, sqnMS)
@@ -786,7 +786,7 @@ func TestDeleteClusterMemberRejectsAMalformedNodeIDBeforeProposing(t *testing.T)
 	}
 }
 
-func TestApplyEntriesRecoversFromAPanickingCommand(t *testing.T) {
+func TestApplyEntriesHaltsOnAPanickingCommand(t *testing.T) {
 	database := newCommandTestDB(t)
 
 	registerTestCommand(t, "TestWriteThenPanic", 1, func(db *Database, ctx context.Context, p *json.RawMessage) (any, error) {
@@ -799,34 +799,21 @@ func TestApplyEntriesRecoversFromAPanickingCommand(t *testing.T) {
 
 	index := nextIndex(t, database)
 
-	results := applyOne(t, database, index, time.Now().UnixNano(),
+	_, err := database.ApplyEntries(t.Context(), []ellaraft.Entry{entry(t, index, time.Now().UnixNano(),
 		command(t, "CreateProfile", newTestProfile(t, "before")),
 		command(t, "TestWriteThenPanic", struct{}{}),
-		command(t, "CreateProfile", newTestProfile(t, "after")),
-	)
+	)})
 
-	var panicked *commandPanicError
-	if !errors.As(results[1].err, &panicked) || !strings.Contains(results[1].err.Error(), "boom") {
-		t.Fatalf("panicking command: err = %v, want a commandPanicError", results[1].err)
+	var fatal *fatalApplyError
+	if !errors.As(err, &fatal) || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("err = %v, want a fatal apply error naming the panic", err)
 	}
 
-	if ForwardCodeFor(results[1].err) != "" {
-		t.Fatalf("a panic must surface as an internal error, got forward code %q", ForwardCodeFor(results[1].err))
+	if profileExists(t, database, "before") || profileExists(t, database, "panicked") {
+		t.Fatal("the entry that panicked was partly committed")
 	}
 
-	if results[0].err != nil || results[2].err != nil {
-		t.Fatalf("neighbours: %v, %v", results[0].err, results[2].err)
-	}
-
-	if !profileExists(t, database, "before") || !profileExists(t, database, "after") {
-		t.Fatal("the commands around the panic were not applied")
-	}
-
-	if profileExists(t, database, "panicked") {
-		t.Fatal("the write made before the panic was not rolled back")
-	}
-
-	if got := fsmState(t, database).lastApplied; got != index {
-		t.Fatalf("lastApplied = %d, want %d", got, index)
+	if got := fsmState(t, database).lastApplied; got != index-1 {
+		t.Fatalf("lastApplied = %d, want %d", got, index-1)
 	}
 }

@@ -11,7 +11,7 @@ import (
 
 var changesetBytesTotal = prometheus.NewCounter(prometheus.CounterOpts{
 	Name: "app_raft_changeset_bytes_total",
-	Help: "Total number of SQLite changeset bytes applied through the Raft FSM.",
+	Help: "Total number of replicated write bytes, SQLite changesets or commands, applied through the Raft FSM.",
 })
 
 // RegisterMetrics wires a hashicorp/go-metrics Prometheus sink as the global
@@ -35,7 +35,7 @@ func RegisterMetrics() {
 	prometheus.MustRegister(changesetBytesTotal)
 }
 
-// ObserveChangesetBytes records the size of an applied changeset.
+// ObserveChangesetBytes records the size of an applied changeset or command batch.
 func ObserveChangesetBytes(sizeBytes int) {
 	changesetBytesTotal.Add(float64(sizeBytes))
 }

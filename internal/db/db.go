@@ -46,6 +46,7 @@ type Database struct {
 	groupCommit    groupCommitter
 	batcherMu      sync.Mutex
 	batcher        *commandBatcher
+	commandsPaused bool
 	local          localProposer
 	raftManager    *ellaraft.Manager
 	proposeTimeout time.Duration
@@ -70,6 +71,7 @@ type Database struct {
 
 	readConnection *sql.DB
 	readConnector  *sqliteConnector
+	hashConnection *sql.DB
 
 	// appliedSchemaCache mirrors schema_version.version for the
 	// op-gate / apply-gate hot path. Updated by refreshAppliedSchema.
@@ -245,6 +247,12 @@ func (db *Database) openReaderPool(ctx context.Context) error {
 	db.readConnection = pool
 	db.readConnector = connector
 
+	if db.hashConnection == nil {
+		db.hashConnection = sql.OpenDB(connector)
+		db.hashConnection.SetMaxOpenConns(1)
+		db.hashConnection.SetMaxIdleConns(1)
+	}
+
 	return nil
 }
 
@@ -273,6 +281,10 @@ func (db *Database) Close() error {
 
 	if db.readConnection != nil {
 		readErr = db.readConnection.Close()
+	}
+
+	if db.hashConnection != nil {
+		readErr = errors.Join(readErr, db.hashConnection.Close())
 	}
 
 	if c := db.conn(); c != nil {
@@ -713,6 +725,10 @@ func (db *Database) checkOpSchema(minSchema int) error {
 // Read paths use this to pick between statement variants; a read error
 // reports false, selecting the variant that compiles against either schema.
 func (db *Database) appliedSchemaAtLeast(ctx context.Context, minVersion int) bool {
+	if info, ok := applyInfoFrom(ctx); ok {
+		return info.schema >= minVersion
+	}
+
 	applied := db.cachedAppliedSchema()
 	if applied == 0 {
 		v, err := readSchemaVersion(ctx, db.runner(ctx))
@@ -826,6 +842,17 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 	}
 
 	for v := current + 1; v <= target; v++ {
+		if blocked, violations, err := db.commandSchemaBlocked(ctx, v-1, target); err != nil {
+			return err
+		} else if blocked {
+			logger.From(ctx, logger.DBLog).Warn("Migration deferred: replicated rows break a foreign key",
+				zap.Int("target_version", v),
+				zap.Int("count", len(violations)),
+				zap.Strings("violations", violations[:min(len(violations), 10)]))
+
+			return nil
+		}
+
 		logger.From(ctx, logger.DBLog).Info("Proposing migration over Raft",
 			zap.Int("target_version", v))
 
@@ -855,6 +882,19 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 	return nil
 }
 
+func (db *Database) commandSchemaBlocked(ctx context.Context, current, target int) (bool, []string, error) {
+	if current != commandSchema-1 || target < commandSchema || !db.raftManager.ClusterEnabled() {
+		return false, nil, nil
+	}
+
+	violations, err := foreignKeyViolationsOf(ctx, db.reader())
+	if err != nil {
+		return false, nil, fmt.Errorf("check foreign keys before migration %d: %w", commandSchema, err)
+	}
+
+	return len(violations) > 0, violations, nil
+}
+
 // PendingMigrationStatus is a read-only snapshot of cluster
 // migration readiness; surfaced on /api/v1/status.
 const (
@@ -862,6 +902,7 @@ const (
 	LaggardReasonNoMemberRow              = "no_member_row"
 	LaggardReasonCapabilityUnknown        = "capability_unknown"
 	LaggardReasonConfigurationUnavailable = "configuration_unavailable"
+	LaggardReasonForeignKeyViolations     = "foreign_key_violations"
 )
 
 type PendingMigrationStatus struct {
@@ -904,6 +945,14 @@ func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationS
 	target := binaryMax
 	if floor < target {
 		target = floor
+	}
+
+	if blocked, _, err := db.commandSchemaBlocked(ctx, current, target); err != nil {
+		return PendingMigrationStatus{}, err
+	} else if blocked {
+		target = commandSchema - 1
+		laggard = ""
+		reason = LaggardReasonForeignKeyViolations
 	}
 
 	if target < current {

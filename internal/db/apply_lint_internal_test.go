@@ -30,12 +30,14 @@ import (
 const modulePath = "github.com/ellanetworks/core"
 
 var applyCallAllowlist = map[string]string{
-	"db.applyTime":       "returns time.Now only on the capture path, where no applyInfo is in the context",
-	"db.payloadID":       "generates a UUID only on the capture path, where no applyInfo is in the context",
-	"db.applyIndexFloor": "reads the raft applied index only on the capture path, where no applyInfo is in the context",
+	"db.applyTime":            "returns time.Now only on the capture path, where no applyInfo is in the context",
+	"db.payloadID":            "generates a UUID only on the capture path, where no applyInfo is in the context",
+	"db.applyIndexFloor":      "reads the raft applied index only on the capture path, where no applyInfo is in the context",
+	"db.Database.runner":      "returns the apply transaction's connection whenever one is in the context, and a pool only on the capture path",
+	"db.Database.readQuerier": "returns the apply transaction's connection whenever one is in the context, and a pool only on the capture path",
 }
 
-var fatalApplySentinels = map[string]string{
+var uncodedApplySentinels = map[string]string{
 	"db.errWriteQueueFull": "the proposer's own queue error; never returned by an apply function on the command path",
 }
 
@@ -324,12 +326,27 @@ func forbiddenApplyUse(obj types.Object) string {
 
 	pkg, name := obj.Pkg().Path(), obj.Name()
 
-	if v, ok := obj.(*types.Var); ok && v.IsField() && name == "raftManager" {
-		return "Database.raftManager"
+	if v, ok := obj.(*types.Var); ok {
+		switch {
+		case v.IsField() && name == "raftManager":
+			return "Database.raftManager"
+		case !v.IsField() && v.Parent() == v.Pkg().Scope() && (pkg == "math/rand" || pkg == "math/rand/v2" || pkg == "crypto/rand"):
+			return pkg + "." + name
+		}
+
+		return ""
 	}
 
-	if _, ok := obj.(*types.Func); !ok {
+	fn, ok := obj.(*types.Func)
+	if !ok {
 		return ""
+	}
+
+	if pkg == modulePath+"/internal/db" {
+		switch shortFuncName(fn) {
+		case "db.Database.reader", "db.Database.conn", "db.Database.PlainDB", "db.Database.writer":
+			return shortFuncName(fn) + ", which reads outside the apply transaction"
+		}
 	}
 
 	switch {
@@ -485,7 +502,7 @@ func TestApplyFunctionSentinelsHaveResultCodes(t *testing.T) {
 						return true
 					}
 
-					if _, fatal := fatalApplySentinels[name]; fatal {
+					if _, uncoded := uncodedApplySentinels[name]; uncoded {
 						return true
 					}
 
@@ -507,7 +524,7 @@ func TestApplyFunctionSentinelsHaveResultCodes(t *testing.T) {
 	}
 
 	if len(violations) > 0 {
-		t.Log("an error without a result code halts every node that applies the command: add the sentinel to the forward-code table in operations.go, or to fatalApplySentinels if halting is intended")
+		t.Log("a follower that forwards the write gets a generic error instead of this sentinel: add the sentinel to the forward-code table in operations.go, or to uncodedApplySentinels")
 	}
 }
 
@@ -640,7 +657,7 @@ func foldString(e ast.Expr, consts map[string]string, lenient bool) (string, boo
 	}
 }
 
-func uniqueKeys(t *testing.T) [][]string {
+func uniqueKeys(t *testing.T) map[string][][]string {
 	t.Helper()
 
 	database := newDatabaseAtVersion(t, SchemaVersion())
@@ -664,29 +681,39 @@ func uniqueKeys(t *testing.T) [][]string {
 
 	_ = rows.Close()
 
-	var keys [][]string
+	keys := map[string][][]string{}
 
 	for _, table := range tables {
 		var pk []string
 
-		cols, err := database.writer().QueryContext(ctx, "SELECT name FROM pragma_table_info(?) WHERE pk > 0 ORDER BY pk", table)
+		nullable := map[string]bool{}
+
+		cols, err := database.writer().QueryContext(ctx, "SELECT name, \"notnull\", pk FROM pragma_table_info(?) ORDER BY pk, cid", table)
 		if err != nil {
 			t.Fatalf("table_info %s: %v", table, err)
 		}
 
 		for cols.Next() {
-			var c string
-			if err := cols.Scan(&c); err != nil {
+			var (
+				c          string
+				notNull, k int
+			)
+
+			if err := cols.Scan(&c, &notNull, &k); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 
-			pk = append(pk, strings.ToLower(c))
+			if k > 0 {
+				pk = append(pk, strings.ToLower(c))
+			} else if notNull == 0 {
+				nullable[strings.ToLower(c)] = true
+			}
 		}
 
 		_ = cols.Close()
 
 		if len(pk) > 0 {
-			keys = append(keys, pk)
+			keys[table] = append(keys[table], pk)
 		}
 
 		idx, err := database.writer().QueryContext(ctx, "SELECT name FROM pragma_index_list(?) WHERE \"unique\" = 1 AND partial = 0", table)
@@ -721,15 +748,19 @@ func uniqueKeys(t *testing.T) [][]string {
 					t.Fatalf("scan: %v", err)
 				}
 
-				if c != nil {
-					key = append(key, strings.ToLower(*c))
+				if c == nil || nullable[strings.ToLower(*c)] {
+					key = nil
+
+					break
 				}
+
+				key = append(key, strings.ToLower(*c))
 			}
 
 			_ = ic.Close()
 
 			if len(key) > 0 {
-				keys = append(keys, key)
+				keys[table] = append(keys[table], key)
 			}
 		}
 	}
@@ -762,7 +793,37 @@ func orderTerms(clause string) []string {
 	return terms
 }
 
-func queryKeys(text string, keys [][]string) ([][]string, []string) {
+var queriedTable = regexp.MustCompile(`(?i)\b(?:FROM|JOIN|UPDATE|INTO)\s+["` + "`" + `]?(\w+|%s|\?\w+\?)`)
+
+func tableKeys(text string, keys map[string][][]string) [][]string {
+	var (
+		out     [][]string
+		unknown bool
+	)
+
+	for _, m := range queriedTable.FindAllStringSubmatch(text, -1) {
+		table := strings.ToLower(m[1])
+		if tk, ok := keys[table]; ok {
+			out = append(out, tk...)
+
+			continue
+		}
+
+		if table == "%s" || strings.HasPrefix(table, "?") {
+			unknown = true
+		}
+	}
+
+	if unknown {
+		for _, tk := range keys {
+			out = append(out, tk...)
+		}
+	}
+
+	return out
+}
+
+func queryKeys(text string, keys map[string][][]string) ([][]string, []string) {
 	var (
 		local [][]string
 		fixed []string
@@ -776,7 +837,7 @@ func queryKeys(text string, keys [][]string) ([][]string, []string) {
 		fixed = append(fixed, strings.ToLower(m[1]))
 	}
 
-	return append(slices.Clone(keys), local...), fixed
+	return append(tableKeys(text, keys), local...), fixed
 }
 
 func totalOrder(terms []string, keys [][]string, fixed []string) bool {

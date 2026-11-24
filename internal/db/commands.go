@@ -4,6 +4,7 @@
 package db
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"database/sql/driver"
@@ -11,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -73,6 +75,7 @@ type applyInfo struct {
 	index      uint64
 	term       uint64
 	leaderTime int64
+	schema     int
 }
 
 type applyInfoKey struct{}
@@ -175,6 +178,8 @@ func (e *fatalApplyError) Unwrap() error { return e.err }
 type commandHandler struct {
 	minSchema int
 	topics    []Topic
+	payload   reflect.Type
+	check     func(raw json.RawMessage) error
 	apply     func(db *Database, ctx context.Context, raw json.RawMessage) (any, error)
 }
 
@@ -184,11 +189,11 @@ func commandHandlerFor(name string) (commandHandler, bool) {
 	}
 
 	if h, ok := changesetOps[name]; ok {
-		return commandHandler{minSchema: max(h.minSchema, commandSchema), topics: h.topics, apply: h.applyJSON}, true
+		return commandHandler{minSchema: max(h.minSchema, commandSchema), topics: h.topics, payload: h.payload, check: h.checkJSON, apply: h.applyJSON}, true
 	}
 
 	if h, ok := intentOps[name]; ok && h.commandApply != nil {
-		return commandHandler{minSchema: max(h.minSchema, commandSchema), topics: h.topics, apply: h.commandApply}, true
+		return commandHandler{minSchema: max(h.minSchema, commandSchema), topics: h.topics, payload: h.payload, check: h.commandCheck, apply: h.commandApply}, true
 	}
 
 	return commandHandler{}, false
@@ -196,22 +201,55 @@ func commandHandlerFor(name string) (commandHandler, bool) {
 
 func asCommand[P any](apply func(db *Database, ctx context.Context, p *P) (any, error)) OpOption {
 	return func(m *opMeta) {
-		m.commandApply = decodeAndApply("", apply)
+		m.commandApply = decodeAndApply(apply)
+		m.commandCheck = checkPayload[P]
+		m.payload = reflect.TypeFor[P]()
 	}
 }
 
-func decodeAndApply[P any](name string, apply func(db *Database, ctx context.Context, p *P) (any, error)) func(db *Database, ctx context.Context, raw json.RawMessage) (any, error) {
+func decodePayload[P any](raw json.RawMessage) (*P, error) {
+	var p P
+
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+
+	if err := dec.Decode(&p); err != nil {
+		return nil, fmt.Errorf("decode %T payload: %w", p, err)
+	}
+
+	if dec.More() {
+		return nil, fmt.Errorf("decode %T payload: trailing data", p)
+	}
+
+	return &p, nil
+}
+
+func checkPayload[P any](raw json.RawMessage) error {
+	if _, err := decodePayload[P](raw); err != nil {
+		return invalidCommand(err)
+	}
+
+	return nil
+}
+
+func decodeAndApply[P any](apply func(db *Database, ctx context.Context, p *P) (any, error)) func(db *Database, ctx context.Context, raw json.RawMessage) (any, error) {
 	return func(db *Database, ctx context.Context, raw json.RawMessage) (any, error) {
-		var p P
-		if err := json.Unmarshal(raw, &p); err != nil {
-			if name == "" {
-				return nil, invalidCommand(fmt.Errorf("unmarshal payload: %w", err))
+		info, ok := applyInfoFrom(ctx)
+		if !ok {
+			var p P
+			if err := json.Unmarshal(raw, &p); err != nil {
+				return nil, invalidCommand(fmt.Errorf("decode %T payload: %w", p, err))
 			}
 
-			return nil, invalidCommand(fmt.Errorf("unmarshal %s payload: %w", name, err))
+			return apply(db, ctx, &p)
 		}
 
-		return apply(db, ctx, &p)
+		p, err := decodePayload[P](raw)
+		if err != nil {
+			return nil, &fatalApplyError{index: info.index, err: err}
+		}
+
+		return apply(db, ctx, p)
 	}
 }
 
@@ -249,15 +287,6 @@ func (db *Database) applyDeleteAllDynamicLeasesCommand(ctx context.Context, _ *s
 	return nil, db.applyDeleteAllDynamicLeases(ctx)
 }
 
-type commandPanicError struct {
-	op    string
-	value any
-}
-
-func (e *commandPanicError) Error() string {
-	return fmt.Sprintf("%s panicked: %v", e.op, e.value)
-}
-
 func (db *Database) runCommand(ctx context.Context, h commandHandler, op string, index uint64, raw json.RawMessage) (value any, err error) {
 	defer func() {
 		r := recover()
@@ -268,25 +297,51 @@ func (db *Database) runCommand(ctx context.Context, h commandHandler, op string,
 		logger.DBLog.Error("command apply panicked", zap.String("operation", op), zap.Uint64("index", index), zap.Any("panic", r), zap.Stack("stack"))
 
 		value = nil
-		err = &commandPanicError{op: op, value: r}
+		err = &fatalApplyError{index: index, err: fmt.Errorf("%s panicked: %v", op, r)}
 	}()
 
 	return h.apply(db, ctx, raw)
 }
 
-func isCommandRejection(err error) bool {
-	if errors.Is(err, ErrInvalidCommand) || ForwardCodeFor(err) != "" {
+var fatalSQLiteCodes = map[sqlite3.ErrNo]struct{}{
+	sqlite3.ErrInternal:  {},
+	sqlite3.ErrPerm:      {},
+	sqlite3.ErrAbort:     {},
+	sqlite3.ErrBusy:      {},
+	sqlite3.ErrLocked:    {},
+	sqlite3.ErrNomem:     {},
+	sqlite3.ErrReadonly:  {},
+	sqlite3.ErrInterrupt: {},
+	sqlite3.ErrIoErr:     {},
+	sqlite3.ErrCorrupt:   {},
+	sqlite3.ErrFull:      {},
+	sqlite3.ErrCantOpen:  {},
+	sqlite3.ErrProtocol:  {},
+	sqlite3.ErrSchema:    {},
+	sqlite3.ErrNoLFS:     {},
+	sqlite3.ErrAuth:      {},
+	sqlite3.ErrNotADB:    {},
+}
+
+func isFatalApplyError(err error) bool {
+	var fatal *fatalApplyError
+	if errors.As(err, &fatal) {
 		return true
 	}
 
-	var panicked *commandPanicError
-	if errors.As(err, &panicked) {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, sql.ErrConnDone) || errors.Is(err, sql.ErrTxDone) || errors.Is(err, driver.ErrBadConn) {
 		return true
 	}
 
 	var se sqlite3.Error
+	if errors.As(err, &se) {
+		_, ok := fatalSQLiteCodes[se.Code]
 
-	return errors.As(err, &se) && se.Code == sqlite3.ErrConstraint
+		return ok
+	}
+
+	return false
 }
 
 func (db *Database) commandMode(ctx context.Context) bool {
@@ -428,7 +483,7 @@ func (db *Database) applyEntryRun(ctx context.Context, entries []ellaraft.Entry,
 
 			b := batches[i]
 			leaderTime = max(leaderTime, b.LeaderTime)
-			cmdCtx := context.WithValue(baseCtx, applyInfoKey{}, applyInfo{index: e.Index, term: e.Term, leaderTime: leaderTime})
+			cmdCtx := context.WithValue(baseCtx, applyInfoKey{}, applyInfo{index: e.Index, term: e.Term, leaderTime: leaderTime, schema: schema})
 			results := make([]commandResult, len(b.Commands))
 
 			for j, c := range b.Commands {
@@ -438,7 +493,9 @@ func (db *Database) applyEntryRun(ctx context.Context, entries []ellaraft.Entry,
 				}
 
 				if h.minSchema > schema {
-					return &fatalApplyError{index: e.Index, err: fmt.Errorf("command %d: %s requires schema %d, local applied %d", j, c.Op, h.minSchema, schema)}
+					results[j] = commandResult{err: fmt.Errorf("%w: %s requires schema %d, applied %d", ErrMigrationPending, c.Op, h.minSchema, schema)}
+
+					continue
 				}
 
 				if err := exec("SAVEPOINT command"); err != nil {
@@ -447,7 +504,7 @@ func (db *Database) applyEntryRun(ctx context.Context, entries []ellaraft.Entry,
 
 				value, applyErr := db.runCommand(cmdCtx, h, c.Op, e.Index, c.Payload)
 				if applyErr != nil {
-					if !isCommandRejection(applyErr) {
+					if isFatalApplyError(applyErr) {
 						return &fatalApplyError{index: e.Index, err: fmt.Errorf("command %d (%s): %w", j, c.Op, applyErr)}
 					}
 
@@ -558,8 +615,17 @@ func (db *Database) loadAppliedLeaderTime(ctx context.Context) error {
 	return nil
 }
 
+const leaderTimeSkewWarning = 5 * time.Second
+
 func (db *Database) nextLeaderTime(last int64) int64 {
-	return max(last+1, time.Now().UnixNano(), db.appliedLeaderTime.Load()+1)
+	now := time.Now().UnixNano()
+	next := max(last+1, now, db.appliedLeaderTime.Load()+1)
+
+	if ahead := time.Duration(next - now); ahead > leaderTimeSkewWarning {
+		logger.DBLog.Warn("Replicated time is ahead of this leader's clock", zap.Duration("ahead", ahead))
+	}
+
+	return next
 }
 
 func (db *Database) proposeCommand(ctx context.Context, op string, payload json.RawMessage) (_ *ellaraft.ProposeResult, err error) {
@@ -575,7 +641,12 @@ func (db *Database) proposeCommand(ctx context.Context, op string, payload json.
 	if db.raftManager == nil {
 		result, index, err = db.local.propose(ctx, db, wireCommand{Op: op, Payload: payload})
 	} else {
-		result, index, err = db.commandBatcher().propose(wireCommand{Op: op, Payload: payload})
+		var batcher *commandBatcher
+
+		batcher, err = db.commandBatcher()
+		if err == nil {
+			result, index, err = batcher.propose(wireCommand{Op: op, Payload: payload})
+		}
 	}
 
 	if err != nil {

@@ -7,7 +7,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
+
+	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
 )
 
 var migrationV31Tables = []string{
@@ -25,8 +27,15 @@ var migrationV31Tables = []string{
 }
 
 func migrateV31(ctx context.Context, tx *sql.Tx) error {
-	if err := checkForeignKeys(ctx, tx); err != nil {
+	violations, err := foreignKeyViolationsOf(ctx, tx)
+	if err != nil {
 		return err
+	}
+
+	if len(violations) > 0 {
+		logger.DBLog.Warn("Replicated rows break a foreign key",
+			zap.Int("count", len(violations)),
+			zap.Strings("violations", violations[:min(len(violations), 10)]))
 	}
 
 	for _, stmt := range []string{createSubscriberCountSQL, seedSubscriberCountSQL, createLatestLeaseIndexSQL} {
@@ -38,27 +47,23 @@ func migrateV31(ctx context.Context, tx *sql.Tx) error {
 	return nil
 }
 
-func checkForeignKeys(ctx context.Context, tx *sql.Tx) error {
+func foreignKeyViolationsOf(ctx context.Context, q rowQuerier) ([]string, error) {
 	var violations []string
 
 	for _, table := range migrationV31Tables {
-		found, err := foreignKeyViolations(ctx, tx, table)
+		found, err := foreignKeyViolations(ctx, q, table)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		violations = append(violations, found...)
 	}
 
-	if len(violations) > 0 {
-		return fmt.Errorf("%d foreign key violations: %s", len(violations), strings.Join(violations[:min(len(violations), 10)], "; "))
-	}
-
-	return nil
+	return violations, nil
 }
 
-func foreignKeyViolations(ctx context.Context, tx *sql.Tx, table string) ([]string, error) {
-	rows, err := tx.QueryContext(ctx, fmt.Sprintf("PRAGMA foreign_key_check(%q)", table))
+func foreignKeyViolations(ctx context.Context, q rowQuerier, table string) ([]string, error) {
+	rows, err := q.QueryContext(ctx, fmt.Sprintf("PRAGMA foreign_key_check(%q)", table))
 	if err != nil {
 		return nil, fmt.Errorf("check foreign keys of %s: %w", table, err)
 	}

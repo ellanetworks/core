@@ -311,7 +311,7 @@ func TestVerifyStateMovesLeadershipOffADivergedLeader(t *testing.T) {
 	vc.waitForServerHealth(leader, healthExcept(vc.dbs, nil))
 }
 
-func TestVerifyStateFlagsNonvotersAndSurfacesASplitWithoutAMajority(t *testing.T) {
+func TestVerifyStateFlagsNonvotersAndNoNodeWithoutAMajority(t *testing.T) {
 	vc := newVerifyCluster(t)
 	ctx := t.Context()
 	leader := vc.leader()
@@ -363,15 +363,15 @@ func TestVerifyStateFlagsNonvotersAndSurfacesASplitWithoutAMajority(t *testing.T
 	execSQL(t, voter, corruptMTU)
 	leader.verifyState(ctx)
 
-	if !leader.diverged.has(voter.RaftID()) || leader.diverged.has(nonvoter.RaftID()) || leader.diverged.has(leader.RaftID()) {
-		t.Fatal("without a voter majority, only the node that differs from the leader must be flagged")
+	if leader.diverged.has(voter.RaftID()) || leader.diverged.has(nonvoter.RaftID()) || leader.diverged.has(leader.RaftID()) {
+		t.Fatal("without a voter majority, no node must be flagged")
 	}
 
 	if !leader.raftManager.IsLeader() {
 		t.Fatal("leader gave up leadership without a majority against it")
 	}
 
-	vc.waitForServerHealth(leader, healthExcept(vc.dbs, voter))
+	vc.waitForServerHealth(leader, healthExcept(vc.dbs, nil))
 
 	execSQL(t, voter, repairMTU)
 	leader.verifyState(ctx)
@@ -381,4 +381,24 @@ func TestVerifyStateFlagsNonvotersAndSurfacesASplitWithoutAMajority(t *testing.T
 	}
 
 	vc.waitForServerHealth(leader, healthExcept(vc.dbs, nil))
+}
+
+func TestClusterHoldsTheCommandSchemaWhileRowsBreakAForeignKey(t *testing.T) {
+	vc := newVerifyCluster(t)
+	leader := vc.leader()
+
+	seedOrphanSubscriber(t, leader)
+
+	blocked, violations, err := leader.commandSchemaBlocked(t.Context(), commandSchema-1, commandSchema)
+	if err != nil {
+		t.Fatalf("commandSchemaBlocked: %v", err)
+	}
+
+	if !blocked || len(violations) != 1 {
+		t.Fatalf("blocked = %v, violations = %v; want the orphaned subscriber to hold migration %d", blocked, violations, commandSchema)
+	}
+
+	if blocked, _, _ := leader.commandSchemaBlocked(t.Context(), commandSchema, commandSchema); blocked {
+		t.Fatal("a cluster already at the command schema has nothing to hold")
+	}
 }

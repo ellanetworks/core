@@ -124,7 +124,7 @@ func TestProposeSpansNestUnderCaller(t *testing.T) {
 	})
 
 	t.Run("changeset op", func(t *testing.T) {
-		useChangesetPath(database)
+		useChangesetPath(t, database)
 
 		ctx, caller := otel.Tracer("test").Start(t.Context(), "test/caller")
 
@@ -148,7 +148,7 @@ func TestProposeSpansNestUnderCaller(t *testing.T) {
 	})
 
 	t.Run("forwarded intent op", func(t *testing.T) {
-		useChangesetPath(database)
+		useChangesetPath(t, database)
 
 		ctx, caller := otel.Tracer("test").Start(t.Context(), "test/caller")
 

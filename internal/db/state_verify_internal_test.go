@@ -169,7 +169,7 @@ func TestVerifyStateReturnsItsIndexOnTheLocalPath(t *testing.T) {
 
 func TestVerifyStateRequiresTheCommandSchema(t *testing.T) {
 	database := newInitializedCommandTestDB(t)
-	useChangesetPath(database)
+	useChangesetPath(t, database)
 
 	if _, err := opVerifyState.Invoke(t.Context(), database, &struct{}{}); err == nil {
 		t.Fatal("VerifyState was accepted below the command schema")
@@ -241,7 +241,7 @@ func TestJudgeStateHashesUsesTheVoterMajority(t *testing.T) {
 	}
 }
 
-func TestJudgeStateHashesFallsBackToTheLeaderWithoutAMajority(t *testing.T) {
+func TestJudgeStateHashesFlagsNoNodeWithoutAMajority(t *testing.T) {
 	database := newInitializedCommandTestDB(t)
 	ctx := context.Background()
 	voters := map[string]bool{"1": true, "2": true, "3": false}
@@ -252,14 +252,44 @@ func TestJudgeStateHashesFallsBackToTheLeaderWithoutAMajority(t *testing.T) {
 		t.Fatal("leader must not give up leadership without a majority")
 	}
 
-	want := map[string]bool{"1": false, "2": true, "3": false, "9": true}
+	want := map[string]bool{"1": false, "2": false, "3": false, "9": true}
 	if got := flagged(database, "1", "2", "3", "9"); !maps.Equal(got, want) {
 		t.Fatalf("flagged = %v, want %v", got, want)
 	}
 
-	database.judgeStateHashes(ctx, 11, "1", map[string]string{"1": "a", "2": "a"}, voters)
+	database.judgeStateHashes(ctx, 11, "1", map[string]string{"1": "a", "2": "a", "3": "b"}, voters)
 
-	if database.diverged.has("2") || !database.diverged.has("9") {
-		t.Fatal("a matching node must clear and a node that did not report must keep its flag")
+	if !database.diverged.has("3") || !database.diverged.has("9") {
+		t.Fatal("with a majority, a differing node must be flagged and a node that did not report must keep its flag")
+	}
+}
+
+func TestStateHashCoversLeaderTimeAndStructure(t *testing.T) {
+	database := newInitializedCommandTestDB(t)
+	seedDeterminismFixture(t, database)
+
+	base := stateHashOf(t, database)
+
+	for _, tc := range []struct {
+		name   string
+		change string
+		undo   string
+	}{
+		{"leader time", "UPDATE fsm_state SET leaderTime = leaderTime + 1 WHERE id = 1", "UPDATE fsm_state SET leaderTime = leaderTime - 1 WHERE id = 1"},
+		{"missing index", "DROP INDEX idx_leases_pool_latest", createLatestLeaseIndexSQL},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			execSQL(t, database, tc.change)
+
+			if got := stateHashOf(t, database); got == base {
+				t.Fatalf("hash unchanged after %s", tc.change)
+			}
+
+			execSQL(t, database, tc.undo)
+
+			if got := stateHashOf(t, database); got != base {
+				t.Fatalf("hash not restored after %s", tc.undo)
+			}
+		})
 	}
 }

@@ -50,6 +50,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/ellanetworks/core/internal/ipam"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
@@ -66,6 +67,8 @@ type opMeta struct {
 	topics       []Topic
 	leaderCheck  func(db *Database, ctx context.Context, raw json.RawMessage) error
 	commandApply func(db *Database, ctx context.Context, raw json.RawMessage) (any, error)
+	commandCheck func(raw json.RawMessage) error
+	payload      reflect.Type
 }
 
 // RequireSchema declares the minimum applied schema version required
@@ -110,6 +113,8 @@ func checkOnLeader[P any](check func(db *Database, ctx context.Context, p *P) er
 type changesetOpHandler struct {
 	minSchema int
 	topics    []Topic
+	payload   reflect.Type
+	checkJSON func(raw json.RawMessage) error
 	applyJSON func(db *Database, ctx context.Context, raw json.RawMessage) (any, error)
 }
 
@@ -117,8 +122,10 @@ type intentOpHandler struct {
 	minSchema    int
 	topics       []Topic
 	cmdType      ellaraft.CommandType
+	payload      reflect.Type
 	leaderCheck  func(db *Database, ctx context.Context, raw json.RawMessage) error
 	commandApply func(db *Database, ctx context.Context, raw json.RawMessage) (any, error)
+	commandCheck func(raw json.RawMessage) error
 }
 
 var (
@@ -164,7 +171,9 @@ func registerChangesetOpReturning[P any, R any](
 	changesetOps[name] = changesetOpHandler{
 		minSchema: meta.minSchema,
 		topics:    meta.topics,
-		applyJSON: decodeAndApply(name, apply),
+		payload:   reflect.TypeFor[P](),
+		checkJSON: checkPayload[P],
+		applyJSON: decodeAndApply(apply),
 	}
 
 	return &ChangesetOp[P, R]{name: name, minSchema: meta.minSchema, apply: apply}
@@ -192,8 +201,10 @@ func registerIntentOpReturning[R any](name string, cmdType ellaraft.CommandType,
 		minSchema:    meta.minSchema,
 		topics:       meta.topics,
 		cmdType:      cmdType,
+		payload:      meta.payload,
 		leaderCheck:  meta.leaderCheck,
 		commandApply: meta.commandApply,
+		commandCheck: meta.commandCheck,
 	}
 
 	return intentOp[R]{name: name, minSchema: meta.minSchema, cmdType: cmdType}
@@ -311,7 +322,16 @@ func (op *ChangesetOp[P, R]) Invoke(ctx context.Context, db *Database, payload *
 	}
 
 	if db.IsLeader() {
-		result, err := db.leaderCaptureAndPropose(ctx, op.name, op.minSchema, func(ctx context.Context) (any, error) {
+		command := func(ctx context.Context) (*ellaraft.ProposeResult, error) {
+			raw, err := json.Marshal(payload)
+			if err != nil {
+				return nil, fmt.Errorf("marshal %s payload: %w", op.name, err)
+			}
+
+			return db.proposeCommand(ctx, op.name, raw)
+		}
+
+		result, err := db.leaderCaptureAndPropose(ctx, op.name, op.minSchema, command, func(ctx context.Context) (any, error) {
 			return op.apply(db, ctx, payload)
 		})
 		if err == nil {
@@ -555,12 +575,12 @@ func (db *Database) ReadBarrier() error {
 // proposeMu serialises captures so concurrent writers don't observe
 // the same pre-mutation state. minSchema is stamped on bytesPayload as
 // RequiredSchema for the apply-time gate on every node.
-func (db *Database) leaderCaptureAndPropose(ctx context.Context, operation string, minSchema int, applyFn func(context.Context) (any, error)) (_ *ellaraft.ProposeResult, err error) {
+func (db *Database) leaderCaptureAndPropose(ctx context.Context, operation string, minSchema int, command func(context.Context) (*ellaraft.ProposeResult, error), applyFn func(context.Context) (any, error)) (_ *ellaraft.ProposeResult, err error) {
 	ctx, span := db.startProposeSpan(ctx, operation)
 
 	defer func() { endSpan(span, err) }()
 
-	return db.submitWrite(ctx, operation, minSchema, applyFn)
+	return db.submitWrite(ctx, operation, minSchema, command, applyFn)
 }
 
 var forwardCodes = []struct {
@@ -686,10 +706,22 @@ func (db *Database) applyForwardedChangesetOp(ctx context.Context, opName string
 	}
 
 	if db.commandMode(ctx) {
+		if err := h.checkJSON(payload); err != nil {
+			return nil, err
+		}
+
 		return db.proposeCommand(ctx, opName, payload)
 	}
 
-	return db.leaderCaptureAndPropose(ctx, opName, h.minSchema, func(ctx context.Context) (any, error) {
+	command := func(ctx context.Context) (*ellaraft.ProposeResult, error) {
+		if err := h.checkJSON(payload); err != nil {
+			return nil, err
+		}
+
+		return db.proposeCommand(ctx, opName, payload)
+	}
+
+	return db.leaderCaptureAndPropose(ctx, opName, h.minSchema, command, func(ctx context.Context) (any, error) {
 		return h.applyJSON(db, ctx, payload)
 	})
 }
@@ -700,6 +732,10 @@ func (db *Database) applyForwardedIntentOp(ctx context.Context, opName string, h
 	}
 
 	if h.commandApply != nil && db.commandMode(ctx) {
+		if err := h.commandCheck(payload); err != nil {
+			return nil, err
+		}
+
 		return db.proposeCommand(ctx, opName, payload)
 	}
 

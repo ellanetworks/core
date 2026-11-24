@@ -16,7 +16,10 @@ const (
 	commandFraming          = 64
 )
 
-var errBatcherClosed = fmt.Errorf("%w: the database is closing", ErrProposeTimeout)
+var (
+	errBatcherClosed  = fmt.Errorf("%w: the database is closing", ErrProposeTimeout)
+	errCommandsPaused = fmt.Errorf("%w: a restore is in progress", ErrProposeTimeout)
+)
 
 type commandRequest struct {
 	cmd    wireCommand
@@ -36,11 +39,16 @@ type commandBatcher struct {
 	mu        sync.RWMutex
 	closed    bool
 	last      int64
+	inFlight  sync.WaitGroup
 }
 
-func (db *Database) commandBatcher() *commandBatcher {
+func (db *Database) commandBatcher() (*commandBatcher, error) {
 	db.batcherMu.Lock()
 	defer db.batcherMu.Unlock()
+
+	if db.commandsPaused {
+		return nil, errCommandsPaused
+	}
 
 	if db.batcher == nil {
 		db.batcher = &commandBatcher{
@@ -54,7 +62,25 @@ func (db *Database) commandBatcher() *commandBatcher {
 		go db.batcher.run()
 	}
 
-	return db.batcher
+	return db.batcher, nil
+}
+
+func (db *Database) pauseCommands() func() {
+	db.batcherMu.Lock()
+	db.commandsPaused = true
+	b := db.batcher
+	db.batcher = nil
+	db.batcherMu.Unlock()
+
+	if b != nil {
+		b.close()
+	}
+
+	return func() {
+		db.batcherMu.Lock()
+		db.commandsPaused = false
+		db.batcherMu.Unlock()
+	}
 }
 
 func (b *commandBatcher) propose(cmd wireCommand) (commandResult, uint64, error) {
@@ -111,6 +137,8 @@ func (b *commandBatcher) close() {
 		case r := <-b.queue:
 			finishCommands([]*commandRequest{r}, nil, 0, errBatcherClosed)
 		default:
+			b.inFlight.Wait()
+
 			return
 		}
 	}
@@ -233,7 +261,10 @@ func (b *commandBatcher) send(batch []*commandRequest) {
 
 	wait := b.db.raftManager.StartApply(data, b.db.proposeTimeout)
 
+	b.inFlight.Add(1)
+
 	go func() {
+		defer b.inFlight.Done()
 		defer func() { b.completed <- struct{}{} }()
 
 		res, err := wait()

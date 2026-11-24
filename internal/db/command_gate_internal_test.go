@@ -5,8 +5,8 @@ package db
 
 import (
 	"context"
+	"errors"
 	"slices"
-	"strings"
 	"testing"
 
 	ellaraft "github.com/ellanetworks/core/internal/raft"
@@ -247,9 +247,15 @@ func TestEveryCommandRequiresTheCommandSchema(t *testing.T) {
 
 		body := []byte(`{"l":1,"c":[{"o":"` + name + `","p":{}}]}`)
 
-		_, err := database.ApplyEntries(ctx, []ellaraft.Entry{{Index: 1, Term: 1, Data: body}})
-		if err == nil || !strings.Contains(err.Error(), "requires schema") {
-			t.Errorf("operation %q applied as a command on a schema %d database: got %v, want a fatal schema error", name, commandSchema-1, err)
+		out, err := database.ApplyEntries(ctx, []ellaraft.Entry{{Index: uint64(commands), Term: 1, Data: body}})
+		if err != nil {
+			t.Errorf("operation %q on a schema %d database: %v, want a migration-pending result", name, commandSchema-1, err)
+			continue
+		}
+
+		results, _ := out[0].([]commandResult)
+		if len(results) != 1 || !errors.Is(results[0].err, ErrMigrationPending) {
+			t.Errorf("operation %q applied as a command on a schema %d database: got %+v, want a migration-pending result", name, commandSchema-1, results)
 		}
 	}
 
