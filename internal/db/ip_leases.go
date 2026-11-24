@@ -45,7 +45,7 @@ const (
 	countLeasesByIMSISQL        = "SELECT COUNT(*) FROM " + IPLeasesTableName + " WHERE imsi==?"
 	listLeasesByPoolPageSQL     = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? ORDER BY addressBin LIMIT ? OFFSET ?"
 	listAllLeasesSQL            = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName
-	getStaticLeaseSQL           = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? AND imsi==? AND type='static'"
+	getStaticLeaseSQL           = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE +poolID==? AND +poolType==? AND imsi==? AND type='static'"
 	listStaticLeasesByDNSQL     = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE poolID==? AND type='static' ORDER BY poolType, addressBin"
 	listStaticLeasesByIMSISQL   = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE imsi==? AND type='static' ORDER BY addressBin"
 	updateStaticLeaseAddressSQL = "UPDATE " + IPLeasesTableName + " SET addressBin=? WHERE id==? AND type='static'"
