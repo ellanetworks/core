@@ -641,15 +641,11 @@ func (db *Database) proposeCommand(ctx context.Context, op string, payload json.
 		index  uint64
 	)
 
-	if db.raftManager == nil {
-		result, index, err = db.local.propose(ctx, db, wireCommand{Op: op, Payload: payload})
-	} else {
-		var batcher *commandBatcher
+	var batcher *commandBatcher
 
-		batcher, err = db.commandBatcher()
-		if err == nil {
-			result, index, err = batcher.propose(wireCommand{Op: op, Payload: payload})
-		}
+	batcher, err = db.commandBatcher()
+	if err == nil {
+		result, index, err = batcher.propose(wireCommand{Op: op, Payload: payload})
 	}
 
 	if err != nil {
@@ -666,39 +662,26 @@ func (db *Database) proposeCommand(ctx context.Context, op string, payload json.
 }
 
 type localProposer struct {
-	mu   sync.Mutex
-	last int64
+	mu sync.Mutex
 }
 
-func (l *localProposer) propose(ctx context.Context, db *Database, cmd wireCommand) (commandResult, uint64, error) {
+func (l *localProposer) apply(db *Database, body []byte) (*ellaraft.ProposeResult, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	ctx = context.WithoutCancel(ctx)
+	ctx := context.Background()
 
 	var index, term uint64
 	if err := db.writer().QueryRowContext(ctx, "SELECT lastApplied, lastAppliedTerm FROM fsm_state WHERE id = 1").Scan(&index, &term); err != nil {
-		return commandResult{}, 0, fmt.Errorf("read fsm_state: %w", err)
-	}
-
-	l.last = db.nextLeaderTime(l.last)
-
-	body, err := json.Marshal(commandBatch{LeaderTime: l.last, Commands: []wireCommand{cmd}})
-	if err != nil {
-		return commandResult{}, 0, fmt.Errorf("encode command batch: %w", err)
+		return nil, fmt.Errorf("read fsm_state: %w", err)
 	}
 
 	index++
 
 	out, err := db.ApplyEntries(ctx, []ellaraft.Entry{{Index: index, Term: max(term, 1), Data: body}})
 	if err != nil {
-		return commandResult{}, 0, err
+		return nil, err
 	}
 
-	results, ok := out[0].([]commandResult)
-	if !ok || len(results) != 1 {
-		return commandResult{}, 0, fmt.Errorf("unexpected apply response %T", out[0])
-	}
-
-	return results[0], index, nil
+	return &ellaraft.ProposeResult{Value: out[0], Index: index}, nil
 }

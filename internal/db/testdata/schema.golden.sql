@@ -59,7 +59,7 @@ CREATE INDEX idx_leases_node ON ip_leases(nodeID);
 CREATE INDEX idx_leases_pool ON ip_leases(poolID);
 
 -- index idx_leases_pool_latest
-CREATE INDEX idx_leases_pool_latest ON ip_leases(poolID,poolType,createdAt,id);
+CREATE INDEX idx_leases_pool_latest ON ip_leases(poolID,poolType,createdAt,addressBin);
 
 -- index idx_leases_session
 CREATE INDEX idx_leases_session ON ip_leases(sessionID);

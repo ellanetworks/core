@@ -20,7 +20,7 @@ import (
 
 const IPLeasesTableName = "ip_leases"
 
-const createLatestLeaseIndexSQL = "CREATE INDEX idx_leases_pool_latest ON " + IPLeasesTableName + " (poolID, poolType, createdAt, id)"
+const createLatestLeaseIndexSQL = "CREATE INDEX idx_leases_pool_latest ON " + IPLeasesTableName + " (poolID, poolType, createdAt, addressBin)"
 
 const (
 	createLeaseSQL              = "INSERT INTO " + IPLeasesTableName + " (id, poolID, poolType, addressBin, imsi, sessionID, type, createdAt, nodeID) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -37,7 +37,7 @@ const (
 	listLeasesByPoolSQL         = "SELECT id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID, poolType FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==?"
 	listLeaseAddressRangeSQL    = "SELECT addressBin FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? AND addressBin >= ? AND addressBin <= ? ORDER BY addressBin"
 	getNewestLeaseInPoolSQL     = "SELECT addressBin FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? ORDER BY rowid DESC LIMIT 1"
-	getLatestLeaseInPoolSQL     = "SELECT addressBin FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? ORDER BY createdAt DESC, id DESC LIMIT 1"
+	getLatestLeaseInPoolSQL     = "SELECT addressBin FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? ORDER BY createdAt DESC, addressBin DESC LIMIT 1"
 	countLeasesByPoolSQL        = "SELECT COUNT(*) FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==?"
 	countIPv4LeasesByPoolSQL    = "SELECT COUNT(*) FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? AND substr(addressBin, 1, 12) = X'00000000000000000000FFFF'"
 	countIPv6LeasesByPoolSQL    = "SELECT COUNT(*) FROM " + IPLeasesTableName + " WHERE poolID==? AND poolType==? AND substr(addressBin, 1, 12) != X'00000000000000000000FFFF'"

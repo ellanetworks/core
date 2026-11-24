@@ -4,8 +4,11 @@
 package db
 
 import (
+	"encoding/json"
 	"fmt"
 	"sync"
+
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
 const (
@@ -250,16 +253,34 @@ func (b *commandBatcher) send(batch []*commandRequest) {
 		cmds[i] = r.cmd
 	}
 
-	data, err := encodeCommandBatch(commandBatch{LeaderTime: b.last, Commands: cmds})
-	if err != nil {
-		finishCommands(batch, nil, 0, err)
+	encoded := commandBatch{LeaderTime: b.last, Commands: cmds}
 
-		b.completed <- struct{}{}
+	var wait func() (*ellaraft.ProposeResult, error)
 
-		return
+	if b.db.raftManager == nil {
+		body, err := json.Marshal(encoded)
+		if err != nil {
+			finishCommands(batch, nil, 0, fmt.Errorf("encode command batch: %w", err))
+
+			b.completed <- struct{}{}
+
+			return
+		}
+
+		res, err := b.db.local.apply(b.db, body)
+		wait = func() (*ellaraft.ProposeResult, error) { return res, err }
+	} else {
+		data, err := encodeCommandBatch(encoded)
+		if err != nil {
+			finishCommands(batch, nil, 0, err)
+
+			b.completed <- struct{}{}
+
+			return
+		}
+
+		wait = b.db.raftManager.StartApply(data, b.db.proposeTimeout)
 	}
-
-	wait := b.db.raftManager.StartApply(data, b.db.proposeTimeout)
 
 	b.inFlight.Add(1)
 
