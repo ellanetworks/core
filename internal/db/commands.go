@@ -630,6 +630,12 @@ func (db *Database) proposeCommand(ctx context.Context, op string, payload json.
 
 	defer func() { endSpan(span, err) }()
 
+	if h, ok := changesetOps[op]; ok && h.unchanged != nil {
+		if value, skip, err := h.unchanged(db, ctx, payload); err == nil && skip {
+			return &ellaraft.ProposeResult{Value: value}, nil
+		}
+	}
+
 	var (
 		result commandResult
 		index  uint64

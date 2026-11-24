@@ -69,6 +69,7 @@ type opMeta struct {
 	commandApply func(db *Database, ctx context.Context, raw json.RawMessage) (any, error)
 	commandCheck func(raw json.RawMessage) error
 	payload      reflect.Type
+	unchanged    func(db *Database, ctx context.Context, raw json.RawMessage) (any, bool, error)
 }
 
 // RequireSchema declares the minimum applied schema version required
@@ -95,6 +96,19 @@ func AffectsTopic(topics ...Topic) OpOption {
 	}
 }
 
+func skipWhenUnchanged[P any](check func(db *Database, ctx context.Context, p *P) (any, bool, error)) OpOption {
+	return func(m *opMeta) {
+		m.unchanged = func(db *Database, ctx context.Context, raw json.RawMessage) (any, bool, error) {
+			var p P
+			if err := json.Unmarshal(raw, &p); err != nil {
+				return nil, false, err
+			}
+
+			return check(db, ctx, &p)
+		}
+	}
+}
+
 func checkOnLeader[P any](check func(db *Database, ctx context.Context, p *P) error) OpOption {
 	return func(m *opMeta) {
 		m.leaderCheck = func(db *Database, ctx context.Context, raw json.RawMessage) error {
@@ -116,6 +130,7 @@ type changesetOpHandler struct {
 	payload   reflect.Type
 	checkJSON func(raw json.RawMessage) error
 	applyJSON func(db *Database, ctx context.Context, raw json.RawMessage) (any, error)
+	unchanged func(db *Database, ctx context.Context, raw json.RawMessage) (any, bool, error)
 }
 
 type intentOpHandler struct {
@@ -174,6 +189,7 @@ func registerChangesetOpReturning[P any, R any](
 		payload:   reflect.TypeFor[P](),
 		checkJSON: checkPayload[P],
 		applyJSON: decodeAndApply(apply),
+		unchanged: meta.unchanged,
 	}
 
 	return &ChangesetOp[P, R]{name: name, minSchema: meta.minSchema, apply: apply}

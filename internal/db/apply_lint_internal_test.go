@@ -207,6 +207,8 @@ func funcKey(obj types.Object) (string, bool) {
 	return fn.Origin().FullName(), true
 }
 
+var leaderSideOptions = map[string]bool{"checkOnLeader": true, "skipWhenUnchanged": true}
+
 func (p *lintProgram) applyRoots() []*lintFunc {
 	dbPkg := p.packages[modulePath+"/internal/db"]
 
@@ -229,6 +231,10 @@ func (p *lintProgram) applyRoots() []*lintFunc {
 
 			for _, arg := range call.Args {
 				ast.Inspect(arg, func(n ast.Node) bool {
+					if opt, ok := n.(*ast.CallExpr); ok && leaderSideOptions[calleeName(opt.Fun)] {
+						return false
+					}
+
 					id, ok := n.(*ast.Ident)
 					if !ok {
 						return true

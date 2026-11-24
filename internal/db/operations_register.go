@@ -190,7 +190,7 @@ var (
 )
 
 var (
-	opRegisterUE          = registerChangesetOpReturning[registerUEPayload, int64]("RegisterUE", (*Database).applyRegisterUE, RequireSchema(21), AffectsTopic(TopicUERegistrations))
+	opRegisterUE          = registerChangesetOpReturning[registerUEPayload, int64]("RegisterUE", (*Database).applyRegisterUE, RequireSchema(21), AffectsTopic(TopicUERegistrations), skipWhenUnchanged((*Database).registerUEUnchanged))
 	opPurgeUERegistration = registerChangesetOp("PurgeUERegistration", (*Database).applyPurgeUERegistration, RequireSchema(21), AffectsTopic(TopicUERegistrations))
 )
 
