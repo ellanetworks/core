@@ -570,6 +570,8 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 		return fmt.Errorf("stat staged database: %w", err)
 	}
 
+	defer db.pauseCommands()()
+
 	if err := db.raftManager.UserRestore(f, info.Size(), db.proposeTimeout); err != nil {
 		recordSpanError(span, err)
 
@@ -633,6 +635,8 @@ func (db *Database) SelfRestore(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("stat self-restore stage: %w", err)
 	}
+
+	defer db.pauseCommands()()
 
 	if err := db.raftManager.UserRestore(f, info.Size(), db.proposeTimeout); err != nil {
 		return fmt.Errorf("raft self-restore: %w", err)

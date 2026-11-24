@@ -54,13 +54,10 @@ func newRetryLoopTestManager(t *testing.T) *Manager {
 	t.Helper()
 
 	origMax := appliedIndexWaitMax
-	origPoll := appliedIndexPollInterval
 	appliedIndexWaitMax = 20 * time.Millisecond
-	appliedIndexPollInterval = time.Millisecond
 
 	t.Cleanup(func() {
 		appliedIndexWaitMax = origMax
-		appliedIndexPollInterval = origPoll
 	})
 
 	m, _ := NewTestManager(t, newTestApplier(t))

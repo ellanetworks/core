@@ -129,7 +129,12 @@ func (db *Database) DeleteClusterMember(ctx context.Context, nodeID string) (err
 	ctx, finish := startDBQuery(ctx, ClusterMembersTableName, "DELETE")
 	defer func() { finish(err) }()
 
-	_, err = opDeleteClusterMember.Invoke(ctx, db, &nodeIDPayload{Value: pki.NodeID(nodeID)})
+	node, err := payloadNodeID(nodeID)
+	if err != nil {
+		return err
+	}
+
+	_, err = opDeleteClusterMember.Invoke(ctx, db, &nodeIDPayload{Value: node})
 	if err != nil {
 		return err
 	}

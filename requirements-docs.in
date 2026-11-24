@@ -1,4 +1,4 @@
-mkdocs-material==9.8.1
+mkdocs-material==9.8.2
 mkdocs-material[imaging]
 mkdocs-glightbox
 mkdocs-redirects

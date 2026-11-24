@@ -13,6 +13,7 @@ import RadioEvents from "./RadioEvents";
 const api = setupApiServer();
 
 const EVENTS_PATH = "/api/v1/ran/events";
+const SETTINGS_PATH = "/api/v1/ran/events/settings";
 const NGAP_ONLY_MESSAGE = "AMFStatusIndication";
 const S1AP_ONLY_MESSAGE = "S1SetupRequest";
 
@@ -24,6 +25,7 @@ const seedApi = ({
     radioEventPage(events, { total_count: totalCount ?? events.length }),
   );
   api.get("/api/v1/ran/events/retention", () => ({ days: 30 }));
+  api.get(SETTINGS_PATH, () => ({ enabled: true }));
   api.get("/api/v1/ran/radios", () => ({
     items: [
       {
@@ -54,10 +56,10 @@ const seedApi = ({
   }));
 };
 
-const renderEvents = async (path = "/radios/events") => {
+const renderEvents = async (path = "/radios/events", role?: string) => {
   const result = renderWithProviders(<RadioEvents />, {
     initialEntries: [path],
-    auth: {},
+    auth: role ? { role } : {},
   });
   await screen.findByRole("heading", { name: /Network Events/ });
   return result;
@@ -587,5 +589,104 @@ describe("RadioEvents event panel", () => {
 
     await waitFor(async () => expect(await panelIsOpen()).toBe(false));
     expect(await panelTitle()).toHaveTextContent("PathSwitchRequest");
+  });
+
+  it("does not open the panel when a read-only user clicks a row", async () => {
+    const user = userEvent.setup();
+    seedApi({
+      events: [radioEvent(7, { message_type: "PathSwitchRequest" })],
+    });
+    await renderEvents("/radios/events", "Read Only");
+
+    const grid = await screen.findByRole("grid");
+    await user.click(await within(grid).findByText("PathSwitchRequest"));
+
+    expect(await panelIsOpen()).toBe(false);
+    expect(api.requests("/api/v1/ran/events/7")).toHaveLength(0);
+  });
+
+  it("does not open the panel for a read-only user following an event link", async () => {
+    seedApi({
+      events: [radioEvent(7, { message_type: "PathSwitchRequest" })],
+    });
+    await renderEvents("/radios/events?event=7", "Read Only");
+
+    const grid = await screen.findByRole("grid");
+    await within(grid).findByText("PathSwitchRequest");
+    expect(await panelIsOpen()).toBe(false);
+    expect(api.requests("/api/v1/ran/events/7")).toHaveLength(0);
+  });
+
+  it("opens the panel for a network manager", async () => {
+    seedApi({
+      events: [radioEvent(7, { message_type: "PathSwitchRequest" })],
+    });
+    seedDecodedEvent(7);
+    await renderEvents("/radios/events?event=7", "Network Manager");
+
+    expect(await panelIsOpen()).toBe(true);
+  });
+});
+
+describe("RadioEvents storage setting", () => {
+  it("shows that events are not stored when storage is off", async () => {
+    api.get(SETTINGS_PATH, () => ({ enabled: false }));
+    await renderEvents();
+
+    expect(
+      await screen.findByText(/Radio events are not being stored/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "store radio events" }),
+    ).not.toBeChecked();
+  });
+
+  it("does not show the notice when storage is on", async () => {
+    await renderEvents();
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("switch", { name: "store radio events" }),
+      ).toBeChecked(),
+    );
+    expect(
+      screen.queryByText(/Radio events are not being stored/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("turns storage off for an admin", async () => {
+    let enabled = true;
+    api.get(SETTINGS_PATH, () => ({ enabled }));
+    api.put(SETTINGS_PATH, (request) => {
+      enabled = (request.body as { enabled: boolean }).enabled;
+      return { message: "Radio event settings updated successfully" };
+    });
+    await renderEvents();
+
+    const toggle = screen.getByRole("switch", { name: "store radio events" });
+    await waitFor(() => expect(toggle).toBeEnabled());
+    await userEvent.click(toggle);
+
+    await waitFor(() =>
+      expect(
+        api.requests(SETTINGS_PATH).find((request) => request.method === "PUT")
+          ?.body,
+      ).toEqual({ enabled: false }),
+    );
+    expect(
+      await screen.findByText(/Radio events are not being stored/),
+    ).toBeInTheDocument();
+  });
+
+  it("does not let a read-only user change storage", async () => {
+    renderWithProviders(<RadioEvents />, {
+      initialEntries: ["/radios/events"],
+      auth: { role: "Read Only" },
+    });
+    await screen.findByRole("heading", { name: /Network Events/ });
+
+    const toggle = screen.getByRole("switch", { name: "store radio events" });
+    await waitFor(() => expect(toggle).toBeChecked());
+    expect(toggle).toBeDisabled();
   });
 });

@@ -29,6 +29,7 @@ import (
 
 const (
 	SCTPReadBufferSize = 65535
+	N3ReadBufferBytes  = 16 << 20
 
 	n2DialAttempts = 5
 	n2DialBackoff  = 200 * time.Millisecond
@@ -690,6 +691,10 @@ func Start(opts *StartOpts) (*GnodeB, error) {
 		n3Conn, err = net.ListenUDP("udp", laddr)
 		if err != nil {
 			return nil, fmt.Errorf("could not listen on GTP-U UDP address %s: %v", opts.GnbN3Address, err)
+		}
+
+		if err := n3Conn.SetReadBuffer(N3ReadBufferBytes); err != nil {
+			return nil, fmt.Errorf("could not size the GTP-U receive buffer: %v", err)
 		}
 
 		gnbN3IPAddress, err = netip.ParseAddr(opts.GnbN3Address)

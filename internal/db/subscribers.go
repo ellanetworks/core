@@ -405,7 +405,12 @@ func (db *Database) countSubscribersAndVisitors(ctx context.Context, q querier) 
 }
 
 func (db *Database) checkSubscriberCapacity(ctx context.Context) error {
-	n, err := db.countSubscribersAndVisitors(ctx, db.runner(ctx))
+	count := db.countSubscribersAndVisitors
+	if db.countsSubscribers(ctx) {
+		count = db.subscriberCount
+	}
+
+	n, err := count(ctx, db.runner(ctx))
 	if err != nil {
 		return err
 	}

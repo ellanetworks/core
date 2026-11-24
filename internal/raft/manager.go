@@ -554,6 +554,23 @@ func (m *Manager) ApplyBytes(data []byte, timeout time.Duration) (*ProposeResult
 	return &ProposeResult{Value: resp, Index: future.Index()}, nil
 }
 
+func (m *Manager) StartApply(data []byte, timeout time.Duration) func() (*ProposeResult, error) {
+	future := m.raft.Apply(data, timeout)
+
+	return func() (*ProposeResult, error) {
+		if err := future.Error(); err != nil {
+			return nil, err
+		}
+
+		resp := future.Response()
+		if err, ok := resp.(error); ok {
+			return nil, err
+		}
+
+		return &ProposeResult{Value: resp, Index: future.Index()}, nil
+	}
+}
+
 // IsLeader returns true if this node is the current Raft leader.
 func (m *Manager) IsLeader() bool {
 	return m.raft.State() == raft.Leader
@@ -640,15 +657,7 @@ func (m *Manager) AppliedIndex() uint64 {
 }
 
 func (m *Manager) WaitApplied(ctx context.Context, index uint64) error {
-	for m.AppliedIndex() < index {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(appliedIndexPollInterval):
-		}
-	}
-
-	return nil
+	return m.fsm.WaitApplied(ctx, index)
 }
 
 // Barrier blocks until all preceding log entries are applied to the FSM,

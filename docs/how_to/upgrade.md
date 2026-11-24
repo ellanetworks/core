@@ -99,15 +99,19 @@ Create a backup with [Backup and Restore](backup_and_restore.md#backup).
 
         1. Open the **Cluster** page on any healthy node other than the one you are about to upgrade.
         2. Click **Drain** next to the node. Wait until its **Drain State** is `drained`.
-        3. Restart the node's pod and wait for it to be ready:
+        3. Restart the node's pod:
 
             ```bash
             kubectl -n ella delete pod ella-core-<n>-0
-            kubectl -n ella wait --for=condition=Ready pod/ella-core-<n>-0 --timeout=10m
             ```
 
         4. On the **Cluster** page, wait for the node to return to **Healthy**.
         5. Click **Resume** next to the node. Wait until its **Drain State** is `active`.
+        6. Wait for the pod to be ready:
+
+            ```bash
+            kubectl -n ella wait --for=condition=Ready pod/ella-core-<n>-0 --timeout=10m
+            ```
 
 ## 4. Verify
 

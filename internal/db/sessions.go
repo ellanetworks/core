@@ -25,7 +25,7 @@ const (
 	deleteExpiredSessionsSQL    = "DELETE FROM " + SessionsTableName + " WHERE expires_at <= ?" // #nosec: G101
 	countSessionsByUserSQL      = "SELECT COUNT(*) FROM " + SessionsTableName + " WHERE user_id==?"
 	countExpiredSessionsSQL     = "SELECT COUNT(*) FROM " + SessionsTableName + " WHERE expires_at <= ?" // #nosec: G101
-	deleteOldestSessionsSQL     = "DELETE FROM " + SessionsTableName + " WHERE id IN (SELECT id FROM " + SessionsTableName + " WHERE user_id==? ORDER BY created_at ASC LIMIT ?)"
+	deleteOldestSessionsSQL     = "DELETE FROM " + SessionsTableName + " WHERE id IN (SELECT id FROM " + SessionsTableName + " WHERE user_id==? ORDER BY created_at ASC, id ASC LIMIT ?)"
 	deleteAllSessionsForUserSQL = "DELETE FROM " + SessionsTableName + " WHERE user_id==?"
 	deleteAllSessionsSQL        = "DELETE FROM " + SessionsTableName
 )

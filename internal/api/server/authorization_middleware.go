@@ -36,7 +36,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermReadIntegrations,
 		PermGetFlowAccountingInfo,
 		PermGetSubscriberUsageRetentionPolicy, PermGetSubscriberUsage,
-		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermGetRadioEvent,
+		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermGetRadioEventSettings,
 		PermGetFlowReportsRetentionPolicy, PermListFlowReports,
 		PermListNetworkRules, PermReadNetworkRule,
 		PermReadLocation,
@@ -62,6 +62,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermReadBGP, PermUpdateBGP,
 		PermGetFlowAccountingInfo, PermUpdateFlowAccountingInfo,
 		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermSetRadioEventRetentionPolicy, PermClearRadioEvents, PermGetRadioEvent,
+		PermGetRadioEventSettings, PermUpdateRadioEventSettings,
 		PermGetFlowReportsRetentionPolicy, PermSetFlowReportsRetentionPolicy, PermListFlowReports, PermClearFlowReports,
 		PermSupportBundle,
 		PermCreateNetworkRule, PermListNetworkRules, PermReadNetworkRule, PermUpdateNetworkRule, PermDeleteNetworkRule,
@@ -190,6 +191,8 @@ const (
 	PermListRadioEvents              = "radio_events:list"
 	PermClearRadioEvents             = "radio_events:clear"
 	PermGetRadioEvent                = "radio_events:get"
+	PermGetRadioEventSettings        = "radio_events:get_settings"
+	PermUpdateRadioEventSettings     = "radio_events:update_settings"
 
 	// Backup and Restore permissions
 	PermBackup        = "backup:create"

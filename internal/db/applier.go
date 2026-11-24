@@ -16,7 +16,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pki"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
-	"github.com/google/uuid"
 	hraft "github.com/hashicorp/raft"
 	"go.uber.org/zap"
 )
@@ -271,6 +270,10 @@ func (db *Database) Reopen(ctx context.Context) error {
 		return fmt.Errorf("refresh applied-schema cache after reopen: %w", err)
 	}
 
+	if err := db.loadAppliedLeaderTime(ctx); err != nil {
+		return err
+	}
+
 	if db.changefeed != nil {
 		db.changefeed.PublishAll()
 	}
@@ -416,7 +419,7 @@ func (db *Database) applyCreateSubscriber(ctx context.Context, s *Subscriber) (a
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	return nil, nil
+	return nil, db.addSubscriberCount(ctx, 1)
 }
 
 func (db *Database) applyUpdateSubscriberProfile(ctx context.Context, s *Subscriber) (any, error) {
@@ -472,6 +475,10 @@ func (db *Database) applyDeleteSubscriber(ctx context.Context, p *stringPayload)
 
 	if rowsAffected == 0 {
 		return nil, ErrNotFound
+	}
+
+	if err := db.addSubscriberCount(ctx, -rowsAffected); err != nil {
+		return nil, err
 	}
 
 	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
@@ -572,16 +579,14 @@ func (db *Database) applyCreateLease(ctx context.Context, lease *IPLease) (any, 
 		return nil, err
 	}
 
-	if lease.ID == "" {
-		id, err := uuid.NewV7()
-		if err != nil {
-			return nil, fmt.Errorf("generate lease id: %w", err)
-		}
-
-		lease.ID = id.String()
+	id, err := payloadID(ctx, lease.ID, "lease")
+	if err != nil {
+		return nil, err
 	}
 
-	_, err := db.runner(ctx).ExecContext(ctx, createLeaseSQL, lease.ID, lease.PoolID, lease.PoolType, lease.AddressBin, lease.IMSI, lease.SessionID, lease.Type, lease.CreatedAt, lease.NodeID)
+	lease.ID = id
+
+	_, err = db.runner(ctx).ExecContext(ctx, createLeaseSQL, lease.ID, lease.PoolID, lease.PoolType, lease.AddressBin, lease.IMSI, lease.SessionID, lease.Type, lease.CreatedAt, lease.NodeID)
 	if err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -663,7 +668,7 @@ func (db *Database) applyCreateStaticLease(ctx context.Context, lease *IPLease) 
 	lease.Type = "static"
 	lease.SessionID = nil
 	lease.NodeID = ""
-	lease.CreatedAt = time.Now().Unix()
+	lease.CreatedAt = applyTime(ctx).Unix()
 
 	return db.applyCreateLease(ctx, lease)
 }
@@ -722,7 +727,7 @@ type releaseIPLeasePayload struct {
 
 func (db *Database) applyReleaseIPLease(ctx context.Context, p *releaseIPLeasePayload) (any, error) {
 	if p.IMSI == "" {
-		return nil, fmt.Errorf("IMSI required")
+		return nil, invalidCommand(errors.New("IMSI required"))
 	}
 
 	sessionID := p.SessionID
@@ -770,6 +775,7 @@ type allocateIPLeasePayload struct {
 	IMSI      string     `json:"imsi"`
 	SessionID int        `json:"sessionId"`
 	NodeID    pki.NodeID `json:"nodeId"`
+	LeaseID   string     `json:"leaseId,omitempty"`
 }
 
 // applyAllocateIPLease atomically resolves an IP for (poolID, IMSI,
@@ -786,7 +792,7 @@ type allocateIPLeasePayload struct {
 // uncommitted writes.
 func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLeasePayload) (any, error) {
 	if p.IMSI == "" {
-		return nil, fmt.Errorf("IMSI required")
+		return nil, invalidCommand(errors.New("IMSI required"))
 	}
 
 	runner := db.runner(ctx)
@@ -796,7 +802,7 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 	dn, err := scanDataNetwork(db.runner(ctx).QueryRowContext(ctx, getDataNetworkByIDSQL, p.PoolID))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("data network %s not found", p.PoolID)
+			return nil, invalidCommand(fmt.Errorf("data network %s not found", p.PoolID))
 		}
 
 		return nil, fmt.Errorf("get data network %s: %w", p.PoolID, err)
@@ -808,12 +814,12 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 	case "ipv6":
 		pool, err = ipam.NewPool6(dn.ID, dn.IPv6Pool, 64)
 		if err != nil {
-			return nil, fmt.Errorf("parse ipv6 pool %q: %w", dn.IPv6Pool, err)
+			return nil, invalidCommand(fmt.Errorf("parse ipv6 pool %q: %w", dn.IPv6Pool, err))
 		}
 	default:
 		pool, err = ipam.NewPool(dn.ID, dn.IPv4Pool)
 		if err != nil {
-			return nil, fmt.Errorf("parse pool %q: %w", dn.IPv4Pool, err)
+			return nil, invalidCommand(fmt.Errorf("parse pool %q: %w", dn.IPv4Pool, err))
 		}
 	}
 
@@ -882,16 +888,22 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 		return nil, err
 	}
 
+	leaseID, err := payloadID(ctx, p.LeaseID, "lease")
+	if err != nil {
+		return nil, err
+	}
+
 	addr := pool.AddressAtOffset(offset)
 	bin := addr.As16()
 	lease := &IPLease{
+		ID:         leaseID,
 		PoolID:     p.PoolID,
 		PoolType:   p.PoolType,
 		AddressBin: bin[:],
 		IMSI:       p.IMSI,
 		SessionID:  &sessionID,
 		Type:       "dynamic",
-		CreatedAt:  time.Now().Unix(),
+		CreatedAt:  applyTime(ctx).Unix(),
 		NodeID:     string(p.NodeID),
 	}
 
@@ -907,7 +919,12 @@ func (db *Database) findFreeLeaseOffset(ctx context.Context, runner querier, poo
 	last := first + pool.Size() - 1
 	start := first
 
-	newest, err := scanLeaseAddress(runner.QueryRowContext(ctx, getNewestLeaseInPoolSQL, pool.ID, poolType))
+	newestSQL := getNewestLeaseInPoolSQL
+	if _, ok := applyInfoFrom(ctx); ok {
+		newestSQL = getLatestLeaseInPoolSQL
+	}
+
+	newest, err := scanLeaseAddress(runner.QueryRowContext(ctx, newestSQL, pool.ID, poolType))
 	switch {
 	case err == nil:
 		if offset := pool.OffsetOf(newest.Address()); offset >= first && offset < last {

@@ -145,6 +145,7 @@ FROM (
 ) AS u
 WHERE ?2 IS NULL OR (u.mcc IS NOT NULL) == ?2
 GROUP BY u.imsi
+ORDER BY u.imsi
 LIMIT ?5`
 
 	getUsagePerSubscriberByIMSIPreV27SQL = `
@@ -158,6 +159,7 @@ LEFT JOIN ` + DailyUsageTableName + ` AS u
     AND u.epoch_day IN ` + usageDaysInRange + `
 WHERE s.imsi = ?1
 GROUP BY s.imsi
+ORDER BY s.imsi
 LIMIT ?5`
 )
 

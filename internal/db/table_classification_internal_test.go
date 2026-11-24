@@ -42,6 +42,8 @@ var (
 		"ip_sm_gw_registrations",
 		"policies",
 		"profiles",
+		"radio_event_settings",
+		"subscriber_count",
 		"retention_policies",
 		"roaming_partner_plmns",
 		"roaming_partners",

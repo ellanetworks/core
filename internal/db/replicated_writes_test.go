@@ -104,14 +104,12 @@ func TestCellPositionWritesReplicate(t *testing.T) {
 	duplicate := *position
 	duplicate.ID = ""
 
-	before := database.RaftAppliedIndex()
-
 	if err := database.CreateCellPosition(ctx, &duplicate); !errors.Is(err, db.ErrAlreadyExists) {
 		t.Fatalf("duplicate CreateCellPosition: err = %v, want ErrAlreadyExists", err)
 	}
 
-	if database.RaftAppliedIndex() != before {
-		t.Fatalf("a rejected duplicate must not reach the Raft log")
+	if positions, err := database.ListCellPositions(ctx); err != nil || len(positions) != 1 || positions[0].ID != position.ID {
+		t.Fatalf("cell positions after a rejected duplicate = %+v, %v; want only the original", positions, err)
 	}
 
 	position.Latitude = 46.5

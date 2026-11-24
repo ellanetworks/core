@@ -133,6 +133,8 @@ var pinnedChangesetOps = map[string]int{
 	"SetVisitorDeregistering":           27,
 	"PutGeneratedSEPPIdentity":          27,
 	"DeleteSEPPIdentity":                27,
+	"UpdateRadioEventSettings":          30,
+	"VerifyState":                       31,
 }
 
 var pinnedIntentOps = map[string]int{

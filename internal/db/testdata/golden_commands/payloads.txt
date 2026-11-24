@@ -1,0 +1,903 @@
+op AdvanceSubscriberSQN schema 31
+  imsi string
+  resyncAuts string
+  resyncRand string
+  resyncSqnMs string
+  domain string
+op AllocateIPLease schema 31
+  poolId string
+  poolType string
+  imsi string
+  sessionId int
+  nodeId pki.NodeID
+  leaseId string
+op AllocateIPv6Lease schema 31
+  poolId string
+  poolType string
+  imsi string
+  sessionId int
+  nodeId pki.NodeID
+  leaseId string
+op ClearDailyUsage schema 31
+op ClearSMSMemoryFull schema 31
+  imsi string
+  service_centre string
+  updated_at int64
+op CompareAndSwapIMSRegistrationSets schema 31
+  imsi string
+  expected.imsi string
+  expected.serverName string
+  expected.originHost string
+  expected.originRealm string
+  expected.privateIdentity string
+  expected.sets map[string]
+  expected.sets{}.state int
+  expected.sets{}.authPending bool
+  expected.sets{}.defaultIdentity string
+  expected.sets{}.profileDigest string
+  expected.sets{}.emergency bool
+  next.imsi string
+  next.serverName string
+  next.originHost string
+  next.originRealm string
+  next.privateIdentity string
+  next.sets map[string]
+  next.sets{}.state int
+  next.sets{}.authPending bool
+  next.sets{}.defaultIdentity string
+  next.sets{}.profileDigest string
+  next.sets{}.emergency bool
+op ConsumeJoinToken schema 31
+  ID string
+  ClaimsJSON string
+  ExpiresAt int64
+  ConsumedAt int64
+  ConsumedBy string
+op CreateAPIToken schema 31
+  ID string
+  TokenID string
+  Name string
+  TokenHash string
+  UserID string
+  ExpiresAt time.Time
+op CreateCellPosition schema 31
+  ID string
+  RAT string
+  Mcc string
+  Mnc string
+  CellIdentity string
+  GNbID string
+  Latitude float64
+  Longitude float64
+  Altitude float64
+  UncertaintySemiMajor float64
+  UncertaintySemiMinor float64
+  OrientationMajor int
+  Confidence int
+  Source string
+  CreatedAt string
+  UpdatedAt string
+op CreateDataNetwork schema 31
+  ID string
+  Name string
+  IPv4Pool string
+  IPv6Pool string
+  DNS string
+  MTU int32
+  IMS bool
+op CreateHomeNetworkKey schema 31
+  ID string
+  KeyIdentifier int
+  Scheme string
+  PrivateKey string
+op CreateIMSApplicationServer schema 31
+  id string
+  name string
+  server_name string
+  public_service_identities[] string
+op CreateIMSPeer schema 31
+  id string
+  name string
+  originHost string
+  realm string
+  addresses[] string
+op CreateIMSServiceProfile schema 31
+  id string
+  name string
+  initial_filter_criteria[].application_server_id string
+  initial_filter_criteria[].trigger.conditions_match string
+  initial_filter_criteria[].trigger.groups[].conditions[].negated bool
+  initial_filter_criteria[].trigger.groups[].conditions[].request_uri string
+  initial_filter_criteria[].trigger.groups[].conditions[].method string
+  initial_filter_criteria[].trigger.groups[].conditions[].registration_types[] string
+  initial_filter_criteria[].trigger.groups[].conditions[].sip_header.header string
+  initial_filter_criteria[].trigger.groups[].conditions[].sip_header.content string
+  initial_filter_criteria[].trigger.groups[].conditions[].session_case string
+  initial_filter_criteria[].trigger.groups[].conditions[].session_description.line string
+  initial_filter_criteria[].trigger.groups[].conditions[].session_description.content string
+  initial_filter_criteria[].profile_part string
+  initial_filter_criteria[].default_handling string
+  initial_filter_criteria[].service_info string
+  initial_filter_criteria[].include_register_request bool
+  initial_filter_criteria[].include_register_response bool
+op CreateLease schema 31
+  ID string
+  PoolID string
+  AddressBin bytes
+  IMSI string
+  SessionID int
+  Type string
+  CreatedAt int64
+  NodeID string
+  PoolType string
+op CreateNetworkRule schema 31
+  ID string
+  PolicyID string
+  Description string
+  Direction string
+  RemotePrefix string
+  Protocol int32
+  PortLow int32
+  PortHigh int32
+  Action string
+  Precedence int32
+  CreatedAt time.Time
+  UpdatedAt time.Time
+op CreateNetworkSlice schema 31
+  ID string
+  Sst int32
+  Sd string
+  Name string
+op CreatePolicy schema 31
+  ID string
+  Name string
+  ProfileID string
+  SliceID string
+  DataNetworkID string
+  Var5qi int32
+  Arp int32
+  PreemptionCapability string
+  PreemptionVulnerability string
+  SessionAmbrUplink string
+  SessionAmbrDownlink string
+  IsDefault bool
+op CreatePolicyWithRules schema 31
+  policy.ID string
+  policy.Name string
+  policy.ProfileID string
+  policy.SliceID string
+  policy.DataNetworkID string
+  policy.Var5qi int32
+  policy.Arp int32
+  policy.PreemptionCapability string
+  policy.PreemptionVulnerability string
+  policy.SessionAmbrUplink string
+  policy.SessionAmbrDownlink string
+  policy.IsDefault bool
+  rules.uplink[].description string
+  rules.uplink[].remote_prefix string
+  rules.uplink[].protocol int32
+  rules.uplink[].port_low int32
+  rules.uplink[].port_high int32
+  rules.uplink[].action string
+  rules.downlink[].description string
+  rules.downlink[].remote_prefix string
+  rules.downlink[].protocol int32
+  rules.downlink[].port_low int32
+  rules.downlink[].port_high int32
+  rules.downlink[].action string
+  ruleIds[] string
+op CreateProfile schema 31
+  ID string
+  Name string
+  UeAmbrUplink string
+  UeAmbrDownlink string
+  Allow4G bool
+  Allow5G bool
+op CreateRoamingDiameterPeer schema 31
+  id string
+  diameter_identity string
+  address string
+  port int
+op CreateRoamingPartner schema 31
+  partner.ID string
+  partner.Name string
+  partner.ProfileID string
+  partner.SEPPFQDN string
+  partner.SEPPN32cURI string
+  partner.SEPPN32fURI string
+  partner.SEPPTrustAnchorPEM string
+  partner.DiameterPeerID string
+  partner.PLMNs[].mcc string
+  partner.PLMNs[].mnc string
+  partner.WithdrawingUntil int64
+  partner.NRFAPIRoots[].mcc string
+  partner.NRFAPIRoots[].mnc string
+  partner.NRFAPIRoots[].apiRoot string
+op CreateSMSC schema 31
+  id string
+  name string
+  service_centres[] string
+  nodes[].id string
+  nodes[].diameter_identity string
+  nodes[].address string
+  nodes[].port int
+op CreateSMSCPeer schema 31
+  id string
+  diameter_identity string
+  address string
+  port int
+  service_centres[] string
+op CreateSession schema 31
+  ID string
+  UserID string
+  TokenHash bytes
+  CreatedAt int64
+  ExpiresAt int64
+  Method string
+  IdentityID string
+op CreateSliceDataNetwork schema 31
+  SliceID string
+  DataNetworkID string
+  NAT bool
+  LocalSwitch bool
+  NetworkInstance string
+op CreateStaticLease schema 31
+  ID string
+  PoolID string
+  AddressBin bytes
+  IMSI string
+  SessionID int
+  Type string
+  CreatedAt int64
+  NodeID string
+  PoolType string
+op CreateSubscriber schema 31
+  ID string
+  Imsi string
+  SequenceNumber string
+  PermanentKey string
+  Opc string
+  ProfileID string
+  Description string
+  Msisdn string
+  RoamingPartnerID string
+op CreateUser schema 31
+  ID string
+  Email string
+  RoleID int
+  HashedPassword string
+  HasIdentity bool
+op DeleteAPIToken schema 31
+  value string
+op DeleteAllDynamicLeases schema 31
+op DeleteAllSessions schema 31
+op DeleteAllSessionsForUser schema 31
+  value string
+op DeleteCellPosition schema 31
+  value string
+op DeleteClusterMember schema 31
+  value pki.NodeID
+op DeleteClusterNodeCert schema 31
+  NodeID string
+  Fingerprint string
+  CertPEM string
+  AddedAt int64
+op DeleteDataNetwork schema 31
+  value string
+op DeleteDynamicLease schema 31
+  value string
+op DeleteDynamicLeasesByNode schema 31
+  value pki.NodeID
+op DeleteExpiredSessions schema 31
+  value int64
+op DeleteHomeNetworkKey schema 31
+  value string
+op DeleteIMSApplicationServer schema 31
+  value string
+op DeleteIMSPeer schema 31
+  value string
+op DeleteIMSServiceProfile schema 31
+  value string
+op DeleteIPSMGWRegistration schema 31
+  imsi string
+  number string
+  diameterHost string
+  diameterRealm string
+op DeleteNetworkRule schema 31
+  value string
+op DeleteNetworkRulesByPolicy schema 31
+  value string
+op DeleteNetworkSlice schema 31
+  value string
+op DeleteOldDailyUsage schema 31
+  value int64
+op DeleteOldestSessions schema 31
+  UserID string
+  Limit int
+op DeletePolicy schema 31
+  value string
+op DeleteProfile schema 31
+  value string
+op DeleteRoamingDiameterPeer schema 31
+  value string
+op DeleteRoamingPartner schema 31
+  value string
+op DeleteSEPPIdentity schema 31
+  SEPPID int
+  FQDN string
+  Source string
+  CertChainPEM string
+  KeyPEM string
+op DeleteSMSC schema 31
+  value string
+op DeleteSMSCPeer schema 31
+  value string
+op DeleteSMSWaiting schema 31
+  imsi string
+  service_centre string
+  updated_at int64
+op DeleteSessionByTokenHash schema 31
+  value bytes
+  operation string
+  requiredSchema int
+  capturedSchema int
+op DeleteSliceDataNetwork schema 31
+  SliceID string
+  DataNetworkID string
+  NAT bool
+  LocalSwitch bool
+  NetworkInstance string
+op DeleteStaleJoinTokens schema 31
+  ID string
+  ClaimsJSON string
+  ExpiresAt int64
+  ConsumedAt int64
+  ConsumedBy string
+op DeleteStaleSMSWaiting schema 31
+  cutoff int64
+op DeleteStaticLease schema 31
+  value string
+op DeleteSubscriber schema 31
+  value string
+op DeleteUser schema 31
+  value string
+op EditSubscriberSeqNum schema 31
+  ID string
+  Imsi string
+  SequenceNumber string
+  PermanentKey string
+  Opc string
+  ProfileID string
+  Description string
+  Msisdn string
+  RoamingPartnerID string
+op IncrementDailyUsage schema 31
+  EpochDay int64
+  IMSI string
+  Mcc string
+  Mnc string
+  BytesUplink int64
+  BytesDownlink int64
+op IncrementDailyUsageBatch schema 31
+  Rows[].EpochDay int64
+  Rows[].IMSI string
+  Rows[].Mcc string
+  Rows[].Mnc string
+  Rows[].BytesUplink int64
+  Rows[].BytesDownlink int64
+op InitClusterJoinHMACKey schema 31
+  ID int
+  HMACKey bytes
+op InitSEPPCA schema 31
+  CertPEM string
+  KeyPEM string
+op InitializeOperator schema 31
+  ID int
+  Mcc string
+  Mnc string
+  OperatorCode string
+  SupportedTACs string
+  Ciphering string
+  Integrity string
+  SpnFullName string
+  SpnShortName string
+  AmfRegionID int
+  AmfSetID int
+  ClusterID string
+op LinkOIDCIdentity schema 31
+  issuer string
+  clientID string
+  subject string
+  email string
+  userID string
+  identityID string
+  at int64
+op LogInWithOIDC schema 31
+  issuer string
+  clientID string
+  subject string
+  email string
+  linkEmail string
+  mapsGroups bool
+  roleID int
+  maxUsers int
+  maxSessionsPerUser int
+  newUserID string
+  newIdentityID string
+  session.ID string
+  session.UserID string
+  session.TokenHash bytes
+  session.CreatedAt int64
+  session.ExpiresAt int64
+  session.Method string
+  session.IdentityID string
+op MintJoinToken schema 31
+  ID string
+  ClaimsJSON string
+  ExpiresAt int64
+  ConsumedAt int64
+  ConsumedBy string
+op PurgeUERegistration schema 31
+  imsi string
+  type string
+  node_id string
+op PutGeneratedSEPPIdentity schema 31
+  SEPPID int
+  FQDN string
+  Source string
+  CertChainPEM string
+  KeyPEM string
+op PutIPSMGWRegistration schema 31
+  imsi string
+  number string
+  diameterHost string
+  diameterRealm string
+op PutSEPPIdentity schema 31
+  SEPPID int
+  FQDN string
+  Source string
+  CertChainPEM string
+  KeyPEM string
+op RecordSMSWaiting schema 31
+  imsi string
+  service_centre string
+  mcef bool
+  updated_at int64
+op RedeemJoinToken schema 31
+  token_id string
+  node_id pki.NodeID
+  fingerprint string
+  cert_pem string
+op RegisterUE schema 31
+  imsi string
+  type string
+  node_id string
+  cancel string
+op RegisterVisitorUE schema 31
+  imsi string
+  partner_id string
+  type string
+  node_id string
+  cancel string
+op ReleaseIPLease schema 31
+  poolId string
+  poolType string
+  imsi string
+  sessionId int
+  nodeId pki.NodeID
+op RemoveSMSWaitingCentre schema 31
+  imsi string
+  service_centre string
+  updated_at int64
+op ReplaceFramedRoutes schema 31
+  imsi string
+  data_network_id string
+  prefixes[] string
+  ids[] string
+op ReplacePCSCFAddresses schema 31
+  addresses[] string
+op ReplaceSEPPCA schema 31
+  CertPEM string
+  KeyPEM string
+op RotateJWTSecret schema 31
+  value bytes
+  operation string
+  requiredSchema int
+  capturedSchema int
+op SetDefaultPolicy schema 31
+  ID string
+  Name string
+  ProfileID string
+  SliceID string
+  DataNetworkID string
+  Var5qi int32
+  Arp int32
+  PreemptionCapability string
+  PreemptionVulnerability string
+  SessionAmbrUplink string
+  SessionAmbrDownlink string
+  IsDefault bool
+op SetDisplayName schema 31
+  NodeID string
+  AMFPointer int
+  DisplayName string
+  APIAddress string
+  BinaryVersion string
+  DrainState string
+  DrainUpdatedAt int64
+op SetDrainState schema 31
+  NodeID string
+  AMFPointer int
+  DisplayName string
+  APIAddress string
+  BinaryVersion string
+  DrainState string
+  DrainUpdatedAt int64
+op SetJWTSecret schema 31
+  value bytes
+  operation string
+  requiredSchema int
+  capturedSchema int
+op SetProfileIMSServiceProfiles schema 31
+  profile_id string
+  service_profiles map[string]
+  service_profiles{} string
+op SetRetentionPolicy schema 31
+  ID string
+  Category string
+  Days int
+op SetRoamingPartnerWithdrawing schema 31
+  key string
+  until int64
+op SetVisitorDeregistering schema 31
+  key string
+  until int64
+op SetVisitorMSISDN schema 31
+  imsi string
+  msisdn string
+op UnlinkUser schema 31
+  value string
+op UpdateCellPosition schema 31
+  ID string
+  RAT string
+  Mcc string
+  Mnc string
+  CellIdentity string
+  GNbID string
+  Latitude float64
+  Longitude float64
+  Altitude float64
+  UncertaintySemiMajor float64
+  UncertaintySemiMinor float64
+  OrientationMajor int
+  Confidence int
+  Source string
+  CreatedAt string
+  UpdatedAt string
+op UpdateDataNetwork schema 31
+  ID string
+  Name string
+  IPv4Pool string
+  IPv6Pool string
+  DNS string
+  MTU int32
+  IMS bool
+op UpdateIMSApplicationServer schema 31
+  id string
+  name string
+  server_name string
+  public_service_identities[] string
+op UpdateIMSPeer schema 31
+  id string
+  name string
+  originHost string
+  realm string
+  addresses[] string
+op UpdateIMSServiceProfile schema 31
+  id string
+  name string
+  initial_filter_criteria[].application_server_id string
+  initial_filter_criteria[].trigger.conditions_match string
+  initial_filter_criteria[].trigger.groups[].conditions[].negated bool
+  initial_filter_criteria[].trigger.groups[].conditions[].request_uri string
+  initial_filter_criteria[].trigger.groups[].conditions[].method string
+  initial_filter_criteria[].trigger.groups[].conditions[].registration_types[] string
+  initial_filter_criteria[].trigger.groups[].conditions[].sip_header.header string
+  initial_filter_criteria[].trigger.groups[].conditions[].sip_header.content string
+  initial_filter_criteria[].trigger.groups[].conditions[].session_case string
+  initial_filter_criteria[].trigger.groups[].conditions[].session_description.line string
+  initial_filter_criteria[].trigger.groups[].conditions[].session_description.content string
+  initial_filter_criteria[].profile_part string
+  initial_filter_criteria[].default_handling string
+  initial_filter_criteria[].service_info string
+  initial_filter_criteria[].include_register_request bool
+  initial_filter_criteria[].include_register_response bool
+op UpdateIMSSettings schema 31
+  settings.homeDomain string
+  settings.advertiseVoice bool
+  settings.restrictPeers bool
+  pcscfAddresses[] string
+op UpdateLeaseNode schema 31
+  ID string
+  PoolID string
+  AddressBin bytes
+  IMSI string
+  SessionID int
+  Type string
+  CreatedAt int64
+  NodeID string
+  PoolType string
+op UpdateLeaseSession schema 31
+  ID string
+  PoolID string
+  AddressBin bytes
+  IMSI string
+  SessionID int
+  Type string
+  CreatedAt int64
+  NodeID string
+  PoolType string
+op UpdateNetworkRule schema 31
+  ID string
+  PolicyID string
+  Description string
+  Direction string
+  RemotePrefix string
+  Protocol int32
+  PortLow int32
+  PortHigh int32
+  Action string
+  Precedence int32
+  CreatedAt time.Time
+  UpdatedAt time.Time
+op UpdateNetworkSlice schema 31
+  ID string
+  Sst int32
+  Sd string
+  Name string
+op UpdateOIDC schema 31
+  enabled bool
+  externalURL string
+  issuer string
+  clientID string
+  clientSecret string
+  displayName string
+  scopes[] string
+  sessionLifetime int64
+  trustUnverifiedEmail bool
+  caCertificate string
+  groupsClaim string
+  groupRoles[].group string
+  groupRoles[].roleID int
+op UpdateOperatorAMFIdentity schema 31
+  ID int
+  Mcc string
+  Mnc string
+  OperatorCode string
+  SupportedTACs string
+  Ciphering string
+  Integrity string
+  SpnFullName string
+  SpnShortName string
+  AmfRegionID int
+  AmfSetID int
+  ClusterID string
+op UpdateOperatorClusterID schema 31
+  ID int
+  Mcc string
+  Mnc string
+  OperatorCode string
+  SupportedTACs string
+  Ciphering string
+  Integrity string
+  SpnFullName string
+  SpnShortName string
+  AmfRegionID int
+  AmfSetID int
+  ClusterID string
+op UpdateOperatorCode schema 31
+  ID int
+  Mcc string
+  Mnc string
+  OperatorCode string
+  SupportedTACs string
+  Ciphering string
+  Integrity string
+  SpnFullName string
+  SpnShortName string
+  AmfRegionID int
+  AmfSetID int
+  ClusterID string
+op UpdateOperatorID schema 31
+  ID int
+  Mcc string
+  Mnc string
+  OperatorCode string
+  SupportedTACs string
+  Ciphering string
+  Integrity string
+  SpnFullName string
+  SpnShortName string
+  AmfRegionID int
+  AmfSetID int
+  ClusterID string
+op UpdateOperatorSPN schema 31
+  ID int
+  Mcc string
+  Mnc string
+  OperatorCode string
+  SupportedTACs string
+  Ciphering string
+  Integrity string
+  SpnFullName string
+  SpnShortName string
+  AmfRegionID int
+  AmfSetID int
+  ClusterID string
+op UpdateOperatorSecurityAlgorithms schema 31
+  ID int
+  Mcc string
+  Mnc string
+  OperatorCode string
+  SupportedTACs string
+  Ciphering string
+  Integrity string
+  SpnFullName string
+  SpnShortName string
+  AmfRegionID int
+  AmfSetID int
+  ClusterID string
+op UpdateOperatorTracking schema 31
+  ID int
+  Mcc string
+  Mnc string
+  OperatorCode string
+  SupportedTACs string
+  Ciphering string
+  Integrity string
+  SpnFullName string
+  SpnShortName string
+  AmfRegionID int
+  AmfSetID int
+  ClusterID string
+op UpdatePolicy schema 31
+  ID string
+  Name string
+  ProfileID string
+  SliceID string
+  DataNetworkID string
+  Var5qi int32
+  Arp int32
+  PreemptionCapability string
+  PreemptionVulnerability string
+  SessionAmbrUplink string
+  SessionAmbrDownlink string
+  IsDefault bool
+op UpdatePolicyWithRules schema 31
+  policy.ID string
+  policy.Name string
+  policy.ProfileID string
+  policy.SliceID string
+  policy.DataNetworkID string
+  policy.Var5qi int32
+  policy.Arp int32
+  policy.PreemptionCapability string
+  policy.PreemptionVulnerability string
+  policy.SessionAmbrUplink string
+  policy.SessionAmbrDownlink string
+  policy.IsDefault bool
+  rules.uplink[].description string
+  rules.uplink[].remote_prefix string
+  rules.uplink[].protocol int32
+  rules.uplink[].port_low int32
+  rules.uplink[].port_high int32
+  rules.uplink[].action string
+  rules.downlink[].description string
+  rules.downlink[].remote_prefix string
+  rules.downlink[].protocol int32
+  rules.downlink[].port_low int32
+  rules.downlink[].port_high int32
+  rules.downlink[].action string
+  ruleIds[] string
+op UpdateProfile schema 31
+  ID string
+  Name string
+  UeAmbrUplink string
+  UeAmbrDownlink string
+  Allow4G bool
+  Allow5G bool
+op UpdateRadioEventSettings schema 31
+  value bool
+op UpdateRoamingDiameterPeer schema 31
+  id string
+  diameter_identity string
+  address string
+  port int
+op UpdateRoamingPartner schema 31
+  partner.ID string
+  partner.Name string
+  partner.ProfileID string
+  partner.SEPPFQDN string
+  partner.SEPPN32cURI string
+  partner.SEPPN32fURI string
+  partner.SEPPTrustAnchorPEM string
+  partner.DiameterPeerID string
+  partner.PLMNs[].mcc string
+  partner.PLMNs[].mnc string
+  partner.WithdrawingUntil int64
+  partner.NRFAPIRoots[].mcc string
+  partner.NRFAPIRoots[].mnc string
+  partner.NRFAPIRoots[].apiRoot string
+op UpdateSMSC schema 31
+  id string
+  name string
+  service_centres[] string
+  nodes[].id string
+  nodes[].diameter_identity string
+  nodes[].address string
+  nodes[].port int
+op UpdateSMSCPeer schema 31
+  id string
+  diameter_identity string
+  address string
+  port int
+  service_centres[] string
+op UpdateSMSSettings schema 31
+  SMSNumber string
+op UpdateSliceDataNetwork schema 31
+  SliceID string
+  DataNetworkID string
+  NAT bool
+  LocalSwitch bool
+  NetworkInstance string
+op UpdateStaticLeaseAddress schema 31
+  ID string
+  PoolID string
+  AddressBin bytes
+  IMSI string
+  SessionID int
+  Type string
+  CreatedAt int64
+  NodeID string
+  PoolType string
+op UpdateSubscriberProfile schema 31
+  ID string
+  Imsi string
+  SequenceNumber string
+  PermanentKey string
+  Opc string
+  ProfileID string
+  Description string
+  Msisdn string
+  RoamingPartnerID string
+op UpdateUser schema 31
+  ID string
+  Email string
+  RoleID int
+  HashedPassword string
+  HasIdentity bool
+op UpdateUserPassword schema 31
+  ID string
+  Email string
+  RoleID int
+  HashedPassword string
+  HasIdentity bool
+op UpsertClusterMember schema 31
+  NodeID string
+  AMFPointer int
+  DisplayName string
+  APIAddress string
+  BinaryVersion string
+  DrainState string
+  DrainUpdatedAt int64
+op UpsertClusterNodeCert schema 31
+  NodeID string
+  Fingerprint string
+  CertPEM string
+  AddedAt int64
+op UseOIDCState schema 31
+  stateHash bytes
+  expiresAt int64
+  now int64
+op VerifyState schema 31

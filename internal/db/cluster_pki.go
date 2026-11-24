@@ -158,7 +158,7 @@ func (db *Database) applyRedeemJoinToken(ctx context.Context, p *redeemJoinToken
 	}
 
 	runner := db.runner(ctx)
-	now := time.Now().Unix()
+	now := applyTime(ctx).Unix()
 
 	token, err := scanClusterJoinToken(runner.QueryRowContext(ctx, getJoinTokenSQL, p.TokenID))
 	if err != nil {
@@ -387,9 +387,16 @@ func (db *Database) RedeemJoinToken(ctx context.Context, tokenID string, nodeID 
 	)
 	defer span.End()
 
+	node, err := payloadNodeID(nodeID)
+	if err != nil {
+		recordSpanError(span, err)
+
+		return nil, err
+	}
+
 	res, err := opRedeemJoinToken.Invoke(ctx, db, &redeemJoinTokenPayload{
 		TokenID:     tokenID,
-		NodeID:      pki.NodeID(nodeID),
+		NodeID:      node,
 		Fingerprint: fingerprint,
 		CertPEM:     certPEM,
 	})

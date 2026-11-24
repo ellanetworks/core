@@ -57,6 +57,7 @@ func newClusterMux(dbInstance *db.Database) *http.ServeMux {
 	mux.Handle("POST /cluster/members", LeaderOnly(dbInstance, selfRegistrationGuard(AddClusterMember(dbInstance))))
 	mux.Handle("GET "+InternalAutopilotPath, removedNodeFence(dbInstance, LeaderOnly(dbInstance, ClusterAutopilotState(dbInstance))))
 	mux.Handle("POST "+raft.ProposeForwardPath, removedNodeFence(dbInstance, ClusterPropose(dbInstance)))
+	mux.HandleFunc("GET "+raft.StateHashPath, ClusterStateHash(dbInstance).ServeHTTP)
 
 	// PKI register endpoint on the cluster HTTP ALPN. The issuer
 	// service becomes available after the first leader election;
@@ -206,5 +207,12 @@ func ClusterStatus(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(r.Context(), w, clusterStatusResponse{Cluster: status}, http.StatusOK, logger.APILog)
+	})
+}
+
+func ClusterStateHash(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(dbInstance.StateHash())
 	})
 }

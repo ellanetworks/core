@@ -22,7 +22,12 @@ import (
 
 const (
 	UpdateRadioEventRetentionPolicyAction = "update_network_log_retention_policy"
+	UpdateRadioEventSettingsAction        = "update_radio_event_settings"
 )
+
+type RadioEventSettings struct {
+	Enabled bool `json:"enabled"`
+}
 
 type GetRadioEventsRetentionPolicyResponse struct {
 	Days int `json:"days"`
@@ -41,7 +46,6 @@ type RadioEvent struct {
 	Radio       string `json:"radio"`
 	RadioRef    string `json:"radio_ref"`
 	Address     string `json:"address"`
-	Raw         []byte `json:"raw"`
 	Details     string `json:"details"`
 }
 
@@ -209,7 +213,6 @@ func ListRadioEvents(dbInstance *db.Database) http.Handler {
 				Radio:       log.RadioName,
 				RadioRef:    log.RadioRef,
 				Address:     log.RemoteAddress,
-				Raw:         log.Raw,
 				Details:     log.Details,
 			}
 		}
@@ -261,6 +264,42 @@ func GetRadioEvent(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(r.Context(), w, response, http.StatusOK, logger.APILog)
+	})
+}
+
+func GetRadioEventSettings(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		enabled, err := dbInstance.IsRadioEventsEnabled(r.Context())
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve radio event settings", err, logger.APILog)
+			return
+		}
+
+		writeResponse(r.Context(), w, RadioEventSettings{Enabled: enabled}, http.StatusOK, logger.APILog)
+	})
+}
+
+func UpdateRadioEventSettings(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		email, ok := r.Context().Value(contextKeyEmail).(string)
+		if !ok {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", errors.New("missing email in context"), logger.APILog)
+			return
+		}
+
+		var params RadioEventSettings
+		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request body", err, logger.APILog)
+			return
+		}
+
+		if err := dbInstance.UpdateRadioEventSettings(r.Context(), params.Enabled); err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update radio event settings", err, logger.APILog)
+			return
+		}
+
+		writeResponse(r.Context(), w, SuccessResponse{Message: "Radio event settings updated successfully"}, http.StatusOK, logger.APILog)
+		logger.LogAuditEvent(r.Context(), UpdateRadioEventSettingsAction, email, getClientIP(r), fmt.Sprintf("User updated radio event settings: enabled=%t", params.Enabled))
 	})
 }
 

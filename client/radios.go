@@ -83,6 +83,14 @@ type UpdateRadioEventsRetentionPolicyOptions struct {
 	Days int `json:"days"`
 }
 
+type RadioEventSettings struct {
+	Enabled bool `json:"enabled"`
+}
+
+type UpdateRadioEventSettingsOptions struct {
+	Enabled bool `json:"enabled"`
+}
+
 type RadioEvent struct {
 	ID          int    `json:"id"`
 	Timestamp   string `json:"timestamp"`
@@ -91,7 +99,6 @@ type RadioEvent struct {
 	Direction   string `json:"direction"`
 	Radio       string `json:"radio"`
 	Address     string `json:"address"`
-	Raw         string `json:"raw"`
 	Details     string `json:"details"`
 }
 
@@ -289,6 +296,42 @@ func (c *Client) UpdateRadioEventRetentionPolicy(ctx context.Context, opts *Upda
 	}
 
 	return nil
+}
+
+func (c *Client) GetRadioEventSettings(ctx context.Context) (*RadioEventSettings, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "GET",
+		Path:   "api/v1/ran/events/settings",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var settings RadioEventSettings
+
+	if err := resp.DecodeResult(&settings); err != nil {
+		return nil, err
+	}
+
+	return &settings, nil
+}
+
+func (c *Client) UpdateRadioEventSettings(ctx context.Context, opts *UpdateRadioEventSettingsOptions) error {
+	var body bytes.Buffer
+
+	if err := json.NewEncoder(&body).Encode(opts); err != nil {
+		return err
+	}
+
+	_, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "PUT",
+		Path:   "api/v1/ran/events/settings",
+		Body:   &body,
+	})
+
+	return err
 }
 
 func (c *Client) GetRadioEvent(ctx context.Context, id int) (*RadioEventContent, error) {

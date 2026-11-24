@@ -356,6 +356,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		runAMFPointerSubscriber(ctx, dbInstance)
 	})
 
+	wg.Go(func() {
+		runRadioEventSettingsSubscriber(ctx, dbInstance)
+	})
+
 	forwarding, err := dbInstance.ListSliceDataNetworkForwarding(ctx)
 	if err != nil {
 		return fmt.Errorf("couldn't determine which data networks use NAT: %w", err)
@@ -1859,6 +1863,32 @@ func startRadioEventWriter(dbInstance *db.Database) *dbwriter.BufferedDBWriter {
 	logger.SetDb(writer)
 
 	return writer
+}
+
+func runRadioEventSettingsSubscriber(ctx context.Context, dbInstance *db.Database) {
+	wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicRadioEventSettings)
+	defer stop()
+
+	refresh := func() {
+		enabled, err := dbInstance.IsRadioEventsEnabled(ctx)
+		if err != nil {
+			logger.EllaLog.Warn("couldn't load the radio event settings", zap.Error(err))
+			return
+		}
+
+		logger.SetRadioEventsEnabled(enabled)
+	}
+
+	refresh()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-wakeup:
+			refresh()
+		}
+	}
 }
 
 func connectedS6aPartners(dbInstance *db.Database, node *diameternode.Manager) func() int {

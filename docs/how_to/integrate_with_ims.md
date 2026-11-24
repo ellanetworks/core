@@ -37,7 +37,7 @@ To use another home domain, e.g. `ims.example.org`, click the edit icon next to 
 
 ## 3. Allow your IMS nodes
 
-In **Integrations › IMS**, under **Allowed IMS Peers**, click **Add Allowed Peer** and enter:
+In **Integrations › IMS**, under **IMS Peers**, click **Add Allowed Peer** and enter:
 
 - **Name**: e.g. `cscf`.
 - **Origin-Host** of an IMS node, e.g. `scscf.ims.mnc001.mcc001.3gppnetwork.org`, or the **Realm** of your IMS nodes, e.g. `ims.mnc001.mcc001.3gppnetwork.org`, or both.

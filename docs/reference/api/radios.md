@@ -208,7 +208,6 @@ This path returns the list of radio events.
                 "protocol": "NGAP",
                 "message_type": "PDU Session Establishment Accept",
                 "direction": "inbound",
-                "raw": "ABUAOQAABAAbAAkAAPEQMAASNFAAUkAMBIBnbmIwMDEyMzQ1AGYAEAAAAAABAADxEAAAEAgQIDAAFUABQA",
                 "details": "{\"pduSessionID\":1}"
             }
         ],
@@ -223,7 +222,9 @@ This path returns the list of radio events.
 
 ## Get Radio Event
 
-This path returns a specific radio event by its ID.
+This path returns a specific radio event by its ID, with its raw and decoded message.
+
+Requires the admin or network manager role.
 
 | Method | Path                         |
 | ------ | ---------------------------- |
@@ -354,6 +355,50 @@ None
 {
     "result": {
         "days": 30
+    }
+}
+```
+
+## Get Radio Event Settings
+
+This path returns whether radio events are stored. Radio events are stored by default.
+
+| Method | Path                          |
+| ------ | ----------------------------- |
+| GET    | `/api/v1/ran/events/settings` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "enabled": true
+    }
+}
+```
+
+## Update Radio Event Settings
+
+This path turns storing radio events on or off. The setting applies to every node in a cluster. Turning it off does not delete radio events already stored.
+
+| Method | Path                          |
+| ------ | ----------------------------- |
+| PUT    | `/api/v1/ran/events/settings` |
+
+### Parameters
+
+- `enabled` (boolean): Whether radio events are stored.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Radio event settings updated successfully"
     }
 }
 ```

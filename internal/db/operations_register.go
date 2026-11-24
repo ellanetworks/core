@@ -151,7 +151,8 @@ var (
 
 // Retention
 var (
-	opSetRetentionPolicy = registerChangesetOp("SetRetentionPolicy", (*Database).applySetRetentionPolicy)
+	opSetRetentionPolicy       = registerChangesetOp("SetRetentionPolicy", (*Database).applySetRetentionPolicy)
+	opUpdateRadioEventSettings = registerChangesetOp("UpdateRadioEventSettings", (*Database).applyUpdateRadioEventSettings, RequireSchema(radioEventSettingsSchema), AffectsTopic(TopicRadioEventSettings))
 )
 
 // Operator
@@ -169,13 +170,13 @@ var (
 // JWT secret
 var (
 	opSetJWTSecret    = registerChangesetOp("SetJWTSecret", (*Database).applySetJWTSecret, AffectsTopic(TopicJWTSecret))
-	opRotateJWTSecret = registerIntentOp("RotateJWTSecret", ellaraft.CmdRotateJWTSecret, RequireSchema(24), AffectsTopic(TopicJWTSecret))
+	opRotateJWTSecret = registerIntentOp("RotateJWTSecret", ellaraft.CmdRotateJWTSecret, RequireSchema(24), AffectsTopic(TopicJWTSecret), asCommand(withoutResult((*Database).applyRotateJWTSecret)))
 )
 
 var (
-	opCreateCellPosition = registerIntentOp("CreateCellPosition", ellaraft.CmdPutCellPosition, RequireSchema(24), checkOnLeader((*Database).checkCreateCellPosition))
-	opUpdateCellPosition = registerIntentOp("UpdateCellPosition", ellaraft.CmdPutCellPosition, RequireSchema(24), checkOnLeader((*Database).checkUpdateCellPosition))
-	opDeleteCellPosition = registerIntentOp("DeleteCellPosition", ellaraft.CmdDeleteCellPosition, RequireSchema(24), checkOnLeader((*Database).checkDeleteCellPosition))
+	opCreateCellPosition = registerIntentOp("CreateCellPosition", ellaraft.CmdPutCellPosition, RequireSchema(24), checkOnLeader((*Database).checkCreateCellPosition), asCommand((*Database).applyCreateCellPositionCommand))
+	opUpdateCellPosition = registerIntentOp("UpdateCellPosition", ellaraft.CmdPutCellPosition, RequireSchema(24), checkOnLeader((*Database).checkUpdateCellPosition), asCommand((*Database).applyUpdateCellPositionCommand))
+	opDeleteCellPosition = registerIntentOp("DeleteCellPosition", ellaraft.CmdDeleteCellPosition, RequireSchema(24), checkOnLeader((*Database).checkDeleteCellPosition), asCommand((*Database).applyDeleteCellPositionCommand))
 )
 
 // Routes
@@ -189,7 +190,7 @@ var (
 )
 
 var (
-	opRegisterUE          = registerChangesetOpReturning[registerUEPayload, int64]("RegisterUE", (*Database).applyRegisterUE, RequireSchema(21), AffectsTopic(TopicUERegistrations))
+	opRegisterUE          = registerChangesetOpReturning[registerUEPayload, int64]("RegisterUE", (*Database).applyRegisterUE, RequireSchema(21), AffectsTopic(TopicUERegistrations), skipWhenUnchanged((*Database).registerUEUnchanged))
 	opPurgeUERegistration = registerChangesetOp("PurgeUERegistration", (*Database).applyPurgeUERegistration, RequireSchema(21), AffectsTopic(TopicUERegistrations))
 )
 
@@ -259,13 +260,17 @@ var (
 	opInitJoinHMAC          = registerChangesetOp("InitClusterJoinHMACKey", (*Database).applyInitJoinHMAC, RequireSchema(12))
 )
 
+var opVerifyState = registerChangesetOpReturning[struct{}, uint64](verifyStateOp, (*Database).applyVerifyState, RequireSchema(commandSchema))
+
 // Intent ops — bulk deletes and migrations dispatched explicitly by the
-// FSM via CommandType. Call sites use intentOp.Invoke; the forwarded-op
-// envelope carries the same name the leader's dispatcher looks up here.
+// FSM via CommandType below commandSchema; from commandSchema on, every one
+// except MigrateShared is proposed as a command. Call sites use
+// intentOp.Invoke; the forwarded-op envelope carries the same name the
+// leader's dispatcher looks up here.
 var (
 	_                        = registerIntentOp("DeleteOldAuditLogs", ellaraft.CmdDeleteOldAuditLogs)
-	opDeleteOldDailyUsage    = registerIntentOp("DeleteOldDailyUsage", ellaraft.CmdDeleteOldDailyUsage)
-	opDeleteAllDynamicLeases = registerIntentOp("DeleteAllDynamicLeases", ellaraft.CmdDeleteAllDynamicLeases, AffectsTopic(TopicIPLeases))
-	opDeleteExpiredSessions  = registerIntentOpReturning[int]("DeleteExpiredSessions", ellaraft.CmdDeleteExpiredSessions)
+	opDeleteOldDailyUsage    = registerIntentOp("DeleteOldDailyUsage", ellaraft.CmdDeleteOldDailyUsage, asCommand(withoutResult((*Database).applyDeleteOldDailyUsage)))
+	opDeleteAllDynamicLeases = registerIntentOp("DeleteAllDynamicLeases", ellaraft.CmdDeleteAllDynamicLeases, AffectsTopic(TopicIPLeases), asCommand((*Database).applyDeleteAllDynamicLeasesCommand))
+	opDeleteExpiredSessions  = registerIntentOpReturning[int]("DeleteExpiredSessions", ellaraft.CmdDeleteExpiredSessions, asCommand((*Database).applyDeleteExpiredSessions))
 	opMigrateShared          = registerIntentOp("MigrateShared", ellaraft.CmdMigrateShared)
 )

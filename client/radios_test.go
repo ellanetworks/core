@@ -91,7 +91,7 @@ func TestListRadioEvents_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"items": [{"id": 1, "timestamp": "2023-10-01T12:00:00Z", "protocol": "ngap", "message_type": "PDU Session Establishment Request", "direction": "inbound", "radio": "my-gnb", "address": "10.0.0.5:38412", "raw": "ABUAOQAABAAbAAkAAPEQMAASNFAAUkAMBIBnbmIwMDEyMzQ1AGYAEAAAAAABAADxEAAAEAgQIDAAFUABQA", "details": "{\"pduSessionID\":1}"}], "page": 1, "per_page": 10, "total_count": 1}`),
+			Result:     []byte(`{"items": [{"id": 1, "timestamp": "2023-10-01T12:00:00Z", "protocol": "ngap", "message_type": "PDU Session Establishment Request", "direction": "inbound", "radio": "my-gnb", "address": "10.0.0.5:38412", "details": "{\"pduSessionID\":1}"}], "page": 1, "per_page": 10, "total_count": 1}`),
 		},
 		err: nil,
 	}
@@ -145,11 +145,6 @@ func TestListRadioEvents_Success(t *testing.T) {
 
 	if resp.Items[0].Direction != "inbound" {
 		t.Fatalf("expected direction 'inbound', got '%s'", resp.Items[0].Direction)
-	}
-
-	expectedRaw := "ABUAOQAABAAbAAkAAPEQMAASNFAAUkAMBIBnbmIwMDEyMzQ1AGYAEAAAAAABAADxEAAAEAgQIDAAFUABQA"
-	if resp.Items[0].Raw != expectedRaw {
-		t.Fatalf("expected raw '%s', got '%s'", expectedRaw, resp.Items[0].Raw)
 	}
 
 	if fake.lastOpts.Path != "api/v1/ran/events" {
@@ -313,5 +308,62 @@ func TestForgetRadio_Success(t *testing.T) {
 
 	if fake.lastOpts.Path != "api/v1/ran/radios/gNB:001-01:000102@24" {
 		t.Errorf("expected path 'api/v1/ran/radios/gNB:001-01:000102@24', got: %s", fake.lastOpts.Path)
+	}
+}
+
+func TestGetRadioEventSettings_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"enabled": false}`),
+		},
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	settings, err := clientObj.GetRadioEventSettings(context.Background())
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if settings.Enabled {
+		t.Fatalf("expected radio events disabled, got enabled")
+	}
+
+	if fake.lastOpts.Method != "GET" || fake.lastOpts.Path != "api/v1/ran/events/settings" {
+		t.Fatalf("expected GET api/v1/ran/events/settings, got %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
+	}
+}
+
+func TestUpdateRadioEventSettings_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "Radio event settings updated successfully"}`),
+		},
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	err := clientObj.UpdateRadioEventSettings(context.Background(), &client.UpdateRadioEventSettingsOptions{Enabled: false})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if fake.lastOpts.Method != "PUT" || fake.lastOpts.Path != "api/v1/ran/events/settings" {
+		t.Fatalf("expected PUT api/v1/ran/events/settings, got %s %s", fake.lastOpts.Method, fake.lastOpts.Path)
+	}
+
+	var sent client.UpdateRadioEventSettingsOptions
+	if err := json.NewDecoder(fake.lastOpts.Body).Decode(&sent); err != nil {
+		t.Fatalf("decode request body: %v", err)
+	}
+
+	if sent.Enabled {
+		t.Fatalf("request body enabled = true, want false")
 	}
 }

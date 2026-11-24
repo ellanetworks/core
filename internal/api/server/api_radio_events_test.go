@@ -641,3 +641,70 @@ func TestListRadioEventsPagination(t *testing.T) {
 		}
 	})
 }
+
+func TestRadioEventDetailsRequireNetworkManager(t *testing.T) {
+	env, client, token := newAuthedTestEnv(t)
+
+	raw := []byte("radio_event_raw_bytes")
+
+	err := env.DB.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
+		Timestamp:   tsMillis("2024-10-01T10:00:00Z"),
+		Protocol:    "NGAP",
+		MessageType: "test_event",
+		Direction:   "inbound",
+		Raw:         raw,
+	})
+	if err != nil {
+		t.Fatalf("couldn't insert radio event: %s", err)
+	}
+
+	roClient := newTestClient(env.Server)
+
+	roToken, err := createUserAndLogin(env.Server.URL, token, "events-ro@ellanetworks.com", RoleReadOnly, roClient)
+	if err != nil {
+		t.Fatalf("create read-only user: %s", err)
+	}
+
+	nmClient := newTestClient(env.Server)
+
+	nmToken, err := createUserAndLogin(env.Server.URL, token, "events-nm@ellanetworks.com", RoleNetworkManager, nmClient)
+	if err != nil {
+		t.Fatalf("create network manager user: %s", err)
+	}
+
+	status, list, err := apiDo[map[string]any](roClient, "GET", env.Server.URL+"/api/v1/ran/events?page=1&per_page=10", roToken, nil)
+	if err != nil || status != http.StatusOK {
+		t.Fatalf("read-only list: status %d, err %v", status, err)
+	}
+
+	items, _ := (*list)["result"].(map[string]any)["items"].([]any)
+	if len(items) != 1 {
+		t.Fatalf("read-only list: got %d items, want 1", len(items))
+	}
+
+	if _, ok := items[0].(map[string]any)["raw"]; ok {
+		t.Fatal("list response includes raw message bytes")
+	}
+
+	for _, tc := range []struct {
+		name   string
+		client *http.Client
+		token  string
+		want   int
+	}{
+		{"read only", roClient, roToken, http.StatusForbidden},
+		{"network manager", nmClient, nmToken, http.StatusOK},
+		{"admin", client, token, http.StatusOK},
+	} {
+		statusCode, res, err := getRadioEvent(env.Server.URL, tc.client, tc.token, 1)
+		if err != nil {
+			t.Fatalf("%s get radio event: %s", tc.name, err)
+		}
+
+		_ = res.Body.Close()
+
+		if statusCode != tc.want {
+			t.Fatalf("%s get radio event: status %d, want %d", tc.name, statusCode, tc.want)
+		}
+	}
+}

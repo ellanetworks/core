@@ -162,7 +162,7 @@ func TestDBClusterMembersEndToEnd(t *testing.T) {
 	}
 
 	// Delete non-existent member should return ErrNotFound
-	err = database.DeleteClusterMember(ctx, "999")
+	err = database.DeleteClusterMember(ctx, "63")
 	if err != db.ErrNotFound {
 		t.Fatalf("Expected ErrNotFound for delete of non-existent, got: %v", err)
 	}

@@ -21,7 +21,7 @@ const PoliciesTableName = "policies"
 const policyPreemptionSchema = 25
 
 const (
-	listPoliciesPagedSQL           = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault, COUNT(*) OVER() FROM " + PoliciesTableName + " LIMIT ? OFFSET ?"
+	listPoliciesPagedSQL           = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault, COUNT(*) OVER() FROM " + PoliciesTableName + " ORDER BY id LIMIT ? OFFSET ?"
 	getPolicySQL                   = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault FROM " + PoliciesTableName + " WHERE name==?"
 	getPolicyByLookupSQL           = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault FROM " + PoliciesTableName + " WHERE profileID==? AND sliceID==? AND dataNetworkID==?"
 	createPolicySQL                = "INSERT INTO " + PoliciesTableName + " (id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -33,14 +33,14 @@ const (
 	countPoliciesInDataNetworkSQL  = "SELECT COUNT(*) FROM " + PoliciesTableName + " WHERE dataNetworkID=?"
 	listPolicy5QIsInDataNetworkSQL = "SELECT var5qi FROM " + PoliciesTableName + " WHERE dataNetworkID=?"
 
-	getPolicyByProfileAndSliceSQL = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault FROM " + PoliciesTableName + " WHERE profileID==? AND sliceID==? LIMIT 1"
-	listPoliciesByProfilePagedSQL = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault, COUNT(*) OVER() FROM " + PoliciesTableName + " WHERE profileID==? LIMIT ? OFFSET ?"
+	getPolicyByProfileAndSliceSQL = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault FROM " + PoliciesTableName + " WHERE profileID==? AND sliceID==? ORDER BY id LIMIT 1"
+	listPoliciesByProfilePagedSQL = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault, COUNT(*) OVER() FROM " + PoliciesTableName + " WHERE profileID==? ORDER BY id LIMIT ? OFFSET ?"
 	listPoliciesByProfileAllSQL   = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault FROM " + PoliciesTableName + " WHERE profileID==? ORDER BY id ASC"
 
 	// The default data-network binding for a profile (the default APN/DNN,
 	// TS 23.401 §3.1 / TS 23.501 §5.15). At most one per profile, kept by the
 	// atomic SetDefaultPolicy op (clear the profile's defaults, then set one).
-	getDefaultPolicyByProfileSQL = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault FROM " + PoliciesTableName + " WHERE profileID==? AND isDefault==true LIMIT 1"
+	getDefaultPolicyByProfileSQL = "SELECT id, name, profileID, sliceID, dataNetworkID, var5qi, arp, preemptionCapability, preemptionVulnerability, sessionAmbrUplink, sessionAmbrDownlink, isDefault FROM " + PoliciesTableName + " WHERE profileID==? AND isDefault==true ORDER BY id LIMIT 1"
 	clearDefaultPoliciesSQL      = "UPDATE " + PoliciesTableName + " SET isDefault=false WHERE profileID==?"
 	setDefaultPolicySQL          = "UPDATE " + PoliciesTableName + " SET isDefault=true WHERE name==?"
 )
@@ -48,13 +48,13 @@ const (
 const policyColumnsPreV25 = "id, name, profileID, sliceID, dataNetworkID, var5qi, arp, sessionAmbrUplink, sessionAmbrDownlink, isDefault"
 
 const (
-	listPoliciesPagedPreV25SQL          = "SELECT " + policyColumnsPreV25 + ", COUNT(*) OVER() FROM " + PoliciesTableName + " LIMIT ? OFFSET ?"
+	listPoliciesPagedPreV25SQL          = "SELECT " + policyColumnsPreV25 + ", COUNT(*) OVER() FROM " + PoliciesTableName + " ORDER BY id LIMIT ? OFFSET ?"
 	getPolicyPreV25SQL                  = "SELECT " + policyColumnsPreV25 + " FROM " + PoliciesTableName + " WHERE name==?"
 	getPolicyByLookupPreV25SQL          = "SELECT " + policyColumnsPreV25 + " FROM " + PoliciesTableName + " WHERE profileID==? AND sliceID==? AND dataNetworkID==?"
-	getPolicyByProfileAndSlicePreV25SQL = "SELECT " + policyColumnsPreV25 + " FROM " + PoliciesTableName + " WHERE profileID==? AND sliceID==? LIMIT 1"
-	listPoliciesByProfilePagedPreV25SQL = "SELECT " + policyColumnsPreV25 + ", COUNT(*) OVER() FROM " + PoliciesTableName + " WHERE profileID==? LIMIT ? OFFSET ?"
+	getPolicyByProfileAndSlicePreV25SQL = "SELECT " + policyColumnsPreV25 + " FROM " + PoliciesTableName + " WHERE profileID==? AND sliceID==? ORDER BY id LIMIT 1"
+	listPoliciesByProfilePagedPreV25SQL = "SELECT " + policyColumnsPreV25 + ", COUNT(*) OVER() FROM " + PoliciesTableName + " WHERE profileID==? ORDER BY id LIMIT ? OFFSET ?"
 	listPoliciesByProfileAllPreV25SQL   = "SELECT " + policyColumnsPreV25 + " FROM " + PoliciesTableName + " WHERE profileID==? ORDER BY id ASC"
-	getDefaultPolicyByProfilePreV25SQL  = "SELECT " + policyColumnsPreV25 + " FROM " + PoliciesTableName + " WHERE profileID==? AND isDefault==true LIMIT 1"
+	getDefaultPolicyByProfilePreV25SQL  = "SELECT " + policyColumnsPreV25 + " FROM " + PoliciesTableName + " WHERE profileID==? AND isDefault==true ORDER BY id LIMIT 1"
 	createPolicyPreV25SQL               = "INSERT INTO " + PoliciesTableName + " (id, name, profileID, sliceID, dataNetworkID, var5qi, arp, sessionAmbrUplink, sessionAmbrDownlink) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
 	editPolicyPreV25SQL                 = "UPDATE " + PoliciesTableName + " SET profileID=?, sliceID=?, dataNetworkID=?, var5qi=?, arp=?, sessionAmbrUplink=?, sessionAmbrDownlink=? WHERE name==?"
 )

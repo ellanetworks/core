@@ -630,10 +630,9 @@ describe("Integrations roaming tab", () => {
       renderTab("Read Only");
 
       const cert = await tableRow("This core", "Certificate");
+      expect(cert.getByText(`sepp1.${HOME_DOMAIN}`)).toBeInTheDocument();
       expect(
-        cert.getByText((text) =>
-          text.startsWith(`sepp1.${HOME_DOMAIN} · Generated · Expires `),
-        ),
+        cert.getByText((text) => text.startsWith("Generated · Expires ")),
       ).toBeInTheDocument();
       expect(screen.queryByText("Listening")).not.toBeInTheDocument();
       expect(cert.queryByText(/^Expire/)).not.toBeInTheDocument();

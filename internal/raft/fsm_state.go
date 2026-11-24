@@ -57,7 +57,8 @@ func EnsureFSMStateSchema(ctx context.Context, db sqlExecQueryer) error {
 			lastAppliedTerm INTEGER NOT NULL DEFAULT 0,
 			configuration BLOB,
 			configurationIndex INTEGER NOT NULL DEFAULT 0,
-			durableWrites INTEGER NOT NULL DEFAULT 0
+			durableWrites INTEGER NOT NULL DEFAULT 0,
+			leaderTime INTEGER NOT NULL DEFAULT 0
 		)`); err != nil {
 		return fmt.Errorf("create fsm_state table: %w", err)
 	}
@@ -72,6 +73,7 @@ func EnsureFSMStateSchema(ctx context.Context, db sqlExecQueryer) error {
 		{"configuration", "ALTER TABLE fsm_state ADD COLUMN configuration BLOB"},
 		{"configurationIndex", "ALTER TABLE fsm_state ADD COLUMN configurationIndex INTEGER NOT NULL DEFAULT 0"},
 		{"durableWrites", "ALTER TABLE fsm_state ADD COLUMN durableWrites INTEGER NOT NULL DEFAULT 0"},
+		{"leaderTime", "ALTER TABLE fsm_state ADD COLUMN leaderTime INTEGER NOT NULL DEFAULT 0"},
 	} {
 		if columns[col.name] {
 			continue

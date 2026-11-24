@@ -37,6 +37,7 @@ type pendingWrite struct {
 	ctx       context.Context
 	operation string
 	minSchema int
+	command   func(context.Context) (*ellaraft.ProposeResult, error)
 	applyFn   func(context.Context) (any, error)
 	waitSpan  trace.Span
 	done      chan writeOutcome
@@ -62,11 +63,12 @@ type capturedWrite struct {
 	dependsOnBatch bool
 }
 
-func (db *Database) submitWrite(ctx context.Context, operation string, minSchema int, applyFn func(context.Context) (any, error)) (*ellaraft.ProposeResult, error) {
+func (db *Database) submitWrite(ctx context.Context, operation string, minSchema int, command func(context.Context) (*ellaraft.ProposeResult, error), applyFn func(context.Context) (any, error)) (*ellaraft.ProposeResult, error) {
 	w := &pendingWrite{
 		ctx:       ctx,
 		operation: operation,
 		minSchema: minSchema,
+		command:   command,
 		applyFn:   applyFn,
 		done:      make(chan writeOutcome, 1),
 	}
@@ -213,6 +215,12 @@ func (db *Database) commitWrites(batch []*pendingWrite) []*pendingWrite {
 		return nil
 	}
 
+	if db.reachedCommandSchema() {
+		db.proposeAsCommands(batch)
+
+		return nil
+	}
+
 	if len(batch) == 1 || !db.appliedSchemaAtLeast(context.Background(), changesetBatchMinSchema) {
 		for _, w := range batch {
 			w.finish(db.captureAndProposeOne(w.ctx, w.operation, w.minSchema, w.applyFn))
@@ -237,6 +245,28 @@ func (db *Database) commitWrites(batch []*pendingWrite) []*pendingWrite {
 	}
 
 	return carry
+}
+
+var errCommandSchemaReached = fmt.Errorf("%w: the cluster switched to replicated commands", ErrProposeTimeout)
+
+func (db *Database) reachedCommandSchema() bool {
+	schema, err := readSchemaVersion(context.Background(), db.writer())
+
+	return err == nil && schema >= commandSchema
+}
+
+func (db *Database) proposeAsCommands(batch []*pendingWrite) {
+	for _, w := range batch {
+		if w.command == nil {
+			w.finish(nil, errCommandSchemaReached)
+
+			continue
+		}
+
+		go func(w *pendingWrite) {
+			w.finish(w.command(w.ctx))
+		}(w)
+	}
 }
 
 func (db *Database) captureAndProposeOne(ctx context.Context, operation string, minSchema int, applyFn func(context.Context) (any, error)) (*ellaraft.ProposeResult, error) {

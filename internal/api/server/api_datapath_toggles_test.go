@@ -32,6 +32,11 @@ var datapathToggles = []struct {
 		path:       "/api/v1/networking/flow-accounting",
 		updatedMsg: "Flow accounting settings updated successfully",
 	},
+	{
+		name:       "radio events",
+		path:       "/api/v1/ran/events/settings",
+		updatedMsg: "Radio event settings updated successfully",
+	},
 }
 
 func assertToggleEnabled(t *testing.T, url string, client *http.Client, token, path string, want bool) {

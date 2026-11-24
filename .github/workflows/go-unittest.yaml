@@ -22,6 +22,9 @@ jobs:
       - name: Unit tests
         run: go test -cover ./...
 
+      - name: Replicated apply determinism replay
+        run: ELLA_DB_REPLAY=full go test -count=1 ./internal/db/
+
       - name: Sub-module unit tests
         run: |
           set -e
