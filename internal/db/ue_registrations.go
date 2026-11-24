@@ -174,13 +174,7 @@ func (db *Database) nextUERegistrationVersion(ctx context.Context) (int64, error
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	next := version + 1
-
-	if db.raftManager != nil {
-		next = max(next, int64(db.raftManager.AppliedIndex())+1)
-	}
-
-	return next, nil
+	return max(version+1, applyIndexFloor(ctx, db)), nil
 }
 
 func (db *Database) applyRegisterUE(ctx context.Context, p *registerUEPayload) (any, error) {
@@ -233,6 +227,41 @@ func (db *Database) applyRegisterUE(ctx context.Context, p *registerUEPayload) (
 	}
 
 	return version, nil
+}
+
+func (db *Database) registerUEUnchanged(ctx context.Context, p *registerUEPayload) (any, bool, error) {
+	tx, err := db.reader().BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, false, err
+	}
+
+	defer func() { _ = tx.Rollback() }()
+
+	existing, err := scanUERegistration(tx.QueryRowContext(ctx, getUERegistrationSQL, p.Imsi, p.Type))
+	if err != nil {
+		return nil, false, err
+	}
+
+	if existing.NodeID != p.NodeID || existing.Purged || existing.Version == 0 {
+		return nil, false, nil
+	}
+
+	if p.Cancel != "" {
+		other, err := scanUERegistration(tx.QueryRowContext(ctx, getUERegistrationSQL, p.Imsi, p.Cancel))
+		if err == nil && !other.Purged {
+			return nil, false, nil
+		}
+
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, false, err
+		}
+	}
+
+	if _, err := db.getOwnSubscriber(ctx, tx, p.Imsi); err != nil {
+		return nil, false, err
+	}
+
+	return existing.Version, true, nil
 }
 
 func (db *Database) applyPurgeUERegistration(ctx context.Context, p *purgeUERegistrationPayload) (any, error) {

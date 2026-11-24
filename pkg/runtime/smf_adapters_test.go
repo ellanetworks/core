@@ -214,7 +214,7 @@ func TestStaleLeaseReleaseKeepsStaticReservationsAndOtherNodesLeases(t *testing.
 		t.Fatalf("AllocateIPLease(dynamic): %s", err)
 	}
 
-	if _, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 3, "other-node"); err != nil {
+	if _, err := database.AllocateIPLease(ctx, poolID, "ipv4", imsi, 3, "00000000-0000-4000-8000-000000000063"); err != nil {
 		t.Fatalf("AllocateIPLease(other node): %s", err)
 	}
 

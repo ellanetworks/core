@@ -19,7 +19,7 @@ const ProfilesTableName = "profiles"
 
 const (
 	profileColumns               = "id, name, ueAmbrUplink, ueAmbrDownlink, allow4G, allow5G"
-	listProfilesPagedSQL         = "SELECT " + profileColumns + ", COUNT(*) OVER() FROM " + ProfilesTableName + " LIMIT ? OFFSET ?"
+	listProfilesPagedSQL         = "SELECT " + profileColumns + ", COUNT(*) OVER() FROM " + ProfilesTableName + " ORDER BY id LIMIT ? OFFSET ?"
 	getProfileSQL                = "SELECT " + profileColumns + " FROM " + ProfilesTableName + " WHERE name==?"
 	getProfileByIDSQL            = "SELECT " + profileColumns + " FROM " + ProfilesTableName + " WHERE id==?"
 	createProfileSQL             = "INSERT INTO " + ProfilesTableName + " (id, name, ueAmbrUplink, ueAmbrDownlink, allow4G, allow5G) VALUES (?, ?, ?, ?, ?, ?)"

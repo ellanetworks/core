@@ -18,7 +18,7 @@ import (
 const NetworkSlicesTableName = "network_slices"
 
 const (
-	listNetworkSlicesPagedSQL = "SELECT id, sst, sd, name, COUNT(*) OVER() FROM " + NetworkSlicesTableName + " LIMIT ? OFFSET ?"
+	listNetworkSlicesPagedSQL = "SELECT id, sst, sd, name, COUNT(*) OVER() FROM " + NetworkSlicesTableName + " ORDER BY id LIMIT ? OFFSET ?"
 	listAllNetworkSlicesSQL   = "SELECT id, sst, sd, name FROM " + NetworkSlicesTableName + " ORDER BY id ASC"
 	getNetworkSliceSQL        = "SELECT id, sst, sd, name FROM " + NetworkSlicesTableName + " WHERE name==?"
 	getNetworkSliceByIDSQL    = "SELECT id, sst, sd, name FROM " + NetworkSlicesTableName + " WHERE id==?"

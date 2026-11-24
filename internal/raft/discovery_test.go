@@ -719,3 +719,26 @@ func TestProbePeerStatusReadsVersionAndAPIAddress(t *testing.T) {
 		t.Fatalf("status: want %+v, got %+v", want, status)
 	}
 }
+
+func TestProbePeerStateHashReadsIndexAndHash(t *testing.T) {
+	t.Parallel()
+
+	m, serverAddr := newProbePeerHarness(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != StateHashPath {
+			http.NotFound(w, r)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(StateHash{Index: 42, Hash: "abc"})
+	}))
+
+	got, err := m.ProbePeerStateHash(context.Background(), "1", serverAddr)
+	if err != nil {
+		t.Fatalf("ProbePeerStateHash: %v", err)
+	}
+
+	if want := (StateHash{Index: 42, Hash: "abc"}); got != want {
+		t.Fatalf("state hash: want %+v, got %+v", want, got)
+	}
+}

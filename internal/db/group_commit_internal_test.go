@@ -5,12 +5,14 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
 	"testing"
 	"time"
 
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/google/uuid"
 )
 
@@ -30,6 +32,24 @@ func pendingFor[P any, R any](t *testing.T, database *Database, op *ChangesetOp[
 		waitSpan: span,
 		done:     make(chan writeOutcome, 1),
 	}
+}
+
+func atChangesetSchema(t *testing.T, database *Database) {
+	t.Helper()
+
+	setSchemaVersion(t, database, commandSchema-1)
+
+	t.Cleanup(func() { setSchemaVersion(t, database, SchemaVersion()) })
+}
+
+func setSchemaVersion(t *testing.T, database *Database, version int) {
+	t.Helper()
+
+	if _, err := database.writer().ExecContext(context.Background(), "UPDATE schema_version SET version = ? WHERE id = 1", version); err != nil {
+		t.Fatalf("set schema version %d: %v", version, err)
+	}
+
+	database.appliedSchemaCache.Store(int64(version))
 }
 
 func outcomeOf(t *testing.T, w *pendingWrite) writeOutcome {
@@ -77,6 +97,7 @@ func createTestSubscriber(t *testing.T, database *Database, imsi string) {
 
 func TestGroupCommitBatchAppliesWritesInOrderAndIsolatesFailures(t *testing.T) {
 	database := newStandaloneDB(t)
+	atChangesetSchema(t, database)
 
 	const imsi = "001010000000101"
 
@@ -159,6 +180,7 @@ func TestGroupCommitBatchAppliesWritesInOrderAndIsolatesFailures(t *testing.T) {
 
 func TestGroupCommitCarriesWritesBeyondByteLimit(t *testing.T) {
 	database := newStandaloneDB(t)
+	atChangesetSchema(t, database)
 
 	previous := groupCommitMaxEntryBytes
 	groupCommitMaxEntryBytes = 1
@@ -207,6 +229,7 @@ func TestGroupCommitCarriesWritesBeyondByteLimit(t *testing.T) {
 
 func TestGroupCommitBatchPublishesEveryOperationTopic(t *testing.T) {
 	database := newStandaloneDB(t)
+	atChangesetSchema(t, database)
 
 	profile := newTestProfile(t, "topic-profile")
 	if err := database.CreateProfile(t.Context(), profile); err != nil {
@@ -309,6 +332,7 @@ func TestGroupCommitConcurrentWritersShareRaftEntries(t *testing.T) {
 
 func TestGroupCommitProposesWritesSeparatelyBelowBatchSchema(t *testing.T) {
 	database := newStandaloneDB(t)
+	atChangesetSchema(t, database)
 
 	database.appliedSchemaCache.Store(changesetBatchMinSchema - 1)
 
@@ -351,6 +375,7 @@ func pendingFunc(t *testing.T, operation string, applyFn func(context.Context) (
 
 func TestGroupCommitHoldsDependentOutcomesUntilTheBatchCommits(t *testing.T) {
 	database := newStandaloneDB(t)
+	atChangesetSchema(t, database)
 
 	if err := database.CreateProfile(t.Context(), newTestProfile(t, "held-existing")); err != nil {
 		t.Fatalf("CreateProfile: %v", err)
@@ -391,6 +416,7 @@ func TestGroupCommitHoldsDependentOutcomesUntilTheBatchCommits(t *testing.T) {
 
 func TestGroupCommitIsolatesAPanickingWrite(t *testing.T) {
 	database := newStandaloneDB(t)
+	atChangesetSchema(t, database)
 
 	batch := []*pendingWrite{
 		pendingFor(t, database, opCreateProfile, newTestProfile(t, "panic-a")),
@@ -421,6 +447,7 @@ func TestGroupCommitIsolatesAPanickingWrite(t *testing.T) {
 
 func TestGroupCommitAnswersEveryWriteWhenTheBatchPanics(t *testing.T) {
 	database := newStandaloneDB(t)
+	atChangesetSchema(t, database)
 
 	batch := []*pendingWrite{
 		pendingFor(t, database, opCreateProfile, newTestProfile(t, "batch-panic-a")),
@@ -446,6 +473,7 @@ func TestGroupCommitAnswersEveryWriteWhenTheBatchPanics(t *testing.T) {
 
 func TestGroupCommitRecoversWhenAWriteEndsTheTransaction(t *testing.T) {
 	database := newStandaloneDB(t)
+	atChangesetSchema(t, database)
 
 	batch := []*pendingWrite{
 		pendingFor(t, database, opCreateProfile, newTestProfile(t, "abort-a")),
@@ -486,6 +514,7 @@ func TestGroupCommitRecoversWhenAWriteEndsTheTransaction(t *testing.T) {
 
 func TestGroupCommitCarriesWritesBeyondTheCaptureBudget(t *testing.T) {
 	database := newStandaloneDB(t)
+	atChangesetSchema(t, database)
 
 	previous := groupCommitCaptureBudget
 	groupCommitCaptureBudget = 0
@@ -513,6 +542,7 @@ func TestGroupCommitCarriesWritesBeyondTheCaptureBudget(t *testing.T) {
 
 func TestGroupCommitRejectsWritesWhenTheQueueIsFull(t *testing.T) {
 	database := newStandaloneDB(t)
+	useChangesetPath(t, database)
 
 	previous := groupCommitMaxQueue
 	groupCommitMaxQueue = 0
@@ -522,5 +552,61 @@ func TestGroupCommitRejectsWritesWhenTheQueueIsFull(t *testing.T) {
 	err := database.CreateProfile(t.Context(), newTestProfile(t, "queue-full"))
 	if !errors.Is(err, ErrProposeTimeout) {
 		t.Fatalf("a full write queue must return a retryable error, got %v", err)
+	}
+}
+
+func TestPendingChangesetWritesBecomeCommandsAfterTheCommandSchema(t *testing.T) {
+	database := newStandaloneDB(t)
+	atChangesetSchema(t, database)
+
+	profiles := []*Profile{newTestProfile(t, "queued-a"), newTestProfile(t, "queued-b")}
+
+	batch := make([]*pendingWrite, 0, len(profiles)+1)
+
+	for _, p := range profiles {
+		w := pendingFor(t, database, opCreateProfile, p)
+		w.command = func(ctx context.Context) (*ellaraft.ProposeResult, error) {
+			raw, err := json.Marshal(p)
+			if err != nil {
+				return nil, err
+			}
+
+			return database.proposeCommand(ctx, opCreateProfile.name, raw)
+		}
+
+		batch = append(batch, w)
+	}
+
+	batch = append(batch, pendingFor(t, database, opCreateProfile, newTestProfile(t, "queued-without-command")))
+
+	before := fsmState(t, database).leaderTime
+
+	setSchemaVersion(t, database, commandSchema)
+
+	database.commitWrites(batch)
+
+	for _, w := range batch[:len(profiles)] {
+		select {
+		case out := <-w.done:
+			if out.err != nil {
+				t.Fatalf("%s: %v", w.operation, out.err)
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatalf("%s has no outcome", w.operation)
+		}
+	}
+
+	if out := outcomeOf(t, batch[len(profiles)]); !errors.Is(out.err, ErrProposeTimeout) {
+		t.Fatalf("a queued write that cannot become a command: err = %v, want a retryable error", out.err)
+	}
+
+	for _, p := range profiles {
+		if !profileExists(t, database, p.Name) {
+			t.Fatalf("profile %s was not created", p.Name)
+		}
+	}
+
+	if fsmState(t, database).leaderTime <= before {
+		t.Fatal("the queued writes were not applied as commands")
 	}
 }

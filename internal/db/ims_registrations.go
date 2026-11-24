@@ -283,7 +283,7 @@ func (db *Database) applyRetiredCompareAndSwapIMSRegistration(context.Context, *
 func (db *Database) writeIMSRegistration(ctx context.Context, imsi string, next *IMSRegistration) error {
 	if next != nil {
 		if err := validateIMSRegistration(next); err != nil {
-			return err
+			return invalidCommand(err)
 		}
 	}
 

@@ -1261,7 +1261,7 @@ func TestDeletingAClusterMemberRemovesItsGeneratedSEPPIdentity(t *testing.T) {
 	ctx := context.Background()
 	f := newRoamingFixture(t)
 
-	for _, nodeID := range []string{"node-1", "node-2", "node-3"} {
+	for _, nodeID := range []string{"00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002", "00000000-0000-4000-8000-000000000003"} {
 		if err := f.db.UpsertClusterMember(ctx, &db.ClusterMember{NodeID: nodeID, APIAddress: "10.0.0.1:8443"}); err != nil {
 			t.Fatalf("UpsertClusterMember: %s", err)
 		}
@@ -1277,13 +1277,13 @@ func TestDeletingAClusterMemberRemovesItsGeneratedSEPPIdentity(t *testing.T) {
 		pointers[m.NodeID] = m.AMFPointer
 	}
 
-	for _, nodeID := range []string{"node-1", "node-2"} {
+	for _, nodeID := range []string{"00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"} {
 		if err := f.db.PutGeneratedSEPPIdentity(ctx, pointers[nodeID]); err != nil {
 			t.Fatalf("PutGeneratedSEPPIdentity: %s", err)
 		}
 	}
 
-	imported := ownSEPPIdentity(t, strconv.Itoa(pointers["node-3"]))
+	imported := ownSEPPIdentity(t, strconv.Itoa(pointers["00000000-0000-4000-8000-000000000003"]))
 	if err := f.db.PutSEPPIdentity(ctx, &imported); err != nil {
 		t.Fatalf("PutSEPPIdentity: %s", err)
 	}
@@ -1293,21 +1293,21 @@ func TestDeletingAClusterMemberRemovesItsGeneratedSEPPIdentity(t *testing.T) {
 		t.Fatalf("GetSEPPCA: %s", err)
 	}
 
-	for _, nodeID := range []string{"node-2", "node-3"} {
+	for _, nodeID := range []string{"00000000-0000-4000-8000-000000000002", "00000000-0000-4000-8000-000000000003"} {
 		if err := f.db.DeleteClusterMember(ctx, nodeID); err != nil {
 			t.Fatalf("DeleteClusterMember: %s", err)
 		}
 	}
 
-	if _, err := f.db.GetSEPPIdentity(ctx, pointers["node-2"]); !errors.Is(err, db.ErrNotFound) {
+	if _, err := f.db.GetSEPPIdentity(ctx, pointers["00000000-0000-4000-8000-000000000002"]); !errors.Is(err, db.ErrNotFound) {
 		t.Fatalf("generated identity of the removed node: %v, want it deleted", err)
 	}
 
-	if got, err := f.db.GetSEPPIdentity(ctx, pointers["node-3"]); err != nil || got.Source != db.SEPPIdentityImported {
+	if got, err := f.db.GetSEPPIdentity(ctx, pointers["00000000-0000-4000-8000-000000000003"]); err != nil || got.Source != db.SEPPIdentityImported {
 		t.Fatalf("imported identity of the removed node = %+v, %v; want it kept", got, err)
 	}
 
-	if _, err := f.db.GetSEPPIdentity(ctx, pointers["node-1"]); err != nil {
+	if _, err := f.db.GetSEPPIdentity(ctx, pointers["00000000-0000-4000-8000-000000000001"]); err != nil {
 		t.Fatalf("identity of the remaining node: %v", err)
 	}
 
@@ -1315,13 +1315,13 @@ func TestDeletingAClusterMemberRemovesItsGeneratedSEPPIdentity(t *testing.T) {
 		t.Fatalf("the SEPP CA changed with the member removal: %v", err)
 	}
 
-	if err := f.db.UpsertClusterMember(ctx, &db.ClusterMember{NodeID: "node-4", APIAddress: "10.0.0.1:8443"}); err != nil {
+	if err := f.db.UpsertClusterMember(ctx, &db.ClusterMember{NodeID: "00000000-0000-4000-8000-000000000004", APIAddress: "10.0.0.1:8443"}); err != nil {
 		t.Fatalf("UpsertClusterMember: %s", err)
 	}
 
-	joined, err := f.db.GetClusterMember(ctx, "node-4")
-	if err != nil || joined.AMFPointer != pointers["node-2"] {
-		t.Fatalf("the new member = %+v, %v; want the released AMF Pointer %d", joined, err, pointers["node-2"])
+	joined, err := f.db.GetClusterMember(ctx, "00000000-0000-4000-8000-000000000004")
+	if err != nil || joined.AMFPointer != pointers["00000000-0000-4000-8000-000000000002"] {
+		t.Fatalf("the new member = %+v, %v; want the released AMF Pointer %d", joined, err, pointers["00000000-0000-4000-8000-000000000002"])
 	}
 
 	if err := f.db.PutGeneratedSEPPIdentity(ctx, joined.AMFPointer); err != nil {

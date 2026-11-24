@@ -151,6 +151,26 @@ func (a *testApplier) Reopen(_ context.Context) error {
 
 func (a *testApplier) RestoreLocalTables(_ context.Context, _, _ string) error { return nil }
 
+func (a *testApplier) ApplyEntries(ctx context.Context, entries []Entry) ([]any, error) {
+	out := make([]any, len(entries))
+
+	for _, e := range entries {
+		if _, err := a.ApplyCommand(ctx, &Command{Type: CmdBatch, Payload: e.Data}, e.Index, e.Term); err != nil {
+			return nil, err
+		}
+	}
+
+	last := entries[len(entries)-1]
+
+	if err := a.withDB(func(db *sql.DB) error {
+		return advanceAppliedPosition(ctx, db, last.Index, last.Term)
+	}); err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
 func (a *testApplier) seen() []*Command {
 	a.mu.Lock()
 	defer a.mu.Unlock()

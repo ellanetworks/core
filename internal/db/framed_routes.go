@@ -7,8 +7,6 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
-
-	"github.com/google/uuid"
 )
 
 const FramedRoutesTableName = "subscriber_framed_routes"
@@ -32,6 +30,7 @@ type framedRoutesPayload struct {
 	Imsi          string   `json:"imsi"`
 	DataNetworkID string   `json:"data_network_id"`
 	Prefixes      []string `json:"prefixes"`
+	IDs           []string `json:"ids,omitempty"`
 }
 
 // ReplaceFramedRoutes atomically swaps a (subscriber, data network) pair's
@@ -46,10 +45,16 @@ func (db *Database) ReplaceFramedRoutes(ctx context.Context, imsi, dataNetworkID
 		normalized = append(normalized, p.Masked().String())
 	}
 
+	ids, err := newIDs(len(normalized), "framed route")
+	if err != nil {
+		return err
+	}
+
 	_, err = opReplaceFramedRoutes.Invoke(ctx, db, &framedRoutesPayload{
 		Imsi:          imsi,
 		DataNetworkID: dataNetworkID,
 		Prefixes:      normalized,
+		IDs:           ids,
 	})
 	if err != nil {
 		return err
@@ -68,14 +73,14 @@ func (db *Database) applyReplaceFramedRoutes(ctx context.Context, payload *frame
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	for _, prefix := range payload.Prefixes {
-		id, err := uuid.NewV7()
+	for i, prefix := range payload.Prefixes {
+		id, err := payloadID(ctx, indexOr(payload.IDs, i), "framed route")
 		if err != nil {
-			return nil, fmt.Errorf("generate framed route id: %w", err)
+			return nil, err
 		}
 
 		fr := SubscriberFramedRoute{
-			ID:            id.String(),
+			ID:            id,
 			Imsi:          payload.Imsi,
 			DataNetworkID: payload.DataNetworkID,
 			Prefix:        prefix,

@@ -152,8 +152,16 @@ func avoidIMSInd(sqnHex string) (string, error) {
 }
 
 func NextIMSResync(currentSQN, opcHex, kHex, autsHex, randHex string) (string, error) {
-	sqnMS, err := resyncHex(opcHex, kHex, autsHex, randHex)
+	sqnMS, err := ResyncHex(opcHex, kHex, autsHex, randHex)
 	if err != nil {
+		return "", err
+	}
+
+	return NextIMSFromResync(currentSQN, sqnMS)
+}
+
+func NextIMSFromResync(currentSQN, sqnMS string) (string, error) {
+	if err := validSQNHex(sqnMS); err != nil {
 		return "", err
 	}
 
@@ -175,7 +183,7 @@ func nextPS(currentSQN, opcHex, kHex, autsHex, randHex string) (string, error) {
 		return Advance(StrictHex(currentSQN, 12), IndStep)
 	}
 
-	sqnMsHex, err := resyncHex(opcHex, kHex, autsHex, randHex)
+	sqnMsHex, err := ResyncHex(opcHex, kHex, autsHex, randHex)
 	if err != nil {
 		return "", err
 	}
@@ -183,7 +191,32 @@ func nextPS(currentSQN, opcHex, kHex, autsHex, randHex string) (string, error) {
 	return Advance(sqnMsHex, IndStep+1)
 }
 
-func resyncHex(opcHex, kHex, autsHex, randHex string) (string, error) {
+func NextFromResync(sqnMS string) (string, error) {
+	if err := validSQNHex(sqnMS); err != nil {
+		return "", err
+	}
+
+	next, err := Advance(sqnMS, IndStep+1)
+	if err != nil {
+		return "", err
+	}
+
+	return avoidIMSInd(next)
+}
+
+func validSQNHex(s string) error {
+	if len(s) != 12 {
+		return fmt.Errorf("invalid SQN hex %q: want 12 characters", s)
+	}
+
+	if _, err := hex.DecodeString(s); err != nil {
+		return fmt.Errorf("invalid SQN hex %q: %w", s, err)
+	}
+
+	return nil
+}
+
+func ResyncHex(opcHex, kHex, autsHex, randHex string) (string, error) {
 	opc, err := hex.DecodeString(opcHex)
 	if err != nil {
 		return "", fmt.Errorf("failed to decode opc: %w", err)

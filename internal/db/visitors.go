@@ -291,7 +291,7 @@ func (db *Database) applyRegisterVisitorUE(ctx context.Context, p *registerVisit
 }
 
 func (db *Database) insertVisitorIfAbsent(ctx context.Context, imsi string, partner *RoamingPartner) error {
-	now := time.Now()
+	now := applyTime(ctx)
 
 	existing, err := db.getVisitor(ctx, db.runner(ctx), imsi)
 
@@ -325,13 +325,13 @@ func (db *Database) insertVisitorIfAbsent(ctx context.Context, imsi string, part
 		return err
 	}
 
-	visitor := Visitor{Imsi: imsi, PartnerID: partner.ID, Since: time.Now().Unix()}
+	visitor := Visitor{Imsi: imsi, PartnerID: partner.ID, Since: now.Unix()}
 
 	if _, err := db.runner(ctx).ExecContext(ctx, insertVisitorSQL, visitor.Imsi, visitor.PartnerID, visitor.Msisdn, visitor.Since); err != nil {
 		return fmt.Errorf("insert visitor: %w", err)
 	}
 
-	return nil
+	return db.addSubscriberCount(ctx, 1)
 }
 
 func (db *Database) applySetVisitorMSISDN(ctx context.Context, p *visitorMSISDNPayload) (any, error) {
@@ -380,6 +380,10 @@ func (db *Database) deleteVisitorIfUnregistered(ctx context.Context, imsi string
 
 	if deleted == 0 {
 		return nil
+	}
+
+	if err := db.addSubscriberCount(ctx, -deleted); err != nil {
+		return err
 	}
 
 	return db.deleteIMSIState(ctx, imsi)

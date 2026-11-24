@@ -39,6 +39,8 @@ type Applier interface {
 	// transactions as they do in standalone mode.
 	ApplyCommand(ctx context.Context, cmd *Command, logIndex, logTerm uint64) (any, error)
 
+	ApplyEntries(ctx context.Context, entries []Entry) ([]any, error)
+
 	// PlainDB returns the raw *sql.DB for the application database,
 	// needed for snapshot operations (VACUUM INTO) and ID counter seeding.
 	PlainDB() *sql.DB
@@ -60,6 +62,12 @@ type Applier interface {
 	RestoreLocalTables(ctx context.Context, livePath, destPath string) error
 }
 
+type Entry struct {
+	Index uint64
+	Term  uint64
+	Data  []byte
+}
+
 // FSM implements raft.FSM for the application database.
 //
 // Each Apply call deserializes a Command and executes it via the Applier
@@ -70,6 +78,8 @@ type FSM struct {
 	// appliedIndex is the Raft index of the last successfully applied log.
 	// Updated atomically at the end of every Apply; used by the RYW barrier.
 	appliedIndex atomic.Uint64
+	appliedMu    sync.Mutex
+	appliedCh    chan struct{}
 
 	// dataDir is the directory containing the database file and the raft/ subdirectory.
 	dataDir string
@@ -91,6 +101,46 @@ func NewFSM(applier Applier, dataDir string) *FSM {
 // AppliedIndex returns the Raft index of the last applied log entry.
 func (f *FSM) AppliedIndex() uint64 {
 	return f.appliedIndex.Load()
+}
+
+func (f *FSM) setAppliedIndex(index uint64) {
+	f.appliedIndex.Store(index)
+	f.notifyApplied()
+}
+
+func (f *FSM) notifyApplied() {
+	f.appliedMu.Lock()
+
+	if f.appliedCh != nil {
+		close(f.appliedCh)
+		f.appliedCh = nil
+	}
+
+	f.appliedMu.Unlock()
+}
+
+func (f *FSM) WaitApplied(ctx context.Context, index uint64) error {
+	for {
+		f.appliedMu.Lock()
+
+		if f.appliedIndex.Load() >= index {
+			f.appliedMu.Unlock()
+			return nil
+		}
+
+		if f.appliedCh == nil {
+			f.appliedCh = make(chan struct{})
+		}
+
+		ch := f.appliedCh
+		f.appliedMu.Unlock()
+
+		select {
+		case <-ch:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 }
 
 func (f *FSM) Apply(l *raft.Log) interface{} {
@@ -120,9 +170,54 @@ func (f *FSM) ApplyBatch(logs []*raft.Log) []interface{} {
 	results := make([]interface{}, len(logs))
 	ctx := context.Background()
 
-	var highestApplied, highestTerm uint64
+	var unpersisted, unpersistedTerm uint64
+
+	var (
+		pending    []Entry
+		pendingPos []int
+	)
+
+	flush := func() {
+		if len(pending) == 0 {
+			return
+		}
+
+		out, err := f.applier.ApplyEntries(ctx, pending)
+		if err != nil {
+			logger.RaftLog.Error("FSM: command batch failed — halting node",
+				zap.Uint64("first_index", pending[0].Index),
+				zap.Uint64("last_index", pending[len(pending)-1].Index),
+				zap.Error(err))
+
+			panic(fmt.Sprintf("FSM.ApplyBatch: fatal command batch error at indexes %d-%d: %v", pending[0].Index, pending[len(pending)-1].Index, err))
+		}
+
+		for k, pos := range pendingPos {
+			results[pos] = out[k]
+		}
+
+		unpersisted, unpersistedTerm = 0, 0
+
+		f.setAppliedIndex(pending[len(pending)-1].Index)
+
+		pending = pending[:0]
+		pendingPos = pendingPos[:0]
+	}
 
 	for i, l := range logs {
+		if l.Type == raft.LogCommand && len(l.Data) >= 2 && CommandType(binary.BigEndian.Uint16(l.Data[:2])) == CmdBatch {
+			if l.Index > lastApplied {
+				ObserveWriteBytes(len(l.Data) - 2)
+			}
+
+			pending = append(pending, Entry{Index: l.Index, Term: l.Term, Data: l.Data[2:]})
+			pendingPos = append(pendingPos, i)
+
+			continue
+		}
+
+		flush()
+
 		if l.Type == raft.LogConfiguration {
 			if l.Index <= lastApplied {
 				continue
@@ -136,8 +231,8 @@ func (f *FSM) ApplyBatch(logs []*raft.Log) []interface{} {
 				panic(fmt.Sprintf("FSM.ApplyBatch: failed to persist configuration at index %d: %v", l.Index, err))
 			}
 
-			highestApplied, highestTerm = l.Index, l.Term
-			f.appliedIndex.Store(l.Index)
+			unpersisted, unpersistedTerm = l.Index, l.Term
+			f.setAppliedIndex(l.Index)
 
 			continue
 		}
@@ -147,8 +242,7 @@ func (f *FSM) ApplyBatch(logs []*raft.Log) []interface{} {
 		}
 
 		if l.Index <= lastApplied {
-			f.appliedIndex.Store(l.Index)
-			highestApplied = l.Index
+			f.setAppliedIndex(l.Index)
 
 			continue
 		}
@@ -164,7 +258,7 @@ func (f *FSM) ApplyBatch(logs []*raft.Log) []interface{} {
 
 		result, applyErr := f.applier.ApplyCommand(ctx, cmd, l.Index, l.Term)
 		if cmd.Type == CmdChangeset || cmd.Type == CmdChangesetBatch {
-			ObserveChangesetBytes(len(cmd.Payload))
+			ObserveWriteBytes(len(cmd.Payload))
 		}
 
 		if applyErr != nil {
@@ -177,17 +271,19 @@ func (f *FSM) ApplyBatch(logs []*raft.Log) []interface{} {
 		}
 
 		results[i] = result
-		highestApplied, highestTerm = l.Index, l.Term
-		f.appliedIndex.Store(l.Index)
+		unpersisted, unpersistedTerm = l.Index, l.Term
+		f.setAppliedIndex(l.Index)
 	}
 
-	if highestApplied > lastApplied {
-		if err := advanceAppliedPosition(ctx, f.applier.PlainDB(), highestApplied, highestTerm); err != nil {
+	flush()
+
+	if unpersisted > 0 {
+		if err := advanceAppliedPosition(ctx, f.applier.PlainDB(), unpersisted, unpersistedTerm); err != nil {
 			logger.RaftLog.Error("FSM: failed to persist lastApplied after batch — halting node",
-				zap.Uint64("highest_applied", highestApplied),
+				zap.Uint64("highest_applied", unpersisted),
 				zap.Error(err))
 
-			panic(fmt.Sprintf("FSM.ApplyBatch: failed to write lastApplied at index %d: %v", highestApplied, err))
+			panic(fmt.Sprintf("FSM.ApplyBatch: failed to write lastApplied at index %d: %v", unpersisted, err))
 		}
 	}
 
@@ -205,7 +301,13 @@ func (f *FSM) syncAppliedIndex() error {
 
 	for {
 		current := f.appliedIndex.Load()
-		if lastApplied <= current || f.appliedIndex.CompareAndSwap(current, lastApplied) {
+		if lastApplied <= current {
+			return nil
+		}
+
+		if f.appliedIndex.CompareAndSwap(current, lastApplied) {
+			f.notifyApplied()
+
 			return nil
 		}
 	}

@@ -32,6 +32,21 @@ type scalePinger struct {
 	received atomic.Uint32
 }
 
+type lossTimeline struct {
+	sent     []atomic.Int64
+	received []atomic.Int64
+}
+
+func newLossTimeline(d time.Duration) *lossTimeline {
+	n := int(d/time.Second) + 2
+
+	return &lossTimeline{sent: make([]atomic.Int64, n), received: make([]atomic.Int64, n)}
+}
+
+func (l *lossTimeline) bucket(offset time.Duration) int {
+	return min(max(int(offset/time.Second), 0), len(l.sent)-1)
+}
+
 type rttRecorder struct {
 	mu   sync.Mutex
 	rtts []time.Duration
@@ -91,6 +106,7 @@ func runScalePingTraffic(ctx context.Context, ues []*scaleUE, p *scaleParams) er
 
 	start := time.Now()
 	rtts := &rttRecorder{}
+	timeline := newLossTimeline(p.Hold)
 
 	for g, byTEID := range byGNB {
 		g.SetDownlinkHook(func(teid uint32, packet []byte) {
@@ -104,8 +120,11 @@ func runScalePingTraffic(ctx context.Context, ues []*scaleUE, p *scaleParams) er
 				return
 			}
 
+			sentAt := time.Duration(binary.BigEndian.Uint64(payload)) //nolint:gosec
+
 			pg.received.Add(1)
-			rtts.add(time.Since(start) - time.Duration(binary.BigEndian.Uint64(payload))) //nolint:gosec
+			timeline.received[timeline.bucket(sentAt)].Add(1)
+			rtts.add(time.Since(start) - sentAt)
 		})
 	}
 
@@ -136,8 +155,11 @@ func runScalePingTraffic(ctx context.Context, ues []*scaleUE, p *scaleParams) er
 				return
 			}
 
-			seq := uint16(pg.sent.Add(1))                                            //nolint:gosec
-			payload := binary.BigEndian.AppendUint64(nil, uint64(time.Since(start))) //nolint:gosec
+			seq := uint16(pg.sent.Add(1)) //nolint:gosec
+			sentAt := time.Since(start)
+			payload := binary.BigEndian.AppendUint64(nil, uint64(sentAt)) //nolint:gosec
+			timeline.sent[timeline.bucket(sentAt)].Add(1)
+
 			packet := scenarios.ICMPEchoRequest(pg.src, dst, pg.id, seq, payload)
 
 			if err := pg.ue.gnb.SendGPDUWithQFI(pg.ue.session.ULTEID, pg.upf, pg.ue.session.QFI, packet); err != nil {
@@ -158,7 +180,24 @@ func runScalePingTraffic(ctx context.Context, ues []*scaleUE, p *scaleParams) er
 	case <-time.After(scalePingGrace):
 	}
 
+	logScaleLossTimeline(timeline)
+
 	return summarizeScalePingTraffic(pingers, rtts, sendErrors.Load())
+}
+
+func logScaleLossTimeline(l *lossTimeline) {
+	var seconds []string
+
+	for i := range l.sent {
+		sent, received := l.sent[i].Load(), l.received[i].Load()
+		if sent == received {
+			continue
+		}
+
+		seconds = append(seconds, fmt.Sprintf("%ds:%d/%d", i, sent-received, sent))
+	}
+
+	logger.Logger.Info("user plane loss timeline", zap.Int("seconds", len(l.sent)), zap.Int("lossy_seconds", len(seconds)), zap.Strings("lost_per_second", seconds))
 }
 
 func summarizeScalePingTraffic(pingers []*scalePinger, rtts *rttRecorder, sendErrors int64) error {
