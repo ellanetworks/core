@@ -166,10 +166,6 @@ func (db *Database) GetSEPPCA(ctx context.Context) (_ *SEPPCA, err error) {
 	ctx, finish := startDBQuery(ctx, SEPPCATableName, "SELECT")
 	defer func() { finish(err) }()
 
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		return nil, ErrNotFound
-	}
-
 	ca, err := scanSEPPCA(db.reader().QueryRowContext(ctx, getSEPPCASQL))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -186,10 +182,6 @@ func (db *Database) GetSEPPIdentity(ctx context.Context, seppID int) (_ *SEPPIde
 	ctx, finish := startDBQuery(ctx, SEPPIdentitiesTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		return nil, ErrNotFound
-	}
-
 	identity, err := scanSEPPIdentity(db.reader().QueryRowContext(ctx, getSEPPIdentitySQL, seppID))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -205,10 +197,6 @@ func (db *Database) GetSEPPIdentity(ctx context.Context, seppID int) (_ *SEPPIde
 func (db *Database) ListSEPPIdentities(ctx context.Context) (_ []SEPPIdentity, err error) {
 	ctx, finish := startDBQuery(ctx, SEPPIdentitiesTableName, "SELECT")
 	defer func() { finish(err) }()
-
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		return nil, nil
-	}
 
 	identities, err := queryAll(ctx, db.reader(), listSEPPIdentitiesSQL, scanSEPPIdentity)
 	if err != nil {
@@ -411,8 +399,8 @@ func (db *Database) issueSEPPIdentity(ctx context.Context, seppID int) (*SEPPIde
 }
 
 var (
-	opPutGeneratedSEPPIdentity = registerChangesetOp("PutGeneratedSEPPIdentity", (*Database).applyPutGeneratedSEPPIdentity, RequireSchema(roamingSchema), AffectsTopic(TopicSEPPIdentity))
-	opDeleteSEPPIdentity       = registerChangesetOp("DeleteSEPPIdentity", (*Database).applyDeleteSEPPIdentity, RequireSchema(roamingSchema), AffectsTopic(TopicSEPPIdentity))
+	opPutGeneratedSEPPIdentity = registerChangesetOp("PutGeneratedSEPPIdentity", (*Database).applyPutGeneratedSEPPIdentity, AffectsTopic(TopicSEPPIdentity))
+	opDeleteSEPPIdentity       = registerChangesetOp("DeleteSEPPIdentity", (*Database).applyDeleteSEPPIdentity, AffectsTopic(TopicSEPPIdentity))
 )
 
 func (db *Database) PutGeneratedSEPPIdentity(ctx context.Context, seppID int) error {

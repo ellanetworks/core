@@ -9,8 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"github.com/ellanetworks/core/internal/pki"
 )
 
 const ClusterMembersTableName = "cluster_members"
@@ -22,14 +20,14 @@ const (
 )
 
 const (
-	listClusterMembersSQL        = "SELECT nodeID, amfPointer, displayName, apiAddress, binaryVersion, drainState, drainUpdatedAt FROM " + ClusterMembersTableName + " ORDER BY nodeID ASC"
-	getClusterMemberSQL          = "SELECT nodeID, amfPointer, displayName, apiAddress, binaryVersion, drainState, drainUpdatedAt FROM " + ClusterMembersTableName + " WHERE nodeID==?"
-	upsertClusterMemberSQL       = "INSERT INTO " + ClusterMembersTableName + " (nodeID, amfPointer, displayName, apiAddress, binaryVersion) VALUES (?, ?, ?, ?, ?) ON CONFLICT(nodeID) DO UPDATE SET amfPointer=excluded.amfPointer, apiAddress=?, binaryVersion=?"
-	deleteClusterMemberSQL       = "DELETE FROM " + ClusterMembersTableName + " WHERE nodeID==?"
-	countClusterMembersSQL       = "SELECT COUNT(*) FROM " + ClusterMembersTableName
-	getDrainStateSQL             = "SELECT drainState FROM " + ClusterMembersTableName + " WHERE nodeID==?"
-	setDrainStateSQL             = "UPDATE " + ClusterMembersTableName + " SET drainState=?, drainUpdatedAt=? WHERE nodeID==?"
-	setDisplayNameSQL            = "UPDATE " + ClusterMembersTableName + " SET displayName=? WHERE nodeID==?"
+	listClusterMembersSQL  = "SELECT nodeID, amfPointer, displayName, apiAddress, binaryVersion, drainState, drainUpdatedAt FROM " + ClusterMembersTableName + " ORDER BY nodeID ASC"
+	getClusterMemberSQL    = "SELECT nodeID, amfPointer, displayName, apiAddress, binaryVersion, drainState, drainUpdatedAt FROM " + ClusterMembersTableName + " WHERE nodeID==?"
+	upsertClusterMemberSQL = "INSERT INTO " + ClusterMembersTableName + " (nodeID, amfPointer, displayName, apiAddress, binaryVersion) VALUES (?, ?, ?, ?, ?) ON CONFLICT(nodeID) DO UPDATE SET amfPointer=excluded.amfPointer, apiAddress=?, binaryVersion=?"
+	deleteClusterMemberSQL = "DELETE FROM " + ClusterMembersTableName + " WHERE nodeID==?"
+	countClusterMembersSQL = "SELECT COUNT(*) FROM " + ClusterMembersTableName
+	getDrainStateSQL       = "SELECT drainState FROM " + ClusterMembersTableName + " WHERE nodeID==?"
+	setDrainStateSQL       = "UPDATE " + ClusterMembersTableName + " SET drainState=?, drainUpdatedAt=? WHERE nodeID==?"
+	setDisplayNameSQL      = "UPDATE " + ClusterMembersTableName + " SET displayName=? WHERE nodeID==?"
 )
 
 const (

@@ -711,30 +711,6 @@ func (db *Database) checkOpSchema(minSchema int) error {
 	return nil
 }
 
-// appliedSchemaAtLeast reports whether the applied schema has reached
-// minVersion, seeding the cache from schema_version when it is still cold.
-// Read paths use this to pick between statement variants; a read error
-// reports false, selecting the variant that compiles against either schema.
-func (db *Database) appliedSchemaAtLeast(ctx context.Context, minVersion int) bool {
-	if info, ok := applyInfoFrom(ctx); ok {
-		return info.schema >= minVersion
-	}
-
-	applied := db.cachedAppliedSchema()
-	if applied == 0 {
-		v, err := readSchemaVersion(ctx, db.runner(ctx))
-		if err != nil {
-			return false
-		}
-
-		db.appliedSchemaCache.Store(int64(v))
-
-		applied = v
-	}
-
-	return applied >= minVersion
-}
-
 // CheckPendingMigrations proposes one CmdMigrateShared per missing migration,
 // up to the minimum SchemaVersion across cluster members. Nonvoters bind the
 // floor too: they run the same FSM over the same committed entries.

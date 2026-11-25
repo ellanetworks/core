@@ -120,7 +120,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("GET /api/v1/users/me", Authenticate(jwtSecret, dbInstance, Authorize(PermReadMyUser, GetLoggedInUser(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/users/me/password", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateMyUserPassword, UpdateMyUserPassword(dbInstance, bcryptCost))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/users/me/api-tokens", Authenticate(jwtSecret, dbInstance, Authorize(PermListMyAPITokens, ListMyAPITokens(dbInstance))).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/users/me/api-tokens", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateMyAPIToken, CreateMyAPIToken(dbInstance, bcryptCost))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/users/me/api-tokens", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateMyAPIToken, CreateMyAPIToken(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/users/me/api-tokens/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteMyAPIToken, DeleteMyAPIToken(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/users", Authenticate(jwtSecret, dbInstance, Authorize(PermListUsers, ListUsers(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/users", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateUser, CreateUser(dbInstance, bcryptCost))).ServeHTTP)
@@ -134,7 +134,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("GET /api/v1/oidc", Authenticate(jwtSecret, dbInstance, Authorize(PermReadOIDC, GetOIDC(oidcSettings))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/oidc", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateOIDC, UpdateOIDC(oidcSettings))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/users/{email}/api-tokens", Authenticate(jwtSecret, dbInstance, Authorize(PermListUserAPITokens, ListUserAPITokens(dbInstance))).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/users/{email}/api-tokens", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateUserAPIToken, CreateUserAPIToken(dbInstance, bcryptCost))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/users/{email}/api-tokens", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateUserAPIToken, CreateUserAPIToken(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/users/{email}/api-tokens/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteUserAPIToken, DeleteUserAPIToken(dbInstance))).ServeHTTP)
 
 	// Subscribers (Authenticated)

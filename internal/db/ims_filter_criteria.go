@@ -363,10 +363,6 @@ func (db *Database) ListSubscriberIMSFilterCriteria(ctx context.Context, imsi st
 	ctx, finish := startDBQuery(ctx, IMSInitialFilterCriteriaTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	if !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
-		return nil, nil
-	}
-
 	rows, err := queryAll(ctx, db.reader(), listSubscriberIMSIFCsSQL, scanSubscriberIMSIFC, imsi, string(set))
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -451,10 +447,6 @@ func (db *Database) ProfilesUsingIMSApplicationServer(ctx context.Context, appli
 	ctx, finish := startDBQuery(ctx, IMSInitialFilterCriteriaTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	if !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
-		return nil, nil
-	}
-
 	profileIDs, err := queryAll(ctx, db.reader(), listProfilesOfIMSASSQL, scanValue[string], applicationServerID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -471,7 +463,7 @@ func (db *Database) IMSRegisteredSubscribersOfProfiles(ctx context.Context, prof
 	ctx, finish := startDBQuery(ctx, IMSRegistrationSetsTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	if len(profileIDs) == 0 || !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
+	if len(profileIDs) == 0 {
 		return nil, nil
 	}
 

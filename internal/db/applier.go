@@ -1000,14 +1000,7 @@ func (db *Database) applyDeleteNetworkSlice(ctx context.Context, p *stringPayloa
 }
 
 func (db *Database) applyCreateDataNetwork(ctx context.Context, dn *DataNetwork) (any, error) {
-	current, err := db.dataNetworkSchemaCurrent(ctx, dn)
-	if err != nil {
-		return nil, err
-	}
-
-	query, args := createDataNetworkQuery(dn, current)
-
-	_, err = db.runner(ctx).ExecContext(ctx, query, args...)
+	_, err := db.runner(ctx).ExecContext(ctx, createDataNetworkSQL, dn.ID, dn.Name, dn.IPv4Pool, dn.IPv6Pool, dn.DNS, dn.MTU, dn.IMS)
 	if err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -1020,14 +1013,7 @@ func (db *Database) applyCreateDataNetwork(ctx context.Context, dn *DataNetwork)
 }
 
 func (db *Database) applyUpdateDataNetwork(ctx context.Context, dn *DataNetwork) (any, error) {
-	current, err := db.dataNetworkSchemaCurrent(ctx, dn)
-	if err != nil {
-		return nil, err
-	}
-
-	query, args := editDataNetworkQuery(dn, current)
-
-	res, err := db.runner(ctx).ExecContext(ctx, query, args...)
+	res, err := db.runner(ctx).ExecContext(ctx, editDataNetworkSQL, dn.IPv4Pool, dn.IPv6Pool, dn.DNS, dn.MTU, dn.IMS, dn.Name)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1069,14 +1055,7 @@ func (db *Database) applyDeleteDataNetwork(ctx context.Context, p *stringPayload
 func (db *Database) applyCreatePolicy(ctx context.Context, p *Policy) (any, error) {
 	p.defaultPreemption()
 
-	current, err := db.policySchemaCurrent(ctx, p)
-	if err != nil {
-		return nil, err
-	}
-
-	query, args := createPolicyQuery(p, current)
-
-	_, err = db.runner(ctx).ExecContext(ctx, query, args...)
+	_, err := db.runner(ctx).ExecContext(ctx, createPolicySQL, createPolicyArgs(p)...)
 	if err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -1105,14 +1084,7 @@ func (db *Database) applySetDefaultPolicy(ctx context.Context, p *Policy) (any, 
 func (db *Database) applyUpdatePolicy(ctx context.Context, p *Policy) (any, error) {
 	p.defaultPreemption()
 
-	current, err := db.policySchemaCurrent(ctx, p)
-	if err != nil {
-		return nil, err
-	}
-
-	query, args := editPolicyQuery(p, current)
-
-	res, err := db.runner(ctx).ExecContext(ctx, query, args...)
+	res, err := db.runner(ctx).ExecContext(ctx, editPolicySQL, p.ProfileID, p.SliceID, p.DataNetworkID, p.Var5qi, p.Arp, p.PreemptionCapability, p.PreemptionVulnerability, p.SessionAmbrUplink, p.SessionAmbrDownlink, p.Name)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

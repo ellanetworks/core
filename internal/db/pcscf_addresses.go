@@ -94,10 +94,6 @@ func (db *Database) ListPCSCFAddresses(ctx context.Context) (_ []string, err err
 	ctx, finish := startDBQuery(ctx, PCSCFAddressesTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	if !db.appliedSchemaAtLeast(ctx, pcscfAddressesSchema) {
-		return []string{}, nil
-	}
-
 	rows, err := queryAll(ctx, db.reader(), listPCSCFAddressesSQL, scanPCSCFAddressRow)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)

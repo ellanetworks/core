@@ -47,7 +47,7 @@ const (
 	upsertNodeCertSQL       = "INSERT INTO " + ClusterNodeCertsTableName + " (nodeID, fingerprint, certPEM, addedAt) VALUES (?, ?, ?, ?) ON CONFLICT(nodeID) DO UPDATE SET fingerprint=excluded.fingerprint, certPEM=excluded.certPEM, addedAt=excluded.addedAt"
 	deleteNodeCertByNodeSQL = "DELETE FROM " + ClusterNodeCertsTableName + " WHERE nodeID=?"
 
-	insertJoinTokenSQL       = "INSERT INTO " + ClusterJoinTokensTableName + " (id, claimsJSON, expiresAt, consumedAt, consumedBy) VALUES (?, ?, ?, 0, '')"           // #nosec G101 -- SQL statement
+	insertJoinTokenSQL       = "INSERT INTO " + ClusterJoinTokensTableName + " (id, claimsJSON, expiresAt, consumedAt, consumedBy) VALUES (?, ?, ?, 0, '')" // #nosec G101 -- SQL statement
 	getJoinTokenSQL          = "SELECT id, claimsJSON, expiresAt, consumedAt, consumedBy FROM " + ClusterJoinTokensTableName + " WHERE id=?"
 	consumeJoinTokenSQL      = "UPDATE " + ClusterJoinTokensTableName + " SET consumedAt=?, consumedBy=? WHERE id=? AND consumedAt=0" // #nosec G101 -- SQL statement
 	deleteJoinTokensStaleSQL = "DELETE FROM " + ClusterJoinTokensTableName + " WHERE expiresAt<? OR (consumedAt>0 AND consumedAt<?)"  // #nosec G101 -- SQL statement

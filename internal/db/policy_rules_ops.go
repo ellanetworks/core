@@ -104,14 +104,7 @@ func (db *Database) applyCreatePolicyWithRules(ctx context.Context, payload *pol
 
 	policy.defaultPreemption()
 
-	current, err := db.policySchemaCurrent(ctx, &policy)
-	if err != nil {
-		return nil, err
-	}
-
-	query, args := createPolicyQuery(&policy, current)
-
-	if _, err := db.runner(ctx).ExecContext(ctx, query, args...); err != nil {
+	if _, err := db.runner(ctx).ExecContext(ctx, createPolicySQL, createPolicyArgs(&policy)...); err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
 		}

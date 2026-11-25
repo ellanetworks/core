@@ -61,10 +61,6 @@ func (db *Database) GetSMSSettings(ctx context.Context) (_ *SMSSettings, err err
 
 	settings := DefaultSMSSettings()
 
-	if !db.appliedSchemaAtLeast(ctx, smsSchema) {
-		return &settings, nil
-	}
-
 	err = db.reader().QueryRowContext(ctx, getSMSSettingsSQL).Scan(&settings.SMSNumber)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

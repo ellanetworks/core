@@ -37,10 +37,6 @@ func (db *Database) GetIdentity(ctx context.Context, issuer, subject string) (_ 
 	ctx, finish := startDBQuery(ctx, UserIdentitiesTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	if !db.appliedSchemaAtLeast(ctx, oidcSchema) {
-		return nil, ErrNotFound
-	}
-
 	var i Identity
 
 	err = db.readQuerier(ctx).QueryRowContext(ctx, getIdentitySQL, issuer, subject).Scan(&i.ID, &i.UserID, &i.Issuer,

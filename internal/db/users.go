@@ -17,11 +17,8 @@ import (
 
 const UsersTableName = "users"
 
-const oidcSchema = 29
-
 const (
-	userColumnsPreV29 = "id, email, roleID, hashedPassword, FALSE"
-	userColumns       = "id, email, roleID, hashedPassword, EXISTS (SELECT 1 FROM " + UserIdentitiesTableName + " i JOIN " +
+	userColumns = "id, email, roleID, hashedPassword, EXISTS (SELECT 1 FROM " + UserIdentitiesTableName + " i JOIN " +
 		OIDCSettingsTableName + " o ON o.issuer = i.issuer WHERE i.userID = " + UsersTableName + ".id)"
 )
 
@@ -35,9 +32,9 @@ const (
 	userIDByEmailSQL     = "SELECT id, roleID, hashedPassword FROM " + UsersTableName + " WHERE email==?"
 	keepPasswordAdminSQL = "SELECT NOT EXISTS (SELECT 1 FROM " + UsersTableName + " WHERE id = ? AND roleID = ? AND hashedPassword != '') OR EXISTS (SELECT 1 FROM " + UsersTableName + " WHERE id != ? AND roleID = ? AND hashedPassword != '')" // #nosec: G101
 	deleteSessionsOfUser = "DELETE FROM " + SessionsTableName + " WHERE user_id = ?"
-	listUsersPageSQLTmpl = "SELECT %s, COUNT(*) OVER() FROM " + UsersTableName + " ORDER BY id LIMIT ? OFFSET ?"
-	getUserSQLTmpl       = "SELECT %s FROM " + UsersTableName + " WHERE email==?"
-	getUserByIDSQLTmpl   = "SELECT %s FROM " + UsersTableName + " WHERE id==?"
+	listUsersPageSQL     = "SELECT " + userColumns + ", COUNT(*) OVER() FROM " + UsersTableName + " ORDER BY id LIMIT ? OFFSET ?"
+	getUserSQL           = "SELECT " + userColumns + " FROM " + UsersTableName + " WHERE email==?"
+	getUserByIDSQL       = "SELECT " + userColumns + " FROM " + UsersTableName + " WHERE id==?"
 )
 
 type RoleID int
@@ -56,21 +53,11 @@ type User struct {
 	HasIdentity    bool
 }
 
-func (db *Database) userColumns(ctx context.Context) string {
-	if db.appliedSchemaAtLeast(ctx, oidcSchema) {
-		return userColumns
-	}
-
-	return userColumnsPreV29
-}
-
 func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) (_ []User, _ int, err error) {
 	ctx, finish := startDBQueryNamed(ctx, "SELECT "+UsersTableName+" (paged)", UsersTableName, "SELECT", attribute.Int("ella.db.page", page), attribute.Int("ella.db.page_size", perPage))
 	defer func() { finish(err) }()
 
-	query := fmt.Sprintf(listUsersPageSQLTmpl, db.userColumns(ctx))
-
-	users, count, err := queryPageWithTotal(ctx, db.reader(), query, scanUser, perPage, (page-1)*perPage)
+	users, count, err := queryPageWithTotal(ctx, db.reader(), listUsersPageSQL, scanUser, perPage, (page-1)*perPage)
 	if err != nil {
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
@@ -92,7 +79,7 @@ func (db *Database) GetUser(ctx context.Context, email string) (_ *User, err err
 	ctx, finish := startDBQuery(ctx, UsersTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	row, err := scanUser(db.reader().QueryRowContext(ctx, fmt.Sprintf(getUserSQLTmpl, db.userColumns(ctx)), email))
+	row, err := scanUser(db.reader().QueryRowContext(ctx, getUserSQL, email))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -109,7 +96,7 @@ func (db *Database) GetUserByID(ctx context.Context, id string) (_ *User, err er
 	ctx, finish := startDBQuery(ctx, UsersTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	row, err := scanUser(db.reader().QueryRowContext(ctx, fmt.Sprintf(getUserByIDSQLTmpl, db.userColumns(ctx)), id))
+	row, err := scanUser(db.reader().QueryRowContext(ctx, getUserByIDSQL, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound

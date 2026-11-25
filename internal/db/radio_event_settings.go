@@ -25,10 +25,6 @@ func (db *Database) IsRadioEventsEnabled(ctx context.Context) (_ bool, err error
 	ctx, finish := startDBQuery(ctx, RadioEventSettingsTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	if !db.appliedSchemaAtLeast(ctx, radioEventSettingsSchema) {
-		return RadioEventsDefaultEnabled, nil
-	}
-
 	var enabled bool
 
 	err = db.reader().QueryRowContext(ctx, getRadioEventSettingsSQL).Scan(&enabled)

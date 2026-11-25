@@ -54,11 +54,6 @@ func (db *Database) ListSliceDataNetworks(ctx context.Context) (_ []SliceDataNet
 	ctx, finish := startDBQuery(ctx, SliceDataNetworksTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	if !db.appliedSchemaAtLeast(ctx, sliceDataNetworkSchema) {
-		pairs, err := db.legacySliceDataNetworks(ctx)
-		return pairs, err
-	}
-
 	pairs, err := queryAll(ctx, db.reader(), listSliceDataNetworksSQL, scanSliceDataNetwork)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -68,21 +63,6 @@ func (db *Database) ListSliceDataNetworks(ctx context.Context) (_ []SliceDataNet
 }
 
 func (db *Database) GetSliceDataNetwork(ctx context.Context, sliceID, dataNetworkID string) (_ *SliceDataNetwork, err error) {
-	if !db.appliedSchemaAtLeast(ctx, sliceDataNetworkSchema) {
-		pairs, err := db.ListSliceDataNetworks(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		for i := range pairs {
-			if pairs[i].SliceID == sliceID && pairs[i].DataNetworkID == dataNetworkID {
-				return &pairs[i], nil
-			}
-		}
-
-		return nil, ErrNotFound
-	}
-
 	ctx, finish := startDBQuery(ctx, SliceDataNetworksTableName, "SELECT")
 	defer func() { finish(err) }()
 
@@ -176,14 +156,7 @@ func (db *Database) WithheldLeaseOwners(ctx context.Context, nodeID string) (_ m
 	ctx, finish := startDBQuery(ctx, SliceDataNetworksTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	if !db.appliedSchemaAtLeast(ctx, sliceDataNetworkSchema) {
-		return nil, nil
-	}
-
-	owners := SubscribersTableName
-	if db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		owners = fmt.Sprintf("(SELECT imsi, profileID FROM %s UNION ALL SELECT v.imsi, r.profileID FROM %s v JOIN %s r ON r.id = v.partnerID)", SubscribersTableName, VisitorsTableName, RoamingPartnersTableName)
-	}
+	owners := fmt.Sprintf("(SELECT imsi, profileID FROM %s UNION ALL SELECT v.imsi, r.profileID FROM %s v JOIN %s r ON r.id = v.partnerID)", SubscribersTableName, VisitorsTableName, RoamingPartnersTableName)
 
 	query := fmt.Sprintf(`SELECT s.imsi, p.dataNetworkID, MIN((sdn.nat AND NOT d.ims) OR sdn.networkInstance NOT IN ('', ?)), MIN(sdn.networkInstance NOT IN ('', ?))
 		FROM %s s
@@ -212,11 +185,6 @@ func (db *Database) sliceDataNetworkForwarding(ctx context.Context, where string
 	ctx, finish := startDBQuery(ctx, SliceDataNetworksTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	if !db.appliedSchemaAtLeast(ctx, sliceDataNetworkSchema) {
-		out, err := db.legacySliceDataNetworkForwarding(ctx, args)
-		return out, err
-	}
-
 	query := fmt.Sprintf(sliceDataNetworkForwardingQuery, SliceDataNetworksTableName, DataNetworksTableName) + where + " ORDER BY p.sliceID, p.dataNetworkID"
 
 	out, err := queryAll(ctx, db.reader(), query, scanSliceDataNetworkForwarding, args...)
@@ -232,89 +200,6 @@ func (f SliceDataNetworkForwarding) effective() SliceDataNetworkForwarding {
 	f.LocalSwitch = f.LocalSwitch || f.IMS
 
 	return f
-}
-
-func (db *Database) legacySliceDataNetworkForwarding(ctx context.Context, match []any) ([]SliceDataNetworkForwarding, error) {
-	pairs, err := db.legacySliceDataNetworks(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	dataNetworks, err := db.ListAllDataNetworks(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	byID := make(map[string]*DataNetwork, len(dataNetworks))
-	for i := range dataNetworks {
-		byID[dataNetworks[i].ID] = &dataNetworks[i]
-	}
-
-	out := make([]SliceDataNetworkForwarding, 0, len(pairs))
-
-	for _, p := range pairs {
-		if len(match) == 2 && (p.SliceID != match[0] || p.DataNetworkID != match[1]) {
-			continue
-		}
-
-		dn, ok := byID[p.DataNetworkID]
-		if !ok {
-			continue
-		}
-
-		out = append(out, SliceDataNetworkForwarding{
-			SliceID:         p.SliceID,
-			DataNetworkID:   p.DataNetworkID,
-			IMS:             dn.IMS,
-			IPv6Pool:        dn.IPv6Pool != "",
-			NAT:             p.NAT,
-			LocalSwitch:     p.LocalSwitch,
-			NetworkInstance: p.NetworkInstance,
-		}.effective())
-	}
-
-	return out, nil
-}
-
-func (db *Database) legacySliceDataNetworks(ctx context.Context) ([]SliceDataNetwork, error) {
-	localSwitch, err := readLegacyToggle(ctx, db.reader(), LocalSwitchSettingsTableName, false)
-	if err != nil {
-		return nil, err
-	}
-
-	nat, err := readLegacyToggle(ctx, db.reader(), NATSettingsTableName, NATDefaultEnabled)
-	if err != nil {
-		return nil, err
-	}
-
-	ims := "d.name = '" + models.IMSDataNetworkName + "'"
-	if db.appliedSchemaAtLeast(ctx, dataNetworkIMSSchema) {
-		ims = "d.ims"
-	}
-
-	query := fmt.Sprintf("SELECT DISTINCT p.sliceID, p.dataNetworkID, %s FROM %s p JOIN %s d ON d.id = p.dataNetworkID ORDER BY p.sliceID, p.dataNetworkID", ims, PoliciesTableName, DataNetworksTableName) // #nosec: G201 -- table names and the IMS expression are constants
-
-	pairs, err := queryAll(ctx, db.reader(), query, func(row scanner) (SliceDataNetwork, error) {
-		var (
-			p     SliceDataNetwork
-			isIMS bool
-		)
-
-		if err := row.Scan(&p.SliceID, &p.DataNetworkID, &isIMS); err != nil {
-			return SliceDataNetwork{}, err
-		}
-
-		p.NAT = nat && !isIMS
-		p.LocalSwitch = isIMS || localSwitch
-		p.NetworkInstance = models.DefaultNetworkInstanceName
-
-		return p, nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
-	}
-
-	return pairs, nil
 }
 
 func (db *Database) applyCreateSliceDataNetwork(ctx context.Context, pair *SliceDataNetwork) (any, error) {
@@ -357,10 +242,6 @@ func (db *Database) applyDeleteSliceDataNetwork(ctx context.Context, pair *Slice
 }
 
 func (db *Database) deleteSliceDataNetworksOfSlice(ctx context.Context, name string) error {
-	if !db.appliedSchemaAtLeast(ctx, sliceDataNetworkSchema) {
-		return nil
-	}
-
 	if _, err := db.runner(ctx).ExecContext(ctx, deleteSliceDataNetworksOfSliceSQL, name); err != nil {
 		return fmt.Errorf("delete the data networks of slice %s: %w", name, err)
 	}
@@ -369,10 +250,6 @@ func (db *Database) deleteSliceDataNetworksOfSlice(ctx context.Context, name str
 }
 
 func (db *Database) deleteSliceDataNetworksOfDataNetwork(ctx context.Context, name string) error {
-	if !db.appliedSchemaAtLeast(ctx, sliceDataNetworkSchema) {
-		return nil
-	}
-
 	if _, err := db.runner(ctx).ExecContext(ctx, deleteSliceDataNetworksOfDNSQL, name); err != nil {
 		return fmt.Errorf("delete the slices of data network %s: %w", name, err)
 	}

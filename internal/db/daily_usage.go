@@ -20,9 +20,9 @@ import (
 const DailyUsageTableName = "daily_usage"
 
 const (
-	incrementDailyUsageSQL       = "INSERT INTO " + DailyUsageTableName + " (epochDay, imsi, mcc, mnc, bytesUplink, bytesDownlink) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(epochDay, imsi) DO UPDATE SET bytesUplink = bytesUplink + excluded.bytesUplink, bytesDownlink = bytesDownlink + excluded.bytesDownlink"
-	deleteOldDailyUsageSQL       = "DELETE FROM " + DailyUsageTableName + " WHERE epochDay < ?"
-	deleteAllDailyUsageSQL       = "DELETE FROM " + DailyUsageTableName
+	incrementDailyUsageSQL = "INSERT INTO " + DailyUsageTableName + " (epochDay, imsi, mcc, mnc, bytesUplink, bytesDownlink) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(epochDay, imsi) DO UPDATE SET bytesUplink = bytesUplink + excluded.bytesUplink, bytesDownlink = bytesDownlink + excluded.bytesDownlink"
+	deleteOldDailyUsageSQL = "DELETE FROM " + DailyUsageTableName + " WHERE epochDay < ?"
+	deleteAllDailyUsageSQL = "DELETE FROM " + DailyUsageTableName
 )
 
 const (
@@ -39,13 +39,6 @@ WHERE
     AND epochDay <= ?4
 GROUP BY epochDay
 ORDER BY epochDay ASC`
-
-WHERE
-    (?1 IS NULL OR imsi == ?1)
-    AND epoch_day >= ?3
-    AND epoch_day <= ?4
-GROUP BY epoch_day
-ORDER BY epoch_day ASC`
 
 	usageDaysInRange = `(
     WITH RECURSIVE days(d) AS (
@@ -67,12 +60,6 @@ WHERE
     AND epochDay IN ` + usageDaysInRange + `
 GROUP BY epochDay
 ORDER BY epochDay ASC`
-
-WHERE
-    imsi == ?1
-    AND epoch_day IN ` + usageDaysInRange + `
-GROUP BY epoch_day
-ORDER BY epoch_day ASC`
 )
 
 const (
@@ -98,15 +85,6 @@ GROUP BY u.imsi
 ORDER BY SUM(u.bytesUplink) + SUM(u.bytesDownlink) DESC, u.imsi ASC
 LIMIT ?5`
 
-LEFT JOIN (
-    SELECT imsi, SUM(bytes_uplink) AS bytes_uplink, SUM(bytes_downlink) AS bytes_downlink
-    FROM ` + DailyUsageTableName + `
-    WHERE epoch_day >= ?3 AND epoch_day <= ?4
-    GROUP BY imsi
-) AS u ON u.imsi = s.imsi
-ORDER BY COALESCE(u.bytes_uplink, 0) + COALESCE(u.bytes_downlink, 0) DESC, s.imsi ASC
-LIMIT ?5`
-
 	getUsagePerSubscriberByIMSISQL = `
 SELECT
     u.imsi,
@@ -126,14 +104,6 @@ FROM (
 WHERE ?2 IS NULL OR (u.mcc IS NOT NULL) == ?2
 GROUP BY u.imsi
 ORDER BY u.imsi
-LIMIT ?5`
-
-LEFT JOIN ` + DailyUsageTableName + ` AS u
-    ON u.imsi = s.imsi
-    AND u.epoch_day IN ` + usageDaysInRange + `
-WHERE s.imsi = ?1
-GROUP BY s.imsi
-ORDER BY s.imsi
 LIMIT ?5`
 )
 
@@ -395,4 +365,3 @@ func scanUsagePerSub(row scanner) (UsagePerSub, error) {
 
 	return v, nil
 }
-

@@ -50,10 +50,6 @@ func (db *Database) GetIPSMGWRegistration(ctx context.Context, imsi string) (_ *
 	ctx, finish := startDBQuery(ctx, IPSMGWRegistrationsTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	if !db.appliedSchemaAtLeast(ctx, ipSMGWRegistrationsSchema) {
-		return nil, ErrNotFound
-	}
-
 	row, err := scanIPSMGWRegistrationRow(db.reader().QueryRowContext(ctx, getIPSMGWRegistrationSQL, imsi))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -69,10 +65,6 @@ func (db *Database) GetIPSMGWRegistration(ctx context.Context, imsi string) (_ *
 func (db *Database) ListAllIPSMGWRegistrations(ctx context.Context) (_ []IPSMGWRegistration, err error) {
 	ctx, finish := startDBQuery(ctx, IPSMGWRegistrationsTableName, "SELECT")
 	defer func() { finish(err) }()
-
-	if !db.appliedSchemaAtLeast(ctx, ipSMGWRegistrationsSchema) {
-		return nil, nil
-	}
 
 	rows, err := queryAll(ctx, db.reader(), listAllIPSMGWRegistrationsSQL, scanIPSMGWRegistrationRow)
 	if err != nil {

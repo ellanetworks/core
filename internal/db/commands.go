@@ -72,7 +72,6 @@ type applyInfo struct {
 	index      uint64
 	term       uint64
 	leaderTime int64
-	schema     int
 }
 
 type applyInfoKey struct{}
@@ -341,10 +340,6 @@ func isFatalApplyError(err error) bool {
 	return false
 }
 
-func (db *Database) commandMode(ctx context.Context) bool {
-	return db.appliedSchemaAtLeast(ctx, commandSchema)
-}
-
 var observeApply func(db *Database, entries []ellaraft.Entry) func(out []any, err error)
 
 func (db *Database) ApplyEntries(ctx context.Context, entries []ellaraft.Entry) ([]any, error) {
@@ -480,7 +475,7 @@ func (db *Database) applyEntryRun(ctx context.Context, entries []ellaraft.Entry,
 
 			b := batches[i]
 			leaderTime = max(leaderTime, b.LeaderTime)
-			cmdCtx := context.WithValue(baseCtx, applyInfoKey{}, applyInfo{index: e.Index, term: e.Term, leaderTime: leaderTime, schema: schema})
+			cmdCtx := context.WithValue(baseCtx, applyInfoKey{}, applyInfo{index: e.Index, term: e.Term, leaderTime: leaderTime})
 			results := make([]commandResult, len(b.Commands))
 
 			for j, c := range b.Commands {

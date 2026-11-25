@@ -159,10 +159,6 @@ func (db *Database) ListAllIMSRegistrations(ctx context.Context) (_ []IMSRegistr
 	ctx, finish := startDBQuery(ctx, IMSRegistrationsTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	if !db.appliedSchemaAtLeast(ctx, imsRegistrationsSchema) {
-		return nil, nil
-	}
-
 	tx, err := db.reader().BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction failed: %w", err)
@@ -198,10 +194,6 @@ func (db *Database) GetIMSRegistration(ctx context.Context, imsi string) (_ *IMS
 	ctx, finish := startDBQuery(ctx, IMSRegistrationsTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	if !db.appliedSchemaAtLeast(ctx, imsRegistrationsSchema) {
-		return nil, nil
-	}
-
 	tx, err := db.reader().BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction failed: %w", err)
@@ -220,10 +212,6 @@ func (db *Database) GetIMSRegistration(ctx context.Context, imsi string) (_ *IMS
 func (db *Database) CountIMSRegistrations(ctx context.Context, state IMSRegistrationState) (_ int, err error) {
 	ctx, finish := startDBQuery(ctx, IMSRegistrationsTableName, "SELECT")
 	defer func() { finish(err) }()
-
-	if !db.appliedSchemaAtLeast(ctx, imsRegistrationsSchema) {
-		return 0, nil
-	}
 
 	count, err := queryCount(ctx, db.reader(), countIMSRegistrationsSQL, int(state))
 	if err != nil {

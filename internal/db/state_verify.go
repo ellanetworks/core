@@ -465,7 +465,7 @@ func (db *Database) runStateVerifier(ctx context.Context) {
 	var last time.Time
 
 	for {
-		if db.commandMode(ctx) && (last.IsZero() || time.Since(last) >= verifyStateInterval) {
+		if last.IsZero() || time.Since(last) >= verifyStateInterval {
 			last = time.Now()
 
 			db.verifyState(ctx)

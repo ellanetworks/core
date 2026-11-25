@@ -17,10 +17,9 @@ const SessionsTableName = "sessions"
 
 const (
 	createSessionSQL            = "INSERT INTO " + SessionsTableName + " (id, user_id, token_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)"
-	sessionColumnsPreV29        = "id, user_id, token_hash, created_at, expires_at, 'password', ''"
 	sessionColumns              = "id, user_id, token_hash, created_at, expires_at, method, COALESCE(identity_id, '')"
-	getSessionByTokenHashSQL    = "SELECT %s FROM " + SessionsTableName + " WHERE token_hash==?"
-	getSessionByIDSQL           = "SELECT %s FROM " + SessionsTableName + " WHERE id==?"
+	getSessionByTokenHashSQL    = "SELECT " + sessionColumns + " FROM " + SessionsTableName + " WHERE token_hash==?"
+	getSessionByIDSQL           = "SELECT " + sessionColumns + " FROM " + SessionsTableName + " WHERE id==?"
 	deleteSessionByTokenHashSQL = "DELETE FROM " + SessionsTableName + " WHERE token_hash==?"   // #nosec: G101
 	deleteExpiredSessionsSQL    = "DELETE FROM " + SessionsTableName + " WHERE expires_at <= ?" // #nosec: G101
 	countSessionsByUserSQL      = "SELECT COUNT(*) FROM " + SessionsTableName + " WHERE user_id==?"
@@ -85,7 +84,7 @@ func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte)
 	ctx, finish := startDBQuery(ctx, SessionsTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	row, err := scanSession(db.reader().QueryRowContext(ctx, fmt.Sprintf(getSessionByTokenHashSQL, db.sessionColumns(ctx)), tokenHash))
+	row, err := scanSession(db.reader().QueryRowContext(ctx, getSessionByTokenHashSQL, tokenHash))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -101,7 +100,7 @@ func (db *Database) GetSessionByID(ctx context.Context, id string) (_ *Session, 
 	ctx, finish := startDBQuery(ctx, SessionsTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	row, err := scanSession(db.reader().QueryRowContext(ctx, fmt.Sprintf(getSessionByIDSQL, db.sessionColumns(ctx)), id))
+	row, err := scanSession(db.reader().QueryRowContext(ctx, getSessionByIDSQL, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -111,18 +110,6 @@ func (db *Database) GetSessionByID(ctx context.Context, id string) (_ *Session, 
 	}
 
 	return &row, nil
-}
-
-func (db *Database) SessionsBound(ctx context.Context) bool {
-	return db.appliedSchemaAtLeast(ctx, oidcSchema)
-}
-
-func (db *Database) sessionColumns(ctx context.Context) string {
-	if db.appliedSchemaAtLeast(ctx, oidcSchema) {
-		return sessionColumns
-	}
-
-	return sessionColumnsPreV29
 }
 
 func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []byte) (err error) {

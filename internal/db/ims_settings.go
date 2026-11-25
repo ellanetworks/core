@@ -157,10 +157,6 @@ func (db *Database) GetIMSHomeDomains(ctx context.Context) (IMSHomeDomains, erro
 func (db *Database) imsSettings(ctx context.Context) (*IMSSettings, error) {
 	settings := DefaultIMSSettings()
 
-	if !db.appliedSchemaAtLeast(ctx, imsIntegrationsSchema) {
-		return &settings, nil
-	}
-
 	if err := db.readQuerier(ctx).QueryRowContext(ctx, getIMSSettingsSQL).Scan(&settings.HomeDomain, &settings.AdvertiseVoice, &settings.RestrictPeers); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			defaults := DefaultIMSSettings()

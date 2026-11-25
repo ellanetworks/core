@@ -4,6 +4,7 @@
 package db
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -56,4 +57,45 @@ func createTestSubscriber(t *testing.T, database *Database, imsi string) {
 	}); err != nil {
 		t.Fatalf("CreateSubscriber: %v", err)
 	}
+}
+
+func newDatabaseAtVersion(t *testing.T, version int) *Database {
+	t.Helper()
+
+	ctx := context.Background()
+	dbPath := filepath.Join(t.TempDir(), "db.sqlite3")
+
+	conn, err := openSQLiteConnection(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+
+	if err := runMigrations(ctx, conn, version); err != nil {
+		t.Fatalf("runMigrations(%d): %v", version, err)
+	}
+
+	if err := ensureFsmStateTable(ctx, conn); err != nil {
+		t.Fatalf("ensure fsm_state table: %v", err)
+	}
+
+	d := new(Database)
+	d.connection = conn
+	d.readConnection = conn
+	d.dbPath = dbPath
+	d.dataDir = filepath.Dir(dbPath)
+	d.changefeed = NewChangefeed()
+
+	t.Cleanup(func() {
+		if err := d.Close(); err != nil {
+			t.Fatalf("close: %v", err)
+		}
+	})
+
+	if err := d.refreshAppliedSchema(ctx); err != nil {
+		t.Fatalf("refresh applied schema: %v", err)
+	}
+
+	RegisterMetrics(d)
+
+	return d
 }

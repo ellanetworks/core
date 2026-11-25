@@ -20,7 +20,6 @@ import (
 const FlowReportsTableName = "flow_reports"
 
 const (
-	insertFlowReportSQL            = "INSERT INTO " + FlowReportsTableName + " (subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 	insertFlowReportOfKnownIMSISQL = "INSERT INTO " + FlowReportsTableName + " (subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM " + SubscribersTableName + " WHERE imsi = ?) OR EXISTS (SELECT 1 FROM " + VisitorsTableName + " WHERE imsi = ?)"
 	deleteOldFlowReportsSQL        = "DELETE FROM " + FlowReportsTableName + " WHERE end_time < ?"
 	deleteAllFlowReportsSQL        = "DELETE FROM " + FlowReportsTableName
@@ -184,33 +183,16 @@ func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwrit
 
 	orphaned := 0
 
-	knownIMSIOnly := db.appliedSchemaAtLeast(ctx, roamingSchema)
-
 	for _, fr := range flowReports {
-		if knownIMSIOnly {
-			inserted, err := insertFlowReportOfKnownIMSI(ctx, tx, fr)
-			if err != nil {
-				_ = tx.Rollback()
-
-				return fmt.Errorf("insert failed: %w", err)
-			}
-
-			if !inserted {
-				orphaned++
-			}
-
-			continue
-		}
-
-		if _, err := tx.ExecContext(ctx, insertFlowReportSQL, fr.SubscriberID, fr.SourceIP, fr.DestinationIP, fr.SourcePort, fr.DestinationPort, fr.Protocol, fr.Packets, fr.Bytes, fr.StartTime, fr.EndTime, fr.Direction, fr.Action); err != nil {
-			if isForeignKeyError(err) {
-				orphaned++
-				continue
-			}
-
+		inserted, err := insertFlowReportOfKnownIMSI(ctx, tx, fr)
+		if err != nil {
 			_ = tx.Rollback()
 
 			return fmt.Errorf("insert failed: %w", err)
+		}
+
+		if !inserted {
+			orphaned++
 		}
 	}
 

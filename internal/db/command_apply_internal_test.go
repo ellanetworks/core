@@ -372,8 +372,8 @@ func TestApplyEntriesKeepsLeaderTimeMonotonic(t *testing.T) {
 	}
 
 	want := []applyInfo{
-		{index: index, term: 1, leaderTime: base + 100, schema: SchemaVersion()},
-		{index: index + 1, term: 1, leaderTime: base + 100, schema: SchemaVersion()},
+		{index: index, term: 1, leaderTime: base + 100},
+		{index: index + 1, term: 1, leaderTime: base + 100},
 	}
 
 	if len(seen) != len(want) || seen[0] != want[0] || seen[1] != want[1] {

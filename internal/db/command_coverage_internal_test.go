@@ -96,10 +96,6 @@ func TestMigrateSharedStillAppliesAfterTheCommandSchema(t *testing.T) {
 	database := newStandaloneDB(t)
 	ctx := t.Context()
 
-	if !database.commandMode(ctx) {
-		t.Fatal("a fresh standalone database is not in command mode")
-	}
-
 	if err := database.SetRetentionPolicy(ctx, &RetentionPolicy{Category: CategoryAuditLogs, Days: 4}); err != nil {
 		t.Fatalf("SetRetentionPolicy before MigrateShared: %v", err)
 	}

@@ -198,11 +198,7 @@ func authenticateRequest(r *http.Request, jwtSecret *JWTSecret, store *db.Databa
 
 func checkSession(ctx context.Context, store *db.Database, cl *claims) error {
 	if cl.SessionID == "" {
-		if store.SessionsBound(ctx) {
-			return errors.New("token has no session")
-		}
-
-		return nil
+		return errors.New("token has no session")
 	}
 
 	s, err := store.GetSessionByID(ctx, cl.SessionID)
