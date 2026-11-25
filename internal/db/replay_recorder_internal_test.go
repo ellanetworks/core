@@ -305,9 +305,9 @@ func encodeApplyResults(out []any) []string {
 }
 
 func replicatedTableHashes(ctx context.Context, q rowQuerier) (map[string]string, error) {
-	out := make(map[string]string, len(replicatedChangesetTables))
+	out := make(map[string]string, len(replicatedTables))
 
-	for _, table := range replicatedChangesetTables {
+	for _, table := range replicatedTables {
 		h := sha256.New()
 
 		if err := hashTable(ctx, q, h, table); err != nil {

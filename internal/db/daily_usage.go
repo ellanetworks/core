@@ -21,9 +21,7 @@ const DailyUsageTableName = "daily_usage"
 
 const (
 	incrementDailyUsageSQL       = "INSERT INTO " + DailyUsageTableName + " (epochDay, imsi, mcc, mnc, bytesUplink, bytesDownlink) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(epochDay, imsi) DO UPDATE SET bytesUplink = bytesUplink + excluded.bytesUplink, bytesDownlink = bytesDownlink + excluded.bytesDownlink"
-	incrementDailyUsagePreV27SQL = "INSERT INTO " + DailyUsageTableName + " (epoch_day, imsi, bytes_uplink, bytes_downlink) VALUES (?, ?, ?, ?) ON CONFLICT(epoch_day, imsi) DO UPDATE SET bytes_uplink = bytes_uplink + ?, bytes_downlink = bytes_downlink + ?"
 	deleteOldDailyUsageSQL       = "DELETE FROM " + DailyUsageTableName + " WHERE epochDay < ?"
-	deleteOldDailyUsagePreV27SQL = "DELETE FROM " + DailyUsageTableName + " WHERE epoch_day < ?"
 	deleteAllDailyUsageSQL       = "DELETE FROM " + DailyUsageTableName
 )
 
@@ -42,12 +40,6 @@ WHERE
 GROUP BY epochDay
 ORDER BY epochDay ASC`
 
-	getUsagePerDayPreV27SQL = `
-SELECT
-    epoch_day,
-    SUM(bytes_uplink),
-    SUM(bytes_downlink)
-FROM ` + DailyUsageTableName + `
 WHERE
     (?1 IS NULL OR imsi == ?1)
     AND epoch_day >= ?3
@@ -76,12 +68,6 @@ WHERE
 GROUP BY epochDay
 ORDER BY epochDay ASC`
 
-	getUsagePerDayByIMSIPreV27SQL = `
-SELECT
-    epoch_day,
-    SUM(bytes_uplink),
-    SUM(bytes_downlink)
-FROM ` + DailyUsageTableName + `
 WHERE
     imsi == ?1
     AND epoch_day IN ` + usageDaysInRange + `
@@ -112,12 +98,6 @@ GROUP BY u.imsi
 ORDER BY SUM(u.bytesUplink) + SUM(u.bytesDownlink) DESC, u.imsi ASC
 LIMIT ?5`
 
-	getUsagePerSubscriberPreV27SQL = `
-SELECT
-    s.imsi,
-    COALESCE(u.bytes_uplink, 0),
-    COALESCE(u.bytes_downlink, 0)
-FROM ` + SubscribersTableName + ` AS s
 LEFT JOIN (
     SELECT imsi, SUM(bytes_uplink) AS bytes_uplink, SUM(bytes_downlink) AS bytes_downlink
     FROM ` + DailyUsageTableName + `
@@ -148,12 +128,6 @@ GROUP BY u.imsi
 ORDER BY u.imsi
 LIMIT ?5`
 
-	getUsagePerSubscriberByIMSIPreV27SQL = `
-SELECT
-    s.imsi,
-    COALESCE(SUM(u.bytes_uplink), 0),
-    COALESCE(SUM(u.bytes_downlink), 0)
-FROM ` + SubscribersTableName + ` AS s
 LEFT JOIN ` + DailyUsageTableName + ` AS u
     ON u.imsi = s.imsi
     AND u.epoch_day IN ` + usageDaysInRange + `
@@ -337,17 +311,6 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, days DayRan
 		query = getUsagePerDayByIMSISQL
 	}
 
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		if roaming != nil && *roaming {
-			return nil, nil
-		}
-
-		query = getUsagePerDayPreV27SQL
-		if imsi != "" {
-			query = getUsagePerDayByIMSIPreV27SQL
-		}
-	}
-
 	dailyUsage, err := queryAll(ctx, db.reader(), query, scanUsagePerDay, dailyUsageFilters.IMSI, dailyUsageFilters.Roaming, dailyUsageFilters.StartDate, dailyUsageFilters.EndDate)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -371,23 +334,12 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, days
 		dailyUsageFilters.IMSI = &imsi
 	}
 
-	query, scan := getUsagePerSubscriberSQL, scanUsagePerSub
+	query := getUsagePerSubscriberSQL
 	if imsi != "" {
 		query = getUsagePerSubscriberByIMSISQL
 	}
 
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		if roaming != nil && *roaming {
-			return nil, nil
-		}
-
-		query, scan = getUsagePerSubscriberPreV27SQL, scanUsagePerSubPreV27
-		if imsi != "" {
-			query = getUsagePerSubscriberByIMSIPreV27SQL
-		}
-	}
-
-	dailyUsage, err := queryAll(ctx, db.reader(), query, scan, dailyUsageFilters.IMSI, dailyUsageFilters.Roaming, dailyUsageFilters.StartDate, dailyUsageFilters.EndDate, dailyUsageFilters.Limit)
+	dailyUsage, err := queryAll(ctx, db.reader(), query, scanUsagePerSub, dailyUsageFilters.IMSI, dailyUsageFilters.Roaming, dailyUsageFilters.StartDate, dailyUsageFilters.EndDate, dailyUsageFilters.Limit)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -444,12 +396,3 @@ func scanUsagePerSub(row scanner) (UsagePerSub, error) {
 	return v, nil
 }
 
-func scanUsagePerSubPreV27(row scanner) (UsagePerSub, error) {
-	var v UsagePerSub
-
-	if err := row.Scan(&v.IMSI, &v.BytesUplink, &v.BytesDownlink); err != nil {
-		return UsagePerSub{}, err
-	}
-
-	return v, nil
-}

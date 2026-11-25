@@ -94,7 +94,7 @@ func guardSnapshotRestoreOnStart(raftConfig *raft.Config, fsm *FSM, logs raft.Lo
 
 	return fmt.Errorf(
 		"refusing to restore raft snapshot %s (index %d, schema %d) over the live database at schema %d (fsm_state.lastApplied=%d): "+
-			"the unapplied command at log index %d may have been captured at the newer schema; restore from a backup or write a peers.json recovery configuration",
+			"the unapplied command at log index %d may have been proposed at the newer schema; restore from a backup or write a peers.json recovery configuration",
 		newest.ID, newest.Index, snapshotSchema, liveSchema, lastApplied, pending)
 }
 

@@ -20,10 +20,7 @@ import (
 )
 
 // Follower-to-leader forwarding preserves write-path parity by sending typed
-// operation intent to the leader, which applies the command, captures the
-// resulting SQLite changeset, and proposes it through Raft. Followers never
-// capture changesets because row-level deltas depend on the exact base state
-// that produced them.
+// operation intent to the leader, which proposes it through Raft as a command.
 
 const (
 	// ProposeForwardPath is the cluster HTTP endpoint a follower POSTs
@@ -56,8 +53,7 @@ var appliedIndexWaitMax = 2 * time.Second
 // ProposeForwardRequest is the JSON envelope a follower sends to the
 // leader's /cluster/internal/propose endpoint. The leader dispatches
 // Operation through its registered op table, re-hydrates Payload into
-// the typed struct the apply function expects, and runs the apply +
-// capture + propose cycle against its own state.
+// the typed struct the apply function expects, and proposes it.
 type ProposeForwardRequest struct {
 	Operation string          `json:"operation"`
 	Payload   json.RawMessage `json:"payload"`

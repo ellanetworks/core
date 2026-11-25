@@ -257,9 +257,6 @@ func (f *FSM) ApplyBatch(logs []*raft.Log) []interface{} {
 		}
 
 		result, applyErr := f.applier.ApplyCommand(ctx, cmd, l.Index, l.Term)
-		if cmd.Type == CmdChangeset || cmd.Type == CmdChangesetBatch {
-			ObserveWriteBytes(len(cmd.Payload))
-		}
 
 		if applyErr != nil {
 			logger.RaftLog.Error("FSM: command failed in batch — halting node",

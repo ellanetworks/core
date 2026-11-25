@@ -6,40 +6,23 @@
 // Typed-operation dispatch for replicated writes.
 //
 // Every replicated SQL write is an explicit typed operation: a unique name
-// plus a JSON-serialisable payload. Below commandSchema, on the leader, an
-// operation dispatches to its apply function against the leader's own state,
-// then captures the resulting changeset and proposes it through Raft. From
-// commandSchema on, the leader proposes the operation name and payload as a
-// command and every node runs the apply function. On a follower, the
-// operation (operation name + payload JSON) is forwarded to the leader's
-// /cluster/internal/propose endpoint; the follower never captures.
-//
-// This preserves the two invariants that make replication correct without
-// "usually works" caveats:
-//
-//  1. Only the leader captures changesets, and it captures against state
-//     that produced the captured values (auto-increment IDs, UPDATE
-//     before-images, UPSERT-resolved values, default-expression results).
-//  2. The forwarded wire (operation name + typed payload) is schema- and
-//     version-stable, not an opaque byte blob with an implicit schema
-//     contract.
+// plus a JSON-serialisable payload. The leader proposes the operation name
+// and payload as a command and every node runs the apply function. On a
+// follower, the operation (operation name + payload JSON) is forwarded to
+// the leader's /cluster/internal/propose endpoint.
 //
 // A registry maps operation name to (payload type, apply function) so the
 // leader's HTTP handler can re-hydrate a payload arriving from a follower
 // and invoke the same apply path a local caller would take.
 //
 // Each registration declares the minimum applied schema version it
-// requires (default 1 — the baseline). Three enforcement points:
+// requires (default 1 — the baseline). Two enforcement points:
 //
 //   - call-time: ChangesetOp.Invoke / intentOp.Invoke return
 //     ErrMigrationPending if applied < minSchema, surfaced as a
 //     retryable 503 by the API layer.
-//   - capture-time: leaderCaptureAndPropose stamps RequiredSchema on
-//     the captured bytesPayload so apply-time can verify on every node.
-//   - apply-time: ApplyCommand refuses to apply a changeset / intent
-//     command whose minSchema exceeds local applied schema; the existing
-//     FSM panic handler halts the node, matching the contract for any
-//     other apply failure.
+//   - apply-time: a command whose minSchema exceeds the local applied
+//     schema fails with ErrMigrationPending on every node.
 
 package db
 
@@ -65,7 +48,6 @@ type OpOption func(*opMeta)
 type opMeta struct {
 	minSchema    int
 	topics       []Topic
-	leaderCheck  func(db *Database, ctx context.Context, raw json.RawMessage) error
 	commandApply func(db *Database, ctx context.Context, raw json.RawMessage) (any, error)
 	commandCheck func(raw json.RawMessage) error
 	payload      reflect.Type
@@ -109,19 +91,6 @@ func skipWhenUnchanged[P any](check func(db *Database, ctx context.Context, p *P
 	}
 }
 
-func checkOnLeader[P any](check func(db *Database, ctx context.Context, p *P) error) OpOption {
-	return func(m *opMeta) {
-		m.leaderCheck = func(db *Database, ctx context.Context, raw json.RawMessage) error {
-			var p P
-			if err := json.Unmarshal(raw, &p); err != nil {
-				return fmt.Errorf("unmarshal payload: %w", err)
-			}
-
-			return check(db, ctx, &p)
-		}
-	}
-}
-
 // changesetOpHandler erases the payload type P so changeset ops live
 // in a single map keyed by operation name.
 type changesetOpHandler struct {
@@ -138,7 +107,6 @@ type intentOpHandler struct {
 	topics       []Topic
 	cmdType      ellaraft.CommandType
 	payload      reflect.Type
-	leaderCheck  func(db *Database, ctx context.Context, raw json.RawMessage) error
 	commandApply func(db *Database, ctx context.Context, raw json.RawMessage) (any, error)
 	commandCheck func(raw json.RawMessage) error
 }
@@ -218,7 +186,6 @@ func registerIntentOpReturning[R any](name string, cmdType ellaraft.CommandType,
 		topics:       meta.topics,
 		cmdType:      cmdType,
 		payload:      meta.payload,
-		leaderCheck:  meta.leaderCheck,
 		commandApply: meta.commandApply,
 		commandCheck: meta.commandCheck,
 	}
@@ -226,46 +193,10 @@ func registerIntentOpReturning[R any](name string, cmdType ellaraft.CommandType,
 	return intentOp[R]{name: name, minSchema: meta.minSchema, cmdType: cmdType}
 }
 
-// topicsForChangesetOp returns the topics declared by a registered
-// changeset op. Empty when the op was registered without
-// AffectsTopic — used by ApplyCommand to publish wakeups.
-func topicsForChangesetOp(name string) []Topic {
-	if h, ok := changesetOps[name]; ok {
-		return h.topics
-	}
-
-	return nil
-}
-
-// topicsForIntentCmd returns the topics declared by the intent op
-// matching the given CommandType.
-func topicsForIntentCmd(t ellaraft.CommandType) []Topic {
-	for _, h := range intentOps {
-		if h.cmdType == t {
-			return h.topics
-		}
-	}
-
-	return nil
-}
-
 type intentOp[R any] struct {
 	name      string
 	minSchema int
 	cmdType   ellaraft.CommandType
-}
-
-// intentMinSchemaForCmd returns the minSchema for an intent CommandType,
-// or 1 if not registered. CmdChangeset is gated by bytesPayload.RequiredSchema
-// instead and always returns 1 here.
-func intentMinSchemaForCmd(t ellaraft.CommandType) int {
-	for _, h := range intentOps {
-		if h.cmdType == t {
-			return h.minSchema
-		}
-	}
-
-	return 1
 }
 
 // narrowResult converts the dispatcher's `any` into the op's declared R.
@@ -316,50 +247,7 @@ func (op *ChangesetOp[P, R]) Invoke(ctx context.Context, db *Database, payload *
 		return zero, err
 	}
 
-	if db.commandMode(ctx) {
-		return invokeCommand[R](ctx, db, op.name, payload)
-	}
-
-	if db.raftManager == nil {
-		result, err := db.applyLocalTx(context.WithoutCancel(ctx), op.name, func(ctx context.Context) (any, error) {
-			return op.apply(db, ctx, payload)
-		})
-		if err != nil {
-			return zero, err
-		}
-
-		db.publishOpTopics(topicsForChangesetOp(op.name))
-
-		return narrowResult[R](op.name, result)
-	}
-
-	if err := db.holdForLeader(ctx); err != nil {
-		return zero, err
-	}
-
-	if db.IsLeader() {
-		command := func(ctx context.Context) (*ellaraft.ProposeResult, error) {
-			raw, err := json.Marshal(payload)
-			if err != nil {
-				return nil, fmt.Errorf("marshal %s payload: %w", op.name, err)
-			}
-
-			return db.proposeCommand(ctx, op.name, raw)
-		}
-
-		result, err := db.leaderCaptureAndPropose(ctx, op.name, op.minSchema, command, func(ctx context.Context) (any, error) {
-			return op.apply(db, ctx, payload)
-		})
-		if err == nil {
-			return narrowResult[R](op.name, result.Value)
-		}
-
-		if !errors.Is(err, hraft.ErrNotLeader) {
-			return zero, err
-		}
-	}
-
-	return op.invokeFollower(ctx, db, payload)
+	return invokeCommand[R](ctx, db, op.name, payload)
 }
 
 func invokeCommand[R any](ctx context.Context, db *Database, name string, payload any) (R, error) {
@@ -395,22 +283,6 @@ func invokeCommand[R any](ctx context.Context, db *Database, name string, payloa
 	return narrowResult[R](name, result.Value)
 }
 
-func (op *ChangesetOp[P, R]) invokeFollower(ctx context.Context, db *Database, payload *P) (R, error) {
-	var zero R
-
-	payloadJSON, err := json.Marshal(payload)
-	if err != nil {
-		return zero, fmt.Errorf("marshal %s payload: %w", op.name, err)
-	}
-
-	result, err := db.forwardOperation(ctx, op.name, payloadJSON)
-	if err != nil {
-		return zero, err
-	}
-
-	return narrowResult[R](op.name, result.Value)
-}
-
 func (op intentOp[R]) Invoke(ctx context.Context, db *Database, payload any) (R, error) {
 	var zero R
 
@@ -422,7 +294,7 @@ func (op intentOp[R]) Invoke(ctx context.Context, db *Database, payload any) (R,
 		return zero, err
 	}
 
-	if intentOps[op.name].commandApply != nil && db.commandMode(ctx) {
+	if intentOps[op.name].commandApply != nil {
 		return invokeCommand[R](ctx, db, op.name, payload)
 	}
 
@@ -432,7 +304,7 @@ func (op intentOp[R]) Invoke(ctx context.Context, db *Database, payload any) (R,
 	}
 
 	if db.raftManager == nil {
-		result, err := db.applyIntentStandalone(context.WithoutCancel(ctx), op.name, cmd)
+		result, err := db.applyIntentStandalone(context.WithoutCancel(ctx), cmd)
 		if err != nil {
 			return zero, err
 		}
@@ -469,19 +341,8 @@ func (op intentOp[R]) Invoke(ctx context.Context, db *Database, payload any) (R,
 	return narrowResult[R](op.name, result.Value)
 }
 
-func (db *Database) applyIntentStandalone(ctx context.Context, operation string, cmd *ellaraft.Command) (any, error) {
-	check := intentOps[operation].leaderCheck
-	if check == nil {
-		return db.ApplyCommand(ctx, cmd, 0, 0)
-	}
-
-	return db.applyLocalTx(ctx, operation, func(ctx context.Context) (any, error) {
-		if err := check(db, ctx, cmd.Payload); err != nil {
-			return nil, err
-		}
-
-		return db.ApplyCommand(ctx, cmd, 0, 0)
-	})
+func (db *Database) applyIntentStandalone(ctx context.Context, cmd *ellaraft.Command) (any, error) {
+	return db.ApplyCommand(ctx, cmd, 0, 0)
 }
 
 func (db *Database) leaderProposeIntent(ctx context.Context, operation string, cmd *ellaraft.Command) (_ *ellaraft.ProposeResult, err error) {
@@ -496,16 +357,6 @@ func (db *Database) leaderProposeIntent(ctx context.Context, operation string, c
 
 	db.lockPropose(ctx)
 	defer db.proposeMu.Unlock()
-
-	if check := intentOps[operation].leaderCheck; check != nil {
-		if err := db.tracedWriteBarrier(ctx); err != nil {
-			return nil, err
-		}
-
-		if err := check(db, ctx, cmd.Payload); err != nil {
-			return nil, err
-		}
-	}
 
 	return db.raftApply(ctx, data)
 }
@@ -571,32 +422,12 @@ func (db *Database) writeBarrier() error {
 	return classifyBarrierErr(db.raftManager.WriteBarrier(db.proposeTimeout))
 }
 
-func (db *Database) tracedWriteBarrier(ctx context.Context) (err error) {
-	_, span := tracer.Start(ctx, "db/write_barrier", trace.WithSpanKind(trace.SpanKindInternal))
-
-	defer func() { endSpan(span, err) }()
-
-	return db.writeBarrier()
-}
-
 func (db *Database) ReadBarrier() error {
 	if db.raftManager == nil || !db.raftManager.IsLeader() {
 		return nil
 	}
 
 	return db.writeBarrier()
-}
-
-// leaderCaptureAndPropose runs the capture→propose cycle on the leader.
-// proposeMu serialises captures so concurrent writers don't observe
-// the same pre-mutation state. minSchema is stamped on bytesPayload as
-// RequiredSchema for the apply-time gate on every node.
-func (db *Database) leaderCaptureAndPropose(ctx context.Context, operation string, minSchema int, command func(context.Context) (*ellaraft.ProposeResult, error), applyFn func(context.Context) (any, error)) (_ *ellaraft.ProposeResult, err error) {
-	ctx, span := db.startProposeSpan(ctx, operation)
-
-	defer func() { endSpan(span, err) }()
-
-	return db.submitWrite(ctx, operation, minSchema, command, applyFn)
 }
 
 var forwardCodes = []struct {
@@ -690,8 +521,8 @@ func (db *Database) forwardOperation(ctx context.Context, opName string, payload
 }
 
 // ApplyForwardedOperation is the leader-side handler for the
-// /cluster/internal/propose endpoint. Changeset ops capture+propose;
-// intent ops go straight to raft.Apply.
+// /cluster/internal/propose endpoint. Every op except MigrateShared is
+// proposed as a command; MigrateShared goes straight to raft.Apply.
 func (db *Database) ApplyForwardedOperation(ctx context.Context, opName string, payload json.RawMessage) (*ellaraft.ProposeResult, error) {
 	if db.raftManager == nil {
 		return nil, fmt.Errorf("cluster not enabled")
@@ -721,25 +552,11 @@ func (db *Database) applyForwardedChangesetOp(ctx context.Context, opName string
 		return nil, err
 	}
 
-	if db.commandMode(ctx) {
-		if err := h.checkJSON(payload); err != nil {
-			return nil, err
-		}
-
-		return db.proposeCommand(ctx, opName, payload)
+	if err := h.checkJSON(payload); err != nil {
+		return nil, err
 	}
 
-	command := func(ctx context.Context) (*ellaraft.ProposeResult, error) {
-		if err := h.checkJSON(payload); err != nil {
-			return nil, err
-		}
-
-		return db.proposeCommand(ctx, opName, payload)
-	}
-
-	return db.leaderCaptureAndPropose(ctx, opName, h.minSchema, command, func(ctx context.Context) (any, error) {
-		return h.applyJSON(db, ctx, payload)
-	})
+	return db.proposeCommand(ctx, opName, payload)
 }
 
 func (db *Database) applyForwardedIntentOp(ctx context.Context, opName string, h intentOpHandler, payload json.RawMessage) (*ellaraft.ProposeResult, error) {
@@ -747,7 +564,7 @@ func (db *Database) applyForwardedIntentOp(ctx context.Context, opName string, h
 		return nil, err
 	}
 
-	if h.commandApply != nil && db.commandMode(ctx) {
+	if h.commandApply != nil {
 		if err := h.commandCheck(payload); err != nil {
 			return nil, err
 		}

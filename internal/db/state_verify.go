@@ -148,7 +148,7 @@ func hashReplicatedRows(ctx context.Context, q rowQuerier) (string, error) {
 }
 
 func writeReplicatedRows(ctx context.Context, q rowQuerier, h hash.Hash) error {
-	for _, table := range slices.Sorted(slices.Values(replicatedChangesetTables)) {
+	for _, table := range slices.Sorted(slices.Values(replicatedTables)) {
 		if err := hashTable(ctx, q, h, table); err != nil {
 			return fmt.Errorf("hash %s: %w", table, err)
 		}
@@ -164,7 +164,7 @@ func hashReplicatedState(ctx context.Context, q rowQuerier) (string, error) {
 		return "", err
 	}
 
-	for _, table := range slices.Sorted(slices.Values(replicatedChangesetTables)) {
+	for _, table := range slices.Sorted(slices.Values(replicatedTables)) {
 		if err := hashTableStructure(ctx, q, h, table); err != nil {
 			return "", fmt.Errorf("hash the structure of %s: %w", table, err)
 		}

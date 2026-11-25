@@ -10,9 +10,8 @@ import (
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
-// Subscribers. subscribers.description added in v18: an INSERT changeset
-// carries every column of the new row, and the profile update writes the
-// column outright.
+// Subscribers. subscribers.description added in v18: the insert and the
+// profile update write the column.
 var (
 	opCreateSubscriber        = registerChangesetOp("CreateSubscriber", (*Database).applyCreateSubscriber, RequireSchema(22))
 	opUpdateSubscriberProfile = registerChangesetOp("UpdateSubscriberProfile", (*Database).applyUpdateSubscriberProfile, RequireSchema(22), AffectsTopic(TopicSessionReconcile))
@@ -174,9 +173,9 @@ var (
 )
 
 var (
-	opCreateCellPosition = registerIntentOp("CreateCellPosition", ellaraft.CmdPutCellPosition, RequireSchema(24), checkOnLeader((*Database).checkCreateCellPosition), asCommand((*Database).applyCreateCellPositionCommand))
-	opUpdateCellPosition = registerIntentOp("UpdateCellPosition", ellaraft.CmdPutCellPosition, RequireSchema(24), checkOnLeader((*Database).checkUpdateCellPosition), asCommand((*Database).applyUpdateCellPositionCommand))
-	opDeleteCellPosition = registerIntentOp("DeleteCellPosition", ellaraft.CmdDeleteCellPosition, RequireSchema(24), checkOnLeader((*Database).checkDeleteCellPosition), asCommand((*Database).applyDeleteCellPositionCommand))
+	opCreateCellPosition = registerIntentOp("CreateCellPosition", ellaraft.CmdPutCellPosition, RequireSchema(24), asCommand((*Database).applyCreateCellPositionCommand))
+	opUpdateCellPosition = registerIntentOp("UpdateCellPosition", ellaraft.CmdPutCellPosition, RequireSchema(24), asCommand((*Database).applyUpdateCellPositionCommand))
+	opDeleteCellPosition = registerIntentOp("DeleteCellPosition", ellaraft.CmdDeleteCellPosition, RequireSchema(24), asCommand((*Database).applyDeleteCellPositionCommand))
 )
 
 // Routes

@@ -640,7 +640,7 @@ func replayReversePhysicalOrder(ctx context.Context, d *Database) error {
 
 	defer func() { _, _ = conn.ExecContext(context.Background(), "PRAGMA foreign_keys = ON") }()
 
-	tables := slices.Sorted(slices.Values(replicatedChangesetTables))
+	tables := slices.Sorted(slices.Values(replicatedTables))
 
 	for _, t := range tables {
 		var ddl string

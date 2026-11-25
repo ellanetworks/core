@@ -43,7 +43,6 @@ type Database struct {
 
 	restoreMu      sync.Mutex
 	proposeMu      sync.Mutex
-	groupCommit    groupCommitter
 	batcherMu      sync.Mutex
 	batcher        *commandBatcher
 	commandsPaused bool
@@ -442,14 +441,6 @@ func (db *Database) RefreshAMFPointer(ctx context.Context) error {
 		return nil
 	}
 
-	if !db.appliedSchemaAtLeast(ctx, clusterMemberIdentitySchema) {
-		if legacy, ok := pki.LegacyNodeID(db.raftManager.RaftID()); ok {
-			db.SetAMFPointer(legacy)
-		}
-
-		return nil
-	}
-
 	member, err := db.GetClusterMember(ctx, db.raftManager.RaftID())
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -742,59 +733,6 @@ func (db *Database) appliedSchemaAtLeast(ctx context.Context, minVersion int) bo
 	}
 
 	return applied >= minVersion
-}
-
-// assertAppliedSchema is the apply-time counterpart. Returns a plain
-// error so the FSM panic handler halts the node (matching the contract
-// for any other apply failure).
-func (db *Database) assertAppliedSchema(ctx context.Context, required int, label string) error {
-	if required <= 1 {
-		return nil
-	}
-
-	applied := db.cachedAppliedSchema()
-	if applied == 0 {
-		v, err := readSchemaVersion(ctx, db.runner(ctx))
-		if err != nil {
-			return fmt.Errorf("apply gate: read schema version: %w", err)
-		}
-
-		db.appliedSchemaCache.Store(int64(v))
-
-		applied = v
-	}
-
-	if required > applied {
-		return fmt.Errorf("apply gate: %s requires schema %d, local applied %d",
-			label, required, applied)
-	}
-
-	return nil
-}
-
-func (db *Database) assertCapturedSchema(ctx context.Context, captured int, label string) error {
-	if captured == 0 {
-		return nil
-	}
-
-	applied := db.cachedAppliedSchema()
-	if captured != applied {
-		v, err := db.CurrentSchemaVersion(ctx)
-		if err != nil {
-			return fmt.Errorf("apply gate: read schema version: %w", err)
-		}
-
-		db.appliedSchemaCache.Store(int64(v))
-
-		applied = v
-	}
-
-	if captured != applied {
-		return fmt.Errorf("apply gate: %s captured at schema %d, local applied %d",
-			label, captured, applied)
-	}
-
-	return nil
 }
 
 // CheckPendingMigrations proposes one CmdMigrateShared per missing migration,
@@ -1337,9 +1275,9 @@ func (db *Database) selfUpsertClusterMember(ctx context.Context, binaryVersion s
 // integer identity keeps that integer as its pointer.
 //
 // Runs inside applyUpsertClusterMember, so the read goes through
-// db.runner(ctx) — the pinned capture connection. Calling the public
+// db.runner(ctx) — the pinned apply connection. Calling the public
 // ListClusterMembers here would dispatch to the reader pool, which
-// cannot see the capture's uncommitted writes.
+// cannot see the apply's uncommitted writes.
 func (db *Database) resolveAMFPointer(ctx context.Context, nodeID string) (int, error) {
 	members, err := queryAll(ctx, db.runner(ctx), listClusterMembersSQL, scanClusterMember)
 	if err != nil {
@@ -1382,6 +1320,13 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	sqlConn, connector, err := openSQLitePool(ctx, dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+
+	if raftCfg.Enabled {
+		if err := checkClusterUpgradePath(ctx, sqlConn); err != nil {
+			_ = sqlConn.Close()
+			return nil, err
+		}
 	}
 
 	if err := runMigrations(ctx, sqlConn, baselineVersion); err != nil {
@@ -1459,8 +1404,8 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 
 // NewDatabaseWithoutRaft opens a Database backed by SQLite with no Raft
 // manager attached. Writes are applied directly to the local database
-// instead of going through propose/capture/replicate, so there is no
-// leader election or bolt store startup cost. Intended for unit tests
+// instead of being replicated, so there is no leader election or bolt
+// store startup cost. Intended for unit tests
 // whose subject is not replication; production code must use NewDatabase.
 func NewDatabaseWithoutRaft(ctx context.Context, dbPath string) (*Database, error) {
 	dataDir := filepath.Dir(dbPath)
@@ -1564,7 +1509,7 @@ func (db *Database) WaitForInitialization(ctx context.Context, timeout time.Dura
 // before cluster discovery / leader election.
 //
 // Invariant: every singleton table in localOnlyTables (see
-// changeset_replication.go) MUST have its initializer registered here.
+// replication.go) MUST have its initializer registered here.
 // Forgetting to do so means a freshly-started node will crash when its
 // reader hits sql.ErrNoRows.
 func (db *Database) InitializeLocalSettings(ctx context.Context) error {
@@ -1745,10 +1690,8 @@ func (db *Database) Initialize(ctx context.Context) error {
 			SessionAmbrDownlink: InitialPolicySessionAmbrDownlink,
 		}
 
-		if db.appliedSchemaAtLeast(ctx, sliceDataNetworkSchema) {
-			if err := db.CreateSliceDataNetwork(ctx, &SliceDataNetwork{SliceID: slice.ID, DataNetworkID: dataNetwork.ID, NAT: NATDefaultEnabled}); err != nil {
-				return fmt.Errorf("failed to serve the default data network on the default slice: %v", err)
-			}
+		if err := db.CreateSliceDataNetwork(ctx, &SliceDataNetwork{SliceID: slice.ID, DataNetworkID: dataNetwork.ID, NAT: NATDefaultEnabled}); err != nil {
+			return fmt.Errorf("failed to serve the default data network on the default slice: %v", err)
 		}
 
 		if err := db.CreatePolicy(ctx, initialPolicy); err != nil {

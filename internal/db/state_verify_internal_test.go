@@ -167,15 +167,6 @@ func TestVerifyStateReturnsItsIndexOnTheLocalPath(t *testing.T) {
 	}
 }
 
-func TestVerifyStateRequiresTheCommandSchema(t *testing.T) {
-	database := newInitializedCommandTestDB(t)
-	useChangesetPath(t, database)
-
-	if _, err := opVerifyState.Invoke(t.Context(), database, &struct{}{}); err == nil {
-		t.Fatal("VerifyState was accepted below the command schema")
-	}
-}
-
 func TestDivergedNodesAreUnhealthyInTheAutopilotState(t *testing.T) {
 	healthy := func(id string) *autopilot.ServerState {
 		return &autopilot.ServerState{Server: autopilot.Server{ID: raft.ServerID(id)}, Health: autopilot.ServerHealth{Healthy: true}}

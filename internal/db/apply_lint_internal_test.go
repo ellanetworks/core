@@ -905,7 +905,7 @@ func TestReplicatedQueriesDoNotUseRowid(t *testing.T) {
 	p := loadLintProgram(t)
 
 	replicated := map[string]bool{}
-	for _, table := range replicatedChangesetTables {
+	for _, table := range replicatedTables {
 		replicated[table] = true
 	}
 

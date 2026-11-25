@@ -4,10 +4,8 @@
 package db
 
 import (
-	"encoding/json"
 	"sync"
 	"testing"
-	"time"
 
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -121,55 +119,5 @@ func TestProposeSpansNestUnderCaller(t *testing.T) {
 		if !hasAttr(propose, "ella.raft.index") {
 			t.Fatalf("span %q has no raft index", propose.Name)
 		}
-	})
-
-	t.Run("changeset op", func(t *testing.T) {
-		useChangesetPath(t, database)
-
-		ctx, caller := otel.Tracer("test").Start(t.Context(), "test/caller")
-
-		if err := database.SetRetentionPolicy(ctx, &RetentionPolicy{Category: CategoryAuditLogs, Days: 30}); err != nil {
-			t.Fatalf("SetRetentionPolicy: %v", err)
-		}
-
-		caller.End()
-
-		spans := spansInTrace(exporter, caller.SpanContext().TraceID())
-
-		write := requireSpan(t, spans, "UPSERT retention_policies")
-		propose := requireSpan(t, spans, "db/propose")
-
-		requireChildOf(t, propose, write)
-		requireAttr(t, propose, "ella.raft.operation", "SetRetentionPolicy")
-
-		for _, name := range []string{"db/propose_lock_wait", "db/write_barrier", "db/capture_changeset", "db/raft_apply"} {
-			requireChildOf(t, requireSpan(t, spans, name), propose)
-		}
-	})
-
-	t.Run("forwarded intent op", func(t *testing.T) {
-		useChangesetPath(t, database)
-
-		ctx, caller := otel.Tracer("test").Start(t.Context(), "test/caller")
-
-		payload, err := json.Marshal(int64Payload{Value: time.Now().Unix()})
-		if err != nil {
-			t.Fatalf("marshal payload: %v", err)
-		}
-
-		if _, err := database.ApplyForwardedOperation(ctx, "DeleteExpiredSessions", payload); err != nil {
-			t.Fatalf("ApplyForwardedOperation: %v", err)
-		}
-
-		caller.End()
-
-		spans := spansInTrace(exporter, caller.SpanContext().TraceID())
-
-		propose := requireSpan(t, spans, "db/propose")
-
-		requireChildOf(t, propose, requireSpan(t, spans, "test/caller"))
-		requireAttr(t, propose, "ella.raft.operation", "DeleteExpiredSessions")
-		requireChildOf(t, requireSpan(t, spans, "db/propose_lock_wait"), propose)
-		requireChildOf(t, requireSpan(t, spans, "db/raft_apply"), propose)
 	})
 }
