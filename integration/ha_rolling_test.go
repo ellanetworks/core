@@ -357,10 +357,41 @@ func assertWritesThroughEveryNode(t *testing.T, ctx context.Context, clients []*
 	}
 
 	for i, c := range clients {
-		assertSubscribersPresent(t, ctx, c, imsis, fmt.Sprintf("on node %d %s", i+1, when))
+		waitForSubscribersPresent(t, ctx, c, imsis, fmt.Sprintf("on node %d %s", i+1, when))
 	}
 
 	HALogf(t, "writes through every node succeeded %s: %v", when, imsis)
+}
+
+const subscriberReplicationTimeout = 30 * time.Second
+
+func waitForSubscribersPresent(t *testing.T, ctx context.Context, c *client.Client, imsis []string, when string) {
+	t.Helper()
+
+	deadline := time.Now().Add(subscriberReplicationTimeout)
+
+	for _, imsi := range imsis {
+		for {
+			sub, err := c.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: imsi})
+			if err == nil {
+				if sub.Imsi != imsi {
+					t.Fatalf("subscriber %s read back as %q %s", imsi, sub.Imsi, when)
+				}
+
+				break
+			}
+
+			if time.Now().After(deadline) {
+				t.Fatalf("subscriber %s missing %s after %s: %v", imsi, when, subscriberReplicationTimeout, err)
+			}
+
+			select {
+			case <-ctx.Done():
+				t.Fatalf("subscriber %s missing %s: %v (%v)", imsi, when, ctx.Err(), err)
+			case <-time.After(200 * time.Millisecond):
+			}
+		}
+	}
 }
 
 const stateVerificationTimeout = 3 * time.Minute
