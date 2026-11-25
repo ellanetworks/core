@@ -90,6 +90,12 @@ func (bpfObjects *BpfObjects) PutPdrUplink(teid uint32, pdrInfo PdrInfo) error {
 	return bpfObjects.putTracked(bpfObjects.PdrsUplink, MapPdrsUplink, teid, unsafe.Pointer(&pdrToStore))
 }
 
+func (bpfObjects *BpfObjects) HasPdrUplink(teid uint32) bool {
+	var pdr N3N6EntrypointPdrInfo
+
+	return bpfObjects.PdrsUplink.Lookup(teid, &pdr) == nil
+}
+
 func (bpfObjects *BpfObjects) PutPdrDownlink(addr netip.Addr, pdrInfo PdrInfo) error {
 	logger.UpfLog.Debug("Put PDR Downlink", logger.IPAddress(addr.String()))
 

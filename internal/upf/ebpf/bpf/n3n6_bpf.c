@@ -45,8 +45,7 @@ handle_uplink_ip4(struct packet_context *ctx)
 		struct udphdr *udp = detect_udp_header(ctx, 0);
 		if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT) {
 			if (ctx->is_fragment)
-				return drop_with(ctx,
-						 UPF_DROP_FRAGMENTED_TRANSPORT);
+				return fragmented_transport_to_stack(ctx);
 
 			parse_udp(ctx);
 			upf_printk(
@@ -299,6 +298,9 @@ int upf_uplink_func(struct __ctx_buff *ctx)
 	PROFILE_START(PROF_N3_TOTAL);
 	enum ctx_action ret = process_uplink(&context);
 	PROFILE_END(PROF_N3_TOTAL);
+
+	if (ret == CTX_ACT_OK && frame_is_reassembled(ctx))
+		ret = drop_with(&context, UPF_DROP_REINJECT_UNOWNED);
 
 	return record_action(&context, ret);
 }
@@ -602,7 +604,8 @@ int veth_xdp_func(struct __ctx_buff *ctx)
 		if (!route_stat4)
 			return ctx_verdict(CTX_ACT_ABORTED);
 
-		return ctx_verdict(route_ipv4(&pkt_ctx, route_stat4, true));
+		return ctx_verdict(
+			route_ipv4(&pkt_ctx, route_stat4, true, false));
 	}
 
 	if (far.outer_header_creation & OHC_GTP_U_UDP_IPv6) {
@@ -626,7 +629,8 @@ int veth_xdp_func(struct __ctx_buff *ctx)
 		if (!route_stat6)
 			return ctx_verdict(CTX_ACT_ABORTED);
 
-		return ctx_verdict(route_ipv6(&pkt_ctx, route_stat6, true));
+		return ctx_verdict(
+			route_ipv6(&pkt_ctx, route_stat6, true, false));
 	}
 
 	return ctx_verdict(CTX_ACT_DROP);

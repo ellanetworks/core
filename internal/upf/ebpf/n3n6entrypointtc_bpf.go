@@ -161,6 +161,12 @@ type N3N6EntrypointTcFragPorts struct {
 	Pad   uint16
 }
 
+type N3N6EntrypointTcFragTxScratch struct {
+	_       structs.HostLayout
+	Payload [9216]uint8
+	Pad     [8]uint8
+}
+
 type N3N6EntrypointTcFramedIp4Key struct {
 	_         structs.HostLayout
 	Prefixlen uint32
@@ -454,6 +460,8 @@ const (
 	N3N6EntrypointTcMapFragNatIdSeq              = "frag_nat_id_seq"
 	N3N6EntrypointTcMapFragPortsIp4              = "frag_ports_ip4"
 	N3N6EntrypointTcMapFragPortsIp6              = "frag_ports_ip6"
+	N3N6EntrypointTcMapFragTxMap                 = "frag_tx_map"
+	N3N6EntrypointTcMapFragTxScratch             = "frag_tx_scratch"
 	N3N6EntrypointTcMapFramedDownlinkIp4         = "framed_downlink_ip4"
 	N3N6EntrypointTcMapFramedDownlinkIp6         = "framed_downlink_ip6"
 	N3N6EntrypointTcMapLocalSwitchUlPdr          = "local_switch_ul_pdr"
@@ -488,6 +496,7 @@ const (
 	N3N6EntrypointTcProgVethXdpFunc              = "veth_xdp_func"
 	N3N6EntrypointTcVarBufferVethIfindex         = "buffer_veth_ifindex"
 	N3N6EntrypointTcVarFlowact                   = "flowact"
+	N3N6EntrypointTcVarFragTxEnabled             = "frag_tx_enabled"
 	N3N6EntrypointTcVarMasquerade                = "masquerade"
 	N3N6EntrypointTcVarN3Ifindex                 = "n3_ifindex"
 	N3N6EntrypointTcVarN3RoutingIfindex          = "n3_routing_ifindex"
@@ -498,6 +507,7 @@ const (
 	N3N6EntrypointTcVarNatPortMax                = "nat_port_max"
 	N3N6EntrypointTcVarNatPortMin                = "nat_port_min"
 	N3N6EntrypointTcVarNetworkInstancesEnabled   = "network_instances_enabled"
+	N3N6EntrypointTcVarReasmVethIfindex          = "reasm_veth_ifindex"
 )
 
 // LoadN3N6EntrypointTc returns the embedded CollectionSpec for N3N6EntrypointTc.
@@ -567,6 +577,8 @@ type N3N6EntrypointTcMapSpecs struct {
 	FragNatIdSeq              *ebpf.MapSpec `ebpf:"frag_nat_id_seq"`
 	FragPortsIp4              *ebpf.MapSpec `ebpf:"frag_ports_ip4"`
 	FragPortsIp6              *ebpf.MapSpec `ebpf:"frag_ports_ip6"`
+	FragTxMap                 *ebpf.MapSpec `ebpf:"frag_tx_map"`
+	FragTxScratch             *ebpf.MapSpec `ebpf:"frag_tx_scratch"`
 	FramedDownlinkIp4         *ebpf.MapSpec `ebpf:"framed_downlink_ip4"`
 	FramedDownlinkIp6         *ebpf.MapSpec `ebpf:"framed_downlink_ip6"`
 	LocalSwitchUlPdr          *ebpf.MapSpec `ebpf:"local_switch_ul_pdr"`
@@ -601,6 +613,7 @@ type N3N6EntrypointTcMapSpecs struct {
 type N3N6EntrypointTcVariableSpecs struct {
 	BufferVethIfindex       *ebpf.VariableSpec `ebpf:"buffer_veth_ifindex"`
 	Flowact                 *ebpf.VariableSpec `ebpf:"flowact"`
+	FragTxEnabled           *ebpf.VariableSpec `ebpf:"frag_tx_enabled"`
 	Masquerade              *ebpf.VariableSpec `ebpf:"masquerade"`
 	N3Ifindex               *ebpf.VariableSpec `ebpf:"n3_ifindex"`
 	N3RoutingIfindex        *ebpf.VariableSpec `ebpf:"n3_routing_ifindex"`
@@ -611,6 +624,7 @@ type N3N6EntrypointTcVariableSpecs struct {
 	NatPortMax              *ebpf.VariableSpec `ebpf:"nat_port_max"`
 	NatPortMin              *ebpf.VariableSpec `ebpf:"nat_port_min"`
 	NetworkInstancesEnabled *ebpf.VariableSpec `ebpf:"network_instances_enabled"`
+	ReasmVethIfindex        *ebpf.VariableSpec `ebpf:"reasm_veth_ifindex"`
 }
 
 // N3N6EntrypointTcObjects contains all objects after they have been loaded into the kernel.
@@ -646,6 +660,8 @@ type N3N6EntrypointTcMaps struct {
 	FragNatIdSeq              *ebpf.Map `ebpf:"frag_nat_id_seq"`
 	FragPortsIp4              *ebpf.Map `ebpf:"frag_ports_ip4"`
 	FragPortsIp6              *ebpf.Map `ebpf:"frag_ports_ip6"`
+	FragTxMap                 *ebpf.Map `ebpf:"frag_tx_map"`
+	FragTxScratch             *ebpf.Map `ebpf:"frag_tx_scratch"`
 	FramedDownlinkIp4         *ebpf.Map `ebpf:"framed_downlink_ip4"`
 	FramedDownlinkIp6         *ebpf.Map `ebpf:"framed_downlink_ip6"`
 	LocalSwitchUlPdr          *ebpf.Map `ebpf:"local_switch_ul_pdr"`
@@ -689,6 +705,8 @@ func (m *N3N6EntrypointTcMaps) Close() error {
 		m.FragNatIdSeq,
 		m.FragPortsIp4,
 		m.FragPortsIp6,
+		m.FragTxMap,
+		m.FragTxScratch,
 		m.FramedDownlinkIp4,
 		m.FramedDownlinkIp6,
 		m.LocalSwitchUlPdr,
@@ -724,6 +742,7 @@ func (m *N3N6EntrypointTcMaps) Close() error {
 type N3N6EntrypointTcVariables struct {
 	BufferVethIfindex       *ebpf.Variable `ebpf:"buffer_veth_ifindex"`
 	Flowact                 *ebpf.Variable `ebpf:"flowact"`
+	FragTxEnabled           *ebpf.Variable `ebpf:"frag_tx_enabled"`
 	Masquerade              *ebpf.Variable `ebpf:"masquerade"`
 	N3Ifindex               *ebpf.Variable `ebpf:"n3_ifindex"`
 	N3RoutingIfindex        *ebpf.Variable `ebpf:"n3_routing_ifindex"`
@@ -734,6 +753,7 @@ type N3N6EntrypointTcVariables struct {
 	NatPortMax              *ebpf.Variable `ebpf:"nat_port_max"`
 	NatPortMin              *ebpf.Variable `ebpf:"nat_port_min"`
 	NetworkInstancesEnabled *ebpf.Variable `ebpf:"network_instances_enabled"`
+	ReasmVethIfindex        *ebpf.Variable `ebpf:"reasm_veth_ifindex"`
 }
 
 // N3N6EntrypointTcPrograms contains all programs after they have been loaded into the kernel.

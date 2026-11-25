@@ -4,16 +4,12 @@
 package engine
 
 import (
-	"context"
 	"encoding/binary"
 	"fmt"
-	"net"
 	"net/netip"
 	"slices"
-	"sync"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/netutil"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"go.uber.org/zap"
 )
@@ -26,8 +22,6 @@ const (
 	gtpuMsgEndMarker    = 0xfe
 
 	endMarkersPerSwitch = 1
-
-	endMarkerReadBuffer = 2048
 )
 
 type endMarkerTarget struct {
@@ -84,104 +78,12 @@ type endMarkerSender interface {
 	Close() error
 }
 
-type endMarkerSockets struct {
-	mu     sync.Mutex
-	socks  map[netip.Addr]*net.UDPConn
-	closed bool
-}
-
-func (s *endMarkerSockets) get(local netip.Addr, device string) (*net.UDPConn, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.closed {
-		return nil, fmt.Errorf("the End Marker sockets are closed")
-	}
-
-	if sock, ok := s.socks[local]; ok {
-		return sock, nil
-	}
-
-	lc := net.ListenConfig{}
-
-	if device != "" {
-		lc.Control = netutil.BindToDeviceControl(device)
-	}
-
-	conn, err := lc.ListenPacket(context.Background(), "udp", net.UDPAddrFromAddrPort(netip.AddrPortFrom(local, gtpuPort)).String())
-	if err != nil {
-		return nil, fmt.Errorf("bind %s for GTP-U End Markers: %w", local, err)
-	}
-
-	sock, ok := conn.(*net.UDPConn)
-	if !ok {
-		_ = conn.Close()
-
-		return nil, fmt.Errorf("bind %s for GTP-U End Markers: not a UDP socket", local)
-	}
-
-	if err := sock.SetReadBuffer(endMarkerReadBuffer); err != nil {
-		logger.UpfLog.Warn("could not shrink the End Marker socket's receive buffer",
-			zap.String("local", local.String()), zap.Error(err))
-	}
-
-	go discardInbound(sock)
-
-	if s.socks == nil {
-		s.socks = make(map[netip.Addr]*net.UDPConn, 2)
-	}
-
-	s.socks[local] = sock
-
-	return sock, nil
-}
-
-func discardInbound(sock *net.UDPConn) {
-	buf := make([]byte, 1)
-
-	for {
-		if _, _, err := sock.ReadFromUDP(buf); err != nil {
-			return
-		}
-	}
-}
-
-func (s *endMarkerSockets) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.closed = true
-
-	var firstErr error
-
-	for local, sock := range s.socks {
-		if err := sock.Close(); err != nil && firstErr == nil {
-			firstErr = fmt.Errorf("close End Marker socket %s: %w", local, err)
-		}
-
-		delete(s.socks, local)
-	}
-
-	return firstErr
-}
-
-func (s *endMarkerSockets) send(t endMarkerTarget, count int, device string) error {
-	local := t.local
-	if !local.IsValid() || local.Is4() != t.peer.Is4() {
-		return fmt.Errorf("no local address matching peer %s to source an End Marker from", t.peer)
-	}
-
-	sock, err := s.get(local, device)
-	if err != nil {
-		return err
-	}
-
+func (s *gtpuSockets) send(t endMarkerTarget, count int, device string) error {
 	pdu := endMarkerPDU(t.teid)
-	to := net.UDPAddrFromAddrPort(netip.AddrPortFrom(t.peer, gtpuPort))
 
 	for range count {
-		if _, err := sock.WriteToUDP(pdu, to); err != nil {
-			return fmt.Errorf("send End Marker to %s: %w", to, err)
+		if err := s.sendTo(t.local, t.peer, 0, pdu, device); err != nil {
+			return fmt.Errorf("send End Marker: %w", err)
 		}
 	}
 
@@ -191,6 +93,14 @@ func (s *endMarkerSockets) send(t endMarkerTarget, count int, device string) err
 func (conn *SessionEngine) sendEndMarkers(targets []endMarkerTarget) {
 	if len(targets) == 0 || conn.endMarkers == nil {
 		return
+	}
+
+	if q := conn.downlinkQueue(); q != nil {
+		if err := conn.WaitForDatapath(); err != nil {
+			logger.UpfLog.Warn("failed to wait for the datapath before sending End Markers", zap.Error(err))
+		}
+
+		q.Flush()
 	}
 
 	device := conn.N3VRFDevice()

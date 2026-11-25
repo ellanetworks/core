@@ -20,7 +20,10 @@
 #define CTX_PULL_LEN 192
 #define CTX_NEEDS_PULL 0
 
-#define ctx_verdict(action) ((int)(action))
+static __always_inline int ctx_verdict(enum ctx_action action)
+{
+	return action == CTX_ACT_SLOW_PATH ? XDP_DROP : (int)action;
+}
 
 /* XDP moves raw bytes and carries no offload state to describe. */
 #define CTX_ENCAP_FLAGS_IPV4 0
