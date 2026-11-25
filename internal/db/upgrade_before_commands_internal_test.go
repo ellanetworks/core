@@ -6,6 +6,7 @@ package db
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -16,7 +17,17 @@ import (
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 )
 
-func writeDatabaseBeforeCommands(t *testing.T, lastApplied int) string {
+func raftConfiguration(servers int) []byte {
+	var c raft.Configuration
+
+	for i := range servers {
+		c.Servers = append(c.Servers, raft.Server{Suffrage: raft.Voter, ID: raft.ServerID(fmt.Sprintf("node-%d", i)), Address: raft.ServerAddress(fmt.Sprintf("10.0.0.%d:7000", i+1))})
+	}
+
+	return raft.EncodeConfiguration(c)
+}
+
+func writeDatabaseBeforeCommands(t *testing.T, lastApplied int, configuration []byte) string {
 	t.Helper()
 
 	ctx := t.Context()
@@ -35,8 +46,8 @@ func writeDatabaseBeforeCommands(t *testing.T, lastApplied int) string {
 		t.Fatalf("ensure fsm_state: %v", err)
 	}
 
-	if _, err := conn.ExecContext(ctx, "UPDATE fsm_state SET lastApplied = ? WHERE id = 1", lastApplied); err != nil {
-		t.Fatalf("set lastApplied: %v", err)
+	if _, err := conn.ExecContext(ctx, "UPDATE fsm_state SET lastApplied = ?, configuration = ? WHERE id = 1", lastApplied, configuration); err != nil {
+		t.Fatalf("set fsm_state: %v", err)
 	}
 
 	if err := conn.Close(); err != nil {
@@ -47,7 +58,7 @@ func writeDatabaseBeforeCommands(t *testing.T, lastApplied int) string {
 }
 
 func TestClusterMemberFromBeforeCommandsRefusesToStart(t *testing.T) {
-	dbPath := writeDatabaseBeforeCommands(t, 5)
+	dbPath := writeDatabaseBeforeCommands(t, 5, raftConfiguration(3))
 
 	cfg := ellaraft.FastTestConfig()
 	cfg.Enabled = true
@@ -58,15 +69,18 @@ func TestClusterMemberFromBeforeCommandsRefusesToStart(t *testing.T) {
 	}
 }
 
-func TestClusterUpgradePathAllowsDatabasesThatNeverJoinedALog(t *testing.T) {
+func TestClusterUpgradePathAllowsStoresWithoutPeersBeforeCommands(t *testing.T) {
 	for _, tc := range []struct {
-		name        string
-		schema      int
-		lastApplied int
+		name          string
+		schema        int
+		lastApplied   int
+		configuration []byte
 	}{
-		{"fresh", 0, 0},
-		{"restore bundle", commandSchema - 1, 0},
-		{"after commands", commandSchema, 5},
+		{"fresh", 0, 0, nil},
+		{"restore bundle", commandSchema - 1, 0, raftConfiguration(3)},
+		{"single server", commandSchema - 1, 5, raftConfiguration(1)},
+		{"no stored configuration", commandSchema - 1, 5, nil},
+		{"after commands", commandSchema, 5, raftConfiguration(3)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := t.Context()
@@ -87,8 +101,8 @@ func TestClusterUpgradePathAllowsDatabasesThatNeverJoinedALog(t *testing.T) {
 					t.Fatalf("ensure fsm_state: %v", err)
 				}
 
-				if _, err := conn.ExecContext(ctx, "UPDATE fsm_state SET lastApplied = ? WHERE id = 1", tc.lastApplied); err != nil {
-					t.Fatalf("set lastApplied: %v", err)
+				if _, err := conn.ExecContext(ctx, "UPDATE fsm_state SET lastApplied = ?, configuration = ? WHERE id = 1", tc.lastApplied, tc.configuration); err != nil {
+					t.Fatalf("set fsm_state: %v", err)
 				}
 			}
 
@@ -105,7 +119,7 @@ func TestStandaloneFromBeforeCommandsMigratesOnStart(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	dbPath := writeDatabaseBeforeCommands(t, appliedIndex)
+	dbPath := writeDatabaseBeforeCommands(t, appliedIndex, nil)
 	boltPath := filepath.Join(filepath.Dir(dbPath), "raft", "raft.db")
 
 	if err := os.MkdirAll(filepath.Dir(boltPath), 0o700); err != nil {

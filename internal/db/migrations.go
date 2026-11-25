@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
+	hraft "github.com/hashicorp/raft"
 	"go.uber.org/zap"
 )
 
@@ -197,7 +198,40 @@ func checkClusterUpgradePath(ctx context.Context, conn *sql.DB) error {
 		return err
 	}
 
+	servers, err := storedRaftServers(ctx, conn)
+	if err != nil || servers <= 1 {
+		return err
+	}
+
 	return fmt.Errorf("%w (database schema %d, want %d or later)", ErrUpgradeFromBeforeCommands, schema, commandSchema)
+}
+
+func storedRaftServers(ctx context.Context, conn *sql.DB) (n int, err error) {
+	var hasColumn bool
+	if err := conn.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM pragma_table_info('"+FsmStateTableName+"') WHERE name = 'configuration')").Scan(&hasColumn); err != nil {
+		return 0, fmt.Errorf("look up %s.configuration: %w", FsmStateTableName, err)
+	}
+
+	if !hasColumn {
+		return 0, nil
+	}
+
+	var blob []byte
+	if err := conn.QueryRowContext(ctx, "SELECT configuration FROM "+FsmStateTableName+" WHERE id = 1").Scan(&blob); err != nil {
+		return 0, fmt.Errorf("read %s.configuration: %w", FsmStateTableName, err)
+	}
+
+	if len(blob) == 0 {
+		return 0, nil
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			n, err = 0, fmt.Errorf("decode %s.configuration: %v", FsmStateTableName, r)
+		}
+	}()
+
+	return len(hraft.DecodeConfiguration(blob).Servers), nil
 }
 
 func readIfTableExists(ctx context.Context, conn *sql.DB, table, query string) (int64, error) {
