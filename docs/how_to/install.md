@@ -31,8 +31,8 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
     Download and extract Ella Core (replace `amd64` with `arm64` on arm64 hosts):
 
     ```bash
-    curl -L https://github.com/ellanetworks/core/releases/download/v1.22.0/ella-core-v1.22.0-linux-amd64.tar.gz | tar xz
-    cd ella-core-v1.22.0-linux-amd64
+    curl -L https://github.com/ellanetworks/core/releases/download/v1.23.0/ella-core-v1.23.0-linux-amd64.tar.gz | tar xz
+    cd ella-core-v1.23.0-linux-amd64
     ```
 
     Configure Ella Core:
@@ -130,7 +130,7 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
 
     services:
       ella-core:
-        image: ghcr.io/ellanetworks/ella-core:v1.22.0
+        image: ghcr.io/ellanetworks/ella-core:v1.23.0
         configs:
           - source: ella_config
             target: /core.yaml
@@ -196,7 +196,7 @@ Ensure your system meets the [requirements](../reference/system_reqs.md). Then, 
     Deploy Ella Core:
 
     ```bash
-    helm install ella-core oci://ghcr.io/ellanetworks/charts/ella-core --version v1.22.0 --namespace ella -f values.yaml
+    helm install ella-core oci://ghcr.io/ellanetworks/charts/ella-core --version v1.23.0 --namespace ella -f values.yaml
     ```
 
     Open the API:

@@ -130,6 +130,7 @@ nav:
     - 3GPP Compliance: reference/3gpp_compliance.md
     - Releases:
       - reference/releases/index.md
+      - v1.23: reference/releases/v1.23.md
       - v1.22: reference/releases/v1.22.md
       - v1.21: reference/releases/v1.21.md
       - v1.20: reference/releases/v1.20.md

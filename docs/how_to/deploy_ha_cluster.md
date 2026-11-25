@@ -47,7 +47,7 @@ Ella Core can be deployed as a high-availability cluster to provide redundancy a
     Deploy Ella Core:
 
     ```bash
-    helm install ella-core oci://ghcr.io/ellanetworks/charts/ella-core --version v1.22.0 --namespace ella -f values.yaml
+    helm install ella-core oci://ghcr.io/ellanetworks/charts/ella-core --version v1.23.0 --namespace ella -f values.yaml
     ```
 
     Open each node's API in a separate terminal:
