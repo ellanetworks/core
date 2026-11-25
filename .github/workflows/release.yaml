@@ -25,6 +25,23 @@ jobs:
     with:
       kind: release
     secrets: inherit
+  image-build-ubi:
+    needs: [binary-build]
+    uses: ./.github/workflows/image-build-ubi.yaml
+  image-publish-ubi:
+    needs: [image-build-ubi]
+    uses: ./.github/workflows/image-publish.yaml
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    with:
+      kind: release
+      artifact: ellacore-ubi-image
+      tag-suffix: -ubi
+    secrets: inherit
   image-scan:
     needs: [image-build, image-publish]
     uses: ./.github/workflows/image-scan.yaml

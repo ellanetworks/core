@@ -78,3 +78,22 @@ jobs:
     with:
       kind: main
     secrets: inherit
+  image-build-ubi:
+    if: github.event_name == 'push'
+    needs: [binary-build]
+    uses: ./.github/workflows/image-build-ubi.yaml
+  image-publish-ubi:
+    if: github.event_name == 'push'
+    needs: [image-build-ubi, ui-e2e, ui-e2e-oidc, integration-tests]
+    uses: ./.github/workflows/image-publish.yaml
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    with:
+      kind: main
+      artifact: ellacore-ubi-image
+      tag-suffix: -ubi
+    secrets: inherit

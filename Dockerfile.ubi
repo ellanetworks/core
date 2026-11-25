@@ -1,0 +1,23 @@
+FROM registry.access.redhat.com/ubi10/ubi-minimal
+
+ARG VERSION
+ARG RELEASE
+
+LABEL name="ella-core" \
+      maintainer="Ella Networks Inc." \
+      vendor="Ella Networks Inc." \
+      version="${VERSION}" \
+      release="${RELEASE}" \
+      summary="Ella Core, a 5G and 4G mobile core network." \
+      description="Ella Core is a mobile core network designed for private deployments. It consolidates the complexity of traditional 4G and 5G networks into a single application." \
+      io.k8s.display-name="Ella Core" \
+      io.k8s.description="Ella Core, a 5G and 4G mobile core network." \
+      url="https://docs.ellanetworks.com/core/"
+
+COPY LICENSE NOTICE /licenses/
+COPY LICENSES /licenses/LICENSES
+COPY core.yaml /core.yaml
+COPY core /usr/bin/core
+
+ENTRYPOINT ["/usr/bin/core"]
+CMD ["--config", "/core.yaml"]
