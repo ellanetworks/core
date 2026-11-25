@@ -11,6 +11,14 @@ on:
         description: "release (version, minor and latest tags) or main (main and sha tags)"
         type: string
         required: true
+      artifact:
+        description: "Prefix of the image artifacts, one per architecture"
+        type: string
+        default: ellacore-image
+      tag-suffix:
+        description: "Suffix appended to every tag, e.g. -ubi"
+        type: string
+        default: ""
 
 env:
   IMAGE: ghcr.io/ellanetworks/ella-core
@@ -36,16 +44,17 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with:
-          name: ellacore-image-${{ matrix.arch }}
+          name: ${{ inputs.artifact }}-${{ matrix.arch }}
 
       - name: Import and push to github package (${{ matrix.arch }})
         env:
           KIND: ${{ inputs.kind }}
           ARCH: ${{ matrix.arch }}
+          SUFFIX: ${{ inputs.tag-suffix }}
         run: |
           case "$KIND" in
-            release) base="$(cat version/VERSION)" ;;
-            main) base="sha-${GITHUB_SHA::12}" ;;
+            release) base="$(cat version/VERSION)${SUFFIX}" ;;
+            main) base="sha-${GITHUB_SHA::12}${SUFFIX}" ;;
             *) echo "unknown kind: $KIND" >&2; exit 1 ;;
           esac
 
@@ -80,15 +89,17 @@ jobs:
         id: manifest
         env:
           KIND: ${{ inputs.kind }}
+          SUFFIX: ${{ inputs.tag-suffix }}
         run: |
           case "$KIND" in
             release)
-              base="$(cat version/VERSION)"
-              tags=("$base" "${base%.*}" latest)
+              version="$(cat version/VERSION)"
+              base="${version}${SUFFIX}"
+              tags=("$base" "${version%.*}${SUFFIX}" "latest${SUFFIX}")
               ;;
             main)
-              base="sha-${GITHUB_SHA::12}"
-              tags=("$base" main)
+              base="sha-${GITHUB_SHA::12}${SUFFIX}"
+              tags=("$base" "main${SUFFIX}")
               ;;
             *) echo "unknown kind: $KIND" >&2; exit 1 ;;
           esac

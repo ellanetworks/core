@@ -1,0 +1,54 @@
+name: Image Build (UBI)
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+jobs:
+  build-image:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    runs-on: ${{ (matrix.arch == 'arm64' && 'ubuntu-26.04-arm') || 'ubuntu-26.04' }}
+    timeout-minutes: 30
+    env:
+      ARCH: ${{ matrix.arch }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: binary-${{ matrix.arch }}
+
+      - name: Build the image
+        env:
+          RELEASE: ${{ github.run_number }}
+        run: |
+          version="$(cat version/VERSION)"
+          name="ella-core-${version}-linux-${ARCH}"
+          tar -xzf "${name}.tar.gz"
+          docker build \
+            --file Dockerfile.ubi \
+            --build-arg VERSION="${version}" \
+            --build-arg RELEASE="${RELEASE}" \
+            --tag ella-core:latest \
+            "${name}"
+
+      - name: Check that the binary runs on the image
+        run: |
+          docker run --rm ella-core:latest -h 2>&1 | tee help.txt
+          grep -q -- '-config' help.txt
+
+      - name: Save container image to file
+        run: docker save -o ellacore_latest-${{ matrix.arch }}.tar ella-core:latest
+
+      - name: Upload container image to GitHub Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ellacore-ubi-image-${{ matrix.arch }}
+          path: ellacore_latest-${{ matrix.arch }}.tar

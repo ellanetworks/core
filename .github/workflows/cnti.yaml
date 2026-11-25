@@ -104,7 +104,7 @@ jobs:
           mkdir -p .github/cnti/rendered
           {
             printf 'apiVersion: v1\nkind: Namespace\nmetadata:\n  name: ella\n  labels:\n    pod-security.kubernetes.io/enforce: privileged\n---\n'
-            helm template ella-core charts/ella-core --namespace ella --skip-tests
+            helm template ella-core charts/ella-core --namespace ella --skip-tests --set image.tag=main
           } > .github/cnti/rendered/ella-core.yaml
 
       - name: Run CNTi essential tests
@@ -123,7 +123,7 @@ jobs:
           kubectl delete namespace ella --ignore-not-found --wait --timeout=5m
           kubectl create namespace ella
           kubectl label namespace ella pod-security.kubernetes.io/enforce=privileged pod-security.kubernetes.io/warn=privileged
-          helm install ella-core charts/ella-core --namespace ella
+          helm install ella-core charts/ella-core --namespace ella --set image.tag=main
           kubectl -n ella wait --for=jsonpath='{.status.phase}'=Running pod/ella-core-0 --timeout=10m
           kubectl -n ella port-forward pod/ella-core-0 5002:5002 &
           sleep 5
