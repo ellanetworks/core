@@ -24,6 +24,10 @@
           "type": "string",
           "description": "Image tag. Defaults to the chart appVersion."
         },
+        "tagSuffix": {
+          "type": "string",
+          "description": "Suffix appended to the image tag, e.g. -ubi for the Red Hat Universal Base Image variant."
+        },
         "digest": {
           "type": "string",
           "pattern": "^(sha256:[a-f0-9]{64})?$",

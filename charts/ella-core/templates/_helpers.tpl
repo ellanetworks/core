@@ -62,7 +62,7 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{- define "ella-core.image" -}}
-{{- $tag := default .Chart.AppVersion .Values.image.tag }}
+{{- $tag := printf "%s%s" (default .Chart.AppVersion .Values.image.tag) .Values.image.tagSuffix }}
 {{- if .Values.image.digest }}
 {{- printf "%s@%s" .Values.image.repository .Values.image.digest }}
 {{- else }}
