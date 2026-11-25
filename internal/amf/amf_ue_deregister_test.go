@@ -42,6 +42,10 @@ func (s *deregisterTestSmf) SessionsByDNN(string) []*smf.SMContext { return nil 
 
 func (s *deregisterTestSmf) SessionCount() int { return 0 }
 
+func (s *deregisterTestSmf) SessionView(context.Context, string) (smf.SessionView, bool) {
+	return smf.SessionView{}, false
+}
+
 func (s *deregisterTestSmf) ReleaseBarredSession(_ context.Context, ref string) error {
 	s.barredReleases = append(s.barredReleases, ref)
 
