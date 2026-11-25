@@ -34,6 +34,7 @@ jobs:
           tar -xzf "${name}.tar.gz"
           docker build \
             --file Dockerfile.ubi \
+            --provenance=false \
             --build-arg VERSION="${version}" \
             --build-arg RELEASE="${RELEASE}" \
             --tag ella-core:latest \
