@@ -28,7 +28,8 @@ const (
 	// VethBufXDPName is the program end of the buffering pair.
 	VethBufXDPName = "veth-buf-xdp"
 
-	// vethMTU is the MTU configured on both ends of every veth pair.
+	// vethMTU is the MTU configured on both ends of the veth pairs that
+	// carry no reassembled GTP-U.
 	// 9000 gives headroom for GTP-U encapsulation overhead.
 	vethMTU = 9000
 )
@@ -37,7 +38,7 @@ const (
 // links up. If the pair already exists (e.g. from a previous unclean
 // shutdown) it is torn down first so the state is deterministic.
 func CreateVethPair() error {
-	return createVethPair(VethSMFName, VethXDPName)
+	return createVethPair(VethSMFName, VethXDPName, vethMTU)
 }
 
 // DestroyVethPair removes the veth-smf <-> veth-xdp pair. It is safe to
@@ -54,7 +55,7 @@ func VethXDPIndex() (int, error) {
 
 // createVethPair creates a named veth pair and brings both ends up, tearing
 // down any pre-existing pair first.
-func createVethPair(a, b string) error {
+func createVethPair(a, b string, mtu int) error {
 	if existing, _ := netlink.LinkByName(a); existing != nil {
 		logger.UpfLog.Info("Removing stale veth pair", zap.String("link", a))
 
@@ -66,7 +67,7 @@ func createVethPair(a, b string) error {
 	veth := &netlink.Veth{
 		LinkAttrs: netlink.LinkAttrs{
 			Name: a,
-			MTU:  vethMTU,
+			MTU:  mtu,
 		},
 		PeerName: b,
 	}
@@ -92,7 +93,7 @@ func createVethPair(a, b string) error {
 	logger.UpfLog.Info("Created veth pair",
 		zap.String("a", a),
 		zap.String("b", b),
-		zap.Int("mtu", vethMTU),
+		zap.Int("mtu", mtu),
 	)
 
 	return nil
@@ -140,7 +141,7 @@ func enslaveVethPairsToReferenceVRF(refName string) error {
 
 	enslaved := 0
 
-	for _, name := range []string{VethSMFName, VethXDPName, VethBufName, VethBufXDPName} {
+	for _, name := range []string{VethSMFName, VethXDPName, VethBufName, VethBufXDPName, VethReasmName, VethReasmXDPName} {
 		l, err := vethLinkByName(name)
 		if err != nil {
 			if _, ok := err.(netlink.LinkNotFoundError); ok {

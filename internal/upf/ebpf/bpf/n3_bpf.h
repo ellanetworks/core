@@ -30,6 +30,7 @@
 #include "bpf/utils/trace.h"
 #include "bpf/utils/profiling.h"
 #include "bpf/utils/flow.h"
+#include "bpf/utils/gtpu_frag.h"
 #include "bpf/utils/gtp.h"
 #include "bpf/utils/tailcall.h"
 #include "bpf/utils/pdr.h"
@@ -256,11 +257,15 @@ local_switch_to_ue(struct packet_context *ctx, const struct pdr_info *dl_pdr,
 					 GTP_ENCAP_SIZE_IPV4;
 		if (sel->target.far.outer_header_creation & OHC_NO_PSC)
 			encap_size -= GTP_PSC_EXT_SIZE;
-		long mtu_ret = bpf_check_mtu(ctx->ctx_buff, n3_ifindex,
+		long mtu_ret = bpf_check_mtu(ctx->ctx_buff, n3_mtu_ifindex(),
 					     &mtu_len, encap_size, 0);
 		if (mtu_ret < 0)
 			return abort_with(ctx, UPF_DROP_INTERNAL_MTU_CHECK_FAILED);
-		if (mtu_ret > 0) {
+		if (mtu_ret > 0 &&
+		    !(ctx->ip4 ? downlink_fragments_outer_ipv4(ctx->ip4) :
+				 ctx->ip6 && downlink_fragments_outer_ipv6(
+						     ctx->ip6,
+						     mtu_len - encap_size))) {
 			return drop_with(ctx, UPF_DROP_MTU_EXCEEDED);
 		}
 	}
@@ -489,7 +494,7 @@ relay_forwarded_gtp(struct packet_context *ctx, const struct pdr_info *pdr)
 		upf_printk("upf: relay forwarded gtp [ %pI4 -> %pI4 ]",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr);
 
-		return route_ipv4(ctx, route_statistic, false);
+		return route_ipv4(ctx, route_statistic, false, false);
 	}
 
 	if (ctx->ip6 && (far->outer_header_creation & OHC_GTP_U_UDP_IPv6)) {
@@ -560,7 +565,7 @@ relay_forwarded_gtp(struct packet_context *ctx, const struct pdr_info *pdr)
 		upf_printk("upf: relay forwarded gtp [ %pI6c -> %pI6c ]",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr);
 
-		return route_ipv6(ctx, route_statistic, false);
+		return route_ipv6(ctx, route_statistic, false, false);
 	}
 
 	return drop_with(ctx, UPF_DROP_FAR_UNSUPPORTED);
@@ -584,7 +589,8 @@ handle_gtp_packet(struct packet_context *ctx)
 		/* No PDU session for this TEID: discard the G-PDU and, for a non-zero
 		 * TEID, return a GTP-U Error Indication to the sender over the same
 		 * IP transport (TS 29.281 §7.3.1). */
-		if (ctx->gtp->teid != 0) {
+		if (ctx->gtp->teid != 0 &&
+		    !frame_is_reassembled(ctx->ctx_buff)) {
 			return gtpu_control_tail_call(ctx);
 		}
 
@@ -862,7 +868,7 @@ handle_gtp_packet(struct packet_context *ctx)
 		ctx->nat_exempt = !!(pdr->flags & PDR_F_NAT_EXEMPT);
 		PROFILE_START(PROF_N3_FIB_ROUTING);
 		enum ctx_action fib_ret =
-			route_ipv4(ctx, route_statistic, false);
+			route_ipv4(ctx, route_statistic, false, false);
 		PROFILE_END(PROF_N3_FIB_ROUTING);
 
 		if (ctx_action_forwards(fib_ret)) {
@@ -878,7 +884,7 @@ handle_gtp_packet(struct packet_context *ctx)
 		account_flow(ctx, ctx_n6_ifindex(ctx), pdr->imsi, IPV6, FLOW_UPLINK, ALLOW);
 		PROFILE_START(PROF_N3_FIB_ROUTING);
 		enum ctx_action fib_ret =
-			route_ipv6(ctx, route_statistic, false);
+			route_ipv6(ctx, route_statistic, false, false);
 		PROFILE_END(PROF_N3_FIB_ROUTING);
 
 		if (ctx_action_forwards(fib_ret)) {
@@ -898,6 +904,9 @@ handle_gtp_packet(struct packet_context *ctx)
 static __always_inline enum ctx_action handle_gtpu(struct packet_context *ctx)
 {
 	int pdu_type = parse_gtp(ctx);
+	if (pdu_type != GTPU_G_PDU && frame_is_reassembled(ctx->ctx_buff))
+		return drop_with(ctx, UPF_DROP_REINJECT_UNOWNED);
+
 	switch (pdu_type) {
 	case GTPU_G_PDU:
 		return handle_gtp_packet(ctx);

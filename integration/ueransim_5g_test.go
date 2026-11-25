@@ -229,6 +229,57 @@ func TestIntegration5GUERANSIM(t *testing.T) {
 
 			t.Logf("Network tester results: %s", result)
 
+			_, err = dockerClient.Exec(ctx, ueransimContainerName, []string{"ip", "link", "set", "uesimtun0", "mtu", "1500"}, false, 5*time.Second, logWriter{t})
+			if err != nil {
+				t.Fatalf("failed to raise the UE MTU: %v", err)
+			}
+
+			result, err = dockerClient.Exec(ctx, ueransimContainerName, []string{pingCmd, "-I", "uesimtun0", "-M", "dont", "-s", "1472", pingDest, "-c", "3"}, false, 10*time.Second, logWriter{t})
+			if err != nil {
+				t.Fatalf("failed to exec command in pod: %v", err)
+			}
+
+			t.Logf("UERANSIM large ping result: %s", result)
+
+			Assert(t, strings.Contains(result, "3 packets transmitted, 3 received"), fmt.Sprintf("expected 3/3 1500-byte ping packets received over a 1500-byte N3, but got: %s", result))
+
+			routerContainerName, err := dockerClient.ResolveComposeContainer(ctx, "ueransim", "router")
+			if err != nil {
+				t.Fatalf("failed to resolve router container: %v", err)
+			}
+
+			_, err = dockerClient.Exec(ctx, routerContainerName, []string{"sh", "-c", `nohup timeout 30 python3 -c '
+import socket
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.setsockopt(socket.IPPROTO_IP, 10, 0)
+s.bind(("", 5001))
+while True:
+    d, a = s.recvfrom(2048)
+    s.sendto(b"x" * 1472, a)
+' >/tmp/udp1500.log 2>&1 </dev/null &`}, true, 5*time.Second, logWriter{t})
+			if err != nil {
+				t.Fatalf("failed to start the 1500-byte UDP responder: %v", err)
+			}
+
+			result, err = dockerClient.Exec(ctx, ueransimContainerName, []string{"python3", "-c", `
+import socket, sys
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, b"uesimtun0")
+s.settimeout(1)
+for _ in range(10):
+    s.sendto(b"x", (sys.argv[1], 5001))
+    try:
+        print("received", len(s.recv(2048)))
+        break
+    except socket.timeout:
+        pass
+`, pingDest}, false, 20*time.Second, logWriter{t})
+			if err != nil {
+				t.Fatalf("failed to exec command in pod: %v", err)
+			}
+
+			Assert(t, strings.Contains(result, "received 1472"), fmt.Sprintf("expected a 1500-byte UDP reply, sent with checksum offload, to reach the UE over a 1500-byte N3, but got: %s", result))
+
 			dockerClient.ComposeDownWithFile(ctx, "compose/ueransim", ComposeFile())
 		})
 	}

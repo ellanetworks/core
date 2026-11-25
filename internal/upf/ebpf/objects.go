@@ -74,6 +74,8 @@ type DlBufferCounters struct {
 	GSO      uint64
 }
 
+const MaxFragTxPkt = 9216
+
 // RSEvent is the Go representation of struct rs_event emitted by the N3 XDP
 // program when a Router Solicitation is detected inside a GTP-U packet.
 type RSEvent struct {
@@ -113,6 +115,8 @@ type BpfObjects struct {
 	NetworkInstancesEnabled bool
 
 	bufferVethIndex uint32 // ifindex of the reinjection veth
+	reasmVethIndex  uint32
+	fragTxEnabled   uint32
 
 	pagingMu   sync.Mutex
 	pagingList map[DataNotification]bool
@@ -190,7 +194,7 @@ func sizeCPUScratchMaps(spec *ebpf.CollectionSpec) error {
 		return fmt.Errorf("get possible CPUs: %w", err)
 	}
 
-	for _, name := range []string{"csum_scratch", "dl_buffer_scratch"} {
+	for _, name := range []string{"csum_scratch", "dl_buffer_scratch", "frag_tx_scratch"} {
 		if m, ok := spec.Maps[name]; ok {
 			m.MaxEntries = uint32(cpus)
 		}
@@ -354,6 +358,16 @@ func (bpfObjects *BpfObjects) loadAndAssignFromSpec(spec *ebpf.CollectionSpec, t
 		return err
 	}
 
+	if err := spec.Variables["reasm_veth_ifindex"].Set(bpfObjects.reasmVethIndex); err != nil {
+		logger.UpfLog.Error("failed to set reasm_veth_ifindex", zap.Error(err))
+		return err
+	}
+
+	if err := spec.Variables["frag_tx_enabled"].Set(bpfObjects.fragTxEnabled); err != nil {
+		logger.UpfLog.Error("failed to set frag_tx_enabled", zap.Error(err))
+		return err
+	}
+
 	if opts == nil {
 		opts = &ebpf.CollectionOptions{}
 	}
@@ -507,6 +521,31 @@ func (bpfObjects *BpfObjects) SetBufferVethIfindex(vethIfindex int) error {
 
 	if err := bpfObjects.BufferVethIfindex.Set(uint32(vethIfindex)); err != nil {
 		return fmt.Errorf("set buffer_veth_ifindex: %w", err)
+	}
+
+	return nil
+}
+
+func (bpfObjects *BpfObjects) SetReasmVethIfindex(vethIfindex int) error {
+	bpfObjects.reasmVethIndex = uint32(vethIfindex)
+
+	if err := bpfObjects.ReasmVethIfindex.Set(uint32(vethIfindex)); err != nil {
+		return fmt.Errorf("set reasm_veth_ifindex: %w", err)
+	}
+
+	return nil
+}
+
+func (bpfObjects *BpfObjects) SetFragTxEnabled(enabled bool) error {
+	var v uint32
+	if enabled {
+		v = 1
+	}
+
+	bpfObjects.fragTxEnabled = v
+
+	if err := bpfObjects.FragTxEnabled.Set(v); err != nil {
+		return fmt.Errorf("set frag_tx_enabled: %w", err)
 	}
 
 	return nil

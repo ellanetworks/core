@@ -15,10 +15,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func senderOrSkip(t *testing.T, local netip.Addr) *endMarkerSockets {
+func senderOrSkip(t *testing.T, local netip.Addr) *gtpuSockets {
 	t.Helper()
 
-	socks := &endMarkerSockets{}
+	socks := &gtpuSockets{}
 
 	t.Cleanup(func() { _ = socks.Close() })
 
@@ -180,7 +180,7 @@ func TestEndMarkerSendRejectsMismatchedFamily(t *testing.T) {
 		peer:  netip.MustParseAddr("2001:db8::1"),
 	}
 
-	var socks endMarkerSockets
+	var socks gtpuSockets
 
 	if err := socks.send(target, 1, ""); err == nil {
 		t.Error("sending an End Marker across address families should fail")
@@ -231,7 +231,7 @@ func boundDevice(t *testing.T, sock *net.UDPConn) string {
 func TestEndMarkerSocketBindsToProvidedVRFDevice(t *testing.T) {
 	local := netip.MustParseAddr("127.0.0.1")
 
-	socks := &endMarkerSockets{}
+	socks := &gtpuSockets{}
 
 	t.Cleanup(func() { _ = socks.Close() })
 
@@ -303,5 +303,30 @@ func TestEndMarkerSocketDrainsInboundGTPU(t *testing.T) {
 		}
 
 		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+type orderedEvents struct {
+	events []string
+}
+
+func (o *orderedEvents) Flush() { o.events = append(o.events, "flush") }
+
+func (o *orderedEvents) send(t endMarkerTarget, _ int, _ string) error {
+	o.events = append(o.events, "end-marker")
+	return nil
+}
+
+func (o *orderedEvents) Close() error { return nil }
+
+func TestSendEndMarkersFlushesTheDownlinkQueueFirst(t *testing.T) {
+	events := &orderedEvents{}
+	conn := &SessionEngine{endMarkers: events}
+	conn.SetDownlinkQueue(events)
+
+	conn.sendEndMarkers([]endMarkerTarget{{teid: 1, local: netip.MustParseAddr("10.3.0.1"), peer: netip.MustParseAddr("10.3.0.9")}})
+
+	if strings.Join(events.events, ",") != "flush,end-marker" {
+		t.Fatalf("events = %v, want the queue flushed before the End Marker", events.events)
 	}
 }

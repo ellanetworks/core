@@ -24,6 +24,7 @@
 #include "bpf/utils/flow.h"
 #include "bpf/utils/ringbuf_lost.h"
 #include "bpf/utils/packet_context.h"
+#include "bpf/utils/gtpu_frag.h"
 #include <linux/bpf.h>
 #include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
@@ -217,7 +218,8 @@ static __always_inline enum ctx_action fib_pass(struct packet_context *ctx)
 
 static __always_inline enum ctx_action route_ipv4(struct packet_context *ctx,
 						  struct route_stat *statistic,
-						  bool trust_fib)
+						  bool trust_fib,
+						  bool fragment_outer)
 {
 	struct bpf_fib_lookup fib_params = {};
 	fib_params.family = AF_INET;
@@ -288,6 +290,8 @@ static __always_inline enum ctx_action route_ipv4(struct packet_context *ctx,
 		upf_printk("upf: fragmentation needed for %pI4 -> %pI4",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr);
 		statistic->fib_lookup_ip4_frag_needed += 1;
+		if (fragment_outer)
+			return frag_tx_route_too_small(ctx, ctx->ip4);
 		return drop_with(ctx, UPF_DROP_FIB_FRAG_NEEDED);
 	case BPF_FIB_LKUP_RET_NOT_FWDED:
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
@@ -319,7 +323,8 @@ static __always_inline enum ctx_action route_ipv4(struct packet_context *ctx,
 
 static __always_inline enum ctx_action route_ipv6(struct packet_context *ctx,
 						  struct route_stat *statistic,
-						  bool trust_fib)
+						  bool trust_fib,
+						  bool fragment_outer)
 {
 	struct bpf_fib_lookup fib_params = {};
 	fib_params.family = AF_INET6;
@@ -391,6 +396,8 @@ static __always_inline enum ctx_action route_ipv6(struct packet_context *ctx,
 		upf_printk("upf: fragmentation needed %pI6c -> %pI6c",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr);
 		statistic->fib_lookup_ip6_frag_needed += 1;
+		if (fragment_outer)
+			return frag_tx_route_too_small(ctx, ctx->ip6);
 		return drop_with(ctx, UPF_DROP_FIB_FRAG_NEEDED);
 	case BPF_FIB_LKUP_RET_NOT_FWDED:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
