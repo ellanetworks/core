@@ -5,7 +5,6 @@ package db
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 )
@@ -14,27 +13,28 @@ func TestMigrationV30AddsRadioEventSettings(t *testing.T) {
 	ctx := context.Background()
 	d := newDatabaseAtVersion(t, 29)
 
-	enabled, err := d.IsRadioEventsEnabled(ctx)
-	if err != nil || !enabled {
-		t.Fatalf("IsRadioEventsEnabled at v29 = %t, %v, want true", enabled, err)
-	}
-
-	if err := d.UpdateRadioEventSettings(ctx, false); !errors.Is(err, ErrMigrationPending) {
-		t.Fatalf("UpdateRadioEventSettings at v29: want ErrMigrationPending, got %v", err)
+	if got := countRows(t, d.PlainDB(), "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = '"+RadioEventSettingsTableName+"'"); got != 0 {
+		t.Fatalf("radio event settings tables at v29 = %d, want 0", got)
 	}
 
 	migrateTestDatabase(t, d, 30)
 
-	enabled, err = d.IsRadioEventsEnabled(ctx)
+	if got := countRows(t, d.PlainDB(), "SELECT COUNT(*) FROM "+RadioEventSettingsTableName); got != 0 {
+		t.Fatalf("radio event settings rows at v30 = %d, want 0", got)
+	}
+
+	migrateTestDatabase(t, d, SchemaVersion())
+
+	enabled, err := d.IsRadioEventsEnabled(ctx)
 	if err != nil || !enabled {
-		t.Fatalf("IsRadioEventsEnabled at v30 before any update = %t, %v, want true", enabled, err)
+		t.Fatalf("IsRadioEventsEnabled before any update = %t, %v, want true", enabled, err)
 	}
 
 	wakeup, stop := d.Changefeed().Wakeup(TopicRadioEventSettings)
 	defer stop()
 
 	if err := d.UpdateRadioEventSettings(ctx, false); err != nil {
-		t.Fatalf("UpdateRadioEventSettings at v30: %v", err)
+		t.Fatalf("UpdateRadioEventSettings: %v", err)
 	}
 
 	select {

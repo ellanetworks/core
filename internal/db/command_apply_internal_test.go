@@ -19,12 +19,6 @@ import (
 	"github.com/mattn/go-sqlite3"
 )
 
-func useChangesetPath(t *testing.T, database *Database) {
-	t.Helper()
-
-	atChangesetSchema(t, database)
-}
-
 func newCommandTestDB(t *testing.T) *Database {
 	t.Helper()
 
@@ -378,8 +372,8 @@ func TestApplyEntriesKeepsLeaderTimeMonotonic(t *testing.T) {
 	}
 
 	want := []applyInfo{
-		{index: index, term: 1, leaderTime: base + 100, schema: SchemaVersion()},
-		{index: index + 1, term: 1, leaderTime: base + 100, schema: SchemaVersion()},
+		{index: index, term: 1, leaderTime: base + 100},
+		{index: index + 1, term: 1, leaderTime: base + 100},
 	}
 
 	if len(seen) != len(want) || seen[0] != want[0] || seen[1] != want[1] {
@@ -437,66 +431,6 @@ func TestApplyEntriesRunsForeignKeyCascades(t *testing.T) {
 
 	if tokens != 0 {
 		t.Fatalf("%d api tokens survived their user: the cascade did not run", tokens)
-	}
-}
-
-func TestLocalWritesUseCommandsFromTheCommandSchema(t *testing.T) {
-	database := newDatabaseAtVersion(t, commandSchema-1)
-	ctx := t.Context()
-
-	if err := database.SetRetentionPolicy(ctx, &RetentionPolicy{Category: CategoryAuditLogs, Days: 3}); err != nil {
-		t.Fatalf("SetRetentionPolicy at schema %d: %v", commandSchema-1, err)
-	}
-
-	if got := fsmState(t, database); got.lastApplied != 0 || got.leaderTime != 0 {
-		t.Fatalf("fsm_state = %+v after a write below the command schema, want it untouched", got)
-	}
-
-	if err := runMigrations(ctx, database.connection, commandSchema); err != nil {
-		t.Fatalf("migrate to %d: %v", commandSchema, err)
-	}
-
-	database.appliedSchemaCache.Store(0)
-
-	if err := database.SetRetentionPolicy(ctx, &RetentionPolicy{Category: CategoryAuditLogs, Days: 4}); err != nil {
-		t.Fatalf("SetRetentionPolicy at schema %d: %v", commandSchema, err)
-	}
-
-	if got := fsmState(t, database); got.lastApplied != 1 || got.leaderTime == 0 {
-		t.Fatalf("fsm_state = %+v after a command, want lastApplied 1 and a leader time", got)
-	}
-
-	days, err := database.GetRetentionPolicy(ctx, CategoryAuditLogs)
-	if err != nil || days != 4 {
-		t.Fatalf("retention = %d, %v; want 4", days, err)
-	}
-}
-
-func TestRaftWritesUseChangesetsBelowTheCommandSchema(t *testing.T) {
-	database := newStandaloneDB(t)
-	ctx := t.Context()
-
-	useChangesetPath(t, database)
-
-	before := fsmState(t, database)
-
-	if err := database.SetRetentionPolicy(ctx, &RetentionPolicy{Category: CategoryAuditLogs, Days: 5}); err != nil {
-		t.Fatalf("SetRetentionPolicy: %v", err)
-	}
-
-	after := fsmState(t, database)
-	if after.lastApplied <= before.lastApplied || after.leaderTime != before.leaderTime {
-		t.Fatalf("fsm_state %+v -> %+v: a changeset write must advance lastApplied without a leader time", before, after)
-	}
-
-	setSchemaVersion(t, database, SchemaVersion())
-
-	if err := database.SetRetentionPolicy(ctx, &RetentionPolicy{Category: CategoryAuditLogs, Days: 6}); err != nil {
-		t.Fatalf("SetRetentionPolicy: %v", err)
-	}
-
-	if got := fsmState(t, database); got.leaderTime <= after.leaderTime {
-		t.Fatalf("fsm_state %+v -> %+v: a command write must stamp a leader time", after, got)
 	}
 }
 
@@ -627,7 +561,7 @@ func TestPausedCommandsReturnARetryableError(t *testing.T) {
 	}
 }
 
-func TestFSMAppliesInterleavedLegacyAndCommandEntries(t *testing.T) {
+func TestFSMAppliesInterleavedMigrationAndCommandEntries(t *testing.T) {
 	database := newCommandTestDB(t)
 	fsm := ellaraft.NewFSM(database, t.TempDir())
 	start := nextIndex(t, database)
@@ -644,7 +578,7 @@ func TestFSMAppliesInterleavedLegacyAndCommandEntries(t *testing.T) {
 	}
 
 	intent := func(index uint64) *hraft.Log {
-		cmd, err := ellaraft.NewCommand(ellaraft.CmdDeleteExpiredSessions, int64Payload{Value: time.Now().Unix()})
+		cmd, err := ellaraft.NewCommand(ellaraft.CmdMigrateShared, migrateSharedPayload{TargetVersion: SchemaVersion()})
 		if err != nil {
 			t.Fatalf("NewCommand: %v", err)
 		}
@@ -672,8 +606,8 @@ func TestFSMAppliesInterleavedLegacyAndCommandEntries(t *testing.T) {
 		}
 	}
 
-	if count, ok := results[2].(int); !ok || count != 0 {
-		t.Fatalf("intent result = %#v, want 0", results[2])
+	if err, ok := results[2].(error); ok {
+		t.Fatalf("migration result = %v", err)
 	}
 
 	for _, name := range []string{"interleaved-1", "interleaved-2", "interleaved-3"} {

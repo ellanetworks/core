@@ -6,9 +6,11 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
+	hraft "github.com/hashicorp/raft"
 	"go.uber.org/zap"
 )
 
@@ -60,7 +62,7 @@ var migrations = []migration{
 // Anything touched before the cluster exists must sit at or below it: the
 // pin table the mTLS listener verifies against, the member row written
 // while forming, and the leader's Initialize() seed.
-const baselineVersion = 17
+const baselineVersion = commandSchema
 
 // SchemaVersion returns the highest migration version this binary understands.
 // Used during cluster join to reject version-skewed nodes.
@@ -181,4 +183,75 @@ func applyLocalMigration(ctx context.Context, sqlConn *sql.DB, m migration) erro
 	)
 
 	return nil
+}
+
+var ErrUpgradeFromBeforeCommands = errors.New("this cluster member last ran a version before Ella Core v1.23; upgrade every cluster member to v1.23 before upgrading to this version")
+
+func checkClusterUpgradePath(ctx context.Context, conn *sql.DB) error {
+	schema, err := readIfTableExists(ctx, conn, "schema_version", "SELECT version FROM schema_version WHERE id = 1")
+	if err != nil || schema == 0 || schema >= commandSchema {
+		return err
+	}
+
+	lastApplied, err := readIfTableExists(ctx, conn, FsmStateTableName, "SELECT lastApplied FROM "+FsmStateTableName+" WHERE id = 1")
+	if err != nil || lastApplied == 0 {
+		return err
+	}
+
+	servers, err := storedRaftServers(ctx, conn)
+	if err != nil || servers <= 1 {
+		return err
+	}
+
+	return fmt.Errorf("%w (database schema %d, want %d or later)", ErrUpgradeFromBeforeCommands, schema, commandSchema)
+}
+
+func storedRaftServers(ctx context.Context, conn *sql.DB) (n int, err error) {
+	var hasColumn bool
+	if err := conn.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM pragma_table_info('"+FsmStateTableName+"') WHERE name = 'configuration')").Scan(&hasColumn); err != nil {
+		return 0, fmt.Errorf("look up %s.configuration: %w", FsmStateTableName, err)
+	}
+
+	if !hasColumn {
+		return 0, nil
+	}
+
+	var blob []byte
+	if err := conn.QueryRowContext(ctx, "SELECT configuration FROM "+FsmStateTableName+" WHERE id = 1").Scan(&blob); err != nil {
+		return 0, fmt.Errorf("read %s.configuration: %w", FsmStateTableName, err)
+	}
+
+	if len(blob) == 0 {
+		return 0, nil
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			n, err = 0, fmt.Errorf("decode %s.configuration: %v", FsmStateTableName, r)
+		}
+	}()
+
+	return len(hraft.DecodeConfiguration(blob).Servers), nil
+}
+
+func readIfTableExists(ctx context.Context, conn *sql.DB, table, query string) (int64, error) {
+	var exists bool
+	if err := conn.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?)", table).Scan(&exists); err != nil {
+		return 0, fmt.Errorf("look up table %s: %w", table, err)
+	}
+
+	if !exists {
+		return 0, nil
+	}
+
+	var v int64
+	if err := conn.QueryRowContext(ctx, query).Scan(&v); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, nil
+		}
+
+		return 0, fmt.Errorf("read %s: %w", table, err)
+	}
+
+	return v, nil
 }

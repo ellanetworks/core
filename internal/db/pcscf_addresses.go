@@ -17,8 +17,6 @@ import (
 
 const PCSCFAddressesTableName = "pcscf_addresses"
 
-const pcscfAddressesSchema = 23
-
 const MaxPCSCFAddressesPerFamily = 5
 
 const MaxPCSCFAddresses = 2 * MaxPCSCFAddressesPerFamily
@@ -93,10 +91,6 @@ func IsPCSCFUnicast(addr netip.Addr) bool {
 func (db *Database) ListPCSCFAddresses(ctx context.Context) (_ []string, err error) {
 	ctx, finish := startDBQuery(ctx, PCSCFAddressesTableName, "SELECT")
 	defer func() { finish(err) }()
-
-	if !db.appliedSchemaAtLeast(ctx, pcscfAddressesSchema) {
-		return []string{}, nil
-	}
 
 	rows, err := queryAll(ctx, db.reader(), listPCSCFAddressesSQL, scanPCSCFAddressRow)
 	if err != nil {

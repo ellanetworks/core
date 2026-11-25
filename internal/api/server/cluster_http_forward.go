@@ -20,10 +20,8 @@ import (
 // ClusterPropose is the leader side of follower→leader op forwarding.
 //
 // A follower POSTs a ProposeForwardRequest JSON envelope (operation
-// name + payload). This handler validates leadership, dispatches the
-// operation against the leader's own state (for changeset ops: apply
-// + capture + raft.Apply; for intent ops: raft.Apply directly), and
-// returns the committed index + FSM response so the follower can
+// name + payload). This handler validates leadership, proposes the
+// operation, and returns the committed index + FSM response so the follower can
 // reconstruct a ProposeResult identical to what a local commit would
 // have produced.
 //

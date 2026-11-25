@@ -10,18 +10,12 @@ import (
 
 const SubscriberCountTableName = "subscriber_count"
 
-const subscriberCountSchema = commandSchema
-
 const (
 	createSubscriberCountSQL = "CREATE TABLE " + SubscriberCountTableName + " (singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton), total INTEGER NOT NULL)"
 	seedSubscriberCountSQL   = "INSERT OR REPLACE INTO " + SubscriberCountTableName + " (singleton, total) VALUES (TRUE, (SELECT COUNT(*) FROM " + SubscribersTableName + ") + (SELECT COUNT(*) FROM " + VisitorsTableName + "))"
 	getSubscriberCountSQL    = "SELECT total FROM " + SubscriberCountTableName + " WHERE singleton"
 	addSubscriberCountSQL    = "UPDATE " + SubscriberCountTableName + " SET total = total + ? WHERE singleton"
 )
-
-func (db *Database) countsSubscribers(ctx context.Context) bool {
-	return db.appliedSchemaAtLeast(ctx, subscriberCountSchema)
-}
 
 func (db *Database) subscriberCount(ctx context.Context, q querier) (int, error) {
 	count, err := queryCount(ctx, q, getSubscriberCountSQL)
@@ -33,7 +27,7 @@ func (db *Database) subscriberCount(ctx context.Context, q querier) (int, error)
 }
 
 func (db *Database) addSubscriberCount(ctx context.Context, delta int64) error {
-	if delta == 0 || !db.countsSubscribers(ctx) {
+	if delta == 0 {
 		return nil
 	}
 

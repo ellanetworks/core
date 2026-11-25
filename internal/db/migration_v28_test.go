@@ -19,28 +19,35 @@ func TestMigrationV28KeysRadioEventsByRef(t *testing.T) {
 	refValue := ref
 	refFilter := &RadioEventFilters{RadioRef: &refValue}
 
-	if err := d.InsertRadioEvent(ctx, &dbwriter.RadioEvent{Timestamp: 1, Protocol: "S1AP", MessageType: "S1SetupRequest", Direction: "inbound", RadioName: "old", RadioRef: ref, Raw: []byte{1}}); err != nil {
+	if _, err := d.PlainDB().ExecContext(ctx,
+		"INSERT INTO network_logs (timestamp, protocol, message_type, direction, local_address, remote_address, radio_name, raw, details) VALUES (1, 'S1AP', 'S1SetupRequest', 'inbound', '', '', 'old', x'01', '')"); err != nil {
 		t.Fatalf("insert at v27: %v", err)
-	}
-
-	all, total, err := d.ListRadioEvents(ctx, 1, 10, nil)
-	if err != nil || total != 1 || all[0].RadioName != "old" || all[0].RadioRef != "" {
-		t.Fatalf("list at v27 = %+v (total %d, err %v), want the event without a ref", all, total, err)
-	}
-
-	if _, total, err := d.ListRadioEvents(ctx, 1, 10, refFilter); err != nil || total != 0 {
-		t.Fatalf("filter by ref at v27: total %d, err %v, want 0", total, err)
 	}
 
 	migrateTestDatabase(t, d, 28)
 
+	var radioRef string
+	if err := d.PlainDB().QueryRowContext(ctx, "SELECT radio_ref FROM network_logs WHERE radio_name = 'old'").Scan(&radioRef); err != nil {
+		t.Fatalf("read migrated event: %v", err)
+	}
+
+	if radioRef != "" {
+		t.Fatalf("migrated event radio_ref = %q, want empty", radioRef)
+	}
+
+	migrateTestDatabase(t, d, SchemaVersion())
+
+	if _, total, err := d.ListRadioEvents(ctx, 1, 10, refFilter); err != nil || total != 0 {
+		t.Fatalf("filter by ref before inserting a keyed event: total %d, err %v, want 0", total, err)
+	}
+
 	if err := d.InsertRadioEvent(ctx, &dbwriter.RadioEvent{Timestamp: 2, Protocol: "S1AP", MessageType: "S1SetupResponse", Direction: "outbound", RadioRef: ref, Raw: []byte{2}}); err != nil {
-		t.Fatalf("insert at v28: %v", err)
+		t.Fatalf("insert after migrating: %v", err)
 	}
 
 	got, total, err := d.ListRadioEvents(ctx, 1, 10, refFilter)
 	if err != nil || total != 1 {
-		t.Fatalf("filter by ref at v28: total %d, err %v, want 1", total, err)
+		t.Fatalf("filter by ref: total %d, err %v, want 1", total, err)
 	}
 
 	if got[0].MessageType != "S1SetupResponse" || got[0].RadioRef != ref || got[0].RadioName != "" {
@@ -52,22 +59,12 @@ func TestMigrationV28KeysRadioEventsByRef(t *testing.T) {
 		t.Fatalf("GetRadioEventByID = %+v, %v, want ref %q", byID, err, ref)
 	}
 
-	if _, total, err := d.ListRadioEvents(ctx, 1, 10, nil); err != nil || total != 2 {
-		t.Fatalf("list at v28: total %d, err %v, want 2", total, err)
-	}
-}
-
-func TestMigrationV28GatesSHA256APITokens(t *testing.T) {
-	ctx := context.Background()
-	d := newDatabaseAtVersion(t, 27)
-
-	if d.APITokenSHA256Enabled(ctx) {
-		t.Fatal("SHA-256 API tokens enabled at v27, want bcrypt until v28")
+	all, total, err := d.ListRadioEvents(ctx, 1, 10, nil)
+	if err != nil || total != 2 {
+		t.Fatalf("list after migrating: total %d, err %v, want 2", total, err)
 	}
 
-	migrateTestDatabase(t, d, 28)
-
-	if !d.APITokenSHA256Enabled(ctx) {
-		t.Fatal("SHA-256 API tokens disabled at v28")
+	if all[1].RadioName != "old" || all[1].RadioRef != "" {
+		t.Fatalf("pre-v28 event = %+v, want radio name old without a ref", all[1])
 	}
 }

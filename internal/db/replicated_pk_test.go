@@ -39,7 +39,7 @@ func TestReplicatedTables_NoAUTOINCREMENT(t *testing.T) {
 		t.Fatalf("run migrations: %v", err)
 	}
 
-	for _, table := range replicatedChangesetTables {
+	for _, table := range replicatedTables {
 		if hasAutoIncrement(t, conn, table) {
 			t.Errorf("replicated table %q uses INTEGER PRIMARY KEY AUTOINCREMENT; "+
 				"migrate it to TEXT PRIMARY KEY with a handler-generated UUID", table)

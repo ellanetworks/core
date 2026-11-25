@@ -34,17 +34,25 @@ func TestReaderPoolServesReadsWhileWriterIsHeld(t *testing.T) {
 	done := make(chan error, 1)
 
 	go func() {
-		_, err := database.applyLocalTx(ctx, "hold", func(ctx context.Context) (any, error) {
-			if _, err := database.runner(ctx).ExecContext(ctx, "UPDATE "+NetworkSlicesTableName+" SET sst = 2 WHERE name = ?", InitialSliceName); err != nil {
-				return nil, err
-			}
+		tx, err := database.writer().BeginTx(ctx, nil)
+		if err != nil {
+			done <- err
 
-			close(holding)
-			<-release
+			return
+		}
 
-			return nil, nil
-		})
-		done <- err
+		if _, err := tx.ExecContext(ctx, "UPDATE "+NetworkSlicesTableName+" SET sst = 2 WHERE name = ?", InitialSliceName); err != nil {
+			_ = tx.Rollback()
+
+			done <- err
+
+			return
+		}
+
+		close(holding)
+		<-release
+
+		done <- tx.Commit()
 	}()
 
 	<-holding

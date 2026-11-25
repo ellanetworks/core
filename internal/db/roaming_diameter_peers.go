@@ -109,10 +109,6 @@ func (db *Database) checkDiameterPeerEndpoint(ctx context.Context, candidate dia
 }
 
 func (db *Database) checkSMSCNodeEndpoints(ctx context.Context, s *SMSC) error {
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		return nil
-	}
-
 	peers, err := db.listDiameterPeers(ctx, db.runner(ctx))
 	if err != nil {
 		return err
@@ -130,10 +126,6 @@ func (db *Database) checkSMSCNodeEndpoints(ctx context.Context, s *SMSC) error {
 func (db *Database) ListRoamingDiameterPeers(ctx context.Context) (_ []RoamingDiameterPeer, err error) {
 	ctx, finish := startDBQuery(ctx, DiameterPeersTableName, "SELECT")
 	defer func() { finish(err) }()
-
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		return nil, nil
-	}
 
 	rows, err := db.listDiameterPeers(ctx, db.reader())
 	if err != nil {

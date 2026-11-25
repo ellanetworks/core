@@ -549,6 +549,12 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 		return err
 	}
 
+	if err := db.migrateStagedDB(ctx, stagedDB); err != nil {
+		recordSpanError(span, err)
+
+		return err
+	}
+
 	// Stream the validated SQLite file as an external snapshot into Raft.
 	// raft.Restore injects the snapshot, bumps the index past commitIndex,
 	// and triggers FSM.Restore on every node (which handles local-table
@@ -581,16 +587,30 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 	return nil
 }
 
+func (db *Database) migrateStagedDB(ctx context.Context, path string) error {
+	conn, err := openSQLiteConnection(ctx, path)
+	if err != nil {
+		return fmt.Errorf("open staged database: %w", err)
+	}
+
+	defer func() { _ = conn.Close() }()
+
+	if err := runMigrations(ctx, conn, db.migrationCeiling); err != nil {
+		return fmt.Errorf("migrate staged database: %w", err)
+	}
+
+	return nil
+}
+
 // SelfRestore re-injects this node's current database state as a raft user
 // snapshot. It is used on the first leader transition of a node that booted
 // from a restore bundle.
 //
 // Background: when a node bootstraps from an ella.db extracted from a backup
 // bundle, raft starts with an empty log. Any log entries the new leader then
-// produces (PKI mint, join-token issue, etc.) are UPDATE changesets whose
-// pre-image assumes the restored DB state. A fresh joiner replaying those
-// entries from index 1 against a just-migrated empty DB hits conflict errors
-// because the pre-image rows don't exist yet.
+// produces (PKI mint, join-token issue, etc.) are commands that assume the
+// restored DB state. A fresh joiner replaying those entries from index 1
+// against a just-migrated empty DB would not reach the same state.
 //
 // raft.Restore fixes this by installing a user-provided snapshot as the
 // authoritative baseline: it bumps the log past the snapshot's index, removes

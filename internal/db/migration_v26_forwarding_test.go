@@ -61,6 +61,40 @@ func setupForwardingFixture(t *testing.T, d *Database) forwardingFixture {
 	return forwardingFixture{slice: slice.ID, internet: internet.ID, ims: ims.ID, unused: unused.ID}
 }
 
+func seedForwardingFixtureAtV25(t *testing.T, d *Database) forwardingFixture {
+	t.Helper()
+
+	f := forwardingFixture{
+		slice:    "01890000-0000-7000-8000-000000000101",
+		internet: "01890000-0000-7000-8000-000000000102",
+		ims:      "01890000-0000-7000-8000-000000000103",
+		unused:   "01890000-0000-7000-8000-000000000104",
+	}
+
+	const profile = "01890000-0000-7000-8000-000000000105"
+
+	stmts := []struct {
+		query string
+		args  []any
+	}{
+		{"INSERT INTO network_slices (id, sst, name) VALUES (?, 1, ?)", []any{f.slice, InitialSliceName}},
+		{"INSERT INTO profiles (id, name, ueAmbrUplink, ueAmbrDownlink) VALUES (?, ?, '1 Gbps', '1 Gbps')", []any{profile, InitialProfileName}},
+		{"INSERT INTO data_networks (id, name, ipPool, dns, mtu, ims) VALUES (?, ?, '10.45.0.0/22', '8.8.8.8', 1400, FALSE)", []any{f.internet, InitialDataNetworkName}},
+		{"INSERT INTO data_networks (id, name, ipPool, dns, mtu, ims) VALUES (?, ?, '10.46.0.0/22', '8.8.8.8', 1400, TRUE)", []any{f.ims, models.IMSDataNetworkName}},
+		{"INSERT INTO data_networks (id, name, ipPool, dns, mtu, ims) VALUES (?, 'unused', '10.47.0.0/22', '8.8.8.8', 1400, FALSE)", []any{f.unused}},
+		{"INSERT INTO policies (id, name, profileID, sliceID, dataNetworkID, var5qi, arp, sessionAmbrUplink, sessionAmbrDownlink, isDefault) VALUES ('01890000-0000-7000-8000-000000000106', ?, ?, ?, ?, 9, 1, '1 Gbps', '1 Gbps', TRUE)", []any{InitialPolicyName, profile, f.slice, f.internet}},
+		{"INSERT INTO policies (id, name, profileID, sliceID, dataNetworkID, var5qi, arp, sessionAmbrUplink, sessionAmbrDownlink) VALUES ('01890000-0000-7000-8000-000000000107', 'ims', ?, ?, ?, ?, 1, '1 Mbps', '1 Mbps')", []any{profile, f.slice, f.ims, models.IMSSignalling5QI}},
+	}
+
+	for _, s := range stmts {
+		if _, err := d.PlainDB().ExecContext(context.Background(), s.query, s.args...); err != nil {
+			t.Fatalf("seed %q: %v", s.query, err)
+		}
+	}
+
+	return f
+}
+
 func TestMigrationV26MovesNATAndLocalSwitchToSliceDataNetworks(t *testing.T) {
 	for _, tc := range []struct {
 		name                 string
@@ -81,30 +115,20 @@ func TestMigrationV26MovesNATAndLocalSwitchToSliceDataNetworks(t *testing.T) {
 			setLegacyToggle(t, d, NATSettingsTableName, tc.nat)
 			setLegacyToggle(t, d, LocalSwitchSettingsTableName, tc.localSwitch)
 
-			f := setupForwardingFixture(t, d)
-
-			assertForwarding(t, d, "at v25", f.slice, f.internet, tc.nat, tc.localSwitch)
-			assertForwarding(t, d, "at v25", f.slice, f.ims, false, true)
-			assertNoForwarding(t, d, "at v25", f.slice, f.unused)
-
-			if err := d.CreateSliceDataNetwork(ctx, &SliceDataNetwork{SliceID: f.slice, DataNetworkID: f.unused}); err == nil {
-				t.Fatal("CreateSliceDataNetwork at v25 succeeded, want a pending-migration error")
-			}
+			f := seedForwardingFixtureAtV25(t, d)
 
 			if err := runMigrations(withMigrationToggles(ctx, tc.leaderLocalSwitch, tc.leaderNAT), d.PlainDB(), 26); err != nil {
 				t.Fatalf("runMigrations(26): %v", err)
 			}
 
-			if err := d.refreshAppliedSchema(ctx); err != nil {
-				t.Fatalf("refresh applied schema: %v", err)
-			}
+			migrateTestDatabase(t, d, SchemaVersion())
 
-			assertForwarding(t, d, "at v26", f.slice, f.internet, tc.wantNATAtV26, tc.wantLocalSwitchAtV26)
-			assertForwarding(t, d, "at v26", f.slice, f.ims, false, true)
-			assertNoForwarding(t, d, "at v26", f.slice, f.unused)
+			assertForwarding(t, d, "after v26", f.slice, f.internet, tc.wantNATAtV26, tc.wantLocalSwitchAtV26)
+			assertForwarding(t, d, "after v26", f.slice, f.ims, false, true)
+			assertNoForwarding(t, d, "after v26", f.slice, f.unused)
 
 			if err := d.UpdateSliceDataNetwork(ctx, &SliceDataNetwork{SliceID: f.slice, DataNetworkID: f.internet, NAT: !tc.wantNATAtV26, LocalSwitch: !tc.wantLocalSwitchAtV26}); err != nil {
-				t.Fatalf("UpdateSliceDataNetwork at v26: %v", err)
+				t.Fatalf("UpdateSliceDataNetwork: %v", err)
 			}
 
 			assertForwarding(t, d, "after edits", f.slice, f.internet, !tc.wantNATAtV26, !tc.wantLocalSwitchAtV26)
@@ -129,7 +153,7 @@ func TestMigrationV26MovesNATAndLocalSwitchToSliceDataNetworks(t *testing.T) {
 }
 
 func TestFreshDatabaseServesTheDefaultDataNetwork(t *testing.T) {
-	d := newDatabaseAtVersion(t, 26)
+	d := newDatabaseAtVersion(t, SchemaVersion())
 	f := setupForwardingFixture(t, d)
 
 	assertForwarding(t, d, "fresh", f.slice, f.internet, NATDefaultEnabled, false)
@@ -171,7 +195,7 @@ func assertNoForwarding(t *testing.T, d *Database, label, sliceID, dataNetworkID
 
 func TestWithheldLeaseOwnersFollowTheSliceDataNetwork(t *testing.T) {
 	ctx := context.Background()
-	d := newDatabaseAtVersion(t, 26)
+	d := newDatabaseAtVersion(t, SchemaVersion())
 	f := setupForwardingFixture(t, d)
 
 	profile, err := d.GetProfile(ctx, InitialProfileName)

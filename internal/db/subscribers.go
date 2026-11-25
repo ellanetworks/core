@@ -23,15 +23,6 @@ const MaxNumSubscribers = 100000
 
 var ErrSubscriberLimit = errors.New("maximum number of subscribers reached")
 
-// subscriberDescriptionSchema is the migration that adds subscribers.description.
-// It is post-baseline, so a cluster node reaches it through Raft some time after
-// the new binary starts; until then the column is absent and every statement
-// naming it fails to compile in SQLite. Reads pick a variant on
-// cachedAppliedSchema(); writes are gated by RequireSchema at op registration.
-const subscriberDescriptionSchema = 18
-
-const subscriberMSISDNSchema = 22
-
 const (
 	createSubscriberSQL      = "INSERT INTO " + SubscribersTableName + " (id, imsi, sequenceNumber, permanentKey, opc, profileID, description, msisdn) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
 	editSubscriberProfileSQL = "UPDATE " + SubscribersTableName + " SET profileID=?, description=?, msisdn=? WHERE imsi==?"
@@ -43,14 +34,8 @@ const (
 
 const subscriberColumns = "id, imsi, sequenceNumber, permanentKey, opc, profileID, description, msisdn"
 
-const subscriberColumnsPreV18 = "id, imsi, sequenceNumber, permanentKey, opc, profileID"
-
-const subscriberColumnsPreV22 = subscriberColumnsPreV18 + ", description"
-
 const (
 	getSubscriberSQL         = "SELECT " + subscriberColumns + " from " + SubscribersTableName + " WHERE imsi==?"
-	getSubscriberPreV22SQL   = "SELECT " + subscriberColumnsPreV22 + " from " + SubscribersTableName + " WHERE imsi==?"
-	getSubscriberPreV18SQL   = "SELECT " + subscriberColumnsPreV18 + " from " + SubscribersTableName + " WHERE imsi==?"
 	getSubscriberByMSISDNSQL = "SELECT " + subscriberColumns + " from " + SubscribersTableName + " WHERE msisdn==? AND msisdn!=''"
 	listIMSIsWithMSISDNSQL   = "SELECT imsi FROM " + SubscribersTableName + " WHERE msisdn!='' AND imsi IN (SELECT value FROM json_each(?))"
 	listSubscriberMSISDNsSQL = "SELECT imsi, msisdn FROM " + SubscribersTableName + " WHERE msisdn!=''"
@@ -62,14 +47,6 @@ const (
      OR imsi LIKE ?1 ESCAPE '\'
      OR (msisdn != '' AND '+' || msisdn LIKE ?1 ESCAPE '\')
      OR description LIKE ?1 ESCAPE '\')`
-
-	subscriberSearchClausePreV22 = `
-    (?1 IS NULL
-     OR imsi LIKE ?1 ESCAPE '\'
-     OR description LIKE ?1 ESCAPE '\')`
-
-	subscriberSearchClausePreV18 = `
-    (?1 IS NULL OR imsi LIKE ?1 ESCAPE '\')`
 
 	subscriberDataNetworkClause = `
     AND (?2 IS NULL
@@ -86,34 +63,10 @@ const (
   ORDER BY imsi
   LIMIT ?4 OFFSET ?5`
 
-	listSubscribersFilteredPreV22SQL = `
-  SELECT ` + subscriberColumnsPreV22 + `
-  FROM ` + SubscribersTableName + `
-  WHERE` + subscriberSearchClausePreV22 + subscriberDataNetworkClause + `
-  ORDER BY imsi
-  LIMIT ?4 OFFSET ?5`
-
-	listSubscribersFilteredPreV18SQL = `
-  SELECT ` + subscriberColumnsPreV18 + `
-  FROM ` + SubscribersTableName + `
-  WHERE` + subscriberSearchClausePreV18 + subscriberDataNetworkClause + `
-  ORDER BY imsi
-  LIMIT ?4 OFFSET ?5`
-
 	countSubscribersFilteredSQL = `
   SELECT COUNT(*)
   FROM ` + SubscribersTableName + `
   WHERE` + subscriberSearchClause + subscriberDataNetworkClause
-
-	countSubscribersFilteredPreV22SQL = `
-  SELECT COUNT(*)
-  FROM ` + SubscribersTableName + `
-  WHERE` + subscriberSearchClausePreV22 + subscriberDataNetworkClause
-
-	countSubscribersFilteredPreV18SQL = `
-  SELECT COUNT(*)
-  FROM ` + SubscribersTableName + `
-  WHERE` + subscriberSearchClausePreV18 + subscriberDataNetworkClause
 )
 
 const countSubscribersAndVisitorsSQL = "SELECT COUNT(*) FROM (SELECT imsi FROM " + SubscribersTableName + " UNION ALL SELECT imsi FROM " + VisitorsTableName + ")"
@@ -179,9 +132,7 @@ func (db *Database) ListSubscribersPage(ctx context.Context, filters *Subscriber
 		return nil, 0, err
 	}
 
-	query, scan := db.subscriberQuery(ctx, listSubscribersQueries)
-
-	subs, err := queryAll(ctx, db.reader(), query, scan, filterArgs.Search, filterArgs.DataNetworkID, filterArgs.IMSIs, perPage, (page-1)*perPage)
+	subs, err := queryAll(ctx, db.reader(), listSubscribersFilteredSQL, scanSubscriber, filterArgs.Search, filterArgs.DataNetworkID, filterArgs.IMSIs, perPage, (page-1)*perPage)
 	if err != nil {
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
@@ -205,9 +156,7 @@ func (db *Database) countSubscribersFiltered(ctx context.Context, filterArgs sub
 	ctx, finish := startDBQueryNamed(ctx, "SELECT "+SubscribersTableName+" (filtered count)", SubscribersTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	query, _ := db.subscriberQuery(ctx, countSubscribersQueries)
-
-	count, err := queryCount(ctx, db.reader(), query, filterArgs.Search, filterArgs.DataNetworkID, filterArgs.IMSIs)
+	count, err := queryCount(ctx, db.reader(), countSubscribersFilteredSQL, filterArgs.Search, filterArgs.DataNetworkID, filterArgs.IMSIs)
 	if err != nil {
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
@@ -231,33 +180,8 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (_ *Subscrib
 	return &row, nil
 }
 
-type subscriberQueries struct {
-	current string
-	preV22  string
-	preV18  string
-}
-
-var (
-	listSubscribersQueries  = subscriberQueries{current: listSubscribersFilteredSQL, preV22: listSubscribersFilteredPreV22SQL, preV18: listSubscribersFilteredPreV18SQL}
-	countSubscribersQueries = subscriberQueries{current: countSubscribersFilteredSQL, preV22: countSubscribersFilteredPreV22SQL, preV18: countSubscribersFilteredPreV18SQL}
-	getSubscriberQueries    = subscriberQueries{current: getSubscriberSQL, preV22: getSubscriberPreV22SQL, preV18: getSubscriberPreV18SQL}
-)
-
-func (db *Database) subscriberQuery(ctx context.Context, q subscriberQueries) (string, func(scanner) (Subscriber, error)) {
-	switch {
-	case !db.appliedSchemaAtLeast(ctx, subscriberDescriptionSchema):
-		return q.preV18, scanSubscriberPreV18
-	case !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema):
-		return q.preV22, scanSubscriberPreV22
-	default:
-		return q.current, scanSubscriber
-	}
-}
-
 func (db *Database) getOwnSubscriber(ctx context.Context, q querier, imsi string) (Subscriber, error) {
-	query, scan := db.subscriberQuery(ctx, getSubscriberQueries)
-
-	return scan(q.QueryRowContext(ctx, query, imsi))
+	return scanSubscriber(q.QueryRowContext(ctx, getSubscriberSQL, imsi))
 }
 
 func (db *Database) IMSIsWithMSISDN(ctx context.Context, imsis []string) (_ map[string]bool, err error) {
@@ -265,10 +189,6 @@ func (db *Database) IMSIsWithMSISDN(ctx context.Context, imsis []string) (_ map[
 	defer func() { finish(err) }()
 
 	found := make(map[string]bool, len(imsis))
-
-	if !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema) {
-		return found, nil
-	}
 
 	matched, err := queryAll(ctx, db.reader(), listIMSIsWithMSISDNSQL, scanValue[string], jsonArray(imsis))
 	if err != nil {
@@ -286,7 +206,7 @@ func (db *Database) GetSubscriberByMSISDN(ctx context.Context, msisdn string) (_
 	ctx, finish := startDBQueryNamed(ctx, "SELECT "+SubscribersTableName+" (by msisdn)", SubscribersTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	if msisdn == "" || !db.appliedSchemaAtLeast(ctx, subscriberMSISDNSchema) {
+	if msisdn == "" {
 		return nil, ErrNotFound
 	}
 
@@ -391,12 +311,7 @@ func (db *Database) CountSubscribersAndVisitors(ctx context.Context) (_ int, err
 }
 
 func (db *Database) countSubscribersAndVisitors(ctx context.Context, q querier) (int, error) {
-	query := countSubscribersSQL
-	if db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		query = countSubscribersAndVisitorsSQL
-	}
-
-	count, err := queryCount(ctx, q, query)
+	count, err := queryCount(ctx, q, countSubscribersAndVisitorsSQL)
 	if err != nil {
 		return 0, fmt.Errorf("query failed: %w", err)
 	}
@@ -405,12 +320,7 @@ func (db *Database) countSubscribersAndVisitors(ctx context.Context, q querier) 
 }
 
 func (db *Database) checkSubscriberCapacity(ctx context.Context) error {
-	count := db.countSubscribersAndVisitors
-	if db.countsSubscribers(ctx) {
-		count = db.subscriberCount
-	}
-
-	n, err := count(ctx, db.runner(ctx))
+	n, err := db.subscriberCount(ctx, db.runner(ctx))
 	if err != nil {
 		return err
 	}
@@ -434,26 +344,6 @@ func scanSubscriber(row scanner) (Subscriber, error) {
 	var v Subscriber
 
 	if err := row.Scan(&v.ID, &v.Imsi, &v.SequenceNumber, &v.PermanentKey, &v.Opc, &v.ProfileID, &v.Description, &v.Msisdn); err != nil {
-		return Subscriber{}, err
-	}
-
-	return v, nil
-}
-
-func scanSubscriberPreV22(row scanner) (Subscriber, error) {
-	var v Subscriber
-
-	if err := row.Scan(&v.ID, &v.Imsi, &v.SequenceNumber, &v.PermanentKey, &v.Opc, &v.ProfileID, &v.Description); err != nil {
-		return Subscriber{}, err
-	}
-
-	return v, nil
-}
-
-func scanSubscriberPreV18(row scanner) (Subscriber, error) {
-	var v Subscriber
-
-	if err := row.Scan(&v.ID, &v.Imsi, &v.SequenceNumber, &v.PermanentKey, &v.Opc, &v.ProfileID); err != nil {
 		return Subscriber{}, err
 	}
 

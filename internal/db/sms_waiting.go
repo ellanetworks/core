@@ -79,10 +79,6 @@ func (db *Database) ListAllSMSWaiting(ctx context.Context) (_ []SMSWaiting, err 
 	ctx, finish := startDBQuery(ctx, SMSWaitingTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	if !db.appliedSchemaAtLeast(ctx, smsSchema) {
-		return nil, nil
-	}
-
 	rows, err := queryAll(ctx, db.reader(), listAllSMSWaitingSQL, scanSMSWaitingRow)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -121,10 +117,6 @@ func (db *Database) ListAllSMSWaiting(ctx context.Context) (_ []SMSWaiting, err 
 func (db *Database) GetSMSWaiting(ctx context.Context, imsi string) (_ *SMSWaiting, err error) {
 	ctx, finish := startDBQuery(ctx, SMSWaitingTableName, "SELECT")
 	defer func() { finish(err) }()
-
-	if !db.appliedSchemaAtLeast(ctx, smsSchema) {
-		return nil, ErrNotFound
-	}
 
 	row, err := scanSMSWaitingRow(db.reader().QueryRowContext(ctx, getSMSWaitingSQL, imsi))
 	if err != nil {
@@ -189,10 +181,6 @@ func (db *Database) DeleteSMSWaiting(ctx context.Context, imsi string) error {
 func (db *Database) DeleteStaleSMSWaiting(ctx context.Context, maxAge time.Duration) (err error) {
 	ctx, finish := startDBQuery(ctx, SMSWaitingTableName, "DELETE")
 	defer func() { finish(err) }()
-
-	if !db.appliedSchemaAtLeast(ctx, smsSchema) {
-		return nil
-	}
 
 	if _, err := opDeleteStaleSMSWaiting.Invoke(ctx, db, &smsWaitingCutoffPayload{Cutoff: time.Now().Add(-maxAge).Unix()}); err != nil {
 		return err

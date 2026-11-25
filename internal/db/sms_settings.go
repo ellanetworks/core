@@ -12,8 +12,6 @@ import (
 
 const SMSSettingsTableName = "sms_settings"
 
-const smsSchema = 22
-
 const DefaultSMSCPort = 3868
 
 const maxMSISDNDigits = 15
@@ -60,10 +58,6 @@ func (db *Database) GetSMSSettings(ctx context.Context) (_ *SMSSettings, err err
 	defer func() { finish(err) }()
 
 	settings := DefaultSMSSettings()
-
-	if !db.appliedSchemaAtLeast(ctx, smsSchema) {
-		return &settings, nil
-	}
 
 	err = db.reader().QueryRowContext(ctx, getSMSSettingsSQL).Scan(&settings.SMSNumber)
 	if err != nil {

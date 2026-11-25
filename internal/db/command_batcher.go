@@ -22,6 +22,7 @@ const (
 var (
 	errBatcherClosed  = fmt.Errorf("%w: the database is closing", ErrProposeTimeout)
 	errCommandsPaused = fmt.Errorf("%w: a restore is in progress", ErrProposeTimeout)
+	errWriteQueueFull = fmt.Errorf("%w: replicated write queue is full", ErrProposeTimeout)
 )
 
 type commandRequest struct {

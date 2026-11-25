@@ -9,8 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"github.com/ellanetworks/core/internal/pki"
 )
 
 const ClusterMembersTableName = "cluster_members"
@@ -21,34 +19,15 @@ const (
 	DrainStateDrained  = "drained"
 )
 
-const clusterMemberIdentitySchema = 20
-
-func (db *Database) requireIdentitySchemaFor(ctx context.Context, nodeID string) error {
-	if db.appliedSchemaAtLeast(ctx, clusterMemberIdentitySchema) {
-		return nil
-	}
-
-	if _, ok := pki.LegacyNodeID(nodeID); ok {
-		return nil
-	}
-
-	return ErrMigrationPending
-}
-
-const clusterMemberColumnsPreV20 = "nodeID, apiAddress, binaryVersion, drainState, drainUpdatedAt"
-
 const (
-	listClusterMembersSQL        = "SELECT nodeID, amfPointer, displayName, apiAddress, binaryVersion, drainState, drainUpdatedAt FROM " + ClusterMembersTableName + " ORDER BY nodeID ASC"
-	listClusterMembersPreV20SQL  = "SELECT " + clusterMemberColumnsPreV20 + " FROM " + ClusterMembersTableName + " ORDER BY nodeID ASC"
-	getClusterMemberSQL          = "SELECT nodeID, amfPointer, displayName, apiAddress, binaryVersion, drainState, drainUpdatedAt FROM " + ClusterMembersTableName + " WHERE nodeID==?"
-	getClusterMemberPreV20SQL    = "SELECT " + clusterMemberColumnsPreV20 + " FROM " + ClusterMembersTableName + " WHERE nodeID==?"
-	upsertClusterMemberSQL       = "INSERT INTO " + ClusterMembersTableName + " (nodeID, amfPointer, displayName, apiAddress, binaryVersion) VALUES (?, ?, ?, ?, ?) ON CONFLICT(nodeID) DO UPDATE SET amfPointer=excluded.amfPointer, apiAddress=?, binaryVersion=?"
-	upsertClusterMemberPreV20SQL = "INSERT INTO " + ClusterMembersTableName + " (nodeID, raftAddress, apiAddress, binaryVersion) VALUES (?, '', ?, ?) ON CONFLICT(nodeID) DO UPDATE SET apiAddress=?, binaryVersion=?"
-	deleteClusterMemberSQL       = "DELETE FROM " + ClusterMembersTableName + " WHERE nodeID==?"
-	countClusterMembersSQL       = "SELECT COUNT(*) FROM " + ClusterMembersTableName
-	getDrainStateSQL             = "SELECT drainState FROM " + ClusterMembersTableName + " WHERE nodeID==?"
-	setDrainStateSQL             = "UPDATE " + ClusterMembersTableName + " SET drainState=?, drainUpdatedAt=? WHERE nodeID==?"
-	setDisplayNameSQL            = "UPDATE " + ClusterMembersTableName + " SET displayName=? WHERE nodeID==?"
+	listClusterMembersSQL  = "SELECT nodeID, amfPointer, displayName, apiAddress, binaryVersion, drainState, drainUpdatedAt FROM " + ClusterMembersTableName + " ORDER BY nodeID ASC"
+	getClusterMemberSQL    = "SELECT nodeID, amfPointer, displayName, apiAddress, binaryVersion, drainState, drainUpdatedAt FROM " + ClusterMembersTableName + " WHERE nodeID==?"
+	upsertClusterMemberSQL = "INSERT INTO " + ClusterMembersTableName + " (nodeID, amfPointer, displayName, apiAddress, binaryVersion) VALUES (?, ?, ?, ?, ?) ON CONFLICT(nodeID) DO UPDATE SET amfPointer=excluded.amfPointer, apiAddress=?, binaryVersion=?"
+	deleteClusterMemberSQL = "DELETE FROM " + ClusterMembersTableName + " WHERE nodeID==?"
+	countClusterMembersSQL = "SELECT COUNT(*) FROM " + ClusterMembersTableName
+	getDrainStateSQL       = "SELECT drainState FROM " + ClusterMembersTableName + " WHERE nodeID==?"
+	setDrainStateSQL       = "UPDATE " + ClusterMembersTableName + " SET drainState=?, drainUpdatedAt=? WHERE nodeID==?"
+	setDisplayNameSQL      = "UPDATE " + ClusterMembersTableName + " SET displayName=? WHERE nodeID==?"
 )
 
 const (
@@ -79,12 +58,7 @@ func (db *Database) ListClusterMembers(ctx context.Context) (_ []ClusterMember, 
 	ctx, finish := startDBQuery(ctx, ClusterMembersTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	query, scan := listClusterMembersSQL, scanClusterMember
-	if !db.appliedSchemaAtLeast(ctx, clusterMemberIdentitySchema) {
-		query, scan = listClusterMembersPreV20SQL, scanClusterMemberPreV20
-	}
-
-	members, err := queryAll(ctx, db.reader(), query, scan)
+	members, err := queryAll(ctx, db.reader(), listClusterMembersSQL, scanClusterMember)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -96,12 +70,7 @@ func (db *Database) GetClusterMember(ctx context.Context, nodeID string) (_ *Clu
 	ctx, finish := startDBQuery(ctx, ClusterMembersTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	query, scan := getClusterMemberSQL, scanClusterMember
-	if !db.appliedSchemaAtLeast(ctx, clusterMemberIdentitySchema) {
-		query, scan = getClusterMemberPreV20SQL, scanClusterMemberPreV20
-	}
-
-	row, err := scan(db.reader().QueryRowContext(ctx, query, nodeID))
+	row, err := scanClusterMember(db.reader().QueryRowContext(ctx, getClusterMemberSQL, nodeID))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -223,16 +192,6 @@ func scanClusterMember(row scanner) (ClusterMember, error) {
 	var v ClusterMember
 
 	if err := row.Scan(&v.NodeID, &v.AMFPointer, &v.DisplayName, &v.APIAddress, &v.BinaryVersion, &v.DrainState, &v.DrainUpdatedAt); err != nil {
-		return ClusterMember{}, err
-	}
-
-	return v, nil
-}
-
-func scanClusterMemberPreV20(row scanner) (ClusterMember, error) {
-	var v ClusterMember
-
-	if err := row.Scan(&v.NodeID, &v.APIAddress, &v.BinaryVersion, &v.DrainState, &v.DrainUpdatedAt); err != nil {
 		return ClusterMember{}, err
 	}
 

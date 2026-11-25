@@ -12,8 +12,6 @@ import (
 
 const RadioEventSettingsTableName = "radio_event_settings"
 
-const radioEventSettingsSchema = 30
-
 const RadioEventsDefaultEnabled = true
 
 const (
@@ -24,10 +22,6 @@ const (
 func (db *Database) IsRadioEventsEnabled(ctx context.Context) (_ bool, err error) {
 	ctx, finish := startDBQuery(ctx, RadioEventSettingsTableName, "SELECT")
 	defer func() { finish(err) }()
-
-	if !db.appliedSchemaAtLeast(ctx, radioEventSettingsSchema) {
-		return RadioEventsDefaultEnabled, nil
-	}
 
 	var enabled bool
 

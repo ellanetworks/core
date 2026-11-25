@@ -339,9 +339,6 @@ op DeleteSMSWaiting schema 31
   updated_at int64
 op DeleteSessionByTokenHash schema 31
   value bytes
-  operation string
-  requiredSchema int
-  capturedSchema int
 op DeleteSliceDataNetwork schema 31
   SliceID string
   DataNetworkID string
@@ -502,9 +499,6 @@ op ReplaceSEPPCA schema 31
   KeyPEM string
 op RotateJWTSecret schema 31
   value bytes
-  operation string
-  requiredSchema int
-  capturedSchema int
 op SetDefaultPolicy schema 31
   ID string
   Name string
@@ -536,9 +530,6 @@ op SetDrainState schema 31
   DrainUpdatedAt int64
 op SetJWTSecret schema 31
   value bytes
-  operation string
-  requiredSchema int
-  capturedSchema int
 op SetProfileIMSServiceProfiles schema 31
   profile_id string
   service_profiles map[string]

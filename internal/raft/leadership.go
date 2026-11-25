@@ -134,6 +134,12 @@ func (m *Manager) runTerm(t *leaderTerm) {
 		}
 	}
 
+	if err := m.compactPreCommandLog(t.ctx); err != nil {
+		logger.RaftLog.Warn("Raft: could not compact log entries written before replicated commands; a node that replays them halts",
+			zap.Uint64("term", t.raftTerm),
+			zap.Error(err))
+	}
+
 	m.publishBarrieredTerm(t.raftTerm)
 
 	if m.followerTracker != nil {
@@ -208,9 +214,9 @@ func (m *Manager) barrierState() (uint64, <-chan struct{}) {
 
 // WriteBarrier blocks until the FSM has applied every entry committed before
 // this call. raft.State() reports Leader while entries from the previous term
-// are still queued for the FSM, so a changeset captured in that window carries
-// pre-images those entries invalidate. Once per term is enough: everything
-// this node appends afterwards is ordered behind the barrier.
+// are still queued for the FSM, so a read in that window misses their writes.
+// Once per term is enough: everything this node appends afterwards is ordered
+// behind the barrier.
 func (m *Manager) WriteBarrier(timeout time.Duration) error {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()

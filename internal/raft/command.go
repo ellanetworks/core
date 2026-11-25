@@ -106,34 +106,6 @@ func (c *Command) Label() string {
 		if err := json.Unmarshal(c.Payload, &meta); err == nil {
 			return fmt.Sprintf("%s(%d)", name, len(meta.Commands))
 		}
-
-		return name
-	}
-
-	if c.Type == CmdChangesetBatch {
-		var meta struct {
-			Entries []struct {
-				Operation string `json:"operation"`
-			} `json:"entries"`
-		}
-
-		if err := json.Unmarshal(c.Payload, &meta); err == nil {
-			return fmt.Sprintf("%s(%d)", name, len(meta.Entries))
-		}
-
-		return name
-	}
-
-	if c.Type != CmdChangeset || len(c.Payload) == 0 {
-		return name
-	}
-
-	var meta struct {
-		Operation string `json:"operation"`
-	}
-
-	if err := json.Unmarshal(c.Payload, &meta); err == nil && meta.Operation != "" {
-		return name + "(" + meta.Operation + ")"
 	}
 
 	return name

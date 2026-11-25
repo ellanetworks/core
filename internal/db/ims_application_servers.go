@@ -22,8 +22,6 @@ const (
 	IMSPublicServiceIdentitiesTableName = "ims_public_service_identities"
 )
 
-const imsServicesSchema = 25
-
 const (
 	listIMSApplicationServersSQL  = "SELECT id, name, serverName FROM " + IMSApplicationServersTableName + " ORDER BY name"
 	getIMSApplicationServerSQL    = "SELECT id, name, serverName FROM " + IMSApplicationServersTableName + " WHERE name==?"
@@ -106,10 +104,6 @@ func (db *Database) ListIMSApplicationServers(ctx context.Context) (_ []IMSAppli
 	ctx, finish := startDBQuery(ctx, IMSApplicationServersTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	if !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
-		return nil, nil
-	}
-
 	rows, err := queryAll(ctx, db.reader(), listIMSApplicationServersSQL, scanIMSApplicationServerRow)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -140,10 +134,6 @@ func (db *Database) ListIMSApplicationServers(ctx context.Context) (_ []IMSAppli
 func (db *Database) GetIMSApplicationServer(ctx context.Context, name string) (_ *IMSApplicationServer, err error) {
 	ctx, finish := startDBQuery(ctx, IMSApplicationServersTableName, "SELECT")
 	defer func() { finish(err) }()
-
-	if !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
-		return nil, ErrNotFound
-	}
 
 	as, err := db.getIMSApplicationServer(ctx, db.reader(), name)
 	if err != nil {
@@ -369,7 +359,7 @@ func (db *Database) imsDomain(ctx context.Context) (string, error) {
 }
 
 func (db *Database) rehomeIMSApplicationServers(ctx context.Context, from, to string) error {
-	if from == "" || to == "" || from == to || !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
+	if from == "" || to == "" || from == to {
 		return nil
 	}
 
@@ -446,7 +436,7 @@ func msisdnIdentities(msisdn string, imsDomains []string) []string {
 }
 
 func (db *Database) msisdnPSI(ctx context.Context, msisdn string) (string, string, error) {
-	if msisdn == "" || !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
+	if msisdn == "" {
 		return "", "", nil
 	}
 

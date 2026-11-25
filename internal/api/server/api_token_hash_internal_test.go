@@ -72,10 +72,7 @@ func TestAuthenticateBcryptAndSHA256APITokens(t *testing.T) {
 		t.Fatalf("bcrypt: %v", err)
 	}
 
-	current, err := hashAPIToken(ctx, database, testTokenSecret, bcrypt.MinCost)
-	if err != nil {
-		t.Fatalf("hash: %v", err)
-	}
+	current := hashAPIToken(testTokenSecret)
 
 	if strings.HasPrefix(current, "$2") || len(current) != sha256.Size*2 {
 		t.Fatalf("new token hash = %q, want SHA-256 hex", current)

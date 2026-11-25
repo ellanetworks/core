@@ -16,12 +16,6 @@ import (
 
 const APITokensTableName = "api_tokens"
 
-const apiTokenSHA256Schema = 28
-
-func (db *Database) APITokenSHA256Enabled(ctx context.Context) bool {
-	return db.appliedSchemaAtLeast(ctx, apiTokenSHA256Schema)
-}
-
 type APIToken struct {
 	ID        string // UUIDv7
 	TokenID   string

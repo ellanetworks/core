@@ -10,12 +10,11 @@ import (
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
-// Subscribers. subscribers.description added in v18: an INSERT changeset
-// carries every column of the new row, and the profile update writes the
-// column outright.
+// Subscribers. subscribers.description added in v18: the insert and the
+// profile update write the column.
 var (
-	opCreateSubscriber        = registerChangesetOp("CreateSubscriber", (*Database).applyCreateSubscriber, RequireSchema(22))
-	opUpdateSubscriberProfile = registerChangesetOp("UpdateSubscriberProfile", (*Database).applyUpdateSubscriberProfile, RequireSchema(22), AffectsTopic(TopicSessionReconcile))
+	opCreateSubscriber        = registerChangesetOp("CreateSubscriber", (*Database).applyCreateSubscriber)
+	opUpdateSubscriberProfile = registerChangesetOp("UpdateSubscriberProfile", (*Database).applyUpdateSubscriberProfile, AffectsTopic(TopicSessionReconcile))
 	opEditSubscriberSeqNum    = registerChangesetOp("EditSubscriberSeqNum", (*Database).applyEditSubscriberSeqNum)
 	opAdvanceSubscriberSQN    = registerChangesetOpReturning[AdvanceSQNPayload, *AdvancedCredentials]("AdvanceSubscriberSQN", (*Database).applyAdvanceSubscriberSQN)
 	opDeleteSubscriber        = registerChangesetOp("DeleteSubscriber", (*Database).applyDeleteSubscriber, AffectsTopic(TopicUERegistrations))
@@ -30,17 +29,17 @@ var (
 
 // IP leases. ip_leases.nodeID added in v9.
 var (
-	opCreateLease               = registerChangesetOp("CreateLease", (*Database).applyCreateLease, RequireSchema(9), AffectsTopic(TopicIPLeases))
-	opUpdateLeaseSession        = registerChangesetOp("UpdateLeaseSession", (*Database).applyUpdateLeaseSession, RequireSchema(9), AffectsTopic(TopicIPLeases))
-	opDeleteDynamicLease        = registerChangesetOp("DeleteDynamicLease", (*Database).applyDeleteDynamicLease, RequireSchema(9), AffectsTopic(TopicIPLeases))
-	opDeleteDynamicLeasesByNode = registerChangesetOp("DeleteDynamicLeasesByNode", (*Database).applyDeleteDynamicLeasesByNode, RequireSchema(9), AffectsTopic(TopicIPLeases))
-	opUpdateLeaseNode           = registerChangesetOp("UpdateLeaseNode", (*Database).applyUpdateLeaseNode, RequireSchema(9), AffectsTopic(TopicIPLeases))
-	opAllocateIPLease           = registerChangesetOpReturning[allocateIPLeasePayload, string]("AllocateIPLease", (*Database).applyAllocateIPLease, RequireSchema(12), AffectsTopic(TopicIPLeases))
-	opAllocateIPv6Lease         = registerChangesetOpReturning[allocateIPLeasePayload, string]("AllocateIPv6Lease", (*Database).applyAllocateIPLease, RequireSchema(12), AffectsTopic(TopicIPLeases))
-	opReleaseIPLease            = registerChangesetOpReturning[releaseIPLeasePayload, string]("ReleaseIPLease", (*Database).applyReleaseIPLease, RequireSchema(13), AffectsTopic(TopicIPLeases))
-	opCreateStaticLease         = registerChangesetOp("CreateStaticLease", (*Database).applyCreateStaticLease, RequireSchema(13), AffectsTopic(TopicIPLeases), AffectsTopic(TopicSessionReconcile))
-	opUpdateStaticLeaseAddress  = registerChangesetOp("UpdateStaticLeaseAddress", (*Database).applyUpdateStaticLeaseAddress, RequireSchema(13), AffectsTopic(TopicIPLeases), AffectsTopic(TopicSessionReconcile))
-	opDeleteStaticLease         = registerChangesetOp("DeleteStaticLease", (*Database).applyDeleteStaticLease, RequireSchema(13), AffectsTopic(TopicIPLeases), AffectsTopic(TopicSessionReconcile))
+	opCreateLease               = registerChangesetOp("CreateLease", (*Database).applyCreateLease, AffectsTopic(TopicIPLeases))
+	opUpdateLeaseSession        = registerChangesetOp("UpdateLeaseSession", (*Database).applyUpdateLeaseSession, AffectsTopic(TopicIPLeases))
+	opDeleteDynamicLease        = registerChangesetOp("DeleteDynamicLease", (*Database).applyDeleteDynamicLease, AffectsTopic(TopicIPLeases))
+	opDeleteDynamicLeasesByNode = registerChangesetOp("DeleteDynamicLeasesByNode", (*Database).applyDeleteDynamicLeasesByNode, AffectsTopic(TopicIPLeases))
+	opUpdateLeaseNode           = registerChangesetOp("UpdateLeaseNode", (*Database).applyUpdateLeaseNode, AffectsTopic(TopicIPLeases))
+	opAllocateIPLease           = registerChangesetOpReturning[allocateIPLeasePayload, string]("AllocateIPLease", (*Database).applyAllocateIPLease, AffectsTopic(TopicIPLeases))
+	opAllocateIPv6Lease         = registerChangesetOpReturning[allocateIPLeasePayload, string]("AllocateIPv6Lease", (*Database).applyAllocateIPLease, AffectsTopic(TopicIPLeases))
+	opReleaseIPLease            = registerChangesetOpReturning[releaseIPLeasePayload, string]("ReleaseIPLease", (*Database).applyReleaseIPLease, AffectsTopic(TopicIPLeases))
+	opCreateStaticLease         = registerChangesetOp("CreateStaticLease", (*Database).applyCreateStaticLease, AffectsTopic(TopicIPLeases), AffectsTopic(TopicSessionReconcile))
+	opUpdateStaticLeaseAddress  = registerChangesetOp("UpdateStaticLeaseAddress", (*Database).applyUpdateStaticLeaseAddress, AffectsTopic(TopicIPLeases), AffectsTopic(TopicSessionReconcile))
+	opDeleteStaticLease         = registerChangesetOp("DeleteStaticLease", (*Database).applyDeleteStaticLease, AffectsTopic(TopicIPLeases), AffectsTopic(TopicSessionReconcile))
 )
 
 // Audit logs
@@ -69,11 +68,11 @@ var (
 
 // Single sign-on
 var (
-	opUpdateOIDC       = registerChangesetOp("UpdateOIDC", (*Database).applyUpdateOIDC, RequireSchema(oidcSchema), AffectsTopic(TopicOIDC))
-	opUnlinkUser       = registerChangesetOp("UnlinkUser", (*Database).applyUnlinkUser, RequireSchema(oidcSchema))
-	opUseOIDCState     = registerChangesetOp("UseOIDCState", (*Database).applyUseOIDCState, RequireSchema(oidcSchema))
-	opLinkOIDCIdentity = registerChangesetOp("LinkOIDCIdentity", (*Database).applyLinkOIDCIdentity, RequireSchema(oidcSchema))
-	opLogInWithOIDC    = registerChangesetOpReturning[OIDCLogin, OIDCLoginResult]("LogInWithOIDC", (*Database).applyLogInWithOIDC, RequireSchema(oidcSchema))
+	opUpdateOIDC       = registerChangesetOp("UpdateOIDC", (*Database).applyUpdateOIDC, AffectsTopic(TopicOIDC))
+	opUnlinkUser       = registerChangesetOp("UnlinkUser", (*Database).applyUnlinkUser)
+	opUseOIDCState     = registerChangesetOp("UseOIDCState", (*Database).applyUseOIDCState)
+	opLinkOIDCIdentity = registerChangesetOp("LinkOIDCIdentity", (*Database).applyLinkOIDCIdentity)
+	opLogInWithOIDC    = registerChangesetOpReturning[OIDCLogin, OIDCLoginResult]("LogInWithOIDC", (*Database).applyLogInWithOIDC)
 )
 
 // Profiles
@@ -106,9 +105,9 @@ var (
 )
 
 var (
-	opCreateSliceDataNetwork = registerChangesetOp("CreateSliceDataNetwork", (*Database).applyCreateSliceDataNetwork, RequireSchema(sliceDataNetworkSchema), AffectsTopic(TopicDataNetworks), AffectsTopic(TopicSessionReconcile))
-	opUpdateSliceDataNetwork = registerChangesetOp("UpdateSliceDataNetwork", (*Database).applyUpdateSliceDataNetwork, RequireSchema(sliceDataNetworkSchema), AffectsTopic(TopicDataNetworks), AffectsTopic(TopicSessionReconcile))
-	opDeleteSliceDataNetwork = registerChangesetOp("DeleteSliceDataNetwork", (*Database).applyDeleteSliceDataNetwork, RequireSchema(sliceDataNetworkSchema), AffectsTopic(TopicDataNetworks), AffectsTopic(TopicSessionReconcile))
+	opCreateSliceDataNetwork = registerChangesetOp("CreateSliceDataNetwork", (*Database).applyCreateSliceDataNetwork, AffectsTopic(TopicDataNetworks), AffectsTopic(TopicSessionReconcile))
+	opUpdateSliceDataNetwork = registerChangesetOp("UpdateSliceDataNetwork", (*Database).applyUpdateSliceDataNetwork, AffectsTopic(TopicDataNetworks), AffectsTopic(TopicSessionReconcile))
+	opDeleteSliceDataNetwork = registerChangesetOp("DeleteSliceDataNetwork", (*Database).applyDeleteSliceDataNetwork, AffectsTopic(TopicDataNetworks), AffectsTopic(TopicSessionReconcile))
 )
 
 // Data networks
@@ -123,7 +122,7 @@ var (
 	opCreatePolicy          = registerChangesetOp("CreatePolicy", (*Database).applyCreatePolicy, AffectsTopic(TopicPolicies), AffectsTopic(TopicSessionReconcile))
 	opUpdatePolicy          = registerChangesetOp("UpdatePolicy", (*Database).applyUpdatePolicy, AffectsTopic(TopicPolicies), AffectsTopic(TopicSessionReconcile))
 	opDeletePolicy          = registerChangesetOp("DeletePolicy", (*Database).applyDeletePolicy, AffectsTopic(TopicPolicies), AffectsTopic(TopicSessionReconcile))
-	opSetDefaultPolicy      = registerChangesetOp("SetDefaultPolicy", (*Database).applySetDefaultPolicy, RequireSchema(14), AffectsTopic(TopicPolicies), AffectsTopic(TopicSessionReconcile))
+	opSetDefaultPolicy      = registerChangesetOp("SetDefaultPolicy", (*Database).applySetDefaultPolicy, AffectsTopic(TopicPolicies), AffectsTopic(TopicSessionReconcile))
 	opCreatePolicyWithRules = registerChangesetOp("CreatePolicyWithRules", (*Database).applyCreatePolicyWithRules, AffectsTopic(TopicPolicies), AffectsTopic(TopicNetworkRules), AffectsTopic(TopicSessionReconcile))
 	opUpdatePolicyWithRules = registerChangesetOp("UpdatePolicyWithRules", (*Database).applyUpdatePolicyWithRules, AffectsTopic(TopicPolicies), AffectsTopic(TopicNetworkRules), AffectsTopic(TopicSessionReconcile))
 )
@@ -138,7 +137,7 @@ var (
 
 // Framed routes
 var (
-	opReplaceFramedRoutes = registerChangesetOp("ReplaceFramedRoutes", (*Database).applyReplaceFramedRoutes, RequireSchema(16), AffectsTopic(TopicSessionReconcile), AffectsTopic(TopicFramedRoutes))
+	opReplaceFramedRoutes = registerChangesetOp("ReplaceFramedRoutes", (*Database).applyReplaceFramedRoutes, AffectsTopic(TopicSessionReconcile), AffectsTopic(TopicFramedRoutes))
 )
 
 // Home network key
@@ -152,7 +151,7 @@ var (
 // Retention
 var (
 	opSetRetentionPolicy       = registerChangesetOp("SetRetentionPolicy", (*Database).applySetRetentionPolicy)
-	opUpdateRadioEventSettings = registerChangesetOp("UpdateRadioEventSettings", (*Database).applyUpdateRadioEventSettings, RequireSchema(radioEventSettingsSchema), AffectsTopic(TopicRadioEventSettings))
+	opUpdateRadioEventSettings = registerChangesetOp("UpdateRadioEventSettings", (*Database).applyUpdateRadioEventSettings, AffectsTopic(TopicRadioEventSettings))
 )
 
 // Operator
@@ -163,104 +162,104 @@ var (
 	opUpdateOperatorCode               = registerChangesetOp("UpdateOperatorCode", (*Database).applyUpdateOperatorCode)
 	opUpdateOperatorSecurityAlgorithms = registerChangesetOp("UpdateOperatorSecurityAlgorithms", (*Database).applyUpdateOperatorSecurityAlgorithms)
 	opUpdateOperatorSPN                = registerChangesetOp("UpdateOperatorSPN", (*Database).applyUpdateOperatorSPN)
-	opUpdateOperatorAMFIdentity        = registerChangesetOp("UpdateOperatorAMFIdentity", (*Database).applyUpdateOperatorAMFIdentity, RequireSchema(9), AffectsTopic(TopicOperatorIdentity))
+	opUpdateOperatorAMFIdentity        = registerChangesetOp("UpdateOperatorAMFIdentity", (*Database).applyUpdateOperatorAMFIdentity, AffectsTopic(TopicOperatorIdentity))
 	opUpdateOperatorClusterID          = registerChangesetOp("UpdateOperatorClusterID", (*Database).applyUpdateOperatorClusterID)
 )
 
 // JWT secret
 var (
 	opSetJWTSecret    = registerChangesetOp("SetJWTSecret", (*Database).applySetJWTSecret, AffectsTopic(TopicJWTSecret))
-	opRotateJWTSecret = registerIntentOp("RotateJWTSecret", ellaraft.CmdRotateJWTSecret, RequireSchema(24), AffectsTopic(TopicJWTSecret), asCommand(withoutResult((*Database).applyRotateJWTSecret)))
+	opRotateJWTSecret = registerIntentOp("RotateJWTSecret", ellaraft.CmdRotateJWTSecret, AffectsTopic(TopicJWTSecret), asCommand(withoutResult((*Database).applyRotateJWTSecret)))
 )
 
 var (
-	opCreateCellPosition = registerIntentOp("CreateCellPosition", ellaraft.CmdPutCellPosition, RequireSchema(24), checkOnLeader((*Database).checkCreateCellPosition), asCommand((*Database).applyCreateCellPositionCommand))
-	opUpdateCellPosition = registerIntentOp("UpdateCellPosition", ellaraft.CmdPutCellPosition, RequireSchema(24), checkOnLeader((*Database).checkUpdateCellPosition), asCommand((*Database).applyUpdateCellPositionCommand))
-	opDeleteCellPosition = registerIntentOp("DeleteCellPosition", ellaraft.CmdDeleteCellPosition, RequireSchema(24), checkOnLeader((*Database).checkDeleteCellPosition), asCommand((*Database).applyDeleteCellPositionCommand))
+	opCreateCellPosition = registerIntentOp("CreateCellPosition", ellaraft.CmdPutCellPosition, asCommand((*Database).applyCreateCellPositionCommand))
+	opUpdateCellPosition = registerIntentOp("UpdateCellPosition", ellaraft.CmdPutCellPosition, asCommand((*Database).applyUpdateCellPositionCommand))
+	opDeleteCellPosition = registerIntentOp("DeleteCellPosition", ellaraft.CmdDeleteCellPosition, asCommand((*Database).applyDeleteCellPositionCommand))
 )
 
 // Routes
 
 // Cluster members. cluster_members table introduced in v9.
 var (
-	opUpsertClusterMember = registerChangesetOp("UpsertClusterMember", (*Database).applyUpsertClusterMember, RequireSchema(9), AffectsTopic(TopicClusterMembers))
-	opDeleteClusterMember = registerChangesetOp("DeleteClusterMember", (*Database).applyDeleteClusterMember, RequireSchema(9), AffectsTopic(TopicUERegistrations), AffectsTopic(TopicSEPPIdentity))
-	opSetDrainState       = registerChangesetOpReturning[ClusterMember, string]("SetDrainState", (*Database).applySetDrainState, RequireSchema(9), AffectsTopic(TopicClusterMembers))
-	opSetDisplayName      = registerChangesetOp("SetDisplayName", (*Database).applySetDisplayName, RequireSchema(20), AffectsTopic(TopicClusterMembers))
+	opUpsertClusterMember = registerChangesetOp("UpsertClusterMember", (*Database).applyUpsertClusterMember, AffectsTopic(TopicClusterMembers))
+	opDeleteClusterMember = registerChangesetOp("DeleteClusterMember", (*Database).applyDeleteClusterMember, AffectsTopic(TopicUERegistrations), AffectsTopic(TopicSEPPIdentity))
+	opSetDrainState       = registerChangesetOpReturning[ClusterMember, string]("SetDrainState", (*Database).applySetDrainState, AffectsTopic(TopicClusterMembers))
+	opSetDisplayName      = registerChangesetOp("SetDisplayName", (*Database).applySetDisplayName, AffectsTopic(TopicClusterMembers))
 )
 
 var (
-	opRegisterUE          = registerChangesetOpReturning[registerUEPayload, int64]("RegisterUE", (*Database).applyRegisterUE, RequireSchema(21), AffectsTopic(TopicUERegistrations), skipWhenUnchanged((*Database).registerUEUnchanged))
-	opPurgeUERegistration = registerChangesetOp("PurgeUERegistration", (*Database).applyPurgeUERegistration, RequireSchema(21), AffectsTopic(TopicUERegistrations))
+	opRegisterUE          = registerChangesetOpReturning[registerUEPayload, int64]("RegisterUE", (*Database).applyRegisterUE, AffectsTopic(TopicUERegistrations), skipWhenUnchanged((*Database).registerUEUnchanged))
+	opPurgeUERegistration = registerChangesetOp("PurgeUERegistration", (*Database).applyPurgeUERegistration, AffectsTopic(TopicUERegistrations))
 )
 
 var (
-	opUpdateSMSSettings      = registerChangesetOp("UpdateSMSSettings", (*Database).applyUpdateSMSSettings, RequireSchema(22), AffectsTopic(TopicSMSSettings))
-	_                        = registerChangesetOp("CreateSMSCPeer", (*Database).applyCreateSMSCPeer, RequireSchema(22), AffectsTopic(TopicSMSSettings))
-	_                        = registerChangesetOp("UpdateSMSCPeer", (*Database).applyUpdateSMSCPeer, RequireSchema(22), AffectsTopic(TopicSMSSettings))
-	_                        = registerChangesetOp("DeleteSMSCPeer", (*Database).applyDeleteSMSCPeer, RequireSchema(22), AffectsTopic(TopicSMSSettings))
-	opCreateSMSC             = registerChangesetOp("CreateSMSC", (*Database).applyCreateSMSC, RequireSchema(26), AffectsTopic(TopicSMSSettings))
-	opUpdateSMSC             = registerChangesetOp("UpdateSMSC", (*Database).applyUpdateSMSC, RequireSchema(26), AffectsTopic(TopicSMSSettings))
-	opDeleteSMSC             = registerChangesetOp("DeleteSMSC", (*Database).applyDeleteSMSC, RequireSchema(26), AffectsTopic(TopicSMSSettings))
-	opRecordSMSWaiting       = registerChangesetOp("RecordSMSWaiting", (*Database).applyRecordSMSWaiting, RequireSchema(22))
-	opClearSMSMemoryFull     = registerChangesetOp("ClearSMSMemoryFull", (*Database).applyClearSMSMemoryFull, RequireSchema(22))
-	opRemoveSMSWaitingCentre = registerChangesetOp("RemoveSMSWaitingCentre", (*Database).applyRemoveSMSWaitingCentre, RequireSchema(22))
-	opDeleteSMSWaiting       = registerChangesetOp("DeleteSMSWaiting", (*Database).applyDeleteSMSWaiting, RequireSchema(22))
-	opDeleteStaleSMSWaiting  = registerChangesetOp("DeleteStaleSMSWaiting", (*Database).applyDeleteStaleSMSWaiting, RequireSchema(22))
+	opUpdateSMSSettings      = registerChangesetOp("UpdateSMSSettings", (*Database).applyUpdateSMSSettings, AffectsTopic(TopicSMSSettings))
+	_                        = registerChangesetOp("CreateSMSCPeer", (*Database).applyCreateSMSCPeer, AffectsTopic(TopicSMSSettings))
+	_                        = registerChangesetOp("UpdateSMSCPeer", (*Database).applyUpdateSMSCPeer, AffectsTopic(TopicSMSSettings))
+	_                        = registerChangesetOp("DeleteSMSCPeer", (*Database).applyDeleteSMSCPeer, AffectsTopic(TopicSMSSettings))
+	opCreateSMSC             = registerChangesetOp("CreateSMSC", (*Database).applyCreateSMSC, AffectsTopic(TopicSMSSettings))
+	opUpdateSMSC             = registerChangesetOp("UpdateSMSC", (*Database).applyUpdateSMSC, AffectsTopic(TopicSMSSettings))
+	opDeleteSMSC             = registerChangesetOp("DeleteSMSC", (*Database).applyDeleteSMSC, AffectsTopic(TopicSMSSettings))
+	opRecordSMSWaiting       = registerChangesetOp("RecordSMSWaiting", (*Database).applyRecordSMSWaiting)
+	opClearSMSMemoryFull     = registerChangesetOp("ClearSMSMemoryFull", (*Database).applyClearSMSMemoryFull)
+	opRemoveSMSWaitingCentre = registerChangesetOp("RemoveSMSWaitingCentre", (*Database).applyRemoveSMSWaitingCentre)
+	opDeleteSMSWaiting       = registerChangesetOp("DeleteSMSWaiting", (*Database).applyDeleteSMSWaiting)
+	opDeleteStaleSMSWaiting  = registerChangesetOp("DeleteStaleSMSWaiting", (*Database).applyDeleteStaleSMSWaiting)
 )
 
-var _ = registerChangesetOp("ReplacePCSCFAddresses", (*Database).applyReplacePCSCFAddresses, RequireSchema(23))
+var _ = registerChangesetOp("ReplacePCSCFAddresses", (*Database).applyReplacePCSCFAddresses)
 
 var (
-	opUpdateIMSSettings = registerChangesetOp("UpdateIMSSettings", (*Database).applyUpdateIMSSettings, RequireSchema(imsIntegrationsSchema), AffectsTopic(TopicIMSSettings))
-	opCreateIMSPeer     = registerChangesetOp("CreateIMSPeer", (*Database).applyCreateIMSPeer, RequireSchema(imsIntegrationsSchema), AffectsTopic(TopicIMSSettings))
-	opUpdateIMSPeer     = registerChangesetOp("UpdateIMSPeer", (*Database).applyUpdateIMSPeer, RequireSchema(imsIntegrationsSchema), AffectsTopic(TopicIMSSettings))
-	opDeleteIMSPeer     = registerChangesetOp("DeleteIMSPeer", (*Database).applyDeleteIMSPeer, RequireSchema(imsIntegrationsSchema), AffectsTopic(TopicIMSSettings))
-)
-
-var (
-	_                               = registerChangesetOp("CompareAndSwapIMSRegistration", (*Database).applyRetiredCompareAndSwapIMSRegistration, RequireSchema(23))
-	opCompareAndSwapIMSRegistration = registerChangesetOpReturning[imsRegistrationCASPayload, *imsRegistrationCASResult]("CompareAndSwapIMSRegistrationSets", (*Database).applyCompareAndSwapIMSRegistration, RequireSchema(25))
+	opUpdateIMSSettings = registerChangesetOp("UpdateIMSSettings", (*Database).applyUpdateIMSSettings, AffectsTopic(TopicIMSSettings))
+	opCreateIMSPeer     = registerChangesetOp("CreateIMSPeer", (*Database).applyCreateIMSPeer, AffectsTopic(TopicIMSSettings))
+	opUpdateIMSPeer     = registerChangesetOp("UpdateIMSPeer", (*Database).applyUpdateIMSPeer, AffectsTopic(TopicIMSSettings))
+	opDeleteIMSPeer     = registerChangesetOp("DeleteIMSPeer", (*Database).applyDeleteIMSPeer, AffectsTopic(TopicIMSSettings))
 )
 
 var (
-	opCreateIMSApplicationServer   = registerChangesetOp("CreateIMSApplicationServer", (*Database).applyCreateIMSApplicationServer, RequireSchema(25))
-	opUpdateIMSApplicationServer   = registerChangesetOp("UpdateIMSApplicationServer", (*Database).applyUpdateIMSApplicationServer, RequireSchema(25))
-	opDeleteIMSApplicationServer   = registerChangesetOp("DeleteIMSApplicationServer", (*Database).applyDeleteIMSApplicationServer, RequireSchema(25))
-	opCreateIMSServiceProfile      = registerChangesetOp("CreateIMSServiceProfile", (*Database).applyCreateIMSServiceProfile, RequireSchema(25))
-	opUpdateIMSServiceProfile      = registerChangesetOp("UpdateIMSServiceProfile", (*Database).applyUpdateIMSServiceProfile, RequireSchema(25))
-	opDeleteIMSServiceProfile      = registerChangesetOp("DeleteIMSServiceProfile", (*Database).applyDeleteIMSServiceProfile, RequireSchema(25))
-	opSetProfileIMSServiceProfiles = registerChangesetOp("SetProfileIMSServiceProfiles", (*Database).applySetProfileIMSServiceProfiles, RequireSchema(25))
-	opPutIPSMGWRegistration        = registerChangesetOp("PutIPSMGWRegistration", (*Database).applyPutIPSMGWRegistration, RequireSchema(25))
-	opDeleteIPSMGWRegistration     = registerChangesetOp("DeleteIPSMGWRegistration", (*Database).applyDeleteIPSMGWRegistration, RequireSchema(25))
+	_                               = registerChangesetOp("CompareAndSwapIMSRegistration", (*Database).applyRetiredCompareAndSwapIMSRegistration)
+	opCompareAndSwapIMSRegistration = registerChangesetOpReturning[imsRegistrationCASPayload, *imsRegistrationCASResult]("CompareAndSwapIMSRegistrationSets", (*Database).applyCompareAndSwapIMSRegistration)
 )
 
 var (
-	opCreateRoamingPartner      = registerChangesetOp("CreateRoamingPartner", (*Database).applyCreateRoamingPartner, RequireSchema(roamingSchema), AffectsTopic(TopicRoaming))
-	opUpdateRoamingPartner      = registerChangesetOp("UpdateRoamingPartner", (*Database).applyUpdateRoamingPartner, RequireSchema(roamingSchema), AffectsTopic(TopicRoaming), AffectsTopic(TopicSessionReconcile))
-	opDeleteRoamingPartner      = registerChangesetOp("DeleteRoamingPartner", (*Database).applyDeleteRoamingPartner, RequireSchema(roamingSchema), AffectsTopic(TopicRoaming))
-	opCreateRoamingDiameterPeer = registerChangesetOp("CreateRoamingDiameterPeer", (*Database).applyCreateRoamingDiameterPeer, RequireSchema(roamingSchema), AffectsTopic(TopicRoaming))
-	opUpdateRoamingDiameterPeer = registerChangesetOp("UpdateRoamingDiameterPeer", (*Database).applyUpdateRoamingDiameterPeer, RequireSchema(roamingSchema), AffectsTopic(TopicRoaming))
-	opDeleteRoamingDiameterPeer = registerChangesetOp("DeleteRoamingDiameterPeer", (*Database).applyDeleteRoamingDiameterPeer, RequireSchema(roamingSchema), AffectsTopic(TopicRoaming))
-	opPutSEPPIdentity           = registerChangesetOp("PutSEPPIdentity", (*Database).applyPutSEPPIdentity, RequireSchema(roamingSchema), AffectsTopic(TopicSEPPIdentity))
-	opInitSEPPCA                = registerChangesetOpReturning[SEPPCA, bool]("InitSEPPCA", (*Database).applyInitSEPPCA, RequireSchema(roamingSchema), AffectsTopic(TopicSEPPIdentity))
-	opReplaceSEPPCA             = registerChangesetOp("ReplaceSEPPCA", (*Database).applyReplaceSEPPCA, RequireSchema(roamingSchema), AffectsTopic(TopicSEPPIdentity))
-	opRegisterVisitorUE         = registerChangesetOpReturning[registerVisitorUEPayload, int64]("RegisterVisitorUE", (*Database).applyRegisterVisitorUE, RequireSchema(roamingSchema), AffectsTopic(TopicUERegistrations))
+	opCreateIMSApplicationServer   = registerChangesetOp("CreateIMSApplicationServer", (*Database).applyCreateIMSApplicationServer)
+	opUpdateIMSApplicationServer   = registerChangesetOp("UpdateIMSApplicationServer", (*Database).applyUpdateIMSApplicationServer)
+	opDeleteIMSApplicationServer   = registerChangesetOp("DeleteIMSApplicationServer", (*Database).applyDeleteIMSApplicationServer)
+	opCreateIMSServiceProfile      = registerChangesetOp("CreateIMSServiceProfile", (*Database).applyCreateIMSServiceProfile)
+	opUpdateIMSServiceProfile      = registerChangesetOp("UpdateIMSServiceProfile", (*Database).applyUpdateIMSServiceProfile)
+	opDeleteIMSServiceProfile      = registerChangesetOp("DeleteIMSServiceProfile", (*Database).applyDeleteIMSServiceProfile)
+	opSetProfileIMSServiceProfiles = registerChangesetOp("SetProfileIMSServiceProfiles", (*Database).applySetProfileIMSServiceProfiles)
+	opPutIPSMGWRegistration        = registerChangesetOp("PutIPSMGWRegistration", (*Database).applyPutIPSMGWRegistration)
+	opDeleteIPSMGWRegistration     = registerChangesetOp("DeleteIPSMGWRegistration", (*Database).applyDeleteIPSMGWRegistration)
+)
+
+var (
+	opCreateRoamingPartner      = registerChangesetOp("CreateRoamingPartner", (*Database).applyCreateRoamingPartner, AffectsTopic(TopicRoaming))
+	opUpdateRoamingPartner      = registerChangesetOp("UpdateRoamingPartner", (*Database).applyUpdateRoamingPartner, AffectsTopic(TopicRoaming), AffectsTopic(TopicSessionReconcile))
+	opDeleteRoamingPartner      = registerChangesetOp("DeleteRoamingPartner", (*Database).applyDeleteRoamingPartner, AffectsTopic(TopicRoaming))
+	opCreateRoamingDiameterPeer = registerChangesetOp("CreateRoamingDiameterPeer", (*Database).applyCreateRoamingDiameterPeer, AffectsTopic(TopicRoaming))
+	opUpdateRoamingDiameterPeer = registerChangesetOp("UpdateRoamingDiameterPeer", (*Database).applyUpdateRoamingDiameterPeer, AffectsTopic(TopicRoaming))
+	opDeleteRoamingDiameterPeer = registerChangesetOp("DeleteRoamingDiameterPeer", (*Database).applyDeleteRoamingDiameterPeer, AffectsTopic(TopicRoaming))
+	opPutSEPPIdentity           = registerChangesetOp("PutSEPPIdentity", (*Database).applyPutSEPPIdentity, AffectsTopic(TopicSEPPIdentity))
+	opInitSEPPCA                = registerChangesetOpReturning[SEPPCA, bool]("InitSEPPCA", (*Database).applyInitSEPPCA, AffectsTopic(TopicSEPPIdentity))
+	opReplaceSEPPCA             = registerChangesetOp("ReplaceSEPPCA", (*Database).applyReplaceSEPPCA, AffectsTopic(TopicSEPPIdentity))
+	opRegisterVisitorUE         = registerChangesetOpReturning[registerVisitorUEPayload, int64]("RegisterVisitorUE", (*Database).applyRegisterVisitorUE, AffectsTopic(TopicUERegistrations))
 )
 
 // Cluster PKI. cluster_join_tokens dates from v9;
 // cluster_node_certs and cluster_join_hmac are added in v12.
 var (
-	opUpsertNodeCert        = registerChangesetOp("UpsertClusterNodeCert", (*Database).applyUpsertNodeCert, RequireSchema(12), AffectsTopic(TopicClusterNodeCerts))
-	opDeleteNodeCert        = registerChangesetOp("DeleteClusterNodeCert", (*Database).applyDeleteNodeCert, RequireSchema(12), AffectsTopic(TopicClusterNodeCerts))
-	opMintJoinToken         = registerChangesetOp("MintJoinToken", (*Database).applyInsertJoinToken, RequireSchema(9))
-	opConsumeJoinToken      = registerChangesetOp("ConsumeJoinToken", (*Database).applyConsumeJoinToken, RequireSchema(9))
-	opRedeemJoinToken       = registerChangesetOpReturning[redeemJoinTokenPayload, *RedeemJoinTokenResult]("RedeemJoinToken", (*Database).applyRedeemJoinToken, RequireSchema(12), AffectsTopic(TopicClusterNodeCerts))
-	opDeleteStaleJoinTokens = registerChangesetOp("DeleteStaleJoinTokens", (*Database).applyDeleteJoinTokensStale, RequireSchema(9))
-	opInitJoinHMAC          = registerChangesetOp("InitClusterJoinHMACKey", (*Database).applyInitJoinHMAC, RequireSchema(12))
+	opUpsertNodeCert        = registerChangesetOp("UpsertClusterNodeCert", (*Database).applyUpsertNodeCert, AffectsTopic(TopicClusterNodeCerts))
+	opDeleteNodeCert        = registerChangesetOp("DeleteClusterNodeCert", (*Database).applyDeleteNodeCert, AffectsTopic(TopicClusterNodeCerts))
+	opMintJoinToken         = registerChangesetOp("MintJoinToken", (*Database).applyInsertJoinToken)
+	opConsumeJoinToken      = registerChangesetOp("ConsumeJoinToken", (*Database).applyConsumeJoinToken)
+	opRedeemJoinToken       = registerChangesetOpReturning[redeemJoinTokenPayload, *RedeemJoinTokenResult]("RedeemJoinToken", (*Database).applyRedeemJoinToken, AffectsTopic(TopicClusterNodeCerts))
+	opDeleteStaleJoinTokens = registerChangesetOp("DeleteStaleJoinTokens", (*Database).applyDeleteJoinTokensStale)
+	opInitJoinHMAC          = registerChangesetOp("InitClusterJoinHMACKey", (*Database).applyInitJoinHMAC)
 )
 
-var opVerifyState = registerChangesetOpReturning[struct{}, uint64](verifyStateOp, (*Database).applyVerifyState, RequireSchema(commandSchema))
+var opVerifyState = registerChangesetOpReturning[struct{}, uint64](verifyStateOp, (*Database).applyVerifyState)
 
 // Intent ops — bulk deletes and migrations dispatched explicitly by the
 // FSM via CommandType below commandSchema; from commandSchema on, every one

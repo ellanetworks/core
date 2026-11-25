@@ -135,17 +135,10 @@ func TestStandaloneUpgradeKeepsSchemaAcrossRestart(t *testing.T) {
 }
 
 func TestStandaloneRestoreOfOlderBackupMigrates(t *testing.T) {
-	if SchemaVersion() <= baselineVersion+1 {
-		t.Skipf("needs a post-baseline migration (schema %d, baseline %d)", SchemaVersion(), baselineVersion)
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	old := newDatabaseAtVersion(t, baselineVersion+1)
-	if err := old.Initialize(ctx); err != nil {
-		t.Fatalf("seed older database: %v", err)
-	}
+	old := newDatabaseAtVersion(t, commandSchema-1)
 
 	backup, err := os.CreateTemp(t.TempDir(), "older-*.backup")
 	if err != nil {
@@ -317,11 +310,7 @@ func TestClusterConversionOfLegacyStandaloneStore(t *testing.T) {
 		t.Fatalf("close live database: %v", err)
 	}
 
-	cmd, err := ellaraft.NewCommand(ellaraft.CmdChangeset, &bytesPayload{
-		Operation:      "DeleteDynamicLeasesByNode",
-		RequiredSchema: 9,
-		CapturedSchema: liveSchema,
-	})
+	cmd, err := ellaraft.NewCommand(ellaraft.CmdChangeset, &bytesPayload{})
 	if err != nil {
 		t.Fatalf("build legacy changeset: %v", err)
 	}

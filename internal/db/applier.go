@@ -20,175 +20,13 @@ import (
 	"go.uber.org/zap"
 )
 
-func applyIntent[P any](ctx context.Context, db *Database, cmd *ellaraft.Command, apply func(*Database, context.Context, *P) error) (any, error) {
-	if err := db.assertAppliedSchema(ctx, intentMinSchemaForCmd(cmd.Type), cmd.Type.String()); err != nil {
-		return nil, err
-	}
-
-	payload, err := unmarshalPayload[P](cmd.Payload)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := apply(db, ctx, payload); err != nil {
-		return nil, err
-	}
-
-	db.publishOpTopics(topicsForIntentCmd(cmd.Type))
-
-	return nil, nil
-}
-
-func (db *Database) applyChangesetBatchCommand(ctx context.Context, cmd *ellaraft.Command, logIndex, logTerm uint64) error {
-	if err := db.assertAppliedSchema(ctx, changesetBatchMinSchema, cmd.Type.String()); err != nil {
-		return err
-	}
-
-	payload, err := unmarshalPayload[changesetBatchPayload](cmd.Payload)
-	if err != nil {
-		return err
-	}
-
-	for _, e := range payload.Entries {
-		if err := db.assertAppliedSchema(ctx, e.RequiredSchema, fmt.Sprintf("changeset %q", e.Operation)); err != nil {
-			return err
-		}
-	}
-
-	if err := db.assertCapturedSchema(ctx, payload.CapturedSchema, cmd.Type.String()); err != nil {
-		return err
-	}
-
-	if err := db.applyChangesetBatch(ctx, payload, logIndex, logTerm); err != nil {
-		return err
-	}
-
-	topics := make(map[Topic]struct{})
-	migrationCheck := false
-
-	for _, e := range payload.Entries {
-		if e.Operation == "UpsertClusterMember" {
-			migrationCheck = true
-		}
-
-		for _, t := range topicsForChangesetOp(e.Operation) {
-			topics[t] = struct{}{}
-		}
-	}
-
-	if migrationCheck {
-		db.signalMigrationCheck()
-	}
-
-	unique := make([]Topic, 0, len(topics))
-	for t := range topics {
-		unique = append(unique, t)
-	}
-
-	db.publishOpTopics(unique)
-
-	return nil
-}
-
 // Compile-time check that *Database implements ellaraft.Applier.
 var _ ellaraft.Applier = (*Database)(nil)
 
-// ApplyCommand dispatches a Raft command to its applyX method on
-// every node. assertAppliedSchema gates each dispatch on the
-// per-command minSchema (RequiredSchema for CmdChangeset, intent op
-// minSchema for the rest); a violation returns an error and the FSM
-// panics, matching the contract for any other apply failure. The gate
-// is defensive — Raft applies in log order and the leader proposes
-// CmdMigrateShared(N) before any v=N op, so it only fires on leader
-// misbehavior or skip-version upgrades (already a non-goal).
+var errPreCommandEntry = errors.New("this log entry predates replicated commands (Ella Core v1.23); upgrade every node to v1.23 before upgrading to this version")
+
 func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, logIndex, logTerm uint64) (any, error) {
 	switch cmd.Type {
-	case ellaraft.CmdChangeset:
-		payload, err := unmarshalPayload[bytesPayload](cmd.Payload)
-		if err != nil {
-			return nil, err
-		}
-
-		if err := db.assertAppliedSchema(ctx, payload.RequiredSchema, fmt.Sprintf("changeset %q", payload.Operation)); err != nil {
-			return nil, err
-		}
-
-		if err := db.assertCapturedSchema(ctx, payload.CapturedSchema, fmt.Sprintf("changeset %q", payload.Operation)); err != nil {
-			return nil, err
-		}
-
-		applyErr := db.applyChangeset(ctx, payload, logIndex, logTerm)
-		if applyErr == nil {
-			if payload.Operation == "UpsertClusterMember" {
-				db.signalMigrationCheck()
-			}
-
-			db.publishOpTopics(topicsForChangesetOp(payload.Operation))
-		}
-
-		return nil, applyErr
-
-	case ellaraft.CmdChangesetBatch:
-		return nil, db.applyChangesetBatchCommand(ctx, cmd, logIndex, logTerm)
-
-	case ellaraft.CmdDeleteOldAuditLogs:
-		return nil, nil
-
-	case ellaraft.CmdDeleteOldDailyUsage:
-		if err := db.assertAppliedSchema(ctx, intentMinSchemaForCmd(cmd.Type), cmd.Type.String()); err != nil {
-			return nil, err
-		}
-
-		payload, err := unmarshalPayload[int64Payload](cmd.Payload)
-		if err != nil {
-			return nil, err
-		}
-
-		applyErr := db.applyDeleteOldDailyUsage(ctx, payload)
-		if applyErr == nil {
-			db.publishOpTopics(topicsForIntentCmd(cmd.Type))
-		}
-
-		return nil, applyErr
-
-	case ellaraft.CmdDeleteAllDynamicLeases:
-		if err := db.assertAppliedSchema(ctx, intentMinSchemaForCmd(cmd.Type), cmd.Type.String()); err != nil {
-			return nil, err
-		}
-
-		applyErr := db.applyDeleteAllDynamicLeases(ctx)
-		if applyErr == nil {
-			db.publishOpTopics(topicsForIntentCmd(cmd.Type))
-		}
-
-		return nil, applyErr
-
-	case ellaraft.CmdDeleteExpiredSessions:
-		if err := db.assertAppliedSchema(ctx, intentMinSchemaForCmd(cmd.Type), cmd.Type.String()); err != nil {
-			return nil, err
-		}
-
-		payload, err := unmarshalPayload[int64Payload](cmd.Payload)
-		if err != nil {
-			return nil, err
-		}
-
-		result, applyErr := db.applyDeleteExpiredSessions(ctx, payload)
-		if applyErr == nil {
-			db.publishOpTopics(topicsForIntentCmd(cmd.Type))
-		}
-
-		return result, applyErr
-
-	case ellaraft.CmdRotateJWTSecret:
-		return applyIntent(ctx, db, cmd, (*Database).applyRotateJWTSecret)
-
-	case ellaraft.CmdPutCellPosition:
-		return applyIntent(ctx, db, cmd, (*Database).applyPutCellPosition)
-
-	case ellaraft.CmdDeleteCellPosition:
-		return applyIntent(ctx, db, cmd, (*Database).applyDeleteCellPosition)
-
 	case ellaraft.CmdMigrateShared:
 		payload, err := unmarshalPayload[migrateSharedPayload](cmd.Payload)
 		if err != nil {
@@ -206,6 +44,11 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, log
 		}
 
 		return result, applyErr
+
+	case ellaraft.CmdChangeset, ellaraft.CmdChangesetBatch, ellaraft.CmdDeleteOldAuditLogs, ellaraft.CmdDeleteOldDailyUsage,
+		ellaraft.CmdDeleteAllDynamicLeases, ellaraft.CmdDeleteExpiredSessions, ellaraft.CmdRotateJWTSecret,
+		ellaraft.CmdPutCellPosition, ellaraft.CmdDeleteCellPosition:
+		return nil, fmt.Errorf("%s at index %d: %w", cmd.Type, logIndex, errPreCommandEntry)
 
 	default:
 		return nil, fmt.Errorf("unknown command type: %s", cmd.Type)
@@ -310,19 +153,7 @@ type (
 		Value bool `json:"value"`
 	}
 	bytesPayload struct {
-		Value          []byte `json:"value"`
-		Operation      string `json:"operation,omitempty"`
-		RequiredSchema int    `json:"requiredSchema,omitempty"`
-		CapturedSchema int    `json:"capturedSchema,omitempty"`
-	}
-	changesetBatchEntry struct {
-		Value          []byte `json:"value"`
-		Operation      string `json:"operation"`
-		RequiredSchema int    `json:"requiredSchema,omitempty"`
-	}
-	changesetBatchPayload struct {
-		Entries        []changesetBatchEntry `json:"entries"`
-		CapturedSchema int                   `json:"capturedSchema,omitempty"`
+		Value []byte `json:"value"`
 	}
 	auditLogPayload struct {
 		ID        string `json:"id"`
@@ -339,11 +170,6 @@ type (
 		NAT           *bool `json:"nat,omitempty"`
 	}
 )
-
-// proposeChangeset and proposeIntent were removed in favour of the typed-op
-// dispatch layer (internal/db/operations.go, operations_register.go). Every
-// replicated write now goes through a registered ChangesetOp or intentOp,
-// which handles leader capture + propose or follower forwarding.
 
 // isTransientRaftErr reports whether a Raft apply error is transient —
 // the caller should retry or surface a 503.
@@ -398,12 +224,10 @@ func (db *Database) applyCreateSubscriber(ctx context.Context, s *Subscriber) (a
 		return nil, err
 	}
 
-	if db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		if _, err := db.getVisitor(ctx, db.runner(ctx), s.Imsi); err == nil {
-			return nil, fmt.Errorf("%w: IMSI %s is a visitor", ErrAlreadyExists, s.Imsi)
-		} else if !errors.Is(err, ErrNotFound) {
-			return nil, err
-		}
+	if _, err := db.getVisitor(ctx, db.runner(ctx), s.Imsi); err == nil {
+		return nil, fmt.Errorf("%w: IMSI %s is a visitor", ErrAlreadyExists, s.Imsi)
+	} else if !errors.Is(err, ErrNotFound) {
+		return nil, err
 	}
 
 	if err := db.checkSubscriberCapacity(ctx); err != nil {
@@ -481,10 +305,6 @@ func (db *Database) applyDeleteSubscriber(ctx context.Context, p *stringPayload)
 		return nil, err
 	}
 
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		return nil, nil
-	}
-
 	if err := db.deleteIMSIState(ctx, p.Value); err != nil {
 		return nil, err
 	}
@@ -505,18 +325,12 @@ func (db *Database) requireKnownIMSI(ctx context.Context, imsi string) error {
 	return nil
 }
 
-func (db *Database) incrementDailyUsageQuery(ctx context.Context, du *DailyUsage) (string, []any) {
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		return incrementDailyUsagePreV27SQL, []any{du.EpochDay, du.IMSI, du.BytesUplink, du.BytesDownlink, du.BytesUplink, du.BytesDownlink}
-	}
-
-	return incrementDailyUsageSQL, []any{du.EpochDay, du.IMSI, du.Mcc, du.Mnc, du.BytesUplink, du.BytesDownlink}
+func incrementDailyUsageArgs(du *DailyUsage) []any {
+	return []any{du.EpochDay, du.IMSI, du.Mcc, du.Mnc, du.BytesUplink, du.BytesDownlink}
 }
 
 func (db *Database) applyIncrementDailyUsage(ctx context.Context, du *DailyUsage) (any, error) {
-	query, args := db.incrementDailyUsageQuery(ctx, du)
-
-	_, err := db.runner(ctx).ExecContext(ctx, query, args...)
+	_, err := db.runner(ctx).ExecContext(ctx, incrementDailyUsageSQL, incrementDailyUsageArgs(du)...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -530,9 +344,7 @@ func (db *Database) applyIncrementDailyUsageBatch(ctx context.Context, batch *Da
 	runner := db.runner(ctx)
 
 	for i := range batch.Rows {
-		query, args := db.incrementDailyUsageQuery(ctx, &batch.Rows[i])
-
-		_, err := runner.ExecContext(ctx, query, args...)
+		_, err := runner.ExecContext(ctx, incrementDailyUsageSQL, incrementDailyUsageArgs(&batch.Rows[i])...)
 		if err == nil {
 			continue
 		}
@@ -561,12 +373,7 @@ func (db *Database) applyClearDailyUsage(ctx context.Context) error {
 }
 
 func (db *Database) applyDeleteOldDailyUsage(ctx context.Context, p *int64Payload) error {
-	query := deleteOldDailyUsageSQL
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		query = deleteOldDailyUsagePreV27SQL
-	}
-
-	_, err := db.runner(ctx).ExecContext(ctx, query, p.Value)
+	_, err := db.runner(ctx).ExecContext(ctx, deleteOldDailyUsageSQL, p.Value)
 	if err != nil {
 		return fmt.Errorf("query failed: %w", err)
 	}
@@ -644,8 +451,8 @@ func (db *Database) applyUpdateLeaseNode(ctx context.Context, lease *IPLease) (a
 }
 
 // applyCreateStaticLease inserts an admin-pinned reservation. The
-// SELECT-then-INSERT runs under proposeMu, so the one-per-(imsi, pool,
-// family) check is race-free; a duplicate address is caught by
+// SELECT-then-INSERT runs in the command's apply, in log order, so the
+// one-per-(imsi, pool, family) check is race-free; a duplicate address is caught by
 // UNIQUE(poolID, addressBin).
 func (db *Database) applyCreateStaticLease(ctx context.Context, lease *IPLease) (any, error) {
 	if _, err := db.getOwnSubscriber(ctx, db.runner(ctx), lease.IMSI); err != nil {
@@ -767,8 +574,7 @@ func (db *Database) applyReleaseIPLease(ctx context.Context, p *releaseIPLeasePa
 
 // allocateIPLeasePayload is the wire payload for AllocateIPLease. The
 // caller does not pre-resolve the address — that is the whole point of
-// this op. The leader's apply function picks the address atomically
-// inside leaderCaptureAndPropose's proposeMu.
+// this op. The apply function picks the address atomically, in log order.
 type allocateIPLeasePayload struct {
 	PoolID    string     `json:"poolId"`
 	PoolType  string     `json:"poolType"`
@@ -779,17 +585,15 @@ type allocateIPLeasePayload struct {
 }
 
 // applyAllocateIPLease atomically resolves an IP for (poolID, IMSI,
-// sessionID, nodeID) and inserts the lease. Runs under
-// leaderCaptureAndPropose's proposeMu and inside captureChangeset's
-// pinned connection, so the scan for a free address and the
-// INSERT are serialised against every other replicated write — no
-// other allocation can race in between.
+// sessionID, nodeID) and inserts the lease. Runs in the command's apply on
+// the pinned connection, so the scan for a free address and the INSERT are
+// serialised against every other replicated write — no other allocation
+// can race in between.
 //
 // Every query and write goes through db.runner(ctx) so they target the
-// pinned SQLite connection set up by applyWithPinnedConn. Calling the
-// public DB methods (GetDataNetworkByID, GetLeaseBySession, etc.) here
-// would dispatch to the reader pool, which cannot see the capture's
-// uncommitted writes.
+// pinned SQLite connection of the apply. Calling the public DB methods
+// (GetDataNetworkByID, GetLeaseBySession, etc.) here would dispatch to the
+// reader pool, which cannot see the apply's uncommitted writes.
 func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLeasePayload) (any, error) {
 	if p.IMSI == "" {
 		return nil, invalidCommand(errors.New("IMSI required"))
@@ -1196,14 +1000,7 @@ func (db *Database) applyDeleteNetworkSlice(ctx context.Context, p *stringPayloa
 }
 
 func (db *Database) applyCreateDataNetwork(ctx context.Context, dn *DataNetwork) (any, error) {
-	current, err := db.dataNetworkSchemaCurrent(ctx, dn)
-	if err != nil {
-		return nil, err
-	}
-
-	query, args := createDataNetworkQuery(dn, current)
-
-	_, err = db.runner(ctx).ExecContext(ctx, query, args...)
+	_, err := db.runner(ctx).ExecContext(ctx, createDataNetworkSQL, dn.ID, dn.Name, dn.IPv4Pool, dn.IPv6Pool, dn.DNS, dn.MTU, dn.IMS)
 	if err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -1216,14 +1013,7 @@ func (db *Database) applyCreateDataNetwork(ctx context.Context, dn *DataNetwork)
 }
 
 func (db *Database) applyUpdateDataNetwork(ctx context.Context, dn *DataNetwork) (any, error) {
-	current, err := db.dataNetworkSchemaCurrent(ctx, dn)
-	if err != nil {
-		return nil, err
-	}
-
-	query, args := editDataNetworkQuery(dn, current)
-
-	res, err := db.runner(ctx).ExecContext(ctx, query, args...)
+	res, err := db.runner(ctx).ExecContext(ctx, editDataNetworkSQL, dn.IPv4Pool, dn.IPv6Pool, dn.DNS, dn.MTU, dn.IMS, dn.Name)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1265,14 +1055,7 @@ func (db *Database) applyDeleteDataNetwork(ctx context.Context, p *stringPayload
 func (db *Database) applyCreatePolicy(ctx context.Context, p *Policy) (any, error) {
 	p.defaultPreemption()
 
-	current, err := db.policySchemaCurrent(ctx, p)
-	if err != nil {
-		return nil, err
-	}
-
-	query, args := createPolicyQuery(p, current)
-
-	_, err = db.runner(ctx).ExecContext(ctx, query, args...)
+	_, err := db.runner(ctx).ExecContext(ctx, createPolicySQL, createPolicyArgs(p)...)
 	if err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -1301,14 +1084,7 @@ func (db *Database) applySetDefaultPolicy(ctx context.Context, p *Policy) (any, 
 func (db *Database) applyUpdatePolicy(ctx context.Context, p *Policy) (any, error) {
 	p.defaultPreemption()
 
-	current, err := db.policySchemaCurrent(ctx, p)
-	if err != nil {
-		return nil, err
-	}
-
-	query, args := editPolicyQuery(p, current)
-
-	res, err := db.runner(ctx).ExecContext(ctx, query, args...)
+	res, err := db.runner(ctx).ExecContext(ctx, editPolicySQL, p.ProfileID, p.SliceID, p.DataNetworkID, p.Var5qi, p.Arp, p.PreemptionCapability, p.PreemptionVulnerability, p.SessionAmbrUplink, p.SessionAmbrDownlink, p.Name)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -1758,27 +1534,14 @@ func (db *Database) applyDeleteRoute(ctx context.Context, p *int64Payload) (any,
 
 // applyUpsertClusterMember allocates the member's AMF Pointer and writes
 // the row. The caller does not pre-resolve the pointer: like
-// applyAllocateIPLease, the leader picks it here, inside
-// leaderCaptureAndPropose's proposeMu, so concurrent joins see a stable
-// view and the chosen value replicates in the changeset bytes.
+// applyAllocateIPLease, the apply picks it here, in log order, so
+// concurrent joins see a stable view and every node picks the same value.
 //
 // resolveAMFPointer returns any pointer the member already holds, so the
 // write-back below is a no-op for an existing row. That ordering is what
 // makes amfPointer=excluded.amfPointer safe in the conflict clause;
 // reversing it would renumber live nodes.
 func (db *Database) applyUpsertClusterMember(ctx context.Context, m *ClusterMember) (any, error) {
-	if !db.appliedSchemaAtLeast(ctx, clusterMemberIdentitySchema) {
-		if err := db.requireIdentitySchemaFor(ctx, m.NodeID); err != nil {
-			return nil, err
-		}
-
-		if _, err := db.runner(ctx).ExecContext(ctx, upsertClusterMemberPreV20SQL, m.NodeID, m.APIAddress, m.BinaryVersion, m.APIAddress, m.BinaryVersion); err != nil {
-			return nil, fmt.Errorf("query failed: %w", err)
-		}
-
-		return nil, nil
-	}
-
 	pointer, err := db.resolveAMFPointer(ctx, m.NodeID)
 	if err != nil {
 		return nil, err
@@ -1794,16 +1557,12 @@ func (db *Database) applyUpsertClusterMember(ctx context.Context, m *ClusterMemb
 }
 
 func (db *Database) applyDeleteClusterMember(ctx context.Context, p *nodeIDPayload) (any, error) {
-	seppID := 0
-
-	if db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		member, err := scanClusterMember(db.runner(ctx).QueryRowContext(ctx, getClusterMemberSQL, string(p.Value)))
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("query failed: %w", err)
-		}
-
-		seppID = member.AMFPointer
+	member, err := scanClusterMember(db.runner(ctx).QueryRowContext(ctx, getClusterMemberSQL, string(p.Value)))
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("query failed: %w", err)
 	}
+
+	seppID := member.AMFPointer
 
 	res, err := db.runner(ctx).ExecContext(ctx, deleteClusterMemberSQL, string(p.Value))
 	if err != nil {
@@ -1823,15 +1582,13 @@ func (db *Database) applyDeleteClusterMember(ctx context.Context, p *nodeIDPaylo
 		return nil, err
 	}
 
-	if db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		if err := db.deleteUnregisteredVisitors(ctx); err != nil {
-			return nil, err
-		}
+	if err := db.deleteUnregisteredVisitors(ctx); err != nil {
+		return nil, err
+	}
 
-		if ValidSEPPID(seppID) {
-			if err := db.deleteGeneratedSEPPIdentity(ctx, seppID); err != nil {
-				return nil, err
-			}
+	if ValidSEPPID(seppID) {
+		if err := db.deleteGeneratedSEPPIdentity(ctx, seppID); err != nil {
+			return nil, err
 		}
 	}
 

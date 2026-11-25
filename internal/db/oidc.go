@@ -69,10 +69,6 @@ func (db *Database) GetOIDC(ctx context.Context) (_ OIDC, err error) {
 }
 
 func (db *Database) readOIDC(ctx context.Context) (OIDC, error) {
-	if !db.appliedSchemaAtLeast(ctx, oidcSchema) {
-		return DefaultOIDC(), nil
-	}
-
 	o := DefaultOIDC()
 
 	var (

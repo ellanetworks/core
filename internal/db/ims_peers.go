@@ -294,10 +294,6 @@ func (db *Database) writeIMSPeer(ctx context.Context, operation string, op *Chan
 }
 
 func (db *Database) listIMSPeers(ctx context.Context) ([]IMSPeer, error) {
-	if !db.appliedSchemaAtLeast(ctx, imsIntegrationsSchema) {
-		return []IMSPeer{}, nil
-	}
-
 	rows, err := queryAll(ctx, db.readQuerier(ctx), listIMSPeersSQL, scanIMSPeerRow)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)

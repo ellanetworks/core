@@ -114,7 +114,7 @@ type visitorMSISDNPayload struct {
 	Msisdn string `json:"msisdn"`
 }
 
-var opSetVisitorMSISDN = registerChangesetOp("SetVisitorMSISDN", (*Database).applySetVisitorMSISDN, RequireSchema(roamingSchema))
+var opSetVisitorMSISDN = registerChangesetOp("SetVisitorMSISDN", (*Database).applySetVisitorMSISDN)
 
 func (db *Database) GetSubscriberOrVisitor(ctx context.Context, imsi string) (_ *Subscriber, err error) {
 	ctx, finish := startDBQueryNamed(ctx, "SELECT "+VisitorsTableName+" (subscriber or visitor)", VisitorsTableName, "SELECT")
@@ -127,10 +127,6 @@ func (db *Database) GetSubscriberOrVisitor(ctx context.Context, imsi string) (_ 
 
 	if !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("query failed: %w", err)
-	}
-
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		return nil, ErrNotFound
 	}
 
 	visitor, err := db.getVisitor(ctx, db.reader(), imsi)
@@ -147,20 +143,12 @@ func (db *Database) GetVisitor(ctx context.Context, imsi string) (_ *Visitor, er
 	ctx, finish := startDBQueryNamed(ctx, "SELECT "+VisitorsTableName+" (visitor)", VisitorsTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		return nil, ErrNotFound
-	}
-
 	return db.getVisitor(ctx, db.reader(), imsi)
 }
 
 func (db *Database) ListVisitorsPage(ctx context.Context, filters *VisitorFilters, page int, perPage int) (_ []Visitor, _ int, err error) {
 	ctx, finish := startDBQueryNamed(ctx, "SELECT "+VisitorsTableName+" (paged)", VisitorsTableName, "SELECT")
 	defer func() { finish(err) }()
-
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		return nil, 0, nil
-	}
 
 	filterArgs := filters.args()
 
@@ -223,10 +211,6 @@ func (db *Database) SetVisitorMSISDN(ctx context.Context, imsi, msisdn string) (
 }
 
 func (db *Database) ListVisitorRegistrationsOfNode(ctx context.Context, nodeID string) ([]UERegistration, error) {
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		return nil, nil
-	}
-
 	regs, err := queryAll(ctx, db.reader(), listVisitorRegistrationsOfNodeSQL, scanUERegistration, nodeID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -256,10 +240,6 @@ func (db *Database) imsiKnown(ctx context.Context, imsi string) (bool, error) {
 
 	if !errors.Is(err, sql.ErrNoRows) {
 		return false, fmt.Errorf("query failed: %w", err)
-	}
-
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		return false, nil
 	}
 
 	if _, err := db.getVisitor(ctx, db.runner(ctx), imsi); err != nil {

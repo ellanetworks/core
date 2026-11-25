@@ -85,11 +85,11 @@ func (l *IPLease) Address() netip.Addr {
 }
 
 // AllocateIPLease atomically resolves and inserts a dynamic IP lease for
-// (poolID, IMSI, sessionID, nodeID). On the leader, the resolution and
-// INSERT happen inside leaderCaptureAndPropose's proposeMu; on a
-// follower, the call is forwarded to the leader through the existing
-// /cluster/internal/propose path, so the allocation is serialised
-// regardless of which node initiated it. Returns the chosen address.
+// (poolID, IMSI, sessionID, nodeID). The resolution and INSERT run in the
+// command's apply, which every node runs in log order; on a follower, the
+// call is forwarded to the leader through the /cluster/internal/propose
+// path, so the allocation is serialised regardless of which node initiated
+// it. Returns the chosen address.
 func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID string) (_ netip.Addr, err error) {
 	ctx, finish := startDBQueryNamed(ctx, "INSERT "+IPLeasesTableName+" (allocate)", IPLeasesTableName, "INSERT")
 	defer func() { finish(err) }()
@@ -117,7 +117,7 @@ func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType
 // AllocateIPv6Lease atomically resolves and inserts a dynamic IPv6 lease for
 // (poolID, poolType, IMSI, sessionID, nodeID). Like AllocateIPLease, it
 // forwards intent to the leader through the replication mechanism so that
-// concurrent allocations from any node serialise correctly under proposeMu.
+// concurrent allocations from any node serialise in log order.
 // Each allocated unit is a /64 prefix delegated from the IPv6 CIDR pool.
 func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID string) (_ netip.Addr, err error) {
 	ctx, finish := startDBQueryNamed(ctx, "INSERT "+IPLeasesTableName+" (allocate_ipv6)", IPLeasesTableName, "INSERT")

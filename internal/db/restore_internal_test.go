@@ -118,8 +118,8 @@ func TestRestoreLocalTablesFromNewerSchemaKeepsTheSharedColumns(t *testing.T) {
 	livePath := filepath.Join(dir, "live.db")
 	stagedPath := filepath.Join(dir, "staged.db")
 
-	live := openMigratedFileDB(t, livePath, radioEventRefSchema)
-	staged := openMigratedFileDB(t, stagedPath, radioEventRefSchema-1)
+	live := openMigratedFileDB(t, livePath, 28)
+	staged := openMigratedFileDB(t, stagedPath, 27)
 
 	if _, err := live.ExecContext(ctx,
 		"INSERT INTO network_logs (timestamp, protocol, message_type, raw, radio_name, radio_ref) VALUES (1000, 'S1AP', 'S1SetupRequest', x'00', 'enb-a', 'eNB:001-01:MacroeNB-00001')"); err != nil {
@@ -134,7 +134,7 @@ func TestRestoreLocalTablesFromNewerSchemaKeepsTheSharedColumns(t *testing.T) {
 		t.Fatalf("restoreLocalOnlyTables: %v", err)
 	}
 
-	merged := openMigratedFileDB(t, stagedPath, radioEventRefSchema)
+	merged := openMigratedFileDB(t, stagedPath, 28)
 
 	var name, ref string
 	if err := merged.QueryRowContext(ctx, "SELECT radio_name, radio_ref FROM network_logs").Scan(&name, &ref); err != nil {

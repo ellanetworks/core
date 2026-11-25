@@ -191,11 +191,9 @@ func (db *Database) verifySQNResync(ctx context.Context, payload *AdvanceSQNPayl
 		return invalidCommand(err)
 	}
 
-	if db.commandMode(ctx) {
-		payload.ResyncSQNms = sqnMS
-		payload.ResyncAuts = ""
-		payload.ResyncRand = ""
-	}
+	payload.ResyncSQNms = sqnMS
+	payload.ResyncAuts = ""
+	payload.ResyncRand = ""
 
 	return nil
 }

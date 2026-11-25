@@ -47,8 +47,7 @@ const (
 	upsertNodeCertSQL       = "INSERT INTO " + ClusterNodeCertsTableName + " (nodeID, fingerprint, certPEM, addedAt) VALUES (?, ?, ?, ?) ON CONFLICT(nodeID) DO UPDATE SET fingerprint=excluded.fingerprint, certPEM=excluded.certPEM, addedAt=excluded.addedAt"
 	deleteNodeCertByNodeSQL = "DELETE FROM " + ClusterNodeCertsTableName + " WHERE nodeID=?"
 
-	insertJoinTokenSQL       = "INSERT INTO " + ClusterJoinTokensTableName + " (id, claimsJSON, expiresAt, consumedAt, consumedBy) VALUES (?, ?, ?, 0, '')"           // #nosec G101 -- SQL statement
-	insertJoinTokenPreV20SQL = "INSERT INTO " + ClusterJoinTokensTableName + " (id, nodeID, claimsJSON, expiresAt, consumedAt, consumedBy) VALUES (?, 0, ?, ?, 0, 0)" // #nosec G101 -- SQL statement
+	insertJoinTokenSQL       = "INSERT INTO " + ClusterJoinTokensTableName + " (id, claimsJSON, expiresAt, consumedAt, consumedBy) VALUES (?, ?, ?, 0, '')" // #nosec G101 -- SQL statement
 	getJoinTokenSQL          = "SELECT id, claimsJSON, expiresAt, consumedAt, consumedBy FROM " + ClusterJoinTokensTableName + " WHERE id=?"
 	consumeJoinTokenSQL      = "UPDATE " + ClusterJoinTokensTableName + " SET consumedAt=?, consumedBy=? WHERE id=? AND consumedAt=0" // #nosec G101 -- SQL statement
 	deleteJoinTokensStaleSQL = "DELETE FROM " + ClusterJoinTokensTableName + " WHERE expiresAt<? OR (consumedAt>0 AND consumedAt<?)"  // #nosec G101 -- SQL statement
@@ -113,12 +112,7 @@ func (db *Database) applyDeleteNodeCert(ctx context.Context, r *ClusterNodeCert)
 }
 
 func (db *Database) applyInsertJoinToken(ctx context.Context, r *ClusterJoinToken) (any, error) {
-	query := insertJoinTokenSQL
-	if !db.appliedSchemaAtLeast(ctx, clusterMemberIdentitySchema) {
-		query = insertJoinTokenPreV20SQL
-	}
-
-	_, err := db.runner(ctx).ExecContext(ctx, query, r.ID, r.ClaimsJSON, r.ExpiresAt)
+	_, err := db.runner(ctx).ExecContext(ctx, insertJoinTokenSQL, r.ID, r.ClaimsJSON, r.ExpiresAt)
 
 	return nil, err
 }
@@ -153,10 +147,6 @@ type RedeemJoinTokenResult struct {
 }
 
 func (db *Database) applyRedeemJoinToken(ctx context.Context, p *redeemJoinTokenPayload) (any, error) {
-	if err := db.requireIdentitySchemaFor(ctx, string(p.NodeID)); err != nil {
-		return nil, err
-	}
-
 	runner := db.runner(ctx)
 	now := applyTime(ctx).Unix()
 

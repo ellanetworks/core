@@ -564,7 +564,7 @@ func dumpReplicatedState(t *testing.T, database *Database) string {
 
 	var out strings.Builder
 
-	for _, table := range slices.Sorted(slices.Values(replicatedChangesetTables)) {
+	for _, table := range slices.Sorted(slices.Values(replicatedTables)) {
 		columns, orderBy, err := tableHashColumns(ctx, database.writer(), table)
 		if err != nil {
 			t.Fatalf("columns of %s: %v", table, err)

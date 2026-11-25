@@ -112,7 +112,7 @@ across a snapshot restore, and replaying a changeset captured while it
 was replicated then collides with rows the node already owns — the FSM
 treats the conflict as fatal and the node crash-loops on every restart.
 
-Removing a table from replicatedChangesetTables therefore also requires
+Removing a table from replicatedTables therefore also requires
 adding it to retiredReplicatedTables, so applyChangeset keeps filtering
 its rows out of entries written before the demotion, and a case in
 TestApplyChangeset_SkipsRetiredReplicatedTable.
@@ -158,7 +158,7 @@ func sortedKeys(set map[string]struct{}) []string {
 }
 
 func TestReplicatedTablesArePinned(t *testing.T) {
-	assertTableSetPinned(t, "replicatedChangesetTables", pinnedReplicatedTables, replicatedChangesetTables)
+	assertTableSetPinned(t, "replicatedTables", pinnedReplicatedTables, replicatedTables)
 }
 
 func TestLocalOnlyTablesArePinned(t *testing.T) {
@@ -206,7 +206,7 @@ func TestRetiredTablesAreLocalOnlyOrDropped(t *testing.T) {
 }
 
 func TestIsReplicatedTableMatchesCaptureSet(t *testing.T) {
-	for _, table := range replicatedChangesetTables {
+	for _, table := range replicatedTables {
 		if !isReplicatedTable(table) {
 			t.Errorf("%q is attached at capture but isReplicatedTable rejects it\n\n%s", table, tableClassificationRule)
 		}

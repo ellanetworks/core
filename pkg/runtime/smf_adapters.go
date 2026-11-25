@@ -118,10 +118,9 @@ func (s *smfDNNStore) AllocateIP(ctx context.Context, imsi string, pduSessionID 
 		return netip.Addr{}, fmt.Errorf("resolve pool: %w", err)
 	}
 
-	// AllocateIPLease runs the SELECT-then-INSERT atomically on the
-	// leader inside leaderCaptureAndPropose's proposeMu, so concurrent
-	// allocations from any node serialise correctly. The legacy
-	// pre-pick-on-follower path is gone.
+	// AllocateIPLease runs the SELECT-then-INSERT atomically in the
+	// command's apply, so concurrent allocations from any node serialise
+	// in log order.
 	addr, err := s.a.db.AllocateIPLease(ctx, pool.ID, pool.IPVersion, imsi, int(pduSessionID), s.a.db.RaftID())
 	if err != nil {
 		span.RecordError(err)

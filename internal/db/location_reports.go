@@ -25,10 +25,6 @@ func (db *Database) AddLocationReport(ctx context.Context, r *LocationReport, ke
 	ctx, finish := startDBQuery(ctx, LocationReportsTableName, "INSERT")
 	defer func() { finish(err) }()
 
-	if err := db.checkOpSchema(deferredLocationSchema); err != nil {
-		return err
-	}
-
 	tx, err := db.writer().BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin transaction failed: %w", err)
@@ -58,10 +54,6 @@ func (db *Database) AddLocationReport(ctx context.Context, r *LocationReport, ke
 func (db *Database) ListLocationReports(ctx context.Context, requestID string, afterSeq int64, limit int) (_ []LocationReport, err error) {
 	ctx, finish := startDBQuery(ctx, LocationReportsTableName, "SELECT")
 	defer func() { finish(err) }()
-
-	if !db.appliedSchemaAtLeast(ctx, deferredLocationSchema) {
-		return nil, nil
-	}
 
 	reports, err := queryAll(ctx, db.reader(), listLocationReportsSQL, scanLocationReport, requestID, afterSeq, limit)
 	if err != nil {

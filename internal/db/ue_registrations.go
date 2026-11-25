@@ -12,8 +12,6 @@ import (
 
 const UERegistrationsTableName = "ue_registrations"
 
-const ueRegistrationsSchema = 21
-
 const (
 	UERegistrationTypeMME           = "mme"
 	UERegistrationTypeAMF3GPPAccess = "amf-3gpp-access"
@@ -139,10 +137,6 @@ func (db *Database) ListAllUERegistrations(ctx context.Context) (_ []UERegistrat
 	ctx, finish := startDBQuery(ctx, UERegistrationsTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	if !db.appliedSchemaAtLeast(ctx, ueRegistrationsSchema) {
-		return nil, nil
-	}
-
 	regs, err := queryAll(ctx, db.reader(), listAllUERegistrationsSQL, scanUERegistration)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -155,7 +149,7 @@ func (db *Database) ListActiveUERegistrations(ctx context.Context, imsis []strin
 	ctx, finish := startDBQuery(ctx, UERegistrationsTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	if len(imsis) == 0 || !db.appliedSchemaAtLeast(ctx, ueRegistrationsSchema) {
+	if len(imsis) == 0 {
 		return nil, nil
 	}
 
@@ -276,18 +270,10 @@ func (db *Database) applyPurgeUERegistration(ctx context.Context, p *purgeUERegi
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		return nil, nil
-	}
-
 	return nil, db.deleteVisitorIfUnregistered(ctx, p.Imsi)
 }
 
 func (db *Database) purgeUERegistrationsByNode(ctx context.Context, nodeID string) error {
-	if !db.appliedSchemaAtLeast(ctx, ueRegistrationsSchema) {
-		return nil
-	}
-
 	next, err := db.nextUERegistrationVersion(ctx)
 	if err != nil {
 		return err

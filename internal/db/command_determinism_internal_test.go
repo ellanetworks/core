@@ -97,7 +97,7 @@ func replicatedState(t *testing.T, database *Database) map[string][]string {
 
 	state := map[string][]string{}
 
-	for _, table := range replicatedChangesetTables {
+	for _, table := range replicatedTables {
 		var n int
 		if err := database.writer().QueryRowContext(t.Context(), "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?", table).Scan(&n); err != nil {
 			t.Fatalf("look up %s: %v", table, err)
@@ -452,31 +452,6 @@ func TestCommandsRequireCallerGeneratedIDs(t *testing.T) {
 	}
 }
 
-func TestChangesetPathAcceptsPayloadsWithoutIDs(t *testing.T) {
-	database := newInitializedCommandTestDB(t)
-	createTestSubscriber(t, database, determinismIMSI)
-	useChangesetPath(t, database)
-
-	dn, err := database.GetDataNetwork(t.Context(), InitialDataNetworkName)
-	if err != nil {
-		t.Fatalf("GetDataNetwork: %v", err)
-	}
-
-	got, err := opAllocateIPLease.Invoke(t.Context(), database, &allocateIPLeasePayload{PoolID: dn.ID, PoolType: "ipv4", IMSI: determinismIMSI, SessionID: 1, NodeID: "1"})
-	if err != nil {
-		t.Fatalf("AllocateIPLease without a lease id below the command schema: %v", err)
-	}
-
-	lease, err := database.GetLeaseBySession(t.Context(), dn.ID, "ipv4", 1, determinismIMSI)
-	if err != nil || lease.Address().String() != got || lease.ID == "" {
-		t.Fatalf("lease = %+v, %v; want a generated id for %s", lease, err, got)
-	}
-
-	if _, err := opReplaceFramedRoutes.Invoke(t.Context(), database, &framedRoutesPayload{Imsi: determinismIMSI, DataNetworkID: dn.ID, Prefixes: []string{"10.200.0.0/24"}}); err != nil {
-		t.Fatalf("ReplaceFramedRoutes without ids below the command schema: %v", err)
-	}
-}
-
 func subscriberCountMatches(t *testing.T, database *Database) int {
 	t.Helper()
 
@@ -739,36 +714,6 @@ func TestSQNCommandAcceptsTheOldPayloadShape(t *testing.T) {
 				t.Fatalf("old shape with a bad AUTS: err = %v, want ErrInvalidCommand", rejected[0].err)
 			}
 		})
-	}
-}
-
-func TestChangesetPathKeepsTheOldSQNPayloadShape(t *testing.T) {
-	const sqnMS = "00000000105e"
-
-	database := newInitializedCommandTestDB(t)
-	createTestSubscriber(t, database, determinismIMSI)
-	useChangesetPath(t, database)
-
-	rand := make([]byte, 16)
-	auts := generateAUTS(t, rand, sqnMS)
-
-	payload := &AdvanceSQNPayload{IMSI: determinismIMSI, ResyncAuts: auts, ResyncRand: hex.EncodeToString(rand)}
-	if err := database.verifySQNResync(t.Context(), payload); err != nil {
-		t.Fatalf("verifySQNResync: %v", err)
-	}
-
-	if payload.ResyncAuts != auts || payload.ResyncSQNms != "" {
-		t.Fatalf("payload = %+v, want the AUTS and RAND an older leader understands", payload)
-	}
-
-	want, err := sqn.NextFromResync(sqnMS)
-	if err != nil {
-		t.Fatalf("NextFromResync: %v", err)
-	}
-
-	creds, err := database.AdvanceSubscriberSQN(t.Context(), determinismIMSI, auts, hex.EncodeToString(rand))
-	if err != nil || creds.SequenceNumber != want {
-		t.Fatalf("AdvanceSubscriberSQN = %+v, %v; want %s", creds, err, want)
 	}
 }
 

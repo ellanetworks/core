@@ -67,10 +67,6 @@ func (db *Database) ListIMSServiceProfiles(ctx context.Context) (_ []IMSServiceP
 	ctx, finish := startDBQuery(ctx, IMSServiceProfilesTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	if !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
-		return nil, nil
-	}
-
 	rows, err := queryAll(ctx, db.reader(), listIMSServiceProfilesSQL, scanIMSServiceProfileRow)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -109,10 +105,6 @@ func (db *Database) ListIMSServiceProfiles(ctx context.Context) (_ []IMSServiceP
 func (db *Database) GetIMSServiceProfile(ctx context.Context, name string) (_ *IMSServiceProfile, err error) {
 	ctx, finish := startDBQuery(ctx, IMSServiceProfilesTableName, "SELECT")
 	defer func() { finish(err) }()
-
-	if !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
-		return nil, ErrNotFound
-	}
 
 	sp, err := db.getIMSServiceProfile(ctx, db.reader(), name)
 	if err != nil {
@@ -274,10 +266,6 @@ func (db *Database) GetProfileIMSServiceProfiles(ctx context.Context, profileID 
 
 	out := make(map[IMSRegistrationSet]string)
 
-	if !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
-		return out, nil
-	}
-
 	rows, err := queryAll(ctx, db.reader(), listProfileIMSServiceProfilesSQL, scanIMSServiceProfileAssignmentRow, profileID)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -293,10 +281,6 @@ func (db *Database) GetProfileIMSServiceProfiles(ctx context.Context, profileID 
 func (db *Database) ListIMSServiceProfileAssignments(ctx context.Context) (_ []ProfileIMSServiceProfiles, err error) {
 	ctx, finish := startDBQuery(ctx, IMSServiceProfileAssignmentsTableName, "SELECT")
 	defer func() { finish(err) }()
-
-	if !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
-		return nil, nil
-	}
 
 	rows, err := queryAll(ctx, db.reader(), listAllIMSServiceProfileAssignsSQL, scanIMSServiceProfileAssignmentRow)
 	if err != nil {
@@ -360,10 +344,6 @@ func (db *Database) applySetProfileIMSServiceProfiles(ctx context.Context, p *Pr
 func (db *Database) ProfilesUsingIMSServiceProfile(ctx context.Context, serviceProfileID string) (_ []string, err error) {
 	ctx, finish := startDBQuery(ctx, IMSServiceProfileAssignmentsTableName, "SELECT")
 	defer func() { finish(err) }()
-
-	if !db.appliedSchemaAtLeast(ctx, imsServicesSchema) {
-		return nil, nil
-	}
 
 	profileIDs, err := queryAll(ctx, db.reader(), listProfilesOfIMSServiceProfileSQL, scanValue[string], serviceProfileID)
 	if err != nil {

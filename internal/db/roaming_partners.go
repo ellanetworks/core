@@ -22,8 +22,6 @@ const (
 	RoamingPartnerPLMNsTableName = "roaming_partner_plmns"
 )
 
-const roamingSchema = 27
-
 const (
 	listRoamingPartnersSQL          = "SELECT id, name, profileID, seppFQDN, seppN32cURI, seppN32fURI, seppTrustAnchorPEM, diameterPeerID, withdrawingUntil FROM " + RoamingPartnersTableName + " ORDER BY name"
 	getRoamingPartnerSQL            = "SELECT id, name, profileID, seppFQDN, seppN32cURI, seppN32fURI, seppTrustAnchorPEM, diameterPeerID, withdrawingUntil FROM " + RoamingPartnersTableName + " WHERE id==?"
@@ -54,8 +52,8 @@ type withdrawingPayload struct {
 }
 
 var (
-	opSetRoamingPartnerWithdrawing = registerChangesetOp("SetRoamingPartnerWithdrawing", (*Database).applySetRoamingPartnerWithdrawing, RequireSchema(roamingSchema), AffectsTopic(TopicRoaming), AffectsTopic(TopicUERegistrations))
-	opSetVisitorDeregistering      = registerChangesetOp("SetVisitorDeregistering", (*Database).applySetVisitorDeregistering, RequireSchema(roamingSchema), AffectsTopic(TopicUERegistrations))
+	opSetRoamingPartnerWithdrawing = registerChangesetOp("SetRoamingPartnerWithdrawing", (*Database).applySetRoamingPartnerWithdrawing, AffectsTopic(TopicRoaming), AffectsTopic(TopicUERegistrations))
+	opSetVisitorDeregistering      = registerChangesetOp("SetVisitorDeregistering", (*Database).applySetVisitorDeregistering, AffectsTopic(TopicUERegistrations))
 )
 
 type roamingPartnerWrite struct {
@@ -325,10 +323,6 @@ func (db *Database) ListRoamingPartners(ctx context.Context) (_ []RoamingPartner
 	ctx, finish := startDBQuery(ctx, RoamingPartnersTableName, "SELECT")
 	defer func() { finish(err) }()
 
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		return nil, nil
-	}
-
 	partners, err := db.listRoamingPartners(ctx, db.reader())
 	if err != nil {
 		return nil, err
@@ -340,10 +334,6 @@ func (db *Database) ListRoamingPartners(ctx context.Context) (_ []RoamingPartner
 func (db *Database) GetRoamingPartner(ctx context.Context, id string) (_ *RoamingPartner, err error) {
 	ctx, finish := startDBQuery(ctx, RoamingPartnersTableName, "SELECT")
 	defer func() { finish(err) }()
-
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		return nil, ErrNotFound
-	}
 
 	partner, err := db.getRoamingPartner(ctx, db.reader(), id)
 	if err != nil {
@@ -442,10 +432,6 @@ func (p *RoamingPartner) setPLMNs(rows []roamingPartnerPLMNRow) {
 }
 
 func (db *Database) prepareHomePLMNChange(ctx context.Context, op *Operator) (bool, error) {
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		return false, nil
-	}
-
 	current, err := getOperator(ctx, db.runner(ctx))
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return false, fmt.Errorf("query failed: %w", err)
@@ -733,10 +719,6 @@ func (db *Database) setWithdrawing(ctx context.Context, op *ChangesetOp[withdraw
 }
 
 func (db *Database) CountVisitorsOfPartner(ctx context.Context, partnerID string) (int, error) {
-	if !db.appliedSchemaAtLeast(ctx, roamingSchema) {
-		return 0, nil
-	}
-
 	return db.countVisitors(ctx, countVisitorsOfPartnerSQL, partnerID, "*")
 }
 

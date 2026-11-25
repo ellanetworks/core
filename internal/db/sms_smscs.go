@@ -22,8 +22,6 @@ const (
 	SMSCServiceCentresTableName = "sms_smsc_service_centres"
 )
 
-const smscNodesSchema = 26
-
 const (
 	MaxSMSCs                     = 16
 	MaxSMSCNodes                 = 8
@@ -293,19 +291,6 @@ func (db *Database) DeleteSMSC(ctx context.Context, id string) (err error) {
 }
 
 func (db *Database) listSMSCs(ctx context.Context, q querier) ([]SMSC, error) {
-	if !db.appliedSchemaAtLeast(ctx, smsSchema) {
-		return nil, nil
-	}
-
-	if !db.appliedSchemaAtLeast(ctx, smscNodesSchema) {
-		peers, err := db.listLegacySMSCPeers(ctx, q)
-		if err != nil {
-			return nil, err
-		}
-
-		return legacySMSCs(peers), nil
-	}
-
 	rows, err := queryAll(ctx, q, listSMSCsSQL, scanSMSCRow)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)

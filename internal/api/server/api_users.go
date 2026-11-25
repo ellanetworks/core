@@ -4,7 +4,6 @@
 package server
 
 import (
-	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -640,21 +639,12 @@ func randAlphaNum(n int) (string, error) {
 	return string(b), nil
 }
 
-func hashAPIToken(ctx context.Context, dbInstance *db.Database, token string, bcryptCost int) (string, error) {
-	if dbInstance.APITokenSHA256Enabled(ctx) {
-		sum := sha256.Sum256([]byte(token))
-		return hex.EncodeToString(sum[:]), nil
-	}
-
-	hashedToken, err := bcrypt.GenerateFromPassword([]byte(token), bcryptCost)
-	if err != nil {
-		return "", fmt.Errorf("failed to hash API token: %w", err)
-	}
-
-	return string(hashedToken), nil
+func hashAPIToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
 }
 
-func CreateMyAPIToken(dbInstance *db.Database, bcryptCost int) http.Handler {
+func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 
@@ -734,11 +724,7 @@ func CreateMyAPIToken(dbInstance *db.Database, bcryptCost int) http.Handler {
 
 		token := fmt.Sprintf("ellacore_%s_%s", tokenID, secret)
 
-		hash, err := hashAPIToken(r.Context(), dbInstance, secret, bcryptCost)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to hash API token", err, logger.APILog)
-			return
-		}
+		hash := hashAPIToken(secret)
 
 		apiToken := &db.APIToken{
 			TokenID:   tokenID,
@@ -901,7 +887,7 @@ func ListUserAPITokens(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func CreateUserAPIToken(dbInstance *db.Database, bcryptCost int) http.Handler {
+func CreateUserAPIToken(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 
@@ -991,11 +977,7 @@ func CreateUserAPIToken(dbInstance *db.Database, bcryptCost int) http.Handler {
 
 		token := fmt.Sprintf("ellacore_%s_%s", tokenID, secret)
 
-		hash, err := hashAPIToken(r.Context(), dbInstance, secret, bcryptCost)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to hash API token", err, logger.APILog)
-			return
-		}
+		hash := hashAPIToken(secret)
 
 		apiToken := &db.APIToken{
 			TokenID:   tokenID,
