@@ -24,20 +24,22 @@ func isPreCommandEntry(entry *raft.Log) bool {
 	return t != CmdBatch && t != CmdMigrateShared
 }
 
-func firstPreCommandEntry(logs raft.LogStore) (uint64, error) {
+func lastPreCommandEntry(logs raft.LogStore) (uint64, uint64, error) {
 	first, err := logs.FirstIndex()
 	if err != nil {
-		return 0, fmt.Errorf("read first raft log index: %w", err)
+		return 0, 0, fmt.Errorf("read first raft log index: %w", err)
 	}
 
 	last, err := logs.LastIndex()
 	if err != nil {
-		return 0, fmt.Errorf("read last raft log index: %w", err)
+		return 0, 0, fmt.Errorf("read last raft log index: %w", err)
 	}
 
 	if first == 0 {
-		return 0, nil
+		return 0, last, nil
 	}
+
+	var found uint64
 
 	for i := first; i <= last; i++ {
 		var entry raft.Log
@@ -47,26 +49,26 @@ func firstPreCommandEntry(logs raft.LogStore) (uint64, error) {
 				continue
 			}
 
-			return 0, fmt.Errorf("read raft log index %d: %w", i, err)
+			return 0, 0, fmt.Errorf("read raft log index %d: %w", i, err)
 		}
 
 		if isPreCommandEntry(&entry) {
-			return i, nil
+			found = i
 		}
 	}
 
-	return 0, nil
+	return found, last, nil
 }
 
 func (m *Manager) compactPreCommandLog(ctx context.Context) error {
-	index, err := firstPreCommandEntry(m.logStore)
+	index, last, err := lastPreCommandEntry(m.logStore)
 	if err != nil || index == 0 {
 		return err
 	}
 
 	retention := m.raft.ReloadableConfig()
 	compacting := retention
-	compacting.TrailingLogs = 0
+	compacting.TrailingLogs = last - index
 
 	if err := m.raft.ReloadConfig(compacting); err != nil {
 		return fmt.Errorf("apply log-compaction config: %w", err)
@@ -83,7 +85,7 @@ func (m *Manager) compactPreCommandLog(ctx context.Context) error {
 	}
 
 	logger.RaftLog.Info("Raft: compacted log entries written before replicated commands",
-		zap.Uint64("first_index", index))
+		zap.Uint64("through_index", index))
 
 	return nil
 }

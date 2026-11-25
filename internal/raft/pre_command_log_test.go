@@ -43,12 +43,21 @@ func TestNewLeaderCompactsEntriesFromBeforeCommands(t *testing.T) {
 	for {
 		next := tc.Leader()
 		if next != nil && next != leader {
-			index, err := firstPreCommandEntry(next.logStore)
+			index, _, err := lastPreCommandEntry(next.logStore)
 			if err != nil {
 				t.Fatalf("scan log: %v", err)
 			}
 
 			if index == 0 {
+				first, err := next.logStore.FirstIndex()
+				if err != nil {
+					t.Fatalf("first index: %v", err)
+				}
+
+				if first != lastIndex+1 {
+					t.Fatalf("first log index = %d, want %d: only the entries from before commands may be compacted", first, lastIndex+1)
+				}
+
 				return
 			}
 		}
