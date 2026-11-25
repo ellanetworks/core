@@ -7,7 +7,7 @@ version = 1
 path = [
   "**/*.yaml", "**/*.yml", "**/*.json", "**/*.toml", "**/*.md", "**/*.txt",
   "**/*.sh", "**/*.sql", "**/*.proto", "**/*.tmpl", "**/*.html", "**/*.css",
-  "go.mod", "go.sum", "**/go.mod", "**/go.sum", "**/Dockerfile", "Dockerfile",
+  "go.mod", "go.sum", "**/go.mod", "**/go.sum", "**/Dockerfile", "Dockerfile", "Dockerfile.ubi",
   ".gitignore", ".dockerignore", "**/.gitignore", "**/.prettierignore",
   "**/*.tpl", "**/.helmignore",
 ]
