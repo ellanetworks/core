@@ -166,6 +166,7 @@ func TestStandaloneFromBeforeCommandsMigratesOnStart(t *testing.T) {
 
 	if err := database.WaitUntilReady(ctx); err != nil {
 		_ = database.Close()
+
 		t.Fatalf("database never became ready: %v", err)
 	}
 

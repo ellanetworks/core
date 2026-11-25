@@ -17,8 +17,6 @@ const (
 	IMSRegistrationSetsTableName = "ims_registration_sets"
 )
 
-const imsRegistrationsSchema = 25
-
 const (
 	getIMSRegistrationSQL         = "SELECT imsi, serverName, originHost, originRealm, privateIdentity FROM " + IMSRegistrationsTableName + " WHERE imsi==?"
 	listAllIMSRegistrationsSQL    = "SELECT imsi, serverName, originHost, originRealm, privateIdentity FROM " + IMSRegistrationsTableName + " ORDER BY imsi ASC"

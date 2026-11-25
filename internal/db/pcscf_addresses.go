@@ -17,8 +17,6 @@ import (
 
 const PCSCFAddressesTableName = "pcscf_addresses"
 
-const pcscfAddressesSchema = 23
-
 const MaxPCSCFAddressesPerFamily = 5
 
 const MaxPCSCFAddresses = 2 * MaxPCSCFAddressesPerFamily

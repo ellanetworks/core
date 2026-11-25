@@ -6,7 +6,6 @@ package db
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"maps"
 	"path/filepath"
 	"strings"
@@ -342,17 +341,24 @@ func TestMigrationV27KeepsSMSCNodesApartFromRoamingPeers(t *testing.T) {
 		},
 	}
 
-	if err := d.CreateSMSC(ctx, &smsc); err != nil {
-		t.Fatalf("CreateSMSC at v26: %v", err)
-	}
+	mustExec(t, d.PlainDB(), "INSERT INTO "+SMSCsTableName+" (id, name) VALUES ('"+smsc.ID+"', '"+smsc.Name+"')")
+	mustExec(t, d.PlainDB(), "INSERT INTO "+SMSCServiceCentresTableName+" (serviceCentre, smscId) VALUES ('"+smsc.ServiceCentres[0]+"', '"+smsc.ID+"')")
 
-	if err := d.CreateRoamingDiameterPeer(ctx, &RoamingDiameterPeer{ID: "hss", DiameterIdentity: "hss.example.org", Address: "10.0.0.7", Port: 3868}); !errors.Is(err, ErrMigrationPending) {
-		t.Fatalf("CreateRoamingDiameterPeer at v26 = %v, want ErrMigrationPending", err)
+	for _, n := range smsc.Nodes {
+		if _, err := d.PlainDB().ExecContext(ctx, "INSERT INTO diameter_peers (id, role, diameterIdentity, address, port, smscId) VALUES (?, 'smsc', ?, ?, ?, ?)", n.ID, n.DiameterIdentity, n.Address, n.Port, smsc.ID); err != nil {
+			t.Fatalf("seed SMSC node %s: %v", n.ID, err)
+		}
 	}
 
 	migrateTestDatabase(t, d, 27)
 
-	assertSMSCs(t, d, "at v27", []SMSC{smsc})
+	if got := countRows(t, d.PlainDB(), "SELECT COUNT(*) FROM diameter_peers WHERE role = 'smsc' AND smscId = '"+smsc.ID+"'"); got != len(smsc.Nodes) {
+		t.Fatalf("SMSC nodes at v27 = %d, want %d", got, len(smsc.Nodes))
+	}
+
+	migrateTestDatabase(t, d, SchemaVersion())
+
+	assertSMSCs(t, d, "after v27", []SMSC{smsc})
 
 	if roaming, err := d.ListRoamingDiameterPeers(ctx); err != nil || len(roaming) != 0 {
 		t.Fatalf("roaming Diameter peers after v27 = %+v, %v, want none: SMSC nodes are not roaming peers", roaming, err)
@@ -363,10 +369,10 @@ func TestMigrationV27KeepsSMSCNodesApartFromRoamingPeers(t *testing.T) {
 	}
 
 	if err := d.CreateRoamingDiameterPeer(ctx, &RoamingDiameterPeer{ID: "hss", DiameterIdentity: "hss.example.org", Address: "10.0.0.7", Port: 3868}); err != nil {
-		t.Fatalf("CreateRoamingDiameterPeer at v27: %v", err)
+		t.Fatalf("CreateRoamingDiameterPeer: %v", err)
 	}
 
-	if _, err := d.applyDeleteSMSC(ctx, &stringPayload{Value: smsc.ID}); err != nil {
+	if err := d.DeleteSMSC(ctx, smsc.ID); err != nil {
 		t.Fatalf("delete the migrated SMSC: %v", err)
 	}
 
@@ -377,7 +383,7 @@ func TestMigrationV27KeepsSMSCNodesApartFromRoamingPeers(t *testing.T) {
 
 func TestWithheldLeaseOwnersCoverVisitors(t *testing.T) {
 	ctx := context.Background()
-	d := newDatabaseAtVersion(t, 27)
+	d := newDatabaseAtVersion(t, SchemaVersion())
 	f := setupForwardingFixture(t, d)
 
 	profile, err := d.GetProfile(ctx, InitialProfileName)

@@ -22,8 +22,6 @@ const (
 	RoamingPartnerPLMNsTableName = "roaming_partner_plmns"
 )
 
-const roamingSchema = 27
-
 const (
 	listRoamingPartnersSQL          = "SELECT id, name, profileID, seppFQDN, seppN32cURI, seppN32fURI, seppTrustAnchorPEM, diameterPeerID, withdrawingUntil FROM " + RoamingPartnersTableName + " ORDER BY name"
 	getRoamingPartnerSQL            = "SELECT id, name, profileID, seppFQDN, seppN32cURI, seppN32fURI, seppTrustAnchorPEM, diameterPeerID, withdrawingUntil FROM " + RoamingPartnersTableName + " WHERE id==?"

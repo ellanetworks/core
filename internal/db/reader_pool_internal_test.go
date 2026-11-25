@@ -43,6 +43,7 @@ func TestReaderPoolServesReadsWhileWriterIsHeld(t *testing.T) {
 
 		if _, err := tx.ExecContext(ctx, "UPDATE "+NetworkSlicesTableName+" SET sst = 2 WHERE name = ?", InitialSliceName); err != nil {
 			_ = tx.Rollback()
+
 			done <- err
 
 			return

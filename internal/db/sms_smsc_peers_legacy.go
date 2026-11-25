@@ -19,18 +19,16 @@ type legacySMSCPeer struct {
 	ServiceCentres   []string `json:"service_centres"`
 }
 
-var errSMSCPeersRetired = fmt.Errorf("%w: SMSC peers are now SMSC nodes", ErrRetiredOperation)
-
 func (db *Database) applyCreateSMSCPeer(context.Context, *legacySMSCPeer) (any, error) {
-	return nil, errSMSCPeersRetired
+	return nil, fmt.Errorf("%w: SMSC peers are now SMSC nodes", ErrRetiredOperation)
 }
 
 func (db *Database) applyUpdateSMSCPeer(context.Context, *legacySMSCPeer) (any, error) {
-	return nil, errSMSCPeersRetired
+	return nil, fmt.Errorf("%w: SMSC peers are now SMSC nodes", ErrRetiredOperation)
 }
 
 func (db *Database) applyDeleteSMSCPeer(context.Context, *stringPayload) (any, error) {
-	return nil, errSMSCPeersRetired
+	return nil, fmt.Errorf("%w: SMSC peers are now SMSC nodes", ErrRetiredOperation)
 }
 
 func legacySMSCName(identity, address string, taken []string) string {

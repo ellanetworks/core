@@ -22,8 +22,6 @@ const (
 	SMSCServiceCentresTableName = "sms_smsc_service_centres"
 )
 
-const smscNodesSchema = 26
-
 const (
 	MaxSMSCs                     = 16
 	MaxSMSCNodes                 = 8

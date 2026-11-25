@@ -19,8 +19,6 @@ const (
 	LocationReportsTableName          = "location_reports"
 )
 
-const deferredLocationSchema = 24
-
 const (
 	DeferredLocationRetention       = 7 * 24 * time.Hour
 	LocationReportsKept       int64 = 10000

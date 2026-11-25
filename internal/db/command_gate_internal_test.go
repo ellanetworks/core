@@ -20,21 +20,6 @@ var baselineIntentCmds = map[ellaraft.CommandType]bool{
 	ellaraft.CmdMigrateShared:          true,
 }
 
-func TestIntentOpsOutsideBaselineDeclareSchema(t *testing.T) {
-	for name, h := range intentOps {
-		if baselineIntentCmds[h.cmdType] {
-			continue
-		}
-
-		if h.minSchema <= 1 {
-			t.Errorf("intent op %q proposes %s without RequireSchema; "+
-				"declare the version of the migration that ships the command "+
-				"so the leader withholds it until every member supports it",
-				name, h.cmdType)
-		}
-	}
-}
-
 func TestBaselineIntentCmdsAreRegistered(t *testing.T) {
 	registered := map[ellaraft.CommandType]bool{}
 	for _, h := range intentOps {

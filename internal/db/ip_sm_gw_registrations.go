@@ -12,8 +12,6 @@ import (
 
 const IPSMGWRegistrationsTableName = "ip_sm_gw_registrations"
 
-const ipSMGWRegistrationsSchema = 25
-
 const (
 	getIPSMGWRegistrationSQL      = "SELECT imsi, number, diameterHost, diameterRealm FROM " + IPSMGWRegistrationsTableName + " WHERE imsi==?"
 	listAllIPSMGWRegistrationsSQL = "SELECT imsi, number, diameterHost, diameterRealm FROM " + IPSMGWRegistrationsTableName + " ORDER BY imsi ASC"

@@ -31,12 +31,9 @@ var replayExclusions = map[string]string{
 	"TestApplyEntriesKeepsLeaderTimeMonotonic":              "applies an operation registered only for the test",
 	"TestApplyEntriesHaltsOnAPanickingCommand":              "applies an operation registered only for the test",
 	"TestApplyEntriesRunsForeignKeyCascades":                "applies an operation registered only for the test",
-	"TestChangesetPathAcceptsPayloadsWithoutIDs":            "writes through the changeset path below the command schema",
-	"TestChangesetPathKeepsTheOldSQNPayloadShape":           "writes through the changeset path below the command schema",
-	"TestFSMAppliesInterleavedLegacyAndCommandEntries":      "applies legacy intent entries through the FSM between command entries",
+	"TestFSMAppliesInterleavedMigrationAndCommandEntries":   "reuses the index of a migration entry for a command entry to check that entries at or below lastApplied are skipped",
 	"TestReaderPoolServesReadsWhileWriterIsHeld":            "writes network_slices with direct SQL",
 	"TestRegisterUE_RewritesRestoredRegistration":           "rewrites ue_registrations with direct SQL to simulate a restore",
-	"TestReplicatedWritesApplyOnDivergedNode":               "diverges jwt_secret and cell_positions with direct SQL",
 }
 
 type replayPass struct {

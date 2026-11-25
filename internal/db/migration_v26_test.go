@@ -21,8 +21,14 @@ func TestMigrationV26MovesSMSCPeersToSMSCNodes(t *testing.T) {
 	}
 
 	for _, p := range peers {
-		if _, err := d.applyCreateSMSCPeer(ctx, &p); err != nil {
-			t.Fatalf("create legacy SMSC peer %s: %v", p.ID, err)
+		if _, err := d.PlainDB().ExecContext(ctx, "INSERT INTO diameter_peers (id, role, diameterIdentity, address, port) VALUES (?, 'smsc', ?, ?, ?)", p.ID, p.DiameterIdentity, p.Address, p.Port); err != nil {
+			t.Fatalf("seed legacy SMSC peer %s: %v", p.ID, err)
+		}
+
+		for _, sc := range p.ServiceCentres {
+			if _, err := d.PlainDB().ExecContext(ctx, "INSERT INTO "+SMSCServiceCentresTableName+" (serviceCentre, peerId) VALUES (?, ?)", sc, p.ID); err != nil {
+				t.Fatalf("seed service centre %s of %s: %v", sc, p.ID, err)
+			}
 		}
 	}
 
@@ -32,30 +38,23 @@ func TestMigrationV26MovesSMSCPeersToSMSCNodes(t *testing.T) {
 		{ID: peers[2].ID, Name: "smsc.example.org", ServiceCentres: []string{"15550000003"}, Nodes: []SMSCNode{{ID: peers[2].ID, DiameterIdentity: "smsc.example.org", Address: "10.0.0.1", Port: 3869}}},
 	}
 
-	assertSMSCs(t, d, "at v25", want)
+	migrateTestDatabase(t, d, SchemaVersion())
 
-	smsc := SMSC{ID: "01890000-0000-7000-8000-0000000000aa", Name: "new", ServiceCentres: []string{"15550000009"}, Nodes: []SMSCNode{{ID: "01890000-0000-7000-8000-0000000000ab", Address: "192.0.2.10", Port: 3868}}}
-	if err := d.CreateSMSC(ctx, &smsc); !errors.Is(err, ErrMigrationPending) {
-		t.Fatalf("CreateSMSC at v25 = %v, want ErrMigrationPending", err)
-	}
-
-	migrateTestDatabase(t, d, 26)
-
-	assertSMSCs(t, d, "at v26", want)
+	assertSMSCs(t, d, "after v26", want)
 
 	if _, err := d.applyCreateSMSCPeer(ctx, &legacySMSCPeer{ID: "01890000-0000-7000-8000-000000000004", Address: "192.0.2.4", Port: 3868, ServiceCentres: []string{"15550000004"}}); !errors.Is(err, ErrRetiredOperation) {
-		t.Fatalf("legacy CreateSMSCPeer at v26 = %v, want ErrRetiredOperation", err)
+		t.Fatalf("legacy CreateSMSCPeer after v26 = %v, want ErrRetiredOperation", err)
 	}
 
 	second := SMSCNode{ID: "01890000-0000-7000-8000-0000000000ac", DiameterIdentity: "smsc2.example.org", Address: "10.0.0.2", Port: 3869}
 	updated := want[2]
 	updated.Nodes = append(slices.Clone(updated.Nodes), second)
 
-	if _, err := d.applyUpdateSMSC(ctx, &updated); err != nil {
+	if err := d.UpdateSMSC(ctx, &updated); err != nil {
 		t.Fatalf("add a node to a migrated SMSC: %v", err)
 	}
 
-	if _, err := d.applyDeleteSMSC(ctx, &stringPayload{Value: peers[0].ID}); err != nil {
+	if err := d.DeleteSMSC(ctx, peers[0].ID); err != nil {
 		t.Fatalf("delete a migrated SMSC: %v", err)
 	}
 

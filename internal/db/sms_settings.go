@@ -12,8 +12,6 @@ import (
 
 const SMSSettingsTableName = "sms_settings"
 
-const smsSchema = 22
-
 const DefaultSMSCPort = 3868
 
 const maxMSISDNDigits = 15

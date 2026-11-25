@@ -22,8 +22,6 @@ const (
 	IMSPublicServiceIdentitiesTableName = "ims_public_service_identities"
 )
 
-const imsServicesSchema = 25
-
 const (
 	listIMSApplicationServersSQL  = "SELECT id, name, serverName FROM " + IMSApplicationServersTableName + " ORDER BY name"
 	getIMSApplicationServerSQL    = "SELECT id, name, serverName FROM " + IMSApplicationServersTableName + " WHERE name==?"

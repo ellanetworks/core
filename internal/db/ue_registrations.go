@@ -12,8 +12,6 @@ import (
 
 const UERegistrationsTableName = "ue_registrations"
 
-const ueRegistrationsSchema = 21
-
 const (
 	UERegistrationTypeMME           = "mme"
 	UERegistrationTypeAMF3GPPAccess = "amf-3gpp-access"

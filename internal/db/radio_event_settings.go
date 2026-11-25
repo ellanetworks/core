@@ -12,8 +12,6 @@ import (
 
 const RadioEventSettingsTableName = "radio_event_settings"
 
-const radioEventSettingsSchema = 30
-
 const RadioEventsDefaultEnabled = true
 
 const (

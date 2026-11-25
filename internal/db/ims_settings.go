@@ -18,8 +18,6 @@ import (
 
 const IMSSettingsTableName = "ims_settings"
 
-const imsIntegrationsSchema = 27
-
 const threeGPPNetworkDomain = "3gppnetwork.org"
 
 const (
