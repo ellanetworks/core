@@ -126,6 +126,9 @@ type BpfObjects struct {
 
 	urrFirstPacket UrrFirstPacketPrograms
 
+	interfacesMu sync.Mutex
+	interfaces   map[uint32]*N3N6EntrypointObjects
+
 	Programs *ProgramBarrier
 
 	Sizing MapSizing
@@ -440,7 +443,7 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 	return nil
 }
 
-func (bpfObjects *BpfObjects) ReloadPrograms() (func(), error) {
+func (bpfObjects *BpfObjects) loadSharingMaps(attachIfindex uint32) (*N3N6EntrypointObjects, error) {
 	spec, err := bpfObjects.loadSpec()
 	if err != nil {
 		logger.UpfLog.Error("failed to load N3/N6 spec", zap.Error(err))
@@ -454,6 +457,10 @@ func (bpfObjects *BpfObjects) ReloadPrograms() (func(), error) {
 
 	if err := bpfObjects.Sizing.orDefault().apply(spec); err != nil {
 		return nil, err
+	}
+
+	if err := spec.Variables["attach_ifindex"].Set(attachIfindex); err != nil {
+		return nil, fmt.Errorf("set attach interface index: %w", err)
 	}
 
 	opts := &ebpf.CollectionOptions{
@@ -470,6 +477,111 @@ func (bpfObjects *BpfObjects) ReloadPrograms() (func(), error) {
 	// re-populate the new upf_calls with the new stage programs before the new
 	// entry is swapped onto the link.
 	if err := populateTailCalls(&newObjects); err != nil {
+		closeSharingMaps(&newObjects)
+
+		return nil, err
+	}
+
+	return &newObjects, nil
+}
+
+func closeSharingMaps(objs *N3N6EntrypointObjects) {
+	if err := objs.N3N6EntrypointMaps.Close(); err != nil {
+		logger.UpfLog.Warn("failed to close cloned map fds", zap.Error(err))
+	}
+
+	if err := objs.N3N6EntrypointPrograms.Close(); err != nil {
+		logger.UpfLog.Warn("failed to close programs", zap.Error(err))
+	}
+}
+
+func (bpfObjects *BpfObjects) InterfaceEntry(ifindex int) (*ebpf.Program, error) {
+	bpfObjects.interfacesMu.Lock()
+	defer bpfObjects.interfacesMu.Unlock()
+
+	if objs, ok := bpfObjects.interfaces[uint32(ifindex)]; ok {
+		return objs.UpfEntryFunc, nil
+	}
+
+	objs, err := bpfObjects.loadSharingMaps(uint32(ifindex))
+	if err != nil {
+		return nil, fmt.Errorf("load datapath for interface %d: %w", ifindex, err)
+	}
+
+	if bpfObjects.interfaces == nil {
+		bpfObjects.interfaces = make(map[uint32]*N3N6EntrypointObjects)
+	}
+
+	bpfObjects.interfaces[uint32(ifindex)] = objs
+
+	return objs.UpfEntryFunc, nil
+}
+
+func (bpfObjects *BpfObjects) ReleaseInterface(ifindex int) {
+	bpfObjects.interfacesMu.Lock()
+	defer bpfObjects.interfacesMu.Unlock()
+
+	objs, ok := bpfObjects.interfaces[uint32(ifindex)]
+	if !ok {
+		return
+	}
+
+	closeSharingMaps(objs)
+	delete(bpfObjects.interfaces, uint32(ifindex))
+}
+
+func (bpfObjects *BpfObjects) forEachInterface(fn func(*N3N6EntrypointObjects) error) error {
+	bpfObjects.interfacesMu.Lock()
+	defer bpfObjects.interfacesMu.Unlock()
+
+	var err error
+
+	for _, objs := range bpfObjects.interfaces {
+		err = errors.Join(err, fn(objs))
+	}
+
+	return err
+}
+
+func (bpfObjects *BpfObjects) reloadInterfaces() (func(), error) {
+	bpfObjects.interfacesMu.Lock()
+	defer bpfObjects.interfacesMu.Unlock()
+
+	reloaded := make(map[uint32]*N3N6EntrypointObjects, len(bpfObjects.interfaces))
+
+	for ifindex := range bpfObjects.interfaces {
+		objs, err := bpfObjects.loadSharingMaps(ifindex)
+		if err != nil {
+			for _, loaded := range reloaded {
+				closeSharingMaps(loaded)
+			}
+
+			return nil, fmt.Errorf("reload datapath for interface %d: %w", ifindex, err)
+		}
+
+		reloaded[ifindex] = objs
+	}
+
+	old := bpfObjects.interfaces
+	bpfObjects.interfaces = reloaded
+
+	return func() {
+		for _, objs := range old {
+			closeSharingMaps(objs)
+		}
+	}, nil
+}
+
+func (bpfObjects *BpfObjects) ReloadPrograms() (func(), error) {
+	newObjects, err := bpfObjects.loadSharingMaps(0)
+	if err != nil {
+		return nil, err
+	}
+
+	releaseInterfaces, err := bpfObjects.reloadInterfaces()
+	if err != nil {
+		closeSharingMaps(newObjects)
+
 		return nil, err
 	}
 
@@ -481,6 +593,8 @@ func (bpfObjects *BpfObjects) ReloadPrograms() (func(), error) {
 	bpfObjects.N3N6EntrypointVariables = newObjects.N3N6EntrypointVariables
 
 	release := func() {
+		releaseInterfaces()
+
 		// Close the cloned map fds from the new objects to avoid fd leaks. These are
 		// duplicates of our existing map fds pointing to the same kernel-side maps,
 		// so closing them is safe. upf_calls is genuinely new (not preserved) and is
@@ -502,6 +616,14 @@ func (bpfObjects *BpfObjects) ReloadPrograms() (func(), error) {
 }
 
 func (bpfObjects *BpfObjects) Close() error {
+	bpfObjects.interfacesMu.Lock()
+	for _, objs := range bpfObjects.interfaces {
+		closeSharingMaps(objs)
+	}
+
+	bpfObjects.interfaces = nil
+	bpfObjects.interfacesMu.Unlock()
+
 	err := CloseAllObjects(
 		&bpfObjects.urrFirstPacket,
 		&bpfObjects.N3N6EntrypointObjects,
@@ -523,6 +645,12 @@ func (bpfObjects *BpfObjects) SetBufferVethIfindex(vethIfindex int) error {
 		return fmt.Errorf("set buffer_veth_ifindex: %w", err)
 	}
 
+	if err := bpfObjects.forEachInterface(func(objs *N3N6EntrypointObjects) error {
+		return objs.BufferVethIfindex.Set(uint32(vethIfindex))
+	}); err != nil {
+		return fmt.Errorf("set buffer_veth_ifindex: %w", err)
+	}
+
 	return nil
 }
 
@@ -530,6 +658,12 @@ func (bpfObjects *BpfObjects) SetReasmVethIfindex(vethIfindex int) error {
 	bpfObjects.reasmVethIndex = uint32(vethIfindex)
 
 	if err := bpfObjects.ReasmVethIfindex.Set(uint32(vethIfindex)); err != nil {
+		return fmt.Errorf("set reasm_veth_ifindex: %w", err)
+	}
+
+	if err := bpfObjects.forEachInterface(func(objs *N3N6EntrypointObjects) error {
+		return objs.ReasmVethIfindex.Set(uint32(vethIfindex))
+	}); err != nil {
 		return fmt.Errorf("set reasm_veth_ifindex: %w", err)
 	}
 
@@ -545,6 +679,12 @@ func (bpfObjects *BpfObjects) SetFragTxEnabled(enabled bool) error {
 	bpfObjects.fragTxEnabled = v
 
 	if err := bpfObjects.FragTxEnabled.Set(v); err != nil {
+		return fmt.Errorf("set frag_tx_enabled: %w", err)
+	}
+
+	if err := bpfObjects.forEachInterface(func(objs *N3N6EntrypointObjects) error {
+		return objs.FragTxEnabled.Set(v)
+	}); err != nil {
 		return fmt.Errorf("set frag_tx_enabled: %w", err)
 	}
 

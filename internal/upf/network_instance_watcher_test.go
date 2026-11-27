@@ -25,11 +25,13 @@ type fakeInstanceDatapath struct {
 func stubInstanceDatapath(t *testing.T, fake *fakeInstanceDatapath) {
 	t.Helper()
 
-	oldByName, oldAttach, oldPut, oldDelete := interfaceByName, attachInstanceLink, putNetworkInstance, deleteNetworkInstance
+	oldByName, oldAttach, oldPut, oldDelete, oldRelease := interfaceByName, attachInstanceLink, putNetworkInstance, deleteNetworkInstance, releaseInstanceLink
 
 	t.Cleanup(func() {
-		interfaceByName, attachInstanceLink, putNetworkInstance, deleteNetworkInstance = oldByName, oldAttach, oldPut, oldDelete
+		interfaceByName, attachInstanceLink, putNetworkInstance, deleteNetworkInstance, releaseInstanceLink = oldByName, oldAttach, oldPut, oldDelete, oldRelease
 	})
+
+	releaseInstanceLink = func(_ *ebpf.BpfObjects, _ int) {}
 
 	interfaceByName = func(name string) (*net.Interface, error) {
 		index, ok := fake.ifaces[name]

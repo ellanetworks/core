@@ -494,6 +494,7 @@ const (
 	N3N6EntrypointTcProgUpfLocalSwitchFunc       = "upf_local_switch_func"
 	N3N6EntrypointTcProgUpfUplinkFunc            = "upf_uplink_func"
 	N3N6EntrypointTcProgVethXdpFunc              = "veth_xdp_func"
+	N3N6EntrypointTcVarAttachIfindex             = "attach_ifindex"
 	N3N6EntrypointTcVarBufferVethIfindex         = "buffer_veth_ifindex"
 	N3N6EntrypointTcVarFlowact                   = "flowact"
 	N3N6EntrypointTcVarFragTxEnabled             = "frag_tx_enabled"
@@ -611,6 +612,7 @@ type N3N6EntrypointTcMapSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type N3N6EntrypointTcVariableSpecs struct {
+	AttachIfindex           *ebpf.VariableSpec `ebpf:"attach_ifindex"`
 	BufferVethIfindex       *ebpf.VariableSpec `ebpf:"buffer_veth_ifindex"`
 	Flowact                 *ebpf.VariableSpec `ebpf:"flowact"`
 	FragTxEnabled           *ebpf.VariableSpec `ebpf:"frag_tx_enabled"`
@@ -740,6 +742,7 @@ func (m *N3N6EntrypointTcMaps) Close() error {
 //
 // It can be passed to LoadN3N6EntrypointTcObjects or ebpf.CollectionSpec.LoadAndAssign.
 type N3N6EntrypointTcVariables struct {
+	AttachIfindex           *ebpf.Variable `ebpf:"attach_ifindex"`
 	BufferVethIfindex       *ebpf.Variable `ebpf:"buffer_veth_ifindex"`
 	Flowact                 *ebpf.Variable `ebpf:"flowact"`
 	FragTxEnabled           *ebpf.Variable `ebpf:"frag_tx_enabled"`

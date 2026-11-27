@@ -53,6 +53,13 @@ volatile const int n6_vlan = 0;
 volatile const bool network_instances_enabled;
 volatile const bool network_instances_enabled = false;
 
+volatile const __u32 attach_ifindex = 0;
+
+static __always_inline __u32 datapath_ifindex(struct __ctx_buff *ctx)
+{
+	return attach_ifindex ? attach_ifindex : ctx_ingress_ifindex(ctx);
+}
+
 int reasm_veth_ifindex;
 
 struct vlan_hdr {
@@ -145,7 +152,7 @@ static __always_inline bool frame_is_reassembled(struct __ctx_buff *ctx)
 __noinline __weak __u32
 routing_ingress_ifindex(struct __ctx_buff *ctx, __u8 interface)
 {
-	__u32 ifindex = ctx_ingress_ifindex(ctx);
+	__u32 ifindex = datapath_ifindex(ctx);
 
 	if (interface == INTERFACE_N3 && ifindex == (__u32)n3_ifindex)
 		return n3_routing_ifindex;
@@ -290,7 +297,7 @@ __noinline __weak int downlink_ingress_ni(struct __ctx_buff *ctx)
 	vlan = ctx->vlan_present ? ctx->vlan_tci & 0x0fff : 0;
 #endif
 
-	return ingress_network_instance(ctx_ingress_ifindex(ctx), vlan);
+	return ingress_network_instance(datapath_ifindex(ctx), vlan);
 }
 
 __noinline __weak bool downlink_ni_mismatch(__u32 session_ni, __u32 frame_ni)

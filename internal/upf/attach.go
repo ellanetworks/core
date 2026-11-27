@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"slices"
 	"unsafe"
 
 	cebpf "github.com/cilium/ebpf"
@@ -168,18 +169,33 @@ func attachExtra(objs *ebpf.BpfObjects, attachedMode string, extra []datapathIfa
 }
 
 func attachInterface(objs *ebpf.BpfObjects, attachedMode string, iface datapathIface) (link.Link, error) {
+	entry, err := objs.InterfaceEntry(iface.index)
+	if err != nil {
+		return nil, err
+	}
+
+	var l link.Link
+
 	switch attachedMode {
 	case config.DatapathTCX:
 		disableMergedPackets(attachedMode, iface.name)
 
-		return attachTCX(objs.UpfEntryFunc, iface.index, iface.name)
+		l, err = attachTCX(entry, iface.index, iface.name)
 	case config.DatapathXDPGeneric:
 		disableMergedPackets(attachedMode, iface.name)
 
-		return attachXDP(objs.UpfEntryFunc, iface.index, link.XDPGenericMode)
+		l, err = attachXDP(entry, iface.index, link.XDPGenericMode)
 	default:
-		return attachXDP(objs.UpfEntryFunc, iface.index, link.XDPDriverMode)
+		l, err = attachXDP(entry, iface.index, link.XDPDriverMode)
 	}
+
+	if err != nil {
+		objs.ReleaseInterface(iface.index)
+
+		return nil, err
+	}
+
+	return l, nil
 }
 
 func attachN3N6(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface, extra []datapathIface) (string, link.Link, *link.Link, error) {
@@ -281,7 +297,12 @@ func attachChainTCX(objs *ebpf.BpfObjects, n3, n6 datapathIface) (string, link.L
 }
 
 func attachBothXDP(objs *ebpf.BpfObjects, n3, n6 datapathIface, flags link.XDPAttachFlags) (link.Link, *link.Link, error) {
-	n3Link, err := attachXDP(objs.UpfEntryFunc, n3.index, flags)
+	n3Entry, err := objs.InterfaceEntry(n3.index)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	n3Link, err := attachXDP(n3Entry, n3.index, flags)
 	if err != nil {
 		return nil, nil, fmt.Errorf("attach datapath on n3 interface %q: %w", n3.name, err)
 	}
@@ -290,7 +311,14 @@ func attachBothXDP(objs *ebpf.BpfObjects, n3, n6 datapathIface, flags link.XDPAt
 		return n3Link, nil, nil
 	}
 
-	n6Link, err := attachXDP(objs.UpfEntryFunc, n6.index, flags)
+	n6Entry, err := objs.InterfaceEntry(n6.index)
+	if err != nil {
+		_ = n3Link.Close()
+
+		return nil, nil, err
+	}
+
+	n6Link, err := attachXDP(n6Entry, n6.index, flags)
 	if err != nil {
 		_ = n3Link.Close()
 
@@ -311,7 +339,12 @@ func datapathNames(n3, n6 datapathIface) []string {
 func attachBothTCX(objs *ebpf.BpfObjects, n3, n6 datapathIface) (link.Link, *link.Link, error) {
 	disableMergedPackets(config.DatapathTCX, datapathNames(n3, n6)...)
 
-	n3Link, err := attachTCX(objs.UpfEntryFunc, n3.index, n3.name)
+	n3Entry, err := objs.InterfaceEntry(n3.index)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	n3Link, err := attachTCX(n3Entry, n3.index, n3.name)
 	if err != nil {
 		if tcxUnavailable(err) {
 			return nil, nil, fmt.Errorf("attach datapath at TCX on %q: TCX needs kernel 6.6 or newer: %w", n3.name, err)
@@ -324,7 +357,14 @@ func attachBothTCX(objs *ebpf.BpfObjects, n3, n6 datapathIface) (link.Link, *lin
 		return n3Link, nil, nil
 	}
 
-	n6Link, err := attachTCX(objs.UpfEntryFunc, n6.index, n6.name)
+	n6Entry, err := objs.InterfaceEntry(n6.index)
+	if err != nil {
+		_ = n3Link.Close()
+
+		return nil, nil, err
+	}
+
+	n6Link, err := attachTCX(n6Entry, n6.index, n6.name)
 	if err != nil {
 		_ = n3Link.Close()
 
@@ -394,13 +434,53 @@ func vlanStrippedBeforeXDP(ifname string) bool {
 }
 
 func warnVLANStrippedBeforeXDP(iface datapathIface, mode string) {
-	if mode != config.DatapathXDPNative || !iface.tagged || !vlanStrippedBeforeXDP(iface.name) {
+	if mode != config.DatapathXDPNative || !iface.tagged {
 		return
 	}
 
-	logger.UpfLog.Warn("interface strips VLAN tags before native XDP, so the datapath cannot classify its VLANs: "+
-		"turn off rx-vlan-offload on it or use tcx",
-		zap.String("iface", iface.name), zap.String("mode", mode))
+	for _, device := range receivingDevices(iface.name) {
+		if !vlanStrippedBeforeXDP(device) {
+			continue
+		}
+
+		logger.UpfLog.Warn("interface strips VLAN tags before native XDP, so the datapath cannot classify its VLANs: "+
+			"turn off rx-vlan-offload on it or use tcx",
+			zap.String("iface", device), zap.String("datapath_iface", iface.name), zap.String("mode", mode))
+	}
+}
+
+var linkList = netlink.LinkList
+
+func receivingDevices(ifname string) []string {
+	if members := bondMembers(ifname); len(members) > 0 {
+		return members
+	}
+
+	return []string{ifname}
+}
+
+func bondMembers(ifname string) []string {
+	bond, err := netlink.LinkByName(ifname)
+	if err != nil || bond.Type() != "bond" {
+		return nil
+	}
+
+	links, err := linkList()
+	if err != nil {
+		logger.UpfLog.Warn("could not list the members of a bond", zap.String("iface", ifname), zap.Error(err))
+
+		return nil
+	}
+
+	var members []string
+
+	for _, l := range links {
+		if l.Attrs().MasterIndex == bond.Attrs().Index {
+			members = append(members, l.Attrs().Name)
+		}
+	}
+
+	return members
 }
 
 func ethtoolValue(ifname string, cmd uint32) (uint32, error) {
@@ -625,7 +705,12 @@ func anyBitSet(words []uint32) bool {
 // segmentation delivers merged packets with GRO off, which no local feature
 // reports.
 func disableMergedPackets(mode string, ifnames ...string) {
-	for _, ifname := range ifnames {
+	devices := slices.Clone(ifnames)
+	for _, name := range ifnames {
+		devices = append(devices, bondMembers(name)...)
+	}
+
+	for _, ifname := range devices {
 		if lower, ok := mergingLowerDevice(ifname); ok {
 			warnMergingOnLowerDevice(ifname, lower, mode)
 

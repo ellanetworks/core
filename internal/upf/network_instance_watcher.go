@@ -32,6 +32,7 @@ var (
 	attachInstanceLink    = attachInterface
 	putNetworkInstance    = (*ebpf.BpfObjects).PutNetworkInstance
 	deleteNetworkInstance = (*ebpf.BpfObjects).DeleteNetworkInstance
+	releaseInstanceLink   = (*ebpf.BpfObjects).ReleaseInterface
 )
 
 var subscribeLinks = func(updates chan<- netlink.LinkUpdate, done <-chan struct{}) error {
@@ -188,6 +189,8 @@ func (u *UPF) detachUnusedInstanceInterfaces() {
 		}
 
 		_ = l.Close()
+
+		releaseInstanceLink(u.se.BpfObjects, index)
 
 		delete(u.instanceLinks, index)
 	}

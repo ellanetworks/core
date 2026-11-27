@@ -440,7 +440,7 @@ int upf_entry_func(struct __ctx_buff *ctx)
 	const bool split_interfaces = n3_ifindex != 0 && n6_ifindex != 0 &&
 				      n3_ifindex != n6_ifindex;
 	const bool ingress_is_n3 =
-		ctx_ingress_ifindex(ctx) == (__u32)n3_ifindex;
+		datapath_ifindex(ctx) == (__u32)n3_ifindex;
 	const bool gtpu_allowed = !split_interfaces || ingress_is_n3;
 
 	if (l3_protocol == ETH_P_IP) {
@@ -463,7 +463,7 @@ int upf_entry_func(struct __ctx_buff *ctx)
 		return ctx_verdict(DEFAULT_CTX_ACTION);
 	}
 
-	const __u32 ingress_ifindex = ctx_ingress_ifindex(ctx);
+	const __u32 ingress_ifindex = datapath_ifindex(ctx);
 	if (network_instances_enabled) {
 		struct network_instance_key ni_key = {
 			.ifindex = ingress_ifindex,

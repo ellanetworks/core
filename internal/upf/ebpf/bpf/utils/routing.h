@@ -151,7 +151,7 @@ do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 		}
 	}
 
-	if (expected_ifindex == ctx_ingress_ifindex(ctx->ctx_buff))
+	if (expected_ifindex == datapath_ifindex(ctx->ctx_buff))
 		return tx_back(ctx, egress_vlan_forwarded(ctx));
 	return redirect_out(ctx, expected_ifindex,
 			    egress_vlan_forwarded(ctx));
@@ -195,7 +195,7 @@ do_route_ipv6(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 	upf_printk("upf: bpf_redirect: if=%d %lu -> %lu", fib_params->ifindex,
 		   fib_params->smac, fib_params->dmac);
 
-	if (expected_ifindex == ctx_ingress_ifindex(ctx->ctx_buff) &&
+	if (expected_ifindex == datapath_ifindex(ctx->ctx_buff) &&
 	    expected_ifindex != 0)
 		return tx_back(ctx, egress_vlan_forwarded(ctx));
 	upf_printk("upf: bpf_redirect: if=%d %lu -> %lu", fib_params->ifindex,
