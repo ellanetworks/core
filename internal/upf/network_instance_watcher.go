@@ -7,6 +7,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/vishvananda/netlink"
@@ -14,9 +15,9 @@ import (
 )
 
 const (
-	instanceWatchBackstopInterval = time.Minute
-	instanceWatchRetryInterval    = time.Second
-	instanceWatchRetryMaxInterval = time.Minute
+	linkWatchBackstopInterval = time.Minute
+	linkWatchRetryInterval    = time.Second
+	linkWatchRetryMaxInterval = time.Minute
 )
 
 type networkInstanceState struct {
@@ -196,37 +197,37 @@ func (u *UPF) detachUnusedInstanceInterfaces() {
 	}
 }
 
-func (u *UPF) startNetworkInstanceWatch(ctx context.Context) {
-	if len(u.instances) == 0 {
+func (u *UPF) startLinkWatch(ctx context.Context) {
+	if len(u.instances) == 0 && !mergingEnforced(u.attachedMode) {
 		return
 	}
 
 	cctx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 
-	u.instanceWatchCancel = cancel
-	u.instanceWatchDone = done
+	u.linkWatchCancel = cancel
+	u.linkWatchDone = done
 
 	go func() {
 		defer close(done)
 
-		u.watchNetworkInstances(cctx)
+		u.watchLinks(cctx)
 	}()
 }
 
-func (u *UPF) stopNetworkInstanceWatch() {
-	if u.instanceWatchCancel == nil {
+func (u *UPF) stopLinkWatch() {
+	if u.linkWatchCancel == nil {
 		return
 	}
 
-	u.instanceWatchCancel()
-	<-u.instanceWatchDone
+	u.linkWatchCancel()
+	<-u.linkWatchDone
 
-	u.instanceWatchCancel = nil
+	u.linkWatchCancel = nil
 }
 
-func (u *UPF) watchNetworkInstances(ctx context.Context) {
-	backoff := instanceWatchRetryInterval
+func (u *UPF) watchLinks(ctx context.Context) {
+	backoff := linkWatchRetryInterval
 
 	for {
 		updates := make(chan netlink.LinkUpdate, 64)
@@ -235,9 +236,9 @@ func (u *UPF) watchNetworkInstances(ctx context.Context) {
 		if err := subscribeLinks(updates, done); err != nil {
 			logger.UpfLog.Error("netlink link subscription failed; retrying", zap.Error(err), zap.Duration("retry_in", backoff))
 		} else {
-			backoff = instanceWatchRetryInterval
+			backoff = linkWatchRetryInterval
 
-			if u.watchNetworkInstanceStream(ctx, done, updates) {
+			if u.watchLinkStream(ctx, done, updates) {
 				return
 			}
 
@@ -250,17 +251,17 @@ func (u *UPF) watchNetworkInstances(ctx context.Context) {
 		case <-time.After(backoff):
 		}
 
-		backoff = min(backoff*2, instanceWatchRetryMaxInterval)
+		backoff = min(backoff*2, linkWatchRetryMaxInterval)
 	}
 }
 
-func (u *UPF) watchNetworkInstanceStream(ctx context.Context, done chan struct{}, updates chan netlink.LinkUpdate) bool {
+func (u *UPF) watchLinkStream(ctx context.Context, done chan struct{}, updates chan netlink.LinkUpdate) bool {
 	defer close(done)
 
-	backstop := time.NewTicker(instanceWatchBackstopInterval)
+	backstop := time.NewTicker(linkWatchBackstopInterval)
 	defer backstop.Stop()
 
-	u.refreshNetworkInstances()
+	u.refreshLinks()
 
 	for {
 		select {
@@ -271,9 +272,9 @@ func (u *UPF) watchNetworkInstanceStream(ctx context.Context, done chan struct{}
 				return false
 			}
 
-			u.refreshNetworkInstances()
+			u.refreshLinks()
 		case <-backstop.C:
-			u.refreshNetworkInstances()
+			u.refreshLinks()
 		}
 	}
 }
@@ -289,4 +290,74 @@ func drainLinkUpdates(updates chan netlink.LinkUpdate) bool {
 			return true
 		}
 	}
+}
+
+func (u *UPF) refreshLinks() {
+	if len(u.instances) > 0 {
+		u.refreshNetworkInstances()
+	}
+
+	u.refreshMerging()
+}
+
+func mergingEnforced(mode string) bool {
+	return mode == config.DatapathTCX || mode == config.DatapathXDPGeneric
+}
+
+func (u *UPF) refreshMerging() {
+	if !mergingEnforced(u.attachedMode) {
+		return
+	}
+
+	u.instanceMu.Lock()
+	defer u.instanceMu.Unlock()
+
+	for _, device := range u.unhandledMergingDevices() {
+		turnOffMerging(device, u.attachedMode)
+	}
+}
+
+func (u *UPF) markMergingHandled() {
+	u.instanceMu.Lock()
+	defer u.instanceMu.Unlock()
+
+	u.unhandledMergingDevices()
+}
+
+func (u *UPF) unhandledMergingDevices() []string {
+	if u.mergingHandled == nil {
+		u.mergingHandled = make(map[int]bool)
+	}
+
+	indexes := []int{u.n3Ifindex, u.n6Ifindex}
+	for index := range u.instanceLinks {
+		indexes = append(indexes, index)
+	}
+
+	var unhandled []string
+
+	for _, index := range indexes {
+		datapath, err := netlink.LinkByIndex(index)
+		if err != nil {
+			continue
+		}
+
+		name := datapath.Attrs().Name
+		if _, ok := mergingLowerDevice(name); ok {
+			continue
+		}
+
+		for _, device := range mergingDevices(u.attachedMode, name) {
+			l, err := netlink.LinkByName(device)
+			if err != nil || u.mergingHandled[l.Attrs().Index] {
+				continue
+			}
+
+			u.mergingHandled[l.Attrs().Index] = true
+
+			unhandled = append(unhandled, device)
+		}
+	}
+
+	return unhandled
 }

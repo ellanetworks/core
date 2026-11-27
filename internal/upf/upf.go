@@ -57,6 +57,7 @@ type UPF struct {
 	n6Link             *link.Link
 	n3Ifindex          int
 	n6Ifindex          int
+	mergingHandled     map[int]bool
 	instanceLinks      map[int]link.Link
 	se                 *engine.SessionEngine
 	smf                engine.SMFReportHandler
@@ -88,11 +89,11 @@ type UPF struct {
 	// Written once in Start, before this struct is returned.
 	attachedMode string
 
-	instanceMu          sync.Mutex
-	instances           []*networkInstanceState
-	datapathIfindex     map[int]bool
-	instanceWatchCancel context.CancelFunc
-	instanceWatchDone   chan struct{}
+	instanceMu      sync.Mutex
+	instances       []*networkInstanceState
+	datapathIfindex map[int]bool
+	linkWatchCancel context.CancelFunc
+	linkWatchDone   chan struct{}
 }
 
 // DatapathAttachMode is empty before the UPF is up.
@@ -328,7 +329,8 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 
 	upf.startCleanupReaper(ctx)
 
-	upf.startNetworkInstanceWatch(ctx)
+	upf.markMergingHandled()
+	upf.startLinkWatch(ctx)
 
 	return upf, nil
 }
@@ -336,7 +338,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 func (u *UPF) StopDatapath() error {
 	var errs []error
 
-	u.stopNetworkInstanceWatch()
+	u.stopLinkWatch()
 
 	u.instanceMu.Lock()
 
@@ -391,7 +393,7 @@ func (u *UPF) Close(ctx context.Context) {
 	u.stopGC()
 	u.stopFlowCollection()
 	u.stopCleanupReaper()
-	u.stopNetworkInstanceWatch()
+	u.stopLinkWatch()
 
 	// Resource cleanup: BPF detach, object close, perf reader close.
 	// These are kernel-level operations that are normally fast, but run

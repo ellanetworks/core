@@ -453,35 +453,47 @@ func warnVLANStrippedBeforeXDP(iface datapathIface, mode string) {
 }
 
 func receivingDevices(ifname string) []string {
-	if members := bondMembers(ifname); len(members) > 0 {
-		return members
-	}
-
-	return []string{ifname}
-}
-
-func bondMembers(ifname string) []string {
-	bond, err := netlink.LinkByName(ifname)
-	if err != nil || bond.Type() != "bond" {
-		return nil
+	l, err := netlink.LinkByName(ifname)
+	if err != nil {
+		return []string{ifname}
 	}
 
 	links, err := netlink.LinkList()
 	if err != nil {
-		logger.UpfLog.Warn("could not list the members of a bond", zap.String("iface", ifname), zap.Error(err))
+		logger.UpfLog.Warn("could not list links to find the devices below a datapath interface",
+			zap.String("iface", ifname), zap.Error(err))
 
-		return nil
+		return []string{ifname}
 	}
 
-	var members []string
+	return lowestDevices(l, links)
+}
 
-	for _, l := range links {
-		if l.Attrs().MasterIndex == bond.Attrs().Index {
-			members = append(members, l.Attrs().Name)
+func lowestDevices(l netlink.Link, links []netlink.Link) []string {
+	attrs := l.Attrs()
+
+	switch l.Type() {
+	case "vlan":
+		for _, parent := range links {
+			if parent.Attrs().Index == attrs.ParentIndex && attrs.NetNsID < 0 {
+				return lowestDevices(parent, links)
+			}
+		}
+	case "bond":
+		var devices []string
+
+		for _, member := range links {
+			if member.Attrs().MasterIndex == attrs.Index {
+				devices = append(devices, lowestDevices(member, links)...)
+			}
+		}
+
+		if len(devices) > 0 {
+			return devices
 		}
 	}
 
-	return members
+	return []string{attrs.Name}
 }
 
 func ethtoolValue(ifname string, cmd uint32) (uint32, error) {
@@ -706,44 +718,61 @@ func anyBitSet(words []uint32) bool {
 // segmentation delivers merged packets with GRO off, which no local feature
 // reports.
 func disableMergedPackets(mode string, ifnames ...string) {
-	devices := slices.Clone(ifnames)
-	for _, name := range ifnames {
-		devices = append(devices, bondMembers(name)...)
-	}
-
-	for _, ifname := range devices {
+	for _, ifname := range ifnames {
 		if lower, ok := mergingLowerDevice(ifname); ok {
 			warnMergingOnLowerDevice(ifname, lower, mode)
 
 			continue
 		}
 
-		if mode != config.DatapathTCX {
-			continue
+		for _, device := range mergingDevices(mode, ifname) {
+			turnOffMerging(device, mode)
 		}
+	}
+}
 
-		disabled, stillOn, err := disableReceiveMerging(ifname)
-		if err != nil {
-			logger.UpfLog.Warn("could not turn off packet merging on a datapath interface: "+
-				"merged packets cannot be encapsulated or decapsulated into valid GTP-U and are "+
-				"dropped, counted in app_upf_datapath_drop_total under encap_gso and decap_gso; "+
-				"turn off GRO, hardware GRO and LRO on it with ethtool",
-				zap.String("iface", ifname), zap.String("mode", mode), zap.Error(err))
+func mergingDevices(mode, ifname string) []string {
+	var devices []string
 
-			continue
+	switch mode {
+	case config.DatapathTCX:
+		devices = []string{ifname}
+	case config.DatapathXDPGeneric:
+	default:
+		return nil
+	}
+
+	for _, device := range receivingDevices(ifname) {
+		if !slices.Contains(devices, device) && device != ifname {
+			devices = append(devices, device)
 		}
+	}
 
-		if len(disabled) > 0 {
-			logger.UpfLog.Info("turned off packet merging on a datapath interface",
-				zap.String("iface", ifname), zap.String("mode", mode), zap.Strings("features", disabled))
-		}
+	return devices
+}
 
-		if len(stillOn) > 0 {
-			logger.UpfLog.Warn("packet merging is fixed on by the driver or hypervisor of a datapath interface "+
-				"and cannot be changed: merged packets cannot be encapsulated or decapsulated into valid "+
-				"GTP-U and are dropped, counted in app_upf_datapath_drop_total under encap_gso and decap_gso",
-				zap.String("iface", ifname), zap.String("mode", mode), zap.Strings("features", stillOn))
-		}
+func turnOffMerging(ifname, mode string) {
+	disabled, stillOn, err := disableReceiveMerging(ifname)
+	if err != nil {
+		logger.UpfLog.Warn("could not turn off packet merging on a datapath interface: "+
+			"merged packets cannot be encapsulated or decapsulated into valid GTP-U and are "+
+			"dropped, counted in app_upf_datapath_drop_total under encap_gso and decap_gso; "+
+			"turn off GRO, hardware GRO and LRO on it with ethtool",
+			zap.String("iface", ifname), zap.String("mode", mode), zap.Error(err))
+
+		return
+	}
+
+	if len(disabled) > 0 {
+		logger.UpfLog.Info("turned off packet merging on a datapath interface",
+			zap.String("iface", ifname), zap.String("mode", mode), zap.Strings("features", disabled))
+	}
+
+	if len(stillOn) > 0 {
+		logger.UpfLog.Warn("packet merging is fixed on by the driver or hypervisor of a datapath interface "+
+			"and cannot be changed: merged packets cannot be encapsulated or decapsulated into valid "+
+			"GTP-U and are dropped, counted in app_upf_datapath_drop_total under encap_gso and decap_gso",
+			zap.String("iface", ifname), zap.String("mode", mode), zap.Strings("features", stillOn))
 	}
 }
 

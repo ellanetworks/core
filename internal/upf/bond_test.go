@@ -5,12 +5,16 @@ package upf
 
 import (
 	"context"
+	"net"
 	"os/exec"
 	"slices"
 	"testing"
 
+	"github.com/cilium/ebpf/link"
 	"github.com/ellanetworks/core/internal/config"
 )
+
+const testBond = "ellbtst0"
 
 func runIP(t *testing.T, args ...string) {
 	t.Helper()
@@ -20,58 +24,127 @@ func runIP(t *testing.T, args ...string) {
 	}
 }
 
-func TestBondMembersReceiveForTheBond(t *testing.T) {
-	const bond = "ellbtst0"
+func deleteLink(name string) {
+	_ = exec.CommandContext(context.Background(), "ip", "link", "del", name).Run()
+}
 
-	members := []string{"ellbtm0", "ellbtm1"}
+func addBondMember(t *testing.T, bond, member, peer string) {
+	t.Helper()
+
+	deleteLink(member)
+	runIP(t, "link", "add", member, "type", "veth", "peer", "name", peer)
+	t.Cleanup(func() { deleteLink(member) })
+	runIP(t, "link", "set", member, "master", bond)
+
+	if out, err := exec.CommandContext(context.Background(), "ethtool", "-K", member, "gro", "on").CombinedOutput(); err != nil {
+		t.Fatalf("enable GRO on %s: %v: %s", member, err, out)
+	}
+}
+
+func requireGROOff(t *testing.T, devices ...string) {
+	t.Helper()
+
+	for _, device := range devices {
+		enabled, err := interfaceGROEnabled(device)
+		if err != nil {
+			t.Fatalf("read GRO on %s: %v", device, err)
+		}
+
+		if enabled {
+			t.Fatalf("GRO is still on for %s", device)
+		}
+	}
+}
+
+func setupTestBond(t *testing.T, members ...string) string {
+	t.Helper()
 
 	requireRoot(t)
 
-	_ = exec.CommandContext(context.Background(), "ip", "link", "del", bond).Run()
-
-	runIP(t, "link", "add", bond, "type", "bond", "mode", "active-backup", "miimon", "100")
-	t.Cleanup(func() { _ = exec.CommandContext(context.Background(), "ip", "link", "del", bond).Run() })
+	deleteLink(testBond)
+	runIP(t, "link", "add", testBond, "type", "bond", "mode", "active-backup", "miimon", "100")
+	t.Cleanup(func() { deleteLink(testBond) })
 
 	for i, member := range members {
-		peer := "ellbtp" + string(rune('0'+i))
-
-		_ = exec.CommandContext(context.Background(), "ip", "link", "del", member).Run()
-		runIP(t, "link", "add", member, "type", "veth", "peer", "name", peer)
-		t.Cleanup(func() { _ = exec.CommandContext(context.Background(), "ip", "link", "del", member).Run() })
-		runIP(t, "link", "set", member, "master", bond)
-
-		if out, err := exec.CommandContext(context.Background(), "ethtool", "-K", member, "gro", "on").CombinedOutput(); err != nil {
-			t.Fatalf("enable GRO on %s: %v: %s", member, err, out)
-		}
+		addBondMember(t, testBond, member, "ellbtp"+string(rune('0'+i)))
 	}
 
-	runIP(t, "link", "set", bond, "up")
+	runIP(t, "link", "set", testBond, "up")
 
-	got := bondMembers(bond)
-	slices.Sort(got)
+	vlan := testBond + ".7"
+	runIP(t, "link", "add", "link", testBond, "name", vlan, "type", "vlan", "id", "7")
 
-	if !slices.Equal(got, members) {
-		t.Fatalf("bondMembers(%s) = %v, want %v", bond, got, members)
+	return vlan
+}
+
+func TestBondMembersReceiveForTheBond(t *testing.T) {
+	members := []string{"ellbtm0", "ellbtm1"}
+
+	vlan := setupTestBond(t, members...)
+
+	for _, ifname := range []string{testBond, vlan} {
+		got := receivingDevices(ifname)
+		slices.Sort(got)
+
+		if !slices.Equal(got, members) {
+			t.Fatalf("receivingDevices(%s) = %v, want %v", ifname, got, members)
+		}
 	}
 
 	if got := receivingDevices(members[0]); !slices.Equal(got, []string{members[0]}) {
 		t.Fatalf("receivingDevices(%s) = %v, want the device itself", members[0], got)
 	}
 
-	if !nativeXDPBlackholes(bond) {
-		t.Fatalf("nativeXDPBlackholes(%s) = false, want true for a bond of veth members", bond)
+	if !nativeXDPBlackholes(testBond) {
+		t.Fatalf("nativeXDPBlackholes(%s) = false, want true for a bond of veth members", testBond)
 	}
 
-	disableMergedPackets(config.DatapathTCX, bond)
-
-	for _, member := range members {
-		enabled, err := interfaceGROEnabled(member)
-		if err != nil {
-			t.Fatalf("read GRO on %s: %v", member, err)
-		}
-
-		if enabled {
-			t.Fatalf("GRO is still on for bond member %s", member)
-		}
+	if got := mergingDevices(config.DatapathXDPNative, vlan); len(got) != 0 {
+		t.Fatalf("mergingDevices(xdp-native) = %v, want none", got)
 	}
+
+	if got := mergingDevices(config.DatapathXDPGeneric, vlan); !slices.Contains(got, members[0]) || slices.Contains(got, vlan) {
+		t.Fatalf("mergingDevices(xdp-generic, %s) = %v, want the members without the attached interface", vlan, got)
+	}
+
+	disableMergedPackets(config.DatapathTCX, testBond)
+
+	requireGROOff(t, members...)
+}
+
+func TestLinkWatchTurnsOffMergingOnNewMembers(t *testing.T) {
+	for _, mode := range []string{config.DatapathTCX, config.DatapathXDPGeneric} {
+		t.Run(mode, func(t *testing.T) {
+			vlan := setupTestBond(t, "ellbtm0")
+
+			datapath := ifByNameForTest(t, vlan)
+
+			u := &UPF{
+				attachedMode:  mode,
+				n3Ifindex:     datapath,
+				n6Ifindex:     datapath,
+				instanceLinks: map[int]link.Link{},
+			}
+
+			disableMergedPackets(mode, vlan)
+			u.markMergingHandled()
+
+			addBondMember(t, testBond, "ellbtm1", "ellbtp1")
+
+			u.refreshLinks()
+
+			requireGROOff(t, "ellbtm0", "ellbtm1")
+		})
+	}
+}
+
+func ifByNameForTest(t *testing.T, name string) int {
+	t.Helper()
+
+	iface, err := net.InterfaceByName(name)
+	if err != nil {
+		t.Fatalf("lookup %s: %v", name, err)
+	}
+
+	return iface.Index
 }
