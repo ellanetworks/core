@@ -66,15 +66,12 @@ var tls12Suites = []uint16{
 	tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
 }
 
-var curves = []tls.CurveID{tls.X25519, tls.CurveP256, tls.CurveP384}
-
 func baseTLSConfig() *tls.Config {
 	return &tls.Config{
-		MinVersion:       tls.VersionTLS12,
-		MaxVersion:       tls.VersionTLS13,
-		CipherSuites:     slices.Clone(tls12Suites),
-		CurvePreferences: slices.Clone(curves),
-		NextProtos:       []string{ALPNH2},
+		MinVersion:   tls.VersionTLS12,
+		MaxVersion:   tls.VersionTLS13,
+		CipherSuites: slices.Clone(tls12Suites),
+		NextProtos:   []string{ALPNH2},
 	}
 }
 
