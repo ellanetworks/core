@@ -1,0 +1,3 @@
+Red Hat, the Red Hat logo, and OpenShift are trademarks or registered trademarks of Red Hat, Inc. or its subsidiaries in the United States and other countries.
+
+This file is a Red Hat technical partner button. It is used unmodified under the Red Hat partner brand standards: https://www.redhat.com/en/about/brand/standards/technical-partner-buttons

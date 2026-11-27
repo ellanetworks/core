@@ -92,6 +92,12 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "Ella Networks Inc."
 SPDX-License-Identifier = "Apache-2.0"
 
+[[annotations]]
+path = "docs/images/certified-for-red-hat-openshift.svg"
+precedence = "override"
+SPDX-FileCopyrightText = "Red Hat, Inc."
+SPDX-License-Identifier = "LicenseRef-Red-Hat-Trademark"
+
 # Test fixtures and Go fuzz corpora (Ella-authored): captured byte vectors and
 # seed inputs that can't carry a comment header.
 [[annotations]]
