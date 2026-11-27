@@ -310,6 +310,13 @@ type N3N6EntrypointRouteStat struct {
 	FibLookupIp6Error       uint64
 }
 
+type N3N6EntrypointRuntimeSettings struct {
+	_                 structs.HostLayout
+	BufferVethIfindex uint32
+	ReasmVethIfindex  uint32
+	FragTxEnabled     uint32
+}
+
 type N3N6EntrypointSdfClassifier struct {
 	_        structs.HostLayout
 	NumRules uint8
@@ -478,6 +485,7 @@ const (
 	N3N6EntrypointMapRadioForwarded            = "radio_forwarded"
 	N3N6EntrypointMapRingbufLost               = "ringbuf_lost"
 	N3N6EntrypointMapRsEventMap                = "rs_event_map"
+	N3N6EntrypointMapRuntimeSettingsMap        = "runtime_settings_map"
 	N3N6EntrypointMapSdfClassifiers            = "sdf_classifiers"
 	N3N6EntrypointMapSdfFilters                = "sdf_filters"
 	N3N6EntrypointMapTrafficClassDrops         = "traffic_class_drops"
@@ -495,9 +503,7 @@ const (
 	N3N6EntrypointProgUpfUplinkFunc            = "upf_uplink_func"
 	N3N6EntrypointProgVethXdpFunc              = "veth_xdp_func"
 	N3N6EntrypointVarAttachIfindex             = "attach_ifindex"
-	N3N6EntrypointVarBufferVethIfindex         = "buffer_veth_ifindex"
 	N3N6EntrypointVarFlowact                   = "flowact"
-	N3N6EntrypointVarFragTxEnabled             = "frag_tx_enabled"
 	N3N6EntrypointVarMasquerade                = "masquerade"
 	N3N6EntrypointVarN3Ifindex                 = "n3_ifindex"
 	N3N6EntrypointVarN3RoutingIfindex          = "n3_routing_ifindex"
@@ -508,7 +514,6 @@ const (
 	N3N6EntrypointVarNatPortMax                = "nat_port_max"
 	N3N6EntrypointVarNatPortMin                = "nat_port_min"
 	N3N6EntrypointVarNetworkInstancesEnabled   = "network_instances_enabled"
-	N3N6EntrypointVarReasmVethIfindex          = "reasm_veth_ifindex"
 )
 
 // LoadN3N6Entrypoint returns the embedded CollectionSpec for N3N6Entrypoint.
@@ -596,6 +601,7 @@ type N3N6EntrypointMapSpecs struct {
 	RadioForwarded            *ebpf.MapSpec `ebpf:"radio_forwarded"`
 	RingbufLost               *ebpf.MapSpec `ebpf:"ringbuf_lost"`
 	RsEventMap                *ebpf.MapSpec `ebpf:"rs_event_map"`
+	RuntimeSettingsMap        *ebpf.MapSpec `ebpf:"runtime_settings_map"`
 	SdfClassifiers            *ebpf.MapSpec `ebpf:"sdf_classifiers"`
 	SdfFilters                *ebpf.MapSpec `ebpf:"sdf_filters"`
 	TrafficClassDrops         *ebpf.MapSpec `ebpf:"traffic_class_drops"`
@@ -613,9 +619,7 @@ type N3N6EntrypointMapSpecs struct {
 // It can be passed ebpf.CollectionSpec.Assign.
 type N3N6EntrypointVariableSpecs struct {
 	AttachIfindex           *ebpf.VariableSpec `ebpf:"attach_ifindex"`
-	BufferVethIfindex       *ebpf.VariableSpec `ebpf:"buffer_veth_ifindex"`
 	Flowact                 *ebpf.VariableSpec `ebpf:"flowact"`
-	FragTxEnabled           *ebpf.VariableSpec `ebpf:"frag_tx_enabled"`
 	Masquerade              *ebpf.VariableSpec `ebpf:"masquerade"`
 	N3Ifindex               *ebpf.VariableSpec `ebpf:"n3_ifindex"`
 	N3RoutingIfindex        *ebpf.VariableSpec `ebpf:"n3_routing_ifindex"`
@@ -626,7 +630,6 @@ type N3N6EntrypointVariableSpecs struct {
 	NatPortMax              *ebpf.VariableSpec `ebpf:"nat_port_max"`
 	NatPortMin              *ebpf.VariableSpec `ebpf:"nat_port_min"`
 	NetworkInstancesEnabled *ebpf.VariableSpec `ebpf:"network_instances_enabled"`
-	ReasmVethIfindex        *ebpf.VariableSpec `ebpf:"reasm_veth_ifindex"`
 }
 
 // N3N6EntrypointObjects contains all objects after they have been loaded into the kernel.
@@ -680,6 +683,7 @@ type N3N6EntrypointMaps struct {
 	RadioForwarded            *ebpf.Map `ebpf:"radio_forwarded"`
 	RingbufLost               *ebpf.Map `ebpf:"ringbuf_lost"`
 	RsEventMap                *ebpf.Map `ebpf:"rs_event_map"`
+	RuntimeSettingsMap        *ebpf.Map `ebpf:"runtime_settings_map"`
 	SdfClassifiers            *ebpf.Map `ebpf:"sdf_classifiers"`
 	SdfFilters                *ebpf.Map `ebpf:"sdf_filters"`
 	TrafficClassDrops         *ebpf.Map `ebpf:"traffic_class_drops"`
@@ -725,6 +729,7 @@ func (m *N3N6EntrypointMaps) Close() error {
 		m.RadioForwarded,
 		m.RingbufLost,
 		m.RsEventMap,
+		m.RuntimeSettingsMap,
 		m.SdfClassifiers,
 		m.SdfFilters,
 		m.TrafficClassDrops,
@@ -743,9 +748,7 @@ func (m *N3N6EntrypointMaps) Close() error {
 // It can be passed to LoadN3N6EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
 type N3N6EntrypointVariables struct {
 	AttachIfindex           *ebpf.Variable `ebpf:"attach_ifindex"`
-	BufferVethIfindex       *ebpf.Variable `ebpf:"buffer_veth_ifindex"`
 	Flowact                 *ebpf.Variable `ebpf:"flowact"`
-	FragTxEnabled           *ebpf.Variable `ebpf:"frag_tx_enabled"`
 	Masquerade              *ebpf.Variable `ebpf:"masquerade"`
 	N3Ifindex               *ebpf.Variable `ebpf:"n3_ifindex"`
 	N3RoutingIfindex        *ebpf.Variable `ebpf:"n3_routing_ifindex"`
@@ -756,7 +759,6 @@ type N3N6EntrypointVariables struct {
 	NatPortMax              *ebpf.Variable `ebpf:"nat_port_max"`
 	NatPortMin              *ebpf.Variable `ebpf:"nat_port_min"`
 	NetworkInstancesEnabled *ebpf.Variable `ebpf:"network_instances_enabled"`
-	ReasmVethIfindex        *ebpf.Variable `ebpf:"reasm_veth_ifindex"`
 }
 
 // N3N6EntrypointPrograms contains all programs after they have been loaded into the kernel.

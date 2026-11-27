@@ -114,9 +114,7 @@ type BpfObjects struct {
 
 	NetworkInstancesEnabled bool
 
-	bufferVethIndex uint32 // ifindex of the reinjection veth
-	reasmVethIndex  uint32
-	fragTxEnabled   uint32
+	settingsMu sync.Mutex
 
 	pagingMu   sync.Mutex
 	pagingList map[DataNotification]bool
@@ -356,21 +354,6 @@ func (bpfObjects *BpfObjects) loadAndAssignFromSpec(spec *ebpf.CollectionSpec, t
 		return err
 	}
 
-	if err := spec.Variables["buffer_veth_ifindex"].Set(bpfObjects.bufferVethIndex); err != nil {
-		logger.UpfLog.Error("failed to set buffer_veth_ifindex", zap.Error(err))
-		return err
-	}
-
-	if err := spec.Variables["reasm_veth_ifindex"].Set(bpfObjects.reasmVethIndex); err != nil {
-		logger.UpfLog.Error("failed to set reasm_veth_ifindex", zap.Error(err))
-		return err
-	}
-
-	if err := spec.Variables["frag_tx_enabled"].Set(bpfObjects.fragTxEnabled); err != nil {
-		logger.UpfLog.Error("failed to set frag_tx_enabled", zap.Error(err))
-		return err
-	}
-
 	if opts == nil {
 		opts = &ebpf.CollectionOptions{}
 	}
@@ -495,17 +478,17 @@ func closeSharingMaps(objs *N3N6EntrypointObjects) {
 	}
 }
 
-func (bpfObjects *BpfObjects) InterfaceEntry(ifindex int) (*ebpf.Program, error) {
+func (bpfObjects *BpfObjects) InterfaceEntry(ifindex int) (*ebpf.Program, bool, error) {
 	bpfObjects.interfacesMu.Lock()
 	defer bpfObjects.interfacesMu.Unlock()
 
 	if objs, ok := bpfObjects.interfaces[uint32(ifindex)]; ok {
-		return objs.UpfEntryFunc, nil
+		return objs.UpfEntryFunc, false, nil
 	}
 
 	objs, err := bpfObjects.loadSharingMaps(uint32(ifindex))
 	if err != nil {
-		return nil, fmt.Errorf("load datapath for interface %d: %w", ifindex, err)
+		return nil, false, fmt.Errorf("load datapath for interface %d: %w", ifindex, err)
 	}
 
 	if bpfObjects.interfaces == nil {
@@ -514,7 +497,7 @@ func (bpfObjects *BpfObjects) InterfaceEntry(ifindex int) (*ebpf.Program, error)
 
 	bpfObjects.interfaces[uint32(ifindex)] = objs
 
-	return objs.UpfEntryFunc, nil
+	return objs.UpfEntryFunc, true, nil
 }
 
 func (bpfObjects *BpfObjects) ReleaseInterface(ifindex int) {
@@ -528,19 +511,6 @@ func (bpfObjects *BpfObjects) ReleaseInterface(ifindex int) {
 
 	closeSharingMaps(objs)
 	delete(bpfObjects.interfaces, uint32(ifindex))
-}
-
-func (bpfObjects *BpfObjects) forEachInterface(fn func(*N3N6EntrypointObjects) error) error {
-	bpfObjects.interfacesMu.Lock()
-	defer bpfObjects.interfacesMu.Unlock()
-
-	var err error
-
-	for _, objs := range bpfObjects.interfaces {
-		err = errors.Join(err, fn(objs))
-	}
-
-	return err
 }
 
 func (bpfObjects *BpfObjects) reloadInterfaces() (func(), error) {
@@ -639,53 +609,39 @@ func (bpfObjects *BpfObjects) Close() error {
 
 // SetBufferVethIfindex names the veth re-injected packets arrive on. Zero clears it.
 func (bpfObjects *BpfObjects) SetBufferVethIfindex(vethIfindex int) error {
-	bpfObjects.bufferVethIndex = uint32(vethIfindex)
-
-	if err := bpfObjects.BufferVethIfindex.Set(uint32(vethIfindex)); err != nil {
-		return fmt.Errorf("set buffer_veth_ifindex: %w", err)
-	}
-
-	if err := bpfObjects.forEachInterface(func(objs *N3N6EntrypointObjects) error {
-		return objs.BufferVethIfindex.Set(uint32(vethIfindex))
-	}); err != nil {
-		return fmt.Errorf("set buffer_veth_ifindex: %w", err)
-	}
-
-	return nil
+	return bpfObjects.updateRuntimeSettings(func(settings *N3N6EntrypointRuntimeSettings) {
+		settings.BufferVethIfindex = uint32(vethIfindex)
+	})
 }
 
 func (bpfObjects *BpfObjects) SetReasmVethIfindex(vethIfindex int) error {
-	bpfObjects.reasmVethIndex = uint32(vethIfindex)
-
-	if err := bpfObjects.ReasmVethIfindex.Set(uint32(vethIfindex)); err != nil {
-		return fmt.Errorf("set reasm_veth_ifindex: %w", err)
-	}
-
-	if err := bpfObjects.forEachInterface(func(objs *N3N6EntrypointObjects) error {
-		return objs.ReasmVethIfindex.Set(uint32(vethIfindex))
-	}); err != nil {
-		return fmt.Errorf("set reasm_veth_ifindex: %w", err)
-	}
-
-	return nil
+	return bpfObjects.updateRuntimeSettings(func(settings *N3N6EntrypointRuntimeSettings) {
+		settings.ReasmVethIfindex = uint32(vethIfindex)
+	})
 }
 
 func (bpfObjects *BpfObjects) SetFragTxEnabled(enabled bool) error {
-	var v uint32
-	if enabled {
-		v = 1
+	return bpfObjects.updateRuntimeSettings(func(settings *N3N6EntrypointRuntimeSettings) {
+		settings.FragTxEnabled = 0
+		if enabled {
+			settings.FragTxEnabled = 1
+		}
+	})
+}
+
+func (bpfObjects *BpfObjects) updateRuntimeSettings(update func(*N3N6EntrypointRuntimeSettings)) error {
+	bpfObjects.settingsMu.Lock()
+	defer bpfObjects.settingsMu.Unlock()
+
+	var settings N3N6EntrypointRuntimeSettings
+	if err := bpfObjects.RuntimeSettingsMap.Lookup(uint32(0), &settings); err != nil {
+		return fmt.Errorf("read runtime settings: %w", err)
 	}
 
-	bpfObjects.fragTxEnabled = v
+	update(&settings)
 
-	if err := bpfObjects.FragTxEnabled.Set(v); err != nil {
-		return fmt.Errorf("set frag_tx_enabled: %w", err)
-	}
-
-	if err := bpfObjects.forEachInterface(func(objs *N3N6EntrypointObjects) error {
-		return objs.FragTxEnabled.Set(v)
-	}); err != nil {
-		return fmt.Errorf("set frag_tx_enabled: %w", err)
+	if err := bpfObjects.RuntimeSettingsMap.Put(uint32(0), &settings); err != nil {
+		return fmt.Errorf("write runtime settings: %w", err)
 	}
 
 	return nil

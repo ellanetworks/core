@@ -18,8 +18,6 @@
 
 #define FRAG_TX_SCRATCH_PAD 8
 
-int frag_tx_enabled;
-
 struct frag_tx_scratch {
 	__u8 payload[FRAG_TX_MAX_PKT];
 	__u8 pad[FRAG_TX_SCRATCH_PAD];
@@ -42,7 +40,7 @@ struct {
 static __always_inline enum ctx_action
 fragmented_transport_to_stack(struct packet_context *ctx)
 {
-	if (!reasm_veth_ifindex || frame_is_reassembled(ctx->ctx_buff))
+	if (!reasm_veth_ifindex() || frame_is_reassembled(ctx->ctx_buff))
 		return drop_with(ctx, UPF_DROP_FRAGMENTED_TRANSPORT);
 
 	return CTX_ACT_OK;
@@ -51,13 +49,13 @@ fragmented_transport_to_stack(struct packet_context *ctx)
 static __always_inline bool
 downlink_fragments_outer_ipv4(const struct iphdr *ip4)
 {
-	return frag_tx_enabled && (ip4->frag_off & bpf_htons(0x4000)) == 0;
+	return frag_tx_enabled() && (ip4->frag_off & bpf_htons(0x4000)) == 0;
 }
 
 static __always_inline bool
 downlink_fragments_outer_ipv6(const struct ipv6hdr *ip6, __u32 inner_mtu)
 {
-	if (!frag_tx_enabled || inner_mtu >= IPV6_MIN_MTU)
+	if (!frag_tx_enabled() || inner_mtu >= IPV6_MIN_MTU)
 		return false;
 
 	return bpf_ntohs(ip6->payload_len) + sizeof(struct ipv6hdr) <=
@@ -66,7 +64,7 @@ downlink_fragments_outer_ipv6(const struct ipv6hdr *ip6, __u32 inner_mtu)
 
 static __always_inline __u32 ipv6_packet_too_big_mtu(__u32 inner_mtu)
 {
-	if (frag_tx_enabled && inner_mtu < IPV6_MIN_MTU)
+	if (frag_tx_enabled() && inner_mtu < IPV6_MIN_MTU)
 		return IPV6_MIN_MTU;
 
 	return inner_mtu;
@@ -126,7 +124,7 @@ __noinline __weak int frag_tx_offload(struct __ctx_buff *ctx_buff, __u32 off,
 static __always_inline int frag_tx_offer(struct packet_context *ctx,
 					 const void *l3)
 {
-	if (!frag_tx_enabled)
+	if (!frag_tx_enabled())
 		return FRAG_TX_FITS;
 
 	return frag_tx_offload(
@@ -146,7 +144,7 @@ static __always_inline enum upf_drop_reason frag_tx_drop_reason(int result)
 static __always_inline enum ctx_action
 frag_tx_route_too_small(struct packet_context *ctx, const void *l3)
 {
-	if (!frag_tx_enabled)
+	if (!frag_tx_enabled())
 		return drop_with(ctx, UPF_DROP_FIB_FRAG_NEEDED);
 
 	const int offered = frag_tx_offload(

@@ -547,7 +547,7 @@ func (u *UPF) updateAttachedPrograms() error {
 }
 
 func (u *UPF) updateInterfaceLink(l link.Link, ifindex int) error {
-	entry, err := u.se.BpfObjects.InterfaceEntry(ifindex)
+	entry, _, err := u.se.BpfObjects.InterfaceEntry(ifindex)
 	if err != nil {
 		return err
 	}

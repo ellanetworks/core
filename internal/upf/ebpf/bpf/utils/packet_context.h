@@ -27,6 +27,7 @@
 #include <bpf/bpf_helpers.h>
 #include "bpf/utils/statistics.h"
 #include "bpf/utils/traffic_class.h"
+#include "bpf/utils/runtime_settings.h"
 #include <linux/if_ether.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
@@ -59,8 +60,6 @@ static __always_inline __u32 datapath_ifindex(struct __ctx_buff *ctx)
 {
 	return attach_ifindex ? attach_ifindex : ctx_ingress_ifindex(ctx);
 }
-
-int reasm_veth_ifindex;
 
 struct vlan_hdr {
 	__be16 h_vlan_TCI;
@@ -145,8 +144,9 @@ static __always_inline __u32 n3_mtu_ifindex(void)
 
 static __always_inline bool frame_is_reassembled(struct __ctx_buff *ctx)
 {
-	return reasm_veth_ifindex != 0 &&
-	       ctx_ingress_ifindex(ctx) == (__u32)reasm_veth_ifindex;
+	__u32 reasm = reasm_veth_ifindex();
+
+	return reasm != 0 && ctx_ingress_ifindex(ctx) == reasm;
 }
 
 __noinline __weak __u32
