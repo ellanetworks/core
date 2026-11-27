@@ -180,11 +180,6 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 					tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
 					tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
 				},
-				CurvePreferences: []tls.CurveID{
-					tls.X25519,
-					tls.CurveP256,
-					tls.CurveP384,
-				},
 			}
 
 			serveErr = srv.ServeTLS(ln, cfg.Interfaces.API.TLS.Cert, cfg.Interfaces.API.TLS.Key)
