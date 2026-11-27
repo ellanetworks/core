@@ -16,7 +16,7 @@ See [connectivity reference](connectivity.md) for network interface requirements
 
 ## Kubernetes
 
-Ella Core should work on most Kubernetes distributions. It has been validated on **EKS**, **GKE**, **OpenShift**, **RKE2**, and **kind**.
+Ella Core should work on most Kubernetes distributions. It has been validated on **EKS**, **GKE**, **RKE2**, and **kind**, and is [certified for **Red Hat OpenShift**](https://catalog.redhat.com/en/software/container-stacks/detail/6b06c60a1d68b0232005a9c2).
 
 | Requirement | Value |
 |-------------|-------|

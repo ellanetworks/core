@@ -6,6 +6,7 @@
 
 [![ella-core](https://snapcraft.io/ella-core/badge.svg)](https://snapcraft.io/ella-core)
 [![CNTi essential](https://raw.githubusercontent.com/ellanetworks/core/badges/cnti-badge.svg)](https://github.com/ellanetworks/core/actions/workflows/cnti.yaml)
+<a href="https://catalog.redhat.com/en/software/container-stacks/detail/6b06c60a1d68b0232005a9c2"><img src="docs/images/certified-for-red-hat-openshift.svg" alt="Certified for Red Hat OpenShift" height="20"></a>
 
 Ella Core is a mobile core designed for private networks. It consolidates the complexity of traditional mobile networks into a single application, offering simplicity, reliability, and security.
 
