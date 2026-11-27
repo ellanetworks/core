@@ -127,13 +127,25 @@ func TestLinkWatchTurnsOffMergingOnNewMembers(t *testing.T) {
 			}
 
 			disableMergedPackets(mode, vlan)
-			u.markMergingHandled()
+			u.seedMerging()
 
 			addBondMember(t, testBond, "ellbtm1", "ellbtp1")
 
+			if enabled, err := interfaceGROEnabled("ellbtm1"); err != nil || !enabled {
+				t.Fatalf("GRO on the new member before refresh = %t, %v; want on", enabled, err)
+			}
+
 			u.refreshLinks()
 
-			requireGROOff(t, "ellbtm0", "ellbtm1")
+			requireGROOff(t, "ellbtm1")
+
+			if out, err := exec.CommandContext(context.Background(), "ethtool", "-K", "ellbtm1", "gro", "on").CombinedOutput(); err != nil {
+				t.Fatalf("re-enable GRO: %v: %s", err, out)
+			}
+
+			u.refreshLinks()
+
+			requireGROOff(t, "ellbtm1")
 		})
 	}
 }

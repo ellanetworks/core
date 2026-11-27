@@ -726,7 +726,7 @@ func disableMergedPackets(mode string, ifnames ...string) {
 		}
 
 		for _, device := range mergingDevices(mode, ifname) {
-			turnOffMerging(device, mode)
+			turnOffMerging(device, mode, true)
 		}
 	}
 }
@@ -751,16 +751,20 @@ func mergingDevices(mode, ifname string) []string {
 	return devices
 }
 
-func turnOffMerging(ifname, mode string) {
+func turnOffMerging(ifname, mode string, warn bool) bool {
 	disabled, stillOn, err := disableReceiveMerging(ifname)
 	if err != nil {
+		if !warn {
+			return true
+		}
+
 		logger.UpfLog.Warn("could not turn off packet merging on a datapath interface: "+
 			"merged packets cannot be encapsulated or decapsulated into valid GTP-U and are "+
 			"dropped, counted in app_upf_datapath_drop_total under encap_gso and decap_gso; "+
 			"turn off GRO, hardware GRO and LRO on it with ethtool",
 			zap.String("iface", ifname), zap.String("mode", mode), zap.Error(err))
 
-		return
+		return true
 	}
 
 	if len(disabled) > 0 {
@@ -768,12 +772,18 @@ func turnOffMerging(ifname, mode string) {
 			zap.String("iface", ifname), zap.String("mode", mode), zap.Strings("features", disabled))
 	}
 
-	if len(stillOn) > 0 {
+	if len(stillOn) == 0 {
+		return false
+	}
+
+	if warn {
 		logger.UpfLog.Warn("packet merging is fixed on by the driver or hypervisor of a datapath interface "+
 			"and cannot be changed: merged packets cannot be encapsulated or decapsulated into valid "+
 			"GTP-U and are dropped, counted in app_upf_datapath_drop_total under encap_gso and decap_gso",
 			zap.String("iface", ifname), zap.String("mode", mode), zap.Strings("features", stillOn))
 	}
+
+	return true
 }
 
 func mergingLowerDevice(ifname string) (string, bool) {

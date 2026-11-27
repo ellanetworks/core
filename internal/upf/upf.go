@@ -57,7 +57,7 @@ type UPF struct {
 	n6Link             *link.Link
 	n3Ifindex          int
 	n6Ifindex          int
-	mergingHandled     map[int]bool
+	mergingWarned      map[int]bool
 	instanceLinks      map[int]link.Link
 	se                 *engine.SessionEngine
 	smf                engine.SMFReportHandler
@@ -329,7 +329,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 
 	upf.startCleanupReaper(ctx)
 
-	upf.markMergingHandled()
+	upf.seedMerging()
 	upf.startLinkWatch(ctx)
 
 	return upf, nil

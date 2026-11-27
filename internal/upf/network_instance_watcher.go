@@ -5,6 +5,7 @@ package upf
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/ellanetworks/core/internal/config"
@@ -305,6 +306,14 @@ func mergingEnforced(mode string) bool {
 }
 
 func (u *UPF) refreshMerging() {
+	u.enforceMerging(true)
+}
+
+func (u *UPF) seedMerging() {
+	u.enforceMerging(false)
+}
+
+func (u *UPF) enforceMerging(logWarnings bool) {
 	if !mergingEnforced(u.attachedMode) {
 		return
 	}
@@ -312,29 +321,32 @@ func (u *UPF) refreshMerging() {
 	u.instanceMu.Lock()
 	defer u.instanceMu.Unlock()
 
-	for _, device := range u.unhandledMergingDevices() {
-		turnOffMerging(device, u.attachedMode)
+	if u.mergingWarned == nil {
+		u.mergingWarned = make(map[int]bool)
+	}
+
+	for _, device := range u.mergingDevicesInUse() {
+		l, err := netlink.LinkByName(device)
+		if err != nil {
+			continue
+		}
+
+		index := l.Attrs().Index
+		warn := logWarnings && !u.mergingWarned[index]
+
+		if turnOffMerging(device, u.attachedMode, warn) {
+			u.mergingWarned[index] = true
+		}
 	}
 }
 
-func (u *UPF) markMergingHandled() {
-	u.instanceMu.Lock()
-	defer u.instanceMu.Unlock()
-
-	u.unhandledMergingDevices()
-}
-
-func (u *UPF) unhandledMergingDevices() []string {
-	if u.mergingHandled == nil {
-		u.mergingHandled = make(map[int]bool)
-	}
-
+func (u *UPF) mergingDevicesInUse() []string {
 	indexes := []int{u.n3Ifindex, u.n6Ifindex}
 	for index := range u.instanceLinks {
 		indexes = append(indexes, index)
 	}
 
-	var unhandled []string
+	var devices []string
 
 	for _, index := range indexes {
 		datapath, err := netlink.LinkByIndex(index)
@@ -348,16 +360,11 @@ func (u *UPF) unhandledMergingDevices() []string {
 		}
 
 		for _, device := range mergingDevices(u.attachedMode, name) {
-			l, err := netlink.LinkByName(device)
-			if err != nil || u.mergingHandled[l.Attrs().Index] {
-				continue
+			if !slices.Contains(devices, device) {
+				devices = append(devices, device)
 			}
-
-			u.mergingHandled[l.Attrs().Index] = true
-
-			unhandled = append(unhandled, device)
 		}
 	}
 
-	return unhandled
+	return devices
 }
