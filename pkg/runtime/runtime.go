@@ -612,17 +612,17 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	// Session reconciler: watches the session_reconcile changefeed topic
 	// and reconciles every local session, 5G and EPS, against the current DB
 	// policy. Triggered by profile, subscriber, and policy writes.
-	sessionReconciler := reconciler.New(func() <-chan struct{} {
-		wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicSessionReconcile)
+	sessionFeed := dbInstance.Changefeed().Track(db.TopicSessionReconcile)
 
-		go func() {
-			<-ctx.Done()
-			stop()
-		}()
+	go func() {
+		<-ctx.Done()
+		sessionFeed.Stop()
+	}()
 
-		return wakeup
-	}(), smfInstance.Reconcile, mmeInstance.ReconcileUEAMBR, amfInstance.ReconcileUEAMBR)
+	sessionReconciler := reconciler.New(sessionFeed, smfInstance.Reconcile, mmeInstance.ReconcileUEAMBR, amfInstance.ReconcileUEAMBR)
 	sessionReconciler.Start()
+
+	dbInstance.Changefeed().Arm()
 
 	// --- Phase B: upgrade the API server to serve all routes once the
 	// replicated initial settings are visible on this node. ---

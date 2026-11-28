@@ -5,6 +5,7 @@ package amf
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
@@ -141,12 +142,16 @@ func (amf *AMF) registeredUEs() []*UeContext {
 	return ues
 }
 
-func (amf *AMF) ReconcileUEAMBR(ctx context.Context) {
+func (amf *AMF) ReconcileUEAMBR(ctx context.Context) error {
+	var errs []error
+
 	for _, ue := range amf.registeredUEs() {
 		subscribed, err := amf.SubscribedUEAMBR(ctx, ue.Supi())
 		if err != nil {
 			logger.From(ctx, logger.AmfLog).Warn("UE-AMBR reconcile: failed to resolve the subscribed UE-AMBR",
 				logger.SUPI(ue.Supi().String()), zap.Error(err))
+
+			errs = append(errs, err)
 
 			continue
 		}
@@ -154,4 +159,6 @@ func (amf *AMF) ReconcileUEAMBR(ctx context.Context) {
 		ue.SetAmbr(subscribed)
 		amf.syncUEAMBR(ctx, ue, (*AMF).SendToRadioPaced)
 	}
+
+	return errors.Join(errs...)
 }

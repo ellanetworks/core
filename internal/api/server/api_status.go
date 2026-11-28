@@ -64,9 +64,10 @@ type ClusterStatusResponse struct {
 func (c ClusterStatusResponse) MarshalJSON() ([]byte, error) {
 	if !c.Enabled {
 		return json.Marshal(struct {
-			Enabled bool       `json:"enabled"`
-			NodeID  pki.NodeID `json:"nodeId"`
-		}{Enabled: false, NodeID: c.NodeID})
+			Enabled      bool       `json:"enabled"`
+			NodeID       pki.NodeID `json:"nodeId"`
+			AppliedIndex uint64     `json:"appliedIndex"`
+		}{Enabled: false, NodeID: c.NodeID, AppliedIndex: c.AppliedIndex})
 	}
 
 	type alias ClusterStatusResponse
@@ -84,6 +85,7 @@ type StatusResponse struct {
 
 	// One of the config.Datapath* values, absent until the UPF is up.
 	DatapathAttachMode string `json:"datapathAttachMode,omitempty"`
+	DatapathRevision   uint64 `json:"datapathRevision"`
 }
 
 // datapathMode is a function because the handler is built before the UPF
@@ -110,11 +112,16 @@ func GetStatus(dbInstance *db.Database, ready *atomic.Bool, datapathMode func() 
 			SchemaVersion: db.SchemaVersion(),
 		}
 
+		datapathRevision := dbInstance.DatapathRevision()
+		appliedIndex := dbInstance.RaftAppliedIndex()
+
 		if datapathMode != nil {
 			statusResponse.DatapathAttachMode = datapathMode()
 		}
 
 		statusResponse.Cluster.NodeID = pki.NodeID(dbInstance.RaftID())
+		statusResponse.Cluster.AppliedIndex = appliedIndex
+		statusResponse.DatapathRevision = datapathRevision
 
 		if dbInstance.ClusterEnabled() {
 			role := dbInstance.RaftState()
@@ -123,7 +130,7 @@ func GetStatus(dbInstance *db.Database, ready *atomic.Bool, datapathMode func() 
 				Role:         role,
 				NodeID:       pki.NodeID(dbInstance.RaftID()),
 				IsLeader:     dbInstance.IsLeader(),
-				AppliedIndex: dbInstance.RaftAppliedIndex(),
+				AppliedIndex: appliedIndex,
 			}
 
 			op, err := dbInstance.GetOperator(ctx)

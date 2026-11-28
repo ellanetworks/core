@@ -44,7 +44,7 @@ type subscriptionDelta struct {
 	StaticIP     bool
 }
 
-func (s *SMF) Reconcile(ctx context.Context) {
+func (s *SMF) Reconcile(ctx context.Context) error {
 	s.mu.RLock()
 	refs := make([]string, 0, len(s.pool))
 
@@ -55,7 +55,7 @@ func (s *SMF) Reconcile(ctx context.Context) {
 	s.mu.RUnlock()
 
 	if len(refs) == 0 {
-		return
+		return nil
 	}
 
 	ctx, span := tracer.Start(ctx, "smf/reconcile_sessions",
@@ -64,11 +64,17 @@ func (s *SMF) Reconcile(ctx context.Context) {
 	)
 	defer span.End()
 
+	var errs []error
+
 	for _, ref := range refs {
 		if err := s.ReconcileSession(ctx, ref); err != nil {
 			logger.SmfLog.Warn("session reconcile failed", logger.SMContextRef(ref), zap.Error(err))
+
+			errs = append(errs, err)
 		}
 	}
+
+	return errors.Join(errs...)
 }
 
 // ReconcileSession applies an OAM-initiated policy change to an active session,
@@ -116,12 +122,10 @@ func (s *SMF) ReconcileSession(ctx context.Context, ref string) error {
 
 	if err != nil && !permanentPolicyFailure(err) {
 		smContext.reconcileMu.Unlock()
-		logger.SmfLog.Warn("transient error fetching session policy, skipping reconciliation",
-			logger.SMContextRef(ref), zap.Error(err))
 
 		s.replanBearers(ctx, ref)
 
-		return nil
+		return fmt.Errorf("transient error fetching session policy, skipping reconciliation: %w", err)
 	}
 
 	smContext.Mutex.Lock()

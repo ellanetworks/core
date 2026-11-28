@@ -4980,9 +4980,13 @@ components:
           type: string
           enum: [xdp-native, tcx, xdp-generic]
           description: Data plane attach mode.
+        datapathRevision:
+          type: integer
+          format: uint64
+          description: Last Raft log index this node's datapath enforces.
         cluster:
           $ref: "#/components/schemas/ClusterStatus"
-      required: [version, revision, initialized, ready, schemaVersion, cluster]
+      required: [version, revision, initialized, ready, schemaVersion, datapathRevision, cluster]
 
     StatusResponseEnvelope:
       type: object
@@ -8326,7 +8330,11 @@ components:
             nodeId:
               type: [string, integer]
               description: Identity of this node.
-          required: [enabled, nodeId]
+            appliedIndex:
+              type: integer
+              format: uint64
+              description: Last applied Raft log index.
+          required: [enabled, nodeId, appliedIndex]
           additionalProperties: false
         - title: Clustered
           type: object

@@ -102,6 +102,8 @@ func TestIntegrationHASMS(t *testing.T) {
 		t.Fatalf("resolve tester container: %v", err)
 	}
 
+	awaitDatapath(ctx, t, nodeClients...)
+
 	argv := func(scenario string) []string {
 		args := []string{"core-tester", "run", scenario}
 

@@ -358,6 +358,16 @@ func (db *Database) AppliedIndex() uint64 {
 	return db.raftManager.AppliedIndex()
 }
 
+func (db *Database) DatapathRevision() uint64 {
+	applied := db.AppliedIndex()
+
+	if db.changefeed == nil {
+		return applied
+	}
+
+	return db.changefeed.Realized(applied)
+}
+
 func (db *Database) WaitApplied(ctx context.Context, index uint64) error {
 	if db.raftManager == nil {
 		return nil

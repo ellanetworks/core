@@ -11,13 +11,19 @@ import (
 
 const sessionReconcileBackstop = 5 * time.Minute
 
+type Feed interface {
+	C() <-chan struct{}
+	Begin() uint64
+	Done(index uint64)
+}
+
 // Reconciler subscribes to the session_reconcile changefeed topic and runs its
 // sweeps, which reconcile every local session and UE against the current DB
 // policy. It runs on every cluster node; Raft replication guarantees each node
 // receives the wakeup after the write applies locally.
 type Reconciler struct {
-	sweeps   []func(context.Context)
-	wakeup   <-chan struct{}
+	sweeps   []func(context.Context) error
+	feed     Feed
 	backstop time.Duration
 
 	mu     sync.Mutex
@@ -25,14 +31,13 @@ type Reconciler struct {
 	done   chan struct{}
 }
 
-// New creates a reconciler running the given sweeps. wakeup is
-// signalled when a profile/policy/subscriber write that affects session
-// parameters has been applied; nil is fine (then only the backstop sweep
-// fires). Start must be called explicitly.
-func New(wakeup <-chan struct{}, sweeps ...func(context.Context)) *Reconciler {
+// New creates a reconciler running the given sweeps. feed is signalled
+// when a profile/policy/subscriber write that affects session parameters
+// has been applied. Start must be called explicitly.
+func New(feed Feed, sweeps ...func(context.Context) error) *Reconciler {
 	return &Reconciler{
 		sweeps:   sweeps,
-		wakeup:   wakeup,
+		feed:     feed,
 		backstop: sessionReconcileBackstop,
 	}
 }
@@ -86,7 +91,7 @@ func (r *Reconciler) loop(ctx context.Context, done chan struct{}) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-r.wakeup:
+		case <-r.feed.C():
 			r.sweep(ctx)
 		case <-ticker.C:
 			r.sweep(ctx)
@@ -95,7 +100,17 @@ func (r *Reconciler) loop(ctx context.Context, done chan struct{}) {
 }
 
 func (r *Reconciler) sweep(ctx context.Context) {
+	target := r.feed.Begin()
+
+	var failed bool
+
 	for _, sweep := range r.sweeps {
-		sweep(ctx)
+		if err := sweep(ctx); err != nil {
+			failed = true
+		}
+	}
+
+	if !failed && ctx.Err() == nil {
+		r.feed.Done(target)
 	}
 }

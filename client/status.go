@@ -34,6 +34,7 @@ type Status struct {
 	SchemaVersion      int           `json:"schemaVersion"`
 	Cluster            ClusterStatus `json:"cluster"`
 	DatapathAttachMode string        `json:"datapathAttachMode,omitempty"`
+	DatapathRevision   uint64        `json:"datapathRevision"`
 }
 
 // GetStatus retrieves the current status of the system.

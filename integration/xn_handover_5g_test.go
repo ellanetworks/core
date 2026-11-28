@@ -126,6 +126,8 @@ func TestIntegration5GXnHandover(t *testing.T) {
 		t.Fatalf("resolve tester container: %v", err)
 	}
 
+	awaitDatapath(ctx, t, coreClient)
+
 	argv := []string{
 		"core-tester", "run", scenario,
 		"--ella-core-n2-address", coreN2,
