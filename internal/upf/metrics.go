@@ -44,7 +44,6 @@ const (
 	dlBufferEvictMalformed      = "malformed"
 	dlBufferEvictReinjectFailed = "reinject_failed"
 
-	rsDiscardTooLong          = "too_long"
 	rsDiscardMalformed        = "malformed"
 	rsDiscardChecksum         = "checksum"
 	rsDiscardOptionLength     = "option_length"
@@ -70,7 +69,6 @@ func RegisterMetrics(classes *engine.TrafficClasses, radios *engine.Radios) {
 	}
 
 	for _, reason := range []string{
-		rsDiscardTooLong,
 		rsDiscardMalformed,
 		rsDiscardChecksum,
 		rsDiscardOptionLength,

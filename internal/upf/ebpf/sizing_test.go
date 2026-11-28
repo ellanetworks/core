@@ -35,7 +35,7 @@ func TestNewMapSizing(t *testing.T) {
 			}
 
 			m := s.maxEntries()
-			for _, name := range []string{"pdrs_uplink", "pdrs_downlink_ip4", "pdrs_downlink_ip6", "sdf_classifiers", "veth_tunnels"} {
+			for _, name := range []string{"pdrs_uplink", "pdrs_downlink_ip4", "pdrs_downlink_ip6", "sdf_classifiers"} {
 				if m[name] != tc.wantPDR {
 					t.Errorf("%s = %d, want %d", name, m[name], tc.wantPDR)
 				}
@@ -77,7 +77,7 @@ func TestMapSizingApplyCoversBothBuilds(t *testing.T) {
 				}
 			}
 
-			for _, mapName := range []string{"pdrs_uplink", "pdrs_downlink_ip4", "pdrs_downlink_ip6", "qer_windows", "urr_map", "sdf_classifiers", "veth_tunnels", "framed_downlink_ip4", "framed_downlink_ip6"} {
+			for _, mapName := range []string{"pdrs_uplink", "pdrs_downlink_ip4", "pdrs_downlink_ip6", "qer_windows", "urr_map", "sdf_classifiers", "framed_downlink_ip4", "framed_downlink_ip6"} {
 				if spec.Maps[mapName].Flags&unix.BPF_F_NO_PREALLOC == 0 {
 					t.Errorf("%s is preallocated", mapName)
 				}

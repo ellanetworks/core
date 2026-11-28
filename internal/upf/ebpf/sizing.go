@@ -77,7 +77,6 @@ func (s MapSizing) maxEntries() map[string]uint32 {
 		"pdrs_downlink_ip4":   s.MaxSessions,
 		"pdrs_downlink_ip6":   s.MaxSessions,
 		"sdf_classifiers":     s.MaxSessions,
-		"veth_tunnels":        s.MaxSessions,
 		"qer_windows":         s.MaxSessions * MaxSessionQERs,
 		"urr_map":             pool,
 		"framed_downlink_ip4": pool,

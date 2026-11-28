@@ -66,11 +66,11 @@ type HEAV5G struct {
 // (TS 33.501 §6.1.3.2.0 step 1, TS 33.102).
 const authAMF = "8000"
 
-// Generate5GHEAV deconceals the SUCI, advances and persists the subscriber's
-// SQN, and returns a 5G HE AV. For a re-synchronisation pass the UE's AUTS and
-// the RAND from the preceding challenge; otherwise pass empty strings.
-func (s *Service) Generate5GHEAV(ctx context.Context, suci, servingNetwork, resyncAuts, resyncRand string) (*HEAV5G, error) {
-	supi, err := ToSupi(suci, s.keys)
+// Generate5GHEAV resolves the SUPI (deconcealing a SUCI), advances and persists
+// the subscriber's SQN, and returns a 5G HE AV. For a re-synchronisation pass the
+// UE's AUTS and the RAND from the preceding challenge; otherwise pass empty strings.
+func (s *Service) Generate5GHEAV(ctx context.Context, supiOrSuci, servingNetwork, resyncAuts, resyncRand string) (*HEAV5G, error) {
+	supi, err := ToSupi(supiOrSuci, s.keys)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't convert suci to supi: %w", err)
 	}

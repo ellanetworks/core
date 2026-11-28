@@ -77,3 +77,21 @@ func TestValidateRouterSolicitation(t *testing.T) {
 		})
 	}
 }
+
+// RFC 4861 §6.2.6
+func TestSolicitedRADestination(t *testing.T) {
+	cases := []struct {
+		src  netip.Addr
+		want netip.Addr
+	}{
+		{netip.IPv6Unspecified(), netip.MustParseAddr("ff02::1")},
+		{rsSrc, rsSrc},
+		{netip.MustParseAddr("2001:db8::1"), netip.MustParseAddr("2001:db8::1")},
+	}
+
+	for _, tc := range cases {
+		if got := ndp.SolicitedRADestination(tc.src); got != tc.want {
+			t.Errorf("SolicitedRADestination(%s) = %s, want %s", tc.src, got, tc.want)
+		}
+	}
+}

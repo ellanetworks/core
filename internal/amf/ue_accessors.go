@@ -55,6 +55,19 @@ func (ue *UeContext) SetSUCI(suci *fgs.SUCI) {
 	}
 }
 
+func (ue *UeContext) AuthenticationIdentity(conn *UeConn) string {
+	suci := ue.Suci()
+	if suci != "" && conn != nil && fgs.MobileIdentityType(conn.IdentityTypeUsedForRegistration) == fgs.IdentitySUCI {
+		return suci
+	}
+
+	if supi := ue.Supi(); supi.IsValid() {
+		return supi.String()
+	}
+
+	return suci
+}
+
 func (ue *UeContext) PlmnID() models.PlmnID {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

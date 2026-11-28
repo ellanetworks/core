@@ -154,6 +154,19 @@ func NewUeContext() *UeContext {
 	return ue
 }
 
+func NewUeContextForSubscriberOf(prev *UeContext) *UeContext {
+	prev.mu.Lock()
+	supi, suci, plmnID := prev.supi, prev.suci, prev.plmnID
+	prev.mu.Unlock()
+
+	fresh := NewUeContext()
+	fresh.suci = suci
+	fresh.plmnID = plmnID
+	fresh.SetSupi(supi)
+
+	return fresh
+}
+
 func (ue *UeContext) Tmsi() etsi.TMSI {
 	ue.mu.Lock()
 	defer ue.mu.Unlock()

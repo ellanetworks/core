@@ -5,8 +5,12 @@ package ausf
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/subtle"
+	"encoding/hex"
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -35,6 +39,7 @@ type (
 
 // AuthResult is returned by Authenticate to the AMF.
 type AuthResult struct {
+	AuthCtxID string
 	Rand      string // hex
 	Autn      string // hex
 	HxresStar string // hex
@@ -42,14 +47,16 @@ type AuthResult struct {
 
 // ResyncInfo carries the UE's re-synchronization data.
 type ResyncInfo struct {
+	Rand string
 	Auts string // hex — AUTS from the UE
 }
+
+var ErrAuthContextNotFound = errors.New("authentication context not found")
 
 type authContext struct {
 	supi      etsi.SUPI
 	kseaf     []byte
 	xresStar  string
-	rand      string
 	createdAt time.Time
 }
 
@@ -58,7 +65,7 @@ type authContext struct {
 // AUSF does the 5G-specific transform (K_SEAF, HXRES*) and RES* verification.
 type AUSF struct {
 	mu    sync.RWMutex
-	pool  map[string]*authContext // key: SUCI
+	pool  map[string]*authContext
 	udm   *udm.Service
 	clock func() time.Time
 	ttl   time.Duration
@@ -108,17 +115,18 @@ func (a *AUSF) evictExpired() {
 	defer a.mu.Unlock()
 
 	now := a.clock()
-	for suci, ac := range a.pool {
+	for id, ac := range a.pool {
 		if now.Sub(ac.createdAt) > a.ttl {
-			delete(a.pool, suci)
+			delete(a.pool, id)
 		}
 	}
 }
 
-// Authenticate performs the 5G-AKA authentication procedure for a UE.
-// It returns the authentication vector to send to the UE and caches
-// the pending context for later confirmation via Confirm.
-func (a *AUSF) Authenticate(ctx context.Context, suci string, plmn models.PlmnID, resync *ResyncInfo) (*AuthResult, error) {
+// Authenticate performs the 5G-AKA authentication procedure for a UE
+// identified by its SUCI or SUPI. It returns the authentication vector to send
+// to the UE and caches the pending context under the returned AuthCtxID for
+// later confirmation via Confirm.
+func (a *AUSF) Authenticate(ctx context.Context, supiOrSuci string, plmn models.PlmnID, resync *ResyncInfo) (*AuthResult, error) {
 	servingNetwork, err := plmn.ServingNetworkName()
 	if err != nil {
 		return nil, fmt.Errorf("invalid PLMN for serving network name: %w", err)
@@ -127,35 +135,30 @@ func (a *AUSF) Authenticate(ctx context.Context, suci string, plmn models.PlmnID
 	ctx, span := tracer.Start(ctx, "ausf/authenticate",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
-			attrs.SUCI(suci),
+			identityAttribute(supiOrSuci),
 			attribute.String("ausf.serving_network", servingNetwork),
 		),
 	)
 	defer span.End()
 
-	// If resync, recover the original RAND from the cached context.
 	var resyncAuts, resyncRand string
 
 	if resync != nil {
-		a.mu.RLock()
-		cached := a.pool[suci]
-		a.mu.RUnlock()
-
-		if cached == nil {
-			err := fmt.Errorf("ue context not found for suci: %s", suci)
+		if resync.Rand == "" || resync.Auts == "" {
+			err := errors.New("re-synchronisation requires both RAND and AUTS")
 			span.RecordError(err)
-			span.SetStatus(codes.Error, "ue context not found")
+			span.SetStatus(codes.Error, "incomplete re-synchronisation info")
 
 			return nil, err
 		}
 
 		resyncAuts = resync.Auts
-		resyncRand = cached.rand
+		resyncRand = resync.Rand
 	}
 
-	// The credential authority (UDM/ARPF) deconceals the SUCI, advances the SQN,
-	// and produces the 5G HE AV (TS 33.501 §6.1.3.2.0).
-	heav, err := a.udm.Generate5GHEAV(ctx, suci, servingNetwork, resyncAuts, resyncRand)
+	// The credential authority (UDM/ARPF) resolves the SUPI (deconcealing a SUCI),
+	// advances the SQN, and produces the 5G HE AV (TS 33.501 §6.1.3.2.0).
+	heav, err := a.udm.Generate5GHEAV(ctx, supiOrSuci, servingNetwork, resyncAuts, resyncRand)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to generate 5G HE AV")
@@ -176,49 +179,70 @@ func (a *AUSF) Authenticate(ctx context.Context, suci string, plmn models.PlmnID
 		return nil, fmt.Errorf("kseaf derivation failed: %w", err)
 	}
 
+	id, err := newAuthCtxID()
+	if err != nil {
+		return nil, err
+	}
+
 	// Cache context for Confirm.
 	a.mu.Lock()
-	a.pool[suci] = &authContext{
+	a.pool[id] = &authContext{
 		supi:      heav.SUPI,
 		kseaf:     kseaf,
 		xresStar:  heav.XresStar,
-		rand:      heav.RAND,
 		createdAt: a.clock(),
 	}
 	a.mu.Unlock()
 	span.AddEvent("context_pooled")
 
 	return &AuthResult{
+		AuthCtxID: id,
 		Rand:      heav.RAND,
 		Autn:      heav.AUTN,
 		HxresStar: hxresStar,
 	}, nil
 }
 
-// Confirm verifies the UE's RES* against the cached XRES*.
-// On success it returns the SUPI and Kseaf. The cached context is
+// Confirm verifies the UE's RES* against the XRES* of the authentication
+// context authCtxID. On success it returns the SUPI and Kseaf. The context is
 // deleted regardless of outcome.
-func (a *AUSF) Confirm(ctx context.Context, resStar, suci string) (etsi.SUPI, []byte, error) {
+func (a *AUSF) Confirm(ctx context.Context, authCtxID, resStar string) (etsi.SUPI, []byte, error) {
 	_, span := tracer.Start(ctx, "ausf/confirm",
 		trace.WithSpanKind(trace.SpanKindInternal),
-		trace.WithAttributes(
-			attrs.SUCI(suci),
-		),
 	)
 	defer span.End()
 
 	a.mu.Lock()
-	cached, ok := a.pool[suci]
-	delete(a.pool, suci)
+	cached, ok := a.pool[authCtxID]
+	delete(a.pool, authCtxID)
 	a.mu.Unlock()
 
 	if !ok {
-		return etsi.InvalidSUPI, nil, fmt.Errorf("ausf ue context not found for suci: %s", suci)
+		return etsi.InvalidSUPI, nil, fmt.Errorf("%w: %s", ErrAuthContextNotFound, authCtxID)
 	}
 
+	span.SetAttributes(attrs.SUPI(cached.supi.String()))
+
 	if subtle.ConstantTimeCompare([]byte(resStar), []byte(cached.xresStar)) != 1 {
-		return etsi.InvalidSUPI, nil, fmt.Errorf("RES* mismatch for suci: %s", suci)
+		return etsi.InvalidSUPI, nil, fmt.Errorf("RES* mismatch for supi: %s", cached.supi)
 	}
 
 	return cached.supi, cached.kseaf, nil
+}
+
+func newAuthCtxID() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("authentication context id: %w", err)
+	}
+
+	return hex.EncodeToString(b), nil
+}
+
+func identityAttribute(supiOrSuci string) attribute.KeyValue {
+	if strings.HasPrefix(supiOrSuci, "suci-") {
+		return attrs.SUCI(supiOrSuci)
+	}
+
+	return attrs.SUPI(supiOrSuci)
 }

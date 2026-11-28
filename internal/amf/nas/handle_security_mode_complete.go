@@ -67,6 +67,10 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 			return nasreply.Handled()
 		}
 
+		if integrityVerified {
+			confirmGUTIRealloc(ctx, amfInstance, ue, fgsRR)
+		}
+
 		ue.SetUECapabilities(fgsRR.GMMCapability, fgsRR.S1UENetworkCapability)
 
 		plain := slices.Clone(msg.NASMessageContainer)

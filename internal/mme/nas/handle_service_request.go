@@ -70,8 +70,6 @@ func HandleServiceRequest(ctx context.Context, m *mme.MME, conn mme.S1APWriter, 
 		return
 	}
 
-	confirmGUTIReallocBySTMSI(ctx, m, ue, uint32(msg.STMSI.MTMSI))
-
 	c := m.NewUeConn(conn, msg.ENBUES1APID)
 	if c == nil {
 		return

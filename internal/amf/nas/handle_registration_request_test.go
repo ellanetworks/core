@@ -520,6 +520,7 @@ func TestHandleRegistrationRequest_ContextSetup_DifferingIEs_Progresses(t *testi
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
 	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgAuthenticationRequest))
+	assertAuthenticatedAs(t, amfInstance, "imsi-001019756139935")
 }
 
 // TS 24.501 §5.5.1.2.8 case d
@@ -793,6 +794,7 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
 	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgAuthenticationRequest))
+	assertAuthenticatedAs(t, amfInstance, "imsi-001019756139935")
 }
 
 func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T) {
@@ -1326,11 +1328,25 @@ func TestHandleRegistrationRequest_InitialRegistrationAbortsNetworkDeregistratio
 			Mnc:           "01",
 			SupportedTACs: "[\"000001\"]",
 		},
-	}, nil, nil)
+	}, &fakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
+		},
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: []byte("testkey"),
+	}, nil)
 
-	ue, _, err := buildUeAndRadio()
+	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.SetSuciForTest("suci-0-001-01-0000-0-0-9756139935")
+	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	ue.ForceStateForTest(amf.DeregistrationInitiated)
@@ -1345,6 +1361,13 @@ func TestHandleRegistrationRequest_InitialRegistrationAbortsNetworkDeregistratio
 	if ue.State() == amf.DeregistrationInitiated {
 		t.Fatal("network-initiated de-registration must be aborted on an initial registration collision")
 	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("expected the new registration to progress with an Authentication Request, got %d downlinks", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	assertPlainGmm(t, ngapSender.SentDownlinkNASTransport[0].NASPDU, uint8(fgs.MsgAuthenticationRequest))
+	assertAuthenticatedAs(t, amfInstance, "imsi-001019756139935")
 }
 
 func regReqFgs(t *testing.T, pdu []byte) *fgs.RegistrationRequest {

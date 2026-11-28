@@ -4,7 +4,6 @@
 package upf
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -28,11 +27,6 @@ import (
 type IPv6SessionContext struct {
 	Prefix netip.Prefix
 	MTU    uint32
-
-	// ueLinkLocal is learned from the first RS event. Once set, the
-	// corresponding veth tunnel map entry exists and is cleaned up on
-	// session release.
-	ueLinkLocal netip.Addr
 }
 
 // routerLinkLocal is the link-local address used as the RA source. We use a
@@ -211,16 +205,6 @@ func (r *RAResponder) RegisterSession(ulTEID uint32, sessionCtx *IPv6SessionCont
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// A re-registration (e.g. handover) for the same TEID replaces the context,
-	// and the new one starts without a learned link-local. Delete the old
-	// context's veth tunnel entry now, or it orphans until the next RS.
-	if old, ok := r.sessions[ulTEID]; ok && old.ueLinkLocal.IsValid() && r.bpfObjects != nil {
-		if err := r.bpfObjects.DeleteTunnel(old.ueLinkLocal); err != nil {
-			logger.UpfLog.Warn("failed to delete stale veth tunnel entry on re-register",
-				logger.TEID(ulTEID), zap.String("ue_link_local", old.ueLinkLocal.String()), zap.Error(err))
-		}
-	}
-
 	r.sessions[ulTEID] = sessionCtx
 
 	logger.UpfLog.Debug("registered IPv6 session for RA",
@@ -229,30 +213,16 @@ func (r *RAResponder) RegisterSession(ulTEID uint32, sessionCtx *IPv6SessionCont
 	)
 }
 
-// UnregisterSession removes a session and cleans up any veth tunnel map
-// entry that was created for RA delivery.
+// UnregisterSession removes a session.
 func (r *RAResponder) UnregisterSession(ulTEID uint32) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	sess, ok := r.sessions[ulTEID]
-	if !ok {
+	if _, ok := r.sessions[ulTEID]; !ok {
 		return
 	}
 
 	delete(r.sessions, ulTEID)
-
-	// Delete the veth tunnel entry under the lock, atomically with the map
-	// delete, so it cannot race handleRSEvent re-programming the same entry.
-	if sess.ueLinkLocal.IsValid() && r.bpfObjects != nil {
-		if err := r.bpfObjects.DeleteTunnel(sess.ueLinkLocal); err != nil {
-			logger.UpfLog.Warn("failed to delete veth tunnel entry on session release",
-				logger.TEID(ulTEID),
-				zap.String("ue_link_local", sess.ueLinkLocal.String()),
-				zap.Error(err),
-			)
-		}
-	}
 
 	logger.UpfLog.Debug("unregistered IPv6 session for RA", logger.TEID(ulTEID))
 }
@@ -273,8 +243,8 @@ func (r *RAResponder) listenForRSEvents() {
 			continue
 		}
 
-		var event ebpf.RSEvent
-		if err := binary.Read(bytes.NewReader(record.RawSample), binary.NativeEndian, &event); err != nil {
+		event, err := ebpf.ParseRSEvent(record.RawSample)
+		if err != nil {
 			logger.UpfLog.Warn("failed to decode RS event", zap.Error(err))
 			continue
 		}
@@ -310,11 +280,7 @@ func acceptRS(ev *ebpf.RSEvent) bool {
 }
 
 func rsDiscardReason(ev *ebpf.RSEvent) string {
-	if int(ev.MsgLen) > len(ev.Msg) {
-		return rsDiscardTooLong
-	}
-
-	err := ndp.ValidateRouterSolicitation(netip.AddrFrom16(ev.UEIPv6), netip.AddrFrom16(ev.DstIPv6), ev.Msg[:ev.MsgLen])
+	err := ndp.ValidateRouterSolicitation(netip.AddrFrom16(ev.UEIPv6), netip.AddrFrom16(ev.DstIPv6), ev.Msg)
 
 	switch {
 	case err == nil:
@@ -330,36 +296,12 @@ func rsDiscardReason(ev *ebpf.RSEvent) string {
 	}
 }
 
-// handleRSEvent processes a single RS event: looks up the session, programs
-// the veth tunnel map, builds the RA, and injects it.
-func (r *RAResponder) handleRSEvent(ulTEID uint32, ueIPv6 netip.Addr) error {
-	r.mu.Lock()
-
-	sess, ok := r.sessions[ulTEID]
-	if !ok {
-		r.mu.Unlock()
-		return fmt.Errorf("no IPv6 session for TEID 0x%X", ulTEID)
-	}
-
-	// Program the veth tunnel map together with the ueLinkLocal update, all under
-	// r.mu, so it is atomic against UnregisterSession tearing the same entry down.
-	if sess.ueLinkLocal.IsValid() && sess.ueLinkLocal != ueIPv6 && r.bpfObjects != nil {
-		_ = r.bpfObjects.DeleteTunnel(sess.ueLinkLocal)
-	}
-
-	if err := r.programVethTunnel(sess, ueIPv6); err != nil {
-		r.mu.Unlock()
-		return fmt.Errorf("program veth tunnel: %w", err)
-	}
-
-	sess.ueLinkLocal = ueIPv6
-	r.mu.Unlock()
-
-	// Build and inject the RA. sess fields other than ueLinkLocal are immutable
-	// after registration, so reading them here without the lock is safe.
-	raPkt, err := r.buildRAPacket(sess, ueIPv6)
+// handleRSEvent processes a single RS event: looks up the session, builds the
+// RA, and injects it.
+func (r *RAResponder) handleRSEvent(ulTEID uint32, rsSource netip.Addr) error {
+	raPkt, err := r.solicitedRA(ulTEID, rsSource)
 	if err != nil {
-		return fmt.Errorf("build RA: %w", err)
+		return err
 	}
 
 	logger.UpfLog.Info("injecting RA via AF_PACKET",
@@ -372,24 +314,37 @@ func (r *RAResponder) handleRSEvent(ulTEID uint32, ueIPv6 netip.Addr) error {
 
 	logger.UpfLog.Info("sent RA via veth",
 		logger.TEID(ulTEID),
-		zap.String("ue_link_local", ueIPv6.String()),
-		zap.String("prefix", sess.Prefix.String()),
+		zap.String("rs_source", rsSource.String()),
+		zap.String("ra_destination", ndp.SolicitedRADestination(rsSource).String()),
 	)
 
 	return nil
 }
 
-func (r *RAResponder) programVethTunnel(sess *IPv6SessionContext, ueIPv6 netip.Addr) error {
-	return r.bpfObjects.PutTunnel(ueIPv6, sess.Prefix)
+func (r *RAResponder) solicitedRA(ulTEID uint32, rsSource netip.Addr) ([]byte, error) {
+	r.mu.RLock()
+	sess, ok := r.sessions[ulTEID]
+	r.mu.RUnlock()
+
+	if !ok {
+		return nil, fmt.Errorf("no IPv6 session for TEID 0x%X", ulTEID)
+	}
+
+	raPkt, err := r.buildRAPacket(sess, ndp.SolicitedRADestination(rsSource))
+	if err != nil {
+		return nil, fmt.Errorf("build RA: %w", err)
+	}
+
+	return raPkt, nil
 }
 
-// buildRAPacket constructs a complete Ethernet + IPv6 + ICMPv6 RA frame
+// buildRAPacket constructs a complete Ethernet + IPv6 + IPv6 + ICMPv6 RA frame
 // ready for injection on veth-smf.
-func (r *RAResponder) buildRAPacket(sess *IPv6SessionContext, ueIPv6 netip.Addr) ([]byte, error) {
+func (r *RAResponder) buildRAPacket(sess *IPv6SessionContext, dst netip.Addr) ([]byte, error) {
 	// Build the ICMPv6 RA body.
 	raBody, err := ndp.BuildRA(ndp.RAParams{
 		SrcIP:             routerLinkLocal,
-		DstIP:             ueIPv6,
+		DstIP:             dst,
 		CurHopLimit:       64,
 		RouterLifetime:    1800, // 30 minutes
 		Prefix:            sess.Prefix,
@@ -404,7 +359,7 @@ func (r *RAResponder) buildRAPacket(sess *IPv6SessionContext, ueIPv6 netip.Addr)
 	}
 
 	// Compute ICMPv6 checksum.
-	ndp.SetICMPv6Checksum(routerLinkLocal, ueIPv6, raBody)
+	ndp.SetICMPv6Checksum(routerLinkLocal, dst, raBody)
 
 	// Build IPv6 header.
 	ipv6Hdr := make([]byte, 40)
@@ -415,8 +370,18 @@ func (r *RAResponder) buildRAPacket(sess *IPv6SessionContext, ueIPv6 netip.Addr)
 	src16 := routerLinkLocal.As16()
 	copy(ipv6Hdr[8:24], src16[:])
 
-	dst16 := ueIPv6.As16()
+	dst16 := dst.As16()
 	copy(ipv6Hdr[24:40], dst16[:])
+
+	sessionHdr := make([]byte, 40)
+	sessionHdr[0] = 0x60
+	binary.BigEndian.PutUint16(sessionHdr[4:6], uint16(len(ipv6Hdr)+len(raBody)))
+	sessionHdr[6] = unix.IPPROTO_IPV6
+	sessionHdr[7] = 64
+	copy(sessionHdr[8:24], src16[:])
+
+	session16 := sess.Prefix.Masked().Addr().As16()
+	copy(sessionHdr[24:40], session16[:])
 
 	// Build Ethernet header (for veth-smf → veth-xdp).
 	eth := make([]byte, 14)
@@ -425,8 +390,9 @@ func (r *RAResponder) buildRAPacket(sess *IPv6SessionContext, ueIPv6 netip.Addr)
 	binary.BigEndian.PutUint16(eth[12:14], 0x86DD) // EtherType = IPv6
 
 	// Assemble the complete frame.
-	pkt := make([]byte, 0, len(eth)+len(ipv6Hdr)+len(raBody))
+	pkt := make([]byte, 0, len(eth)+len(sessionHdr)+len(ipv6Hdr)+len(raBody))
 	pkt = append(pkt, eth...)
+	pkt = append(pkt, sessionHdr...)
 	pkt = append(pkt, ipv6Hdr...)
 	pkt = append(pkt, raBody...)
 

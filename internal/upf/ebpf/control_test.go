@@ -184,8 +184,8 @@ func TestRouterSolicitationIntercept(t *testing.T) {
 		t.Fatalf("no RS event emitted to userspace (RA responder would never fire): %v", err)
 	}
 
-	var ev RSEvent
-	if err := binary.Read(bytes.NewReader(rec.RawSample), binary.NativeEndian, &ev); err != nil {
+	ev, err := ParseRSEvent(rec.RawSample)
+	if err != nil {
 		t.Fatalf("decode RS event: %v", err)
 	}
 
@@ -208,12 +208,8 @@ func readRSEvent(t *testing.T, rd *ringbuf.Reader) *RSEvent {
 		return nil
 	}
 
-	if want := (binary.Size(RSEvent{}) + 3) &^ 3; len(rec.RawSample) != want {
-		t.Fatalf("RS event is %d bytes, want %d (struct rs_event layout differs from RSEvent)", len(rec.RawSample), want)
-	}
-
-	var ev RSEvent
-	if err := binary.Read(bytes.NewReader(rec.RawSample), binary.NativeEndian, &ev); err != nil {
+	ev, err := ParseRSEvent(rec.RawSample)
+	if err != nil {
 		t.Fatalf("decode RS event: %v", err)
 	}
 
@@ -257,12 +253,12 @@ func assertRSIntercepted(t *testing.T, obj *BpfObjects, teid uint32, inner []byt
 func assertRSMessage(t *testing.T, ev *RSEvent, msg []byte) {
 	t.Helper()
 
-	if int(ev.MsgLen) != len(msg) {
-		t.Fatalf("RS event message length = %d, want %d", ev.MsgLen, len(msg))
+	if len(ev.Msg) != len(msg) {
+		t.Fatalf("RS event message length = %d, want %d", len(ev.Msg), len(msg))
 	}
 
-	if !bytes.Equal(ev.Msg[:ev.MsgLen], msg) {
-		t.Errorf("RS event message = % x, want % x", ev.Msg[:ev.MsgLen], msg)
+	if !bytes.Equal(ev.Msg, msg) {
+		t.Errorf("RS event message = % x, want % x", ev.Msg, msg)
 	}
 }
 

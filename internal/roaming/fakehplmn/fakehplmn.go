@@ -44,8 +44,7 @@ type Request struct {
 }
 
 type authContext struct {
-	supiOrSuci string
-	removed    bool
+	removed bool
 }
 
 type failure struct {
@@ -492,7 +491,7 @@ func (h *HPLMN) startAuthentication(w http.ResponseWriter, r *http.Request, body
 
 	var resync *ausf.ResyncInfo
 	if info.ResynchronizationInfo != nil {
-		resync = &ausf.ResyncInfo{Auts: info.ResynchronizationInfo.Auts}
+		resync = &ausf.ResyncInfo{Rand: info.ResynchronizationInfo.Rand, Auts: info.ResynchronizationInfo.Auts}
 	}
 
 	result, err := h.ausf.Authenticate(r.Context(), info.SupiOrSuci, models.PlmnID{Mcc: sn.Mcc, Mnc: sn.Mnc}, resync)
@@ -506,10 +505,10 @@ func (h *HPLMN) startAuthentication(w http.ResponseWriter, r *http.Request, body
 		return
 	}
 
+	id := result.AuthCtxID
+
 	h.mu.Lock()
-	h.nextID++
-	id := strconv.Itoa(h.nextID)
-	h.auths[id] = &authContext{supiOrSuci: info.SupiOrSuci}
+	h.auths[id] = &authContext{}
 	h.mu.Unlock()
 
 	location := h.host("ausf") + wire.UEAuthenticationsPath() + "/" + id
@@ -530,7 +529,7 @@ func (h *HPLMN) confirm(w http.ResponseWriter, r *http.Request, id string, body 
 	}
 
 	h.mu.Lock()
-	a, ok := h.auths[id]
+	_, ok := h.auths[id]
 	h.confirmations = append(h.confirmations, data.ResStar)
 	h.mu.Unlock()
 
@@ -544,7 +543,7 @@ func (h *HPLMN) confirm(w http.ResponseWriter, r *http.Request, id string, body 
 		return
 	}
 
-	supi, kseaf, err := h.ausf.Confirm(r.Context(), *data.ResStar, a.supiOrSuci)
+	supi, kseaf, err := h.ausf.Confirm(r.Context(), id, *data.ResStar)
 	if err != nil {
 		writeJSON(w, http.StatusOK, wire.ContentTypeJSON, wire.ConfirmationDataResponse{AuthResult: wire.AuthResultFailure})
 		return

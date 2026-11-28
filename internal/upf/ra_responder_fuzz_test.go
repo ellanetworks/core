@@ -4,7 +4,6 @@
 package upf
 
 import (
-	"bytes"
 	"encoding/binary"
 	"net/netip"
 	"testing"
@@ -13,83 +12,141 @@ import (
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
 
-func fuzzRSEventBytes(teid uint32, ue string) []byte {
-	ev := ebpf.RSEvent{TEID: teid, UEIPv6: netip.MustParseAddr(ue).As16()}
+func fuzzRSRecord(teid uint32, src, dst string, msg []byte, fixChecksum bool) []byte {
+	s, d := netip.MustParseAddr(src), netip.MustParseAddr(dst)
 
-	var buf bytes.Buffer
-	if err := binary.Write(&buf, binary.NativeEndian, ev); err != nil {
-		panic(err)
+	if fixChecksum && len(msg) >= 4 {
+		msg[2], msg[3] = 0, 0
+		ndp.SetICMPv6Checksum(s, d, msg)
 	}
 
-	return buf.Bytes()
+	rec := make([]byte, ebpf.RSEventHeaderLen, ebpf.RSEventHeaderLen+len(msg))
+	binary.NativeEndian.PutUint32(rec[0:4], teid)
+
+	s16, d16 := s.As16(), d.As16()
+	copy(rec[4:20], s16[:])
+	copy(rec[20:36], d16[:])
+	binary.NativeEndian.PutUint16(rec[36:38], uint16(len(msg)))
+
+	return append(rec, msg...)
+}
+
+func validRSOptions(src netip.Addr, opts []byte) bool {
+	for len(opts) > 0 {
+		if len(opts) < 2 || opts[1] == 0 || int(opts[1])*8 > len(opts) {
+			return false
+		}
+
+		if opts[0] == ndp.NDPOptionSourceLinkLayerAddress && src.IsUnspecified() {
+			return false
+		}
+
+		opts = opts[int(opts[1])*8:]
+	}
+
+	return true
 }
 
 func FuzzRSEvent(f *testing.F) {
 	prefix := netip.MustParseAddr("2001:db8:abcd:1000::").AsSlice()
 	v4 := netip.MustParseAddr("10.45.0.1").AsSlice()
+	sllao := []byte{ndp.NDPOptionSourceLinkLayerAddress, 1, 0x02, 0, 0, 0, 0, 0x01}
 
-	f.Add(fuzzRSEventBytes(0xabcd, "fe80::1234:5678:9abc:def0"), prefix, 64, uint32(1500))
-	f.Add(fuzzRSEventBytes(1, "fe80::2"), prefix, 64, uint32(0))
-	f.Add(fuzzRSEventBytes(0xffffffff, "::"), prefix, 56, uint32(1280))
-	f.Add(fuzzRSEventBytes(0, "ff02::2"), prefix, 128, uint32(0xffffffff))
-	f.Add(fuzzRSEventBytes(7, "::ffff:10.45.0.1"), prefix, 0, uint32(9000))
-	f.Add(fuzzRSEventBytes(7, "fe80::2"), v4, 24, uint32(1500))
-	f.Add(fuzzRSEventBytes(7, "fe80::2"), prefix, 129, uint32(1500))
-	f.Add(fuzzRSEventBytes(7, "fe80::2"), prefix, -1, uint32(1500))
-	f.Add(fuzzRSEventBytes(7, "fe80::2")[:19], prefix, 64, uint32(1500))
+	rs := func(options ...[]byte) []byte {
+		msg := []byte{ndp.ICMPv6TypeRouterSolicitation, 0, 0, 0, 0, 0, 0, 0}
+		for _, o := range options {
+			msg = append(msg, o...)
+		}
+
+		return msg
+	}
+
+	valid := fuzzRSRecord(0xabcd, "fe80::1234:5678:9abc:def0", "ff02::2", rs(), true)
+
+	f.Add(valid, prefix, 64, uint32(1500))
+	f.Add(fuzzRSRecord(1, "fe80::2", "ff02::2", rs(sllao), true), prefix, 64, uint32(0))
+	f.Add(fuzzRSRecord(0xffffffff, "::", "ff02::2", rs(), true), prefix, 56, uint32(1280))
+	f.Add(fuzzRSRecord(2, "::", "ff02::2", rs(sllao), true), prefix, 64, uint32(1500))
+	f.Add(fuzzRSRecord(3, "::", "ff02::2", rs([]byte{200, 1, 0, 0, 0, 0, 0, 0}), true), prefix, 64, uint32(1500))
+	f.Add(fuzzRSRecord(4, "fe80::2", "fe80::1", rs([]byte{200, 0, 0, 0, 0, 0, 0, 0}), true), prefix, 64, uint32(1500))
+	f.Add(fuzzRSRecord(5, "fe80::2", "ff02::2", rs([]byte{200, 2, 0, 0, 0, 0, 0, 0}), true), prefix, 64, uint32(1500))
+	f.Add(fuzzRSRecord(6, "fe80::2", "ff02::2", rs(), false), prefix, 64, uint32(1500))
+	f.Add(fuzzRSRecord(7, "fe80::2", "ff02::2", []byte{133, 1, 0, 0, 0, 0, 0, 0}, true), prefix, 64, uint32(1500))
+	f.Add(fuzzRSRecord(0, "ff02::2", "ff02::2", rs(), true), prefix, 128, uint32(0xffffffff))
+	f.Add(fuzzRSRecord(7, "::ffff:10.45.0.1", "ff02::2", rs(), true), prefix, 0, uint32(9000))
+	f.Add(fuzzRSRecord(7, "fe80::2", "ff02::2", rs(), true), v4, 24, uint32(1500))
+	f.Add(fuzzRSRecord(7, "fe80::2", "ff02::2", rs(), true), prefix, 129, uint32(1500))
+	f.Add(fuzzRSRecord(7, "fe80::2", "ff02::2", rs(), true), prefix, -1, uint32(1500))
+	f.Add(valid[:ebpf.RSEventHeaderLen-1], prefix, 64, uint32(1500))
+	f.Add(append(append([]byte{}, valid...), 0), prefix, 64, uint32(1500))
 	f.Add([]byte{}, []byte{}, 64, uint32(1500))
 
 	f.Fuzz(func(t *testing.T, raw []byte, prefixAddr []byte, bits int, mtu uint32) {
-		var event ebpf.RSEvent
-		if err := binary.Read(bytes.NewReader(raw), binary.NativeEndian, &event); err != nil {
-			if len(raw) >= binary.Size(event) {
-				t.Fatalf("decode %d bytes: %v", len(raw), err)
+		ev, err := ebpf.ParseRSEvent(raw)
+		if err != nil {
+			if len(raw) >= ebpf.RSEventHeaderLen && int(binary.NativeEndian.Uint16(raw[36:38])) == len(raw)-ebpf.RSEventHeaderLen {
+				t.Fatalf("consistent %d-byte record rejected: %v", len(raw), err)
 			}
 
 			return
+		}
+
+		src := netip.AddrFrom16(ev.UEIPv6)
+		dst := netip.AddrFrom16(ev.DstIPv6)
+
+		reason := rsDiscardReason(&ev)
+		if accepted := acceptRS(&ev); accepted != (reason == "") {
+			t.Fatalf("acceptRS = %v with discard reason %q", accepted, reason)
+		}
+
+		if reason != "" {
+			return
+		}
+
+		if len(ev.Msg) < 8 || ev.Msg[0] != ndp.ICMPv6TypeRouterSolicitation || ev.Msg[1] != 0 {
+			t.Fatalf("accepted a message that is not a Router Solicitation: % x", ev.Msg)
+		}
+
+		if ndp.ICMPv6Checksum(src, dst, ev.Msg) != 0 {
+			t.Fatalf("accepted a Router Solicitation whose checksum does not verify: % x", ev.Msg)
+		}
+
+		if !validRSOptions(src, ev.Msg[8:]) {
+			t.Fatalf("accepted a Router Solicitation from %s with invalid options: % x", src, ev.Msg[8:])
 		}
 
 		addr, _ := netip.AddrFromSlice(prefixAddr)
-		sess := &IPv6SessionContext{Prefix: netip.PrefixFrom(addr, bits), MTU: mtu}
-		ueIPv6 := netip.AddrFrom16(event.UEIPv6)
+		sessionPrefix := netip.PrefixFrom(addr, bits)
 
-		pkt, err := (&RAResponder{}).buildRAPacket(sess, ueIPv6)
+		r := &RAResponder{sessions: make(map[uint32]*IPv6SessionContext), injectFD: -1}
+		r.RegisterSession(ev.TEID, &IPv6SessionContext{Prefix: sessionPrefix, MTU: mtu})
+
+		pkt, err := r.solicitedRA(ev.TEID, src)
 		if err != nil {
-			if sess.Prefix.IsValid() {
-				t.Fatalf("buildRAPacket rejected valid prefix %s: %v", sess.Prefix, err)
+			if sessionPrefix.IsValid() {
+				t.Fatalf("no RA for valid prefix %s: %v", sessionPrefix, err)
 			}
 
 			return
 		}
 
-		if !sess.Prefix.IsValid() {
-			t.Fatal("buildRAPacket accepted an invalid prefix")
+		if !sessionPrefix.IsValid() {
+			t.Fatal("built an RA for an invalid prefix")
 		}
 
-		if len(pkt) < 14+40+16 || binary.BigEndian.Uint16(pkt[12:14]) != 0x86DD {
-			t.Fatalf("not an Ethernet IPv6 frame: % x", pkt)
+		ra := parseInjectedRA(t, pkt)
+
+		if want := netip.AddrFrom16(sessionPrefix.Masked().Addr().As16()); ra.session != want {
+			t.Fatalf("RA carried into session %s, want the soliciting session %s", ra.session, want)
 		}
 
-		ip := pkt[14:]
-		body := ip[40:]
-
-		if ip[0]>>4 != 6 || ip[6] != ndp.ICMPv6ProtocolNumber || ip[7] != 255 || int(binary.BigEndian.Uint16(ip[4:6])) != len(body) {
-			t.Fatalf("bad IPv6 header % x", ip[:40])
+		wantDst := src
+		if src.IsUnspecified() {
+			wantDst = ndp.AllNodesMulticast
 		}
 
-		src := netip.AddrFrom16([16]byte(ip[8:24]))
-		dst := netip.AddrFrom16([16]byte(ip[24:40]))
-
-		if src != routerLinkLocal || dst != ueIPv6 {
-			t.Fatalf("RA addressed %s -> %s", src, dst)
-		}
-
-		if body[0] != ndp.ICMPv6TypeRouterAdvertisement || body[1] != 0 {
-			t.Fatalf("ICMPv6 type/code = %d/%d", body[0], body[1])
-		}
-
-		if ndp.ICMPv6Checksum(src, dst, body) != 0 {
-			t.Fatal("RA checksum does not verify")
+		if ra.src != routerLinkLocal || ra.dst != wantDst {
+			t.Fatalf("RA for an RS from %s addressed %s -> %s, want %s -> %s", src, ra.src, ra.dst, routerLinkLocal, wantDst)
 		}
 
 		want := 16 + 32
@@ -97,8 +154,8 @@ func FuzzRSEvent(f *testing.F) {
 			want += 8
 		}
 
-		if len(body) != want {
-			t.Fatalf("RA body is %d bytes, want %d", len(body), want)
+		if len(ra.body) != want {
+			t.Fatalf("RA body is %d bytes, want %d", len(ra.body), want)
 		}
 	})
 }

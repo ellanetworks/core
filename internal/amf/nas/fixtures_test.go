@@ -6,6 +6,9 @@ package nas
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
+	"sync"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
@@ -13,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
+	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/nas/fgs"
 	"github.com/ellanetworks/core/ngap"
 	"github.com/ellanetworks/core/sctp"
@@ -170,9 +174,23 @@ type fakeAusf struct {
 	Kseaf   []byte
 	Error   error
 	AvKgAka *ausf.AuthResult
+
+	mu         sync.Mutex
+	identities []string
+	resyncs    []*ausf.ResyncInfo
+	confirmed  []string
 }
 
-func (a *fakeAusf) Authenticate(ctx context.Context, suci string, plmn models.PlmnID, resync *ausf.ResyncInfo) (*ausf.AuthResult, error) {
+func (a *fakeAusf) Authenticate(ctx context.Context, supiOrSuci string, plmn models.PlmnID, resync *ausf.ResyncInfo) (*ausf.AuthResult, error) {
+	a.mu.Lock()
+	a.identities = append(a.identities, supiOrSuci)
+	a.resyncs = append(a.resyncs, resync)
+	a.mu.Unlock()
+
+	if !strings.HasPrefix(supiOrSuci, "imsi-") && !strings.HasPrefix(supiOrSuci, "suci-") {
+		return nil, fmt.Errorf("couldn't convert suci to supi: %w: %q", udm.ErrSUPIUnderivable, supiOrSuci)
+	}
+
 	if a.Error != nil {
 		return nil, a.Error
 	}
@@ -180,12 +198,37 @@ func (a *fakeAusf) Authenticate(ctx context.Context, suci string, plmn models.Pl
 	return a.AvKgAka, nil
 }
 
-func (a *fakeAusf) Confirm(ctx context.Context, resStar string, suci string) (etsi.SUPI, []byte, error) {
+func (a *fakeAusf) Confirm(ctx context.Context, authCtxID, resStar string) (etsi.SUPI, []byte, error) {
+	a.mu.Lock()
+	a.confirmed = append(a.confirmed, authCtxID)
+	a.mu.Unlock()
+
 	if a.Error != nil {
 		return etsi.InvalidSUPI, nil, a.Error
 	}
 
 	return a.Supi, a.Kseaf, nil
+}
+
+func (a *fakeAusf) Identities() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	return slices.Clone(a.identities)
+}
+
+func (a *fakeAusf) Resyncs() []*ausf.ResyncInfo {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	return slices.Clone(a.resyncs)
+}
+
+func (a *fakeAusf) Confirmed() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	return slices.Clone(a.confirmed)
 }
 
 func mustSUPIFromPrefixed(s string) etsi.SUPI { //nolint:unparam

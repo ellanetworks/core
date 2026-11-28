@@ -95,7 +95,7 @@ func authenticationProcedure(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 		return false, fmt.Errorf("tai is not available in UE context")
 	}
 
-	response, err := amfInstance.Ausf.Authenticate(ctx, ue.Suci(), *ue.Tai.PlmnID, nil)
+	response, err := amfInstance.Ausf.Authenticate(ctx, ue.AuthenticationIdentity(ueConn), *ue.Tai.PlmnID, nil)
 	if err != nil {
 		return false, fmt.Errorf("ausf UE amf.Authentication Authenticate Request failed: %w", err)
 	}

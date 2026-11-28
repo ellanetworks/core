@@ -52,7 +52,7 @@ func (amf *AMF) LookupUeByGuti(guami *models.Guami, guti etsi.GUTI5G) (*UeContex
 }
 
 // ReallocateGUTI allocates a new 5G-GUTI for the UE and preserves the old one
-// (resolvable until the UE acknowledges the reallocation, when CommitGUTIRealloc runs).
+// (resolvable until the UE acknowledges the reallocation or uses the new 5G-GUTI).
 // A reallocation already in flight reuses its staged 5G-TMSI, so a retransmitted
 // trigger does not burn a fresh one (TS 24.501 §5.4.4). The GUTI index is kept in
 // step under a.mu.
@@ -107,7 +107,7 @@ func (a *AMF) Guti(guami *models.Guami, ue *UeContext) (etsi.GUTI5G, error) {
 }
 
 // OldGuti rebuilds the UE's in-flight previous 5G-GUTI, valid during a reallocation
-// window (until CommitGUTIRealloc).
+// window (until CommitGUTIRealloc or ConfirmGUTIRealloc).
 func (a *AMF) OldGuti(guami *models.Guami, ue *UeContext) (etsi.GUTI5G, error) {
 	if ue == nil {
 		return etsi.InvalidGUTI5G, nil

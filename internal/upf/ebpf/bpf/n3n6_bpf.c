@@ -512,18 +512,6 @@ int upf_entry_func(struct __ctx_buff *ctx)
 	return ctx_verdict(DEFAULT_CTX_ACTION);
 }
 
-struct veth_tunnel_info {
-	struct in6_addr ue_prefix;
-};
-
-struct {
-	__uint(type, BPF_MAP_TYPE_HASH);
-	__type(key, struct in6_addr);
-	__type(value, struct veth_tunnel_info);
-	__uint(max_entries, MAX_PDU_SESSIONS);
-	__uint(map_flags, BPF_F_NO_PREALLOC);
-} veth_tunnels SEC(".maps");
-
 /* veth_xdp_func: attached to the veth-xdp end of the pair the SMF injects
  * Router Advertisements on. */
 CTX_DP_SEC("veth_xdp")
@@ -546,23 +534,21 @@ int veth_xdp_func(struct __ctx_buff *ctx)
 		return ctx_verdict(CTX_ACT_DROP);
 	}
 
-	struct ipv6hdr *ip6 = (struct ipv6hdr *)(eth + 1);
-	if ((void *)(ip6 + 1) > data_end) {
+	const struct ipv6hdr *outer = (const struct ipv6hdr *)(eth + 1);
+	if ((const void *)(outer + 1) > data_end)
 		return ctx_verdict(CTX_ACT_DROP);
-	}
 
-	struct veth_tunnel_info *tun =
-		bpf_map_lookup_elem(&veth_tunnels, &ip6->daddr);
-	if (!tun) {
-		upf_printk("upf: veth XDP tunnel miss dst=%pI6c", &ip6->daddr);
+	if (outer->nexthdr != IPPROTO_IPV6)
 		return ctx_verdict(CTX_ACT_DROP);
-	}
+
+	struct in6_addr ue_prefix = outer->daddr;
+	__builtin_memset(((void *)&ue_prefix) + 8, 0, 8);
 
 	const struct pdr_info *pdr =
-		bpf_map_lookup_elem(&pdrs_downlink_ip6, &tun->ue_prefix);
+		bpf_map_lookup_elem(&pdrs_downlink_ip6, &ue_prefix);
 	if (!pdr) {
 		upf_printk("upf: veth XDP no downlink PDR for %pI6c",
-			   &tun->ue_prefix);
+			   &ue_prefix);
 		return ctx_verdict(CTX_ACT_DROP);
 	}
 
@@ -572,6 +558,25 @@ int veth_xdp_func(struct __ctx_buff *ctx)
 
 	if (!(far.action & FAR_FORW))
 		return ctx_verdict(CTX_ACT_DROP);
+
+	struct ethhdr saved_eth;
+	__builtin_memcpy(&saved_eth, eth, sizeof(saved_eth));
+
+	if (ctx_decap(ctx, sizeof(struct ipv6hdr), 1))
+		return ctx_verdict(CTX_ACT_ABORTED);
+
+	data = ctx_data(ctx);
+	data_end = ctx_data_end(ctx);
+
+	eth = data;
+	if ((void *)(eth + 1) > data_end)
+		return ctx_verdict(CTX_ACT_ABORTED);
+	__builtin_memcpy(eth, &saved_eth, sizeof(*eth));
+
+	struct ipv6hdr *ip6 = (struct ipv6hdr *)(eth + 1);
+	if ((void *)(ip6 + 1) > data_end) {
+		return ctx_verdict(CTX_ACT_DROP);
+	}
 
 	upf_printk("upf: veth received RA for dest %pI6c", &ip6->daddr);
 

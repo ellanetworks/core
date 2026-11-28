@@ -45,3 +45,13 @@ func ValidateRouterSolicitation(src, dst netip.Addr, msg []byte) error {
 
 	return nil
 }
+
+var AllNodesMulticast = netip.MustParseAddr("ff02::1")
+
+func SolicitedRADestination(rsSource netip.Addr) netip.Addr {
+	if rsSource.IsUnspecified() {
+		return AllNodesMulticast
+	}
+
+	return rsSource
+}

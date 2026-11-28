@@ -20,6 +20,7 @@
 package ebpf
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -85,11 +86,32 @@ type RSEvent struct {
 	TEID    uint32
 	UEIPv6  [16]byte // struct in6_addr — UE source IPv6 address
 	DstIPv6 [16]byte
-	MsgLen  uint16
-	Msg     [RSMsgMax]byte
+	Msg     []byte
 }
 
-const RSMsgMax = 1240
+const (
+	RSMsgMax         = 1240
+	RSEventHeaderLen = 38
+)
+
+func ParseRSEvent(raw []byte) (RSEvent, error) {
+	if len(raw) < RSEventHeaderLen {
+		return RSEvent{}, fmt.Errorf("RS event of %d bytes is shorter than its %d-byte header", len(raw), RSEventHeaderLen)
+	}
+
+	ev := RSEvent{
+		TEID: binary.NativeEndian.Uint32(raw[0:4]),
+		Msg:  raw[RSEventHeaderLen:],
+	}
+	copy(ev.UEIPv6[:], raw[4:20])
+	copy(ev.DstIPv6[:], raw[20:36])
+
+	if msgLen := int(binary.NativeEndian.Uint16(raw[36:38])); msgLen != len(ev.Msg) {
+		return RSEvent{}, fmt.Errorf("RS event declares a %d-byte message but carries %d bytes", msgLen, len(ev.Msg))
+	}
+
+	return ev, nil
+}
 
 type ErrorIndication struct {
 	TEID     uint32
@@ -207,7 +229,7 @@ func sizeCPUScratchMaps(spec *ebpf.CollectionSpec) error {
 		return fmt.Errorf("get possible CPUs: %w", err)
 	}
 
-	for _, name := range []string{"csum_scratch", "dl_buffer_scratch", "frag_tx_scratch"} {
+	for _, name := range []string{"csum_scratch", "dl_buffer_scratch", "frag_tx_scratch", "rs_event_scratch"} {
 		if m, ok := spec.Maps[name]; ok {
 			m.MaxEntries = uint32(cpus)
 		}

@@ -196,10 +196,6 @@ func TestVLANVRFInjection(t *testing.T) {
 					if err := f.obj.PutPdrDownlink(canonicalUEv6Prefix, pdr); err != nil {
 						t.Fatal(err)
 					}
-
-					if err := f.obj.PutTunnel(ue, netip.PrefixFrom(canonicalUEv6Prefix, 64)); err != nil {
-						t.Fatal(err)
-					}
 				}
 
 				attachDatapath(t, f.obj, prog, inj.Index)
@@ -215,7 +211,11 @@ func TestVLANVRFInjection(t *testing.T) {
 				deny("ellvvn6")
 
 				before := GetDatapathCounters(f.obj)[Downlink]
+
 				frame := ethFrame(proto, inner)
+				if !buffered {
+					frame = raInjectionFrame(netip.PrefixFrom(canonicalUEv6Prefix, 64), inner)
+				}
 
 				out := runVLANVRFPath(t, prog, inj.Index, frame, ActionRedirect)
 				if !f.obj.UseTCX {
@@ -240,7 +240,7 @@ func TestVLANVRFInjection(t *testing.T) {
 				}
 
 				deny(vethInjDev)
-				runVLANVRFPath(t, prog, inj.Index, ethFrame(proto, inner), ActionDrop)
+				runVLANVRFPath(t, prog, inj.Index, frame, ActionDrop)
 
 				if got, ok := GetRouteStats(f.obj)[Downlink]; !ok || got != (RouteStats{FibSuccess: 2, FibBlackhole: 1}) {
 					t.Fatalf("actual veth iif policy was not enforced: %+v", got)

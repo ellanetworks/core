@@ -5,6 +5,7 @@ package ausf_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -228,10 +229,8 @@ func TestConfirm_Success(t *testing.T) {
 	// The only way is to replicate the derivation. Instead, let's test the
 	// mismatch path and the "no context found" path, and accept the success
 	// path is covered by integration tests.
-	_ = result
-
 	// Test mismatch
-	_, _, err = a.Confirm(ctx, "0000000000000000000000000000000000000000", suci)
+	_, _, err = a.Confirm(ctx, result.AuthCtxID, "0000000000000000000000000000000000000000")
 	if err == nil {
 		t.Fatal("expected error for RES* mismatch")
 	}
@@ -242,9 +241,9 @@ func TestConfirm_NoContext(t *testing.T) {
 	a := newTestAUSF(store)
 	ctx := context.Background()
 
-	_, _, err := a.Confirm(ctx, "deadbeef", "suci-0-001-01-0000-0-0-9999999999")
-	if err == nil {
-		t.Fatal("expected error when no context exists")
+	_, _, err := a.Confirm(ctx, "00000000000000000000000000000000", "deadbeef")
+	if !errors.Is(err, ausf.ErrAuthContextNotFound) {
+		t.Fatalf("Confirm without a context = %v, want %v", err, ausf.ErrAuthContextNotFound)
 	}
 }
 
@@ -260,21 +259,21 @@ func TestConfirm_DeletesContextOnMismatch(t *testing.T) {
 	ctx := context.Background()
 	suci := testSUCI
 
-	_, err := a.Authenticate(ctx, suci, testPLMN, nil)
+	result, err := a.Authenticate(ctx, suci, testPLMN, nil)
 	if err != nil {
 		t.Fatalf("Authenticate failed: %v", err)
 	}
 
 	// First Confirm with wrong RES* should fail but delete the context.
-	_, _, err = a.Confirm(ctx, "wrong", suci)
-	if err == nil {
-		t.Fatal("expected mismatch error")
+	_, _, err = a.Confirm(ctx, result.AuthCtxID, "wrong")
+	if err == nil || errors.Is(err, ausf.ErrAuthContextNotFound) {
+		t.Fatalf("expected mismatch error, got %v", err)
 	}
 
 	// Second Confirm should fail with "context not found" since it was deleted.
-	_, _, err = a.Confirm(ctx, "wrong", suci)
-	if err == nil {
-		t.Fatal("expected context-not-found error on second Confirm")
+	_, _, err = a.Confirm(ctx, result.AuthCtxID, "wrong")
+	if !errors.Is(err, ausf.ErrAuthContextNotFound) {
+		t.Fatalf("expected context-not-found error on second Confirm, got %v", err)
 	}
 }
 
@@ -415,14 +414,14 @@ func TestResync_AuthenticateWithResyncInfo(t *testing.T) {
 	ctx := context.Background()
 	suci := testSUCI
 
-	// First authenticate to populate the pool with RAND.
-	_, err := a.Authenticate(ctx, suci, testPLMN, nil)
+	first, err := a.Authenticate(ctx, suci, testPLMN, nil)
 	if err != nil {
 		t.Fatalf("first Authenticate failed: %v", err)
 	}
 
 	// Now try resync with invalid AUTS — should fail in Milenage verification.
 	_, err = a.Authenticate(ctx, suci, testPLMN, &ausf.ResyncInfo{
+		Rand: first.Rand,
 		Auts: "aabbccddeeff0000000000000000",
 	})
 	if err == nil {
@@ -430,7 +429,7 @@ func TestResync_AuthenticateWithResyncInfo(t *testing.T) {
 	}
 }
 
-func TestResync_NoCachedContext(t *testing.T) {
+func TestResync_RequiresRandAndAuts(t *testing.T) {
 	store := newFakeStore()
 	store.Add(testIMSI, &ausf.Subscriber{
 		PermanentKey:   testK,
@@ -440,14 +439,48 @@ func TestResync_NoCachedContext(t *testing.T) {
 
 	a := newTestAUSF(store)
 	ctx := context.Background()
-	suci := testSUCI
 
-	// Resync without prior Authenticate should fail.
-	_, err := a.Authenticate(ctx, suci, testPLMN, &ausf.ResyncInfo{
-		Auts: "aabbccddeeff0000000000000000",
+	for _, resync := range []*ausf.ResyncInfo{
+		{Auts: "aabbccddeeff0000000000000000"},
+		{Rand: "00000000000000000000000000000000"},
+	} {
+		if _, err := a.Authenticate(ctx, testSUCI, testPLMN, resync); err == nil {
+			t.Fatalf("Authenticate with resync %+v succeeded, want an error", resync)
+		}
+	}
+
+	store.mu.Lock()
+	sqn := store.subs[testIMSI].SequenceNumber
+	store.mu.Unlock()
+
+	if sqn != "000000000000" {
+		t.Fatalf("an incomplete resync advanced the SQN to %s", sqn)
+	}
+}
+
+func TestAuthenticate_ReturnsADistinctContextPerAttempt(t *testing.T) {
+	store := newFakeStore()
+	store.Add(testIMSI, &ausf.Subscriber{
+		PermanentKey:   testK,
+		Opc:            testOPc,
+		SequenceNumber: "000000000000",
 	})
-	if err == nil {
-		t.Fatal("expected error when no cached context for resync")
+
+	a := newTestAUSF(store)
+	ctx := context.Background()
+
+	r1, err := a.Authenticate(ctx, testSUCI, testPLMN, nil)
+	if err != nil {
+		t.Fatalf("first Authenticate failed: %v", err)
+	}
+
+	r2, err := a.Authenticate(ctx, "imsi-"+testIMSI, testPLMN, nil)
+	if err != nil {
+		t.Fatalf("second Authenticate failed: %v", err)
+	}
+
+	if r1.AuthCtxID == "" || r2.AuthCtxID == "" || r1.AuthCtxID == r2.AuthCtxID {
+		t.Fatalf("authentication context ids = %q, %q, want two distinct ids", r1.AuthCtxID, r2.AuthCtxID)
 	}
 }
 

@@ -310,6 +310,16 @@ type N3N6EntrypointRouteStat struct {
 	FibLookupIp6Error       uint64
 }
 
+type N3N6EntrypointRsEvent struct {
+	_       structs.HostLayout
+	Teid    uint32
+	UeIpv6  N3N6EntrypointIn6Addr
+	DstIpv6 N3N6EntrypointIn6Addr
+	MsgLen  uint16
+	Msg     [1240]uint8
+	_       [2]byte
+}
+
 type N3N6EntrypointRuntimeSettings struct {
 	_                 structs.HostLayout
 	BufferVethIfindex uint32
@@ -445,11 +455,6 @@ type N3N6EntrypointUrrKey struct {
 	Pad   uint32
 }
 
-type N3N6EntrypointVethTunnelInfo struct {
-	_        structs.HostLayout
-	UePrefix N3N6EntrypointIn6Addr
-}
-
 // Names of all BPF objects in the ELF.
 //
 // Used for safe lookups in a Collection or CollectionSpec.
@@ -485,6 +490,7 @@ const (
 	N3N6EntrypointMapRadioForwarded            = "radio_forwarded"
 	N3N6EntrypointMapRingbufLost               = "ringbuf_lost"
 	N3N6EntrypointMapRsEventMap                = "rs_event_map"
+	N3N6EntrypointMapRsEventScratch            = "rs_event_scratch"
 	N3N6EntrypointMapRuntimeSettingsMap        = "runtime_settings_map"
 	N3N6EntrypointMapSdfClassifiers            = "sdf_classifiers"
 	N3N6EntrypointMapSdfFilters                = "sdf_filters"
@@ -495,7 +501,6 @@ const (
 	N3N6EntrypointMapUplinkRouteStats          = "uplink_route_stats"
 	N3N6EntrypointMapUplinkStatistics          = "uplink_statistics"
 	N3N6EntrypointMapUrrMap                    = "urr_map"
-	N3N6EntrypointMapVethTunnels               = "veth_tunnels"
 	N3N6EntrypointProgUpfDownlinkFunc          = "upf_downlink_func"
 	N3N6EntrypointProgUpfEntryFunc             = "upf_entry_func"
 	N3N6EntrypointProgUpfGtpuControlFunc       = "upf_gtpu_control_func"
@@ -601,6 +606,7 @@ type N3N6EntrypointMapSpecs struct {
 	RadioForwarded            *ebpf.MapSpec `ebpf:"radio_forwarded"`
 	RingbufLost               *ebpf.MapSpec `ebpf:"ringbuf_lost"`
 	RsEventMap                *ebpf.MapSpec `ebpf:"rs_event_map"`
+	RsEventScratch            *ebpf.MapSpec `ebpf:"rs_event_scratch"`
 	RuntimeSettingsMap        *ebpf.MapSpec `ebpf:"runtime_settings_map"`
 	SdfClassifiers            *ebpf.MapSpec `ebpf:"sdf_classifiers"`
 	SdfFilters                *ebpf.MapSpec `ebpf:"sdf_filters"`
@@ -611,7 +617,6 @@ type N3N6EntrypointMapSpecs struct {
 	UplinkRouteStats          *ebpf.MapSpec `ebpf:"uplink_route_stats"`
 	UplinkStatistics          *ebpf.MapSpec `ebpf:"uplink_statistics"`
 	UrrMap                    *ebpf.MapSpec `ebpf:"urr_map"`
-	VethTunnels               *ebpf.MapSpec `ebpf:"veth_tunnels"`
 }
 
 // N3N6EntrypointVariableSpecs contains global variables before they are loaded into the kernel.
@@ -683,6 +688,7 @@ type N3N6EntrypointMaps struct {
 	RadioForwarded            *ebpf.Map `ebpf:"radio_forwarded"`
 	RingbufLost               *ebpf.Map `ebpf:"ringbuf_lost"`
 	RsEventMap                *ebpf.Map `ebpf:"rs_event_map"`
+	RsEventScratch            *ebpf.Map `ebpf:"rs_event_scratch"`
 	RuntimeSettingsMap        *ebpf.Map `ebpf:"runtime_settings_map"`
 	SdfClassifiers            *ebpf.Map `ebpf:"sdf_classifiers"`
 	SdfFilters                *ebpf.Map `ebpf:"sdf_filters"`
@@ -693,7 +699,6 @@ type N3N6EntrypointMaps struct {
 	UplinkRouteStats          *ebpf.Map `ebpf:"uplink_route_stats"`
 	UplinkStatistics          *ebpf.Map `ebpf:"uplink_statistics"`
 	UrrMap                    *ebpf.Map `ebpf:"urr_map"`
-	VethTunnels               *ebpf.Map `ebpf:"veth_tunnels"`
 }
 
 func (m *N3N6EntrypointMaps) Close() error {
@@ -729,6 +734,7 @@ func (m *N3N6EntrypointMaps) Close() error {
 		m.RadioForwarded,
 		m.RingbufLost,
 		m.RsEventMap,
+		m.RsEventScratch,
 		m.RuntimeSettingsMap,
 		m.SdfClassifiers,
 		m.SdfFilters,
@@ -739,7 +745,6 @@ func (m *N3N6EntrypointMaps) Close() error {
 		m.UplinkRouteStats,
 		m.UplinkStatistics,
 		m.UrrMap,
-		m.VethTunnels,
 	)
 }
 

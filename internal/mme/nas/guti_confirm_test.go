@@ -221,28 +221,32 @@ func serviceRequestFor(t *testing.T, ue *mme.UeContext, id eps.EPSMobileIdentity
 	}
 }
 
-func TestServiceRequestWithTheNewGUTIInvalidatesTheOldAndReallocatesAFreshOne(t *testing.T) {
+func TestServiceRequestWithTheNewSTMSIKeepsTheReallocationPending(t *testing.T) {
 	m := newTestMME(t)
 	ue, old, staged := idleUEWithStagedRealloc(t, m)
 
 	cc := &captureConn{}
 	HandleServiceRequest(context.Background(), m, cc, serviceRequestFor(t, ue, staged, false))
 
-	if _, ok := m.LookupUeByMTMSI(mtmsiOf(old)); ok {
-		t.Fatal("the old M-TMSI still resolves after the UE used the new GUTI")
+	if !ue.Connected() {
+		t.Fatal("a verified Service Request must re-establish the UE")
 	}
 
-	fresh := ue.TmsiForTest()
-	if fresh == mtmsiOf(old) || fresh == mtmsiOf(staged) {
-		t.Fatalf("the Service Request must draw a fresh M-TMSI, got %d", fresh)
+	if ue.OldTmsiForTest() != mtmsiOf(old) || ue.TmsiForTest() != mtmsiOf(staged) {
+		t.Fatalf("an S-TMSI outside the short MAC changed the reallocation: old=%d new=%d, want old=%d new=%d",
+			ue.OldTmsiForTest(), ue.TmsiForTest(), mtmsiOf(old), mtmsiOf(staged))
+	}
+
+	if _, ok := m.LookupUeByMTMSI(mtmsiOf(old)); !ok {
+		t.Fatal("an S-TMSI outside the short MAC freed the old M-TMSI")
 	}
 
 	if len(cc.sent) != 2 {
 		t.Fatalf("expected Initial Context Setup Request + GUTI Reallocation Command, got %d", len(cc.sent))
 	}
 
-	if sent := downlinkGUTI(t, ue, cc.sent[1]); sent != fresh {
-		t.Fatalf("GUTI Reallocation Command carries M-TMSI %d, want the fresh %d", sent, fresh)
+	if sent := downlinkGUTI(t, ue, cc.sent[1]); sent != mtmsiOf(staged) {
+		t.Fatalf("GUTI Reallocation Command carries M-TMSI %d, want the staged %d", sent, mtmsiOf(staged))
 	}
 }
 
@@ -283,5 +287,180 @@ func TestServiceRequestBadMACWithTheNewGUTIKeepsTheReallocationPending(t *testin
 
 	if _, ok := m.LookupUeByMTMSI(mtmsiOf(old)); !ok {
 		t.Fatal("an unverified Service Request freed the old M-TMSI")
+	}
+}
+
+func protectedEMM(t *testing.T, ue *mme.UeContext, msg interface{ MarshalBinary() ([]byte, error) }) []byte {
+	t.Helper()
+
+	plain, err := msg.MarshalBinary()
+	if err != nil {
+		t.Fatalf("encode uplink: %v", err)
+	}
+
+	wire, err := eps.Protect(plain, eps.SHTIntegrityProtectedCiphered, nas.MakeCount(0, uint8(ue.ULCount())), nas.DirectionUplink,
+		mustSecurityContext(t, ue.EIA(), ue.EEA(), ue.KnasIntForTest(), ue.KnasEncForTest()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return wire
+}
+
+func committed(m *mme.MME, ue *mme.UeContext, old eps.EPSMobileIdentity) bool {
+	_, oldResolves := m.LookupUeByMTMSI(mtmsiOf(old))
+
+	return ue.OldTmsiForTest() != mtmsiOf(old) && !oldResolves
+}
+
+func TestAttachWithTheNewGUTIInvalidatesTheOld(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+	old, staged := stageGUTIRealloc(t, m, ue)
+
+	esm, err := (&eps.PDNConnectivityRequest{PTI: 1, RequestType: 1, PDNType: 1}).MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	native := eps.GUTITypeNative
+
+	HandleNAS(context.Background(), m, ue.Conn(), protectedEMM(t, ue, &eps.AttachRequest{
+		EPSAttachType:       eps.AttachTypeEPS,
+		NASKeySetIdentifier: nas.KeySetIdentifier{Value: 2},
+		EPSMobileIdentity:   staged,
+		UENetworkCapability: eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70},
+		ESMMessageContainer: esm,
+		OldGUTIType:         &native,
+	}))
+
+	if !committed(m, ue, old) {
+		t.Fatalf("an integrity-verified Attach citing the new GUTI left the reallocation pending: old=%d new=%d", ue.OldTmsiForTest(), ue.TmsiForTest())
+	}
+}
+
+func TestDetachWithTheNewGUTIInvalidatesTheOld(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+	old, staged := stageGUTIRealloc(t, m, ue)
+
+	HandleNAS(context.Background(), m, ue.Conn(), protectedEMM(t, ue, &eps.DetachRequestUE{
+		SwitchOff:         true,
+		TypeOfDetach:      eps.DetachTypeEPS,
+		EPSMobileIdentity: staged,
+	}))
+
+	if !committed(m, ue, old) {
+		t.Fatalf("an integrity-verified Detach citing the new GUTI left the reallocation pending: old=%d new=%d", ue.OldTmsiForTest(), ue.TmsiForTest())
+	}
+}
+
+func TestTrackingAreaUpdateWithAMappedOldGUTIAndTheNewAdditionalGUTIInvalidatesTheOld(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+	old, staged := stageGUTIRealloc(t, m, ue)
+
+	mapped := eps.GUTITypeMapped
+	mappedGUTI := *staged.GUTI
+	mappedGUTI.MMEGroupID |= 0x8000
+	mappedGUTI.TMSI = old.GUTI.TMSI
+
+	HandleNAS(context.Background(), m, ue.Conn(), protectedEMM(t, ue, &eps.TrackingAreaUpdateRequest{
+		EPSUpdateType:  eps.EPSUpdateTypePeriodic,
+		OldGUTI:        eps.GUTIIdentity(mappedGUTI),
+		OldGUTIType:    &mapped,
+		AdditionalGUTI: &staged,
+	}))
+
+	if _, ok := m.LookupUeByMTMSI(mtmsiOf(old)); ok {
+		t.Fatal("the old M-TMSI still resolves after the UE used the new GUTI in the Additional GUTI")
+	}
+
+	fresh := ue.TmsiForTest()
+	if fresh == mtmsiOf(old) || fresh == mtmsiOf(staged) {
+		t.Fatalf("the TAU must draw a fresh M-TMSI, got %d", fresh)
+	}
+
+	if len(cc.sent) != 1 {
+		t.Fatalf("expected one downlink (TAU Accept), got %d", len(cc.sent))
+	}
+
+	if sent := downlinkGUTI(t, ue, cc.sent[0]); sent != fresh {
+		t.Fatalf("TAU Accept carries M-TMSI %d, want the fresh %d", sent, fresh)
+	}
+}
+
+func TestPresentedGUTIsSkipTheOldGUTIMappedFrom5GS(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+	old, staged := stageGUTIRealloc(t, m, ue)
+
+	native := eps.GUTITypeNative
+
+	confirmGUTIRealloc(context.Background(), m, ue, &eps.TrackingAreaUpdateRequest{
+		EPSUpdateType: eps.EPSUpdateTypeTA,
+		OldGUTI:       staged,
+		OldGUTIType:   &native,
+		UEStatus:      &eps.UEStatus{N1ModeReg: true},
+	})
+
+	if committed(m, ue, old) {
+		t.Fatal("a GUTI mapped from a 5G-GUTI committed the EPS reallocation")
+	}
+}
+
+func TestTrackingAreaUpdateWithAForeignGUMMEIKeepsTheReallocationPending(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := securedUE(t, m)
+	old, staged := stageGUTIRealloc(t, m, ue)
+
+	foreign := *staged.GUTI
+	foreign.MMECode++
+
+	HandleNAS(context.Background(), m, ue.Conn(), protectedTAU(t, ue, eps.GUTIIdentity(foreign)))
+
+	if ue.OldTmsiForTest() != mtmsiOf(old) || ue.TmsiForTest() != mtmsiOf(staged) {
+		t.Fatalf("a GUTI of another MME changed the reallocation: old=%d new=%d", ue.OldTmsiForTest(), ue.TmsiForTest())
+	}
+
+	if _, ok := m.LookupUeByMTMSI(mtmsiOf(old)); !ok {
+		t.Fatal("a GUTI of another MME freed the old M-TMSI")
+	}
+
+	if len(cc.sent) != 1 {
+		t.Fatalf("expected one downlink (TAU Accept), got %d", len(cc.sent))
+	}
+
+	if sent := downlinkGUTI(t, ue, cc.sent[0]); sent != mtmsiOf(staged) {
+		t.Fatalf("TAU Accept carries M-TMSI %d, want the staged %d", sent, mtmsiOf(staged))
+	}
+}
+
+func TestPresentedGUTIsSkipAMappedAttachIdentity(t *testing.T) {
+	m := newTestMME(t)
+	ue, _ := securedUE(t, m)
+	old, staged := stageGUTIRealloc(t, m, ue)
+
+	mapped := eps.GUTITypeMapped
+
+	confirmGUTIRealloc(context.Background(), m, ue, &eps.AttachRequest{
+		EPSAttachType:     eps.AttachTypeEPS,
+		EPSMobileIdentity: staged,
+		OldGUTIType:       &mapped,
+	})
+
+	if committed(m, ue, old) {
+		t.Fatal("a GUTI mapped from a P-TMSI committed the EPS reallocation")
+	}
+
+	confirmGUTIRealloc(context.Background(), m, ue, &eps.AttachRequest{
+		EPSAttachType:     eps.AttachTypeEPS,
+		EPSMobileIdentity: old,
+		OldGUTIType:       &mapped,
+		AdditionalGUTI:    &staged,
+	})
+
+	if !committed(m, ue, old) {
+		t.Fatal("the native GUTI in the Additional GUTI did not commit the EPS reallocation")
 	}
 }

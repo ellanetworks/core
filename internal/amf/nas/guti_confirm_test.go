@@ -271,3 +271,225 @@ func mustGutiFor(t *testing.T, a *amf.AMF, tmsi etsi.TMSI) etsi.GUTI5G {
 
 	return guti
 }
+
+func (f pendingReallocFixture) gutiIdentity(t *testing.T, tmsi etsi.TMSI) fgs.MobileIdentity {
+	t.Helper()
+
+	id, err := mustGutiFor(t, f.amf, tmsi).MobileIdentity()
+	if err != nil {
+		t.Fatalf("MobileIdentity: %v", err)
+	}
+
+	return id
+}
+
+func (f pendingReallocFixture) committed() bool {
+	return f.ue.OldTmsi() != f.oldTmsi && !f.amf.TmsiInUseForTest(f.oldTmsi)
+}
+
+func (f pendingReallocFixture) pending() bool {
+	return f.ue.OldTmsi() == f.oldTmsi && f.ue.TmsiForTest() == f.newTmsi && f.amf.TmsiInUseForTest(f.oldTmsi)
+}
+
+func (f pendingReallocFixture) protect(t *testing.T, msg interface{ MarshalBinary() ([]byte, error) }) []byte {
+	t.Helper()
+
+	f.ue.SetIntegrityAlgForTest(nas.IntegrityAES)
+	f.ue.Conn().MarkSecureExchangeEstablished()
+
+	inner, err := msg.MarshalBinary()
+	if err != nil {
+		t.Fatalf("encode uplink: %v", err)
+	}
+
+	return wrapIntegrityProtected(t, f.ue, inner, uint8(f.ue.ULCount()))
+}
+
+func (f pendingReallocFixture) lastRegistrationAcceptGUTI(t *testing.T) etsi.TMSI {
+	t.Helper()
+
+	sent := f.ngapSender.SentDownlinkNASTransport
+	if len(sent) == 0 {
+		t.Fatal("no downlink NAS transport sent")
+	}
+
+	plain := decipherGmmCount(t, f.ue, sent[len(sent)-1].NASPDU, uint32(f.ue.DLCountForTest())-1, uint8(fgs.MsgRegistrationAccept))
+
+	accept, err := fgs.ParseRegistrationAccept(plain)
+	if err != nil {
+		t.Fatalf("decode Registration Accept: %v", err)
+	}
+
+	if accept.GUTI == nil {
+		t.Fatal("Registration Accept carries no 5G-GUTI")
+	}
+
+	guti, err := etsi.NewGUTI5GFromNAS(*accept.GUTI)
+	if err != nil {
+		t.Fatalf("NewGUTI5GFromNAS: %v", err)
+	}
+
+	return guti.Tmsi
+}
+
+func TestRegistrationRequestWithTheNewGUTIInvalidatesTheOld(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		tamper     bool
+		wantCommit bool
+	}{
+		{"verified", false, true},
+		{"mac failure", true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newPendingReallocFixture(t)
+
+			pdu := f.protect(t, &fgs.RegistrationRequest{
+				RegistrationType:     fgs.RegistrationTypePeriodicUpdating,
+				FOR:                  true,
+				NgKSI:                nas.KeySetIdentifier{Value: 1},
+				MobileIdentity:       f.gutiIdentity(t, f.newTmsi),
+				UESecurityCapability: &fgs.UESecurityCapability{EA: 0xc0, IA: 0xc0},
+			})
+			if tc.tamper {
+				pdu[2] ^= 0xff
+			}
+
+			HandleNAS(t.Context(), f.amf, f.ue.Conn(), pdu)
+
+			if tc.wantCommit {
+				if !f.committed() {
+					t.Fatalf("the reallocation is still pending: old=%v new=%v", f.ue.OldTmsi(), f.ue.TmsiForTest())
+				}
+
+				return
+			}
+
+			if !f.pending() {
+				t.Fatalf("an unverified Registration Request changed the reallocation: old=%v new=%v", f.ue.OldTmsi(), f.ue.TmsiForTest())
+			}
+		})
+	}
+}
+
+func TestRegistrationRequestWithTheNewAdditionalGUTIInvalidatesTheOld(t *testing.T) {
+	f := newPendingReallocFixture(t)
+
+	additional := f.gutiIdentity(t, f.newTmsi)
+
+	mapped := f.gutiIdentity(t, f.oldTmsi)
+	mapped.GUTI.AMFRegionID ^= 0xff
+
+	HandleNAS(t.Context(), f.amf, f.ue.Conn(), f.protect(t, &fgs.RegistrationRequest{
+		RegistrationType:     fgs.RegistrationTypePeriodicUpdating,
+		FOR:                  true,
+		NgKSI:                nas.KeySetIdentifier{Value: 1},
+		MobileIdentity:       mapped,
+		UESecurityCapability: &fgs.UESecurityCapability{EA: 0xc0, IA: 0xc0},
+		AdditionalGUTI:       &additional,
+	}))
+
+	if !f.committed() {
+		t.Fatalf("the reallocation is still pending: old=%v new=%v", f.ue.OldTmsi(), f.ue.TmsiForTest())
+	}
+}
+
+func TestRegistrationRequestMovingFromEPCIgnoresTheMappedGUTI(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		additional bool
+	}{
+		{"mapped only", false},
+		{"mapped and additional", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newPendingReallocFixture(t)
+
+			req := &fgs.RegistrationRequest{
+				RegistrationType: fgs.RegistrationTypeMobilityUpdating,
+				MobileIdentity:   f.gutiIdentity(t, f.newTmsi),
+				UEStatus:         &fgs.UEStatus{S1ModeReg: true},
+			}
+
+			if tc.additional {
+				other := f.gutiIdentity(t, f.oldTmsi)
+				req.AdditionalGUTI = &other
+			}
+
+			confirmGUTIRealloc(t.Context(), f.amf, f.ue, req)
+
+			if !f.pending() {
+				t.Fatalf("a 5G-GUTI mapped from a 4G-GUTI changed the reallocation: old=%v new=%v", f.ue.OldTmsi(), f.ue.TmsiForTest())
+			}
+		})
+	}
+}
+
+func TestDeregistrationRequestWithTheNewGUTIInvalidatesTheOld(t *testing.T) {
+	f := newPendingReallocFixture(t)
+
+	HandleNAS(t.Context(), f.amf, f.ue.Conn(), f.protect(t, &fgs.DeregistrationRequestUEOriginating{
+		AccessType:     fgs.AccessType3GPP,
+		NgKSI:          nas.KeySetIdentifier{Value: 1},
+		MobileIdentity: f.gutiIdentity(t, f.newTmsi),
+	}))
+
+	if !f.committed() {
+		t.Fatalf("the reallocation is still pending: old=%v new=%v", f.ue.OldTmsi(), f.ue.TmsiForTest())
+	}
+}
+
+func TestSecurityModeCompleteContainerWithTheNewGUTIReallocatesAFreshOne(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		verified bool
+	}{
+		{"verified", true},
+		{"unverified", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newPendingReallocFixture(t)
+
+			f.ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+
+			if err := f.amf.CommitUEIdentity(t.Context(), f.ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+				t.Fatalf("CommitUEIdentity: %v", err)
+			}
+
+			f.ue.ForceRegStepForTest(amf.RegStepSecurityMode)
+			f.ue.Conn().RegistrationType5GS = fgs.RegistrationTypeInitial
+
+			container, err := buildRegReqBytes(uint8(fgs.RegistrationTypeInitial), f.gutiIdentity(t, f.newTmsi), &fgs.UESecurityCapability{EA: 0xc0, IA: 0xc0}, 0, nil, 0, 1)
+			if err != nil {
+				t.Fatalf("encode Registration Request: %v", err)
+			}
+
+			handleSecurityModeComplete(t.Context(), f.amf, f.ue, &fgs.SecurityModeComplete{NASMessageContainer: container}, tc.verified)
+
+			if !tc.verified {
+				if !f.pending() {
+					t.Fatalf("an unverified container changed the reallocation: old=%v new=%v", f.ue.OldTmsi(), f.ue.TmsiForTest())
+				}
+
+				return
+			}
+
+			if f.amf.TmsiInUseForTest(f.oldTmsi) {
+				t.Fatal("the old 5G-TMSI is still allocated after the UE used the new 5G-GUTI")
+			}
+
+			fresh := f.ue.TmsiForTest()
+			if fresh == f.newTmsi || fresh == f.oldTmsi {
+				t.Fatalf("the registration must draw a fresh 5G-TMSI, got %v (old %v, previously new %v)", fresh, f.oldTmsi, f.newTmsi)
+			}
+
+			if f.ue.OldTmsi() != f.newTmsi {
+				t.Fatalf("the staged old 5G-TMSI = %v, want the GUTI the UE presented %v", f.ue.OldTmsi(), f.newTmsi)
+			}
+
+			if sent := f.lastRegistrationAcceptGUTI(t); sent != fresh {
+				t.Fatalf("Registration Accept carries 5G-TMSI %v, want the fresh %v", sent, fresh)
+			}
+		})
+	}
+}

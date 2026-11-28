@@ -235,12 +235,10 @@ func restartRegistrationOnFreshContext(ctx context.Context, amfInstance *amf.AMF
 		return
 	}
 
-	supi := ue.Supi()
+	fresh := amf.NewUeContextForSubscriberOf(ue)
 
 	ue.Deregister(ctx, models.ReleaseFor(models.ReleaseDeregistration))
 
-	fresh := amf.NewUeContext()
-	fresh.SetSupi(supi)
 	amfInstance.AttachUeConn(ctx, fresh, ueConn)
 
 	handleRegistrationRequest(ctx, amfInstance, fresh, req, plain, integrityVerified, arrivedPlain)

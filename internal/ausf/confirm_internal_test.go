@@ -6,6 +6,7 @@ package ausf
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -115,7 +116,7 @@ func TestConfirmSuccess(t *testing.T) {
 
 	xresStarHex := hex.EncodeToString(xresStar)
 
-	supi, kseaf, err := a.Confirm(ctx, xresStarHex, intTestSUCI)
+	supi, kseaf, err := a.Confirm(ctx, result.AuthCtxID, xresStarHex)
 	if err != nil {
 		t.Fatalf("Confirm failed: %v", err)
 	}
@@ -179,7 +180,7 @@ func TestConfirmSuccess_ReturnsCorrectKseaf(t *testing.T) {
 		t.Fatalf("deriveKseaf failed: %v", err)
 	}
 
-	_, gotKseaf, err := a.Confirm(ctx, hex.EncodeToString(xresStar), intTestSUCI)
+	_, gotKseaf, err := a.Confirm(ctx, result.AuthCtxID, hex.EncodeToString(xresStar))
 	if err != nil {
 		t.Fatalf("Confirm failed: %v", err)
 	}
@@ -190,7 +191,7 @@ func TestConfirmSuccess_ReturnsCorrectKseaf(t *testing.T) {
 }
 
 // TestResyncSuccess_SQNAdvancesBy33 does a full resync round-trip:
-//  1. Authenticate normally (caches RAND in the pool).
+//  1. Authenticate normally (issues the challenge RAND).
 //  2. Build a valid AUTS from that RAND and a known SQN_MS (simulating
 //     what the UE sends when it detects a SQN mismatch).
 //  3. Call Authenticate again with the ResyncInfo.
@@ -209,7 +210,7 @@ func TestResyncSuccess_SQNAdvancesBy33(t *testing.T) {
 	a := New(store, noopKeys)
 	ctx := context.Background()
 
-	// Step 1: Normal authenticate — this caches a RAND in the pool.
+	// Step 1: Normal authenticate — this issues the challenge RAND.
 	result, err := a.Authenticate(ctx, intTestSUCI, intTestPLMN, nil)
 	if err != nil {
 		t.Fatalf("first Authenticate failed: %v", err)
@@ -242,6 +243,7 @@ func TestResyncSuccess_SQNAdvancesBy33(t *testing.T) {
 
 	// Step 3: Authenticate with resync.
 	_, err = a.Authenticate(ctx, intTestSUCI, intTestPLMN, &ResyncInfo{
+		Rand: result.Rand,
 		Auts: hex.EncodeToString(auts),
 	})
 	if err != nil {
@@ -256,6 +258,90 @@ func TestResyncSuccess_SQNAdvancesBy33(t *testing.T) {
 	wantSQN, _ := udm.AdvanceSQN(sqnMsHex, udm.IndStep+1) // 0x100 + 33 = 0x121
 	if gotSQN != wantSQN {
 		t.Fatalf("after resync: want SQN %s, got %s", wantSQN, gotSQN)
+	}
+}
+
+func ueResStar(t *testing.T, result *AuthResult) string {
+	t.Helper()
+
+	k, _ := hex.DecodeString(intTestK)
+	opc, _ := hex.DecodeString(intTestOPc)
+	randBytes, _ := hex.DecodeString(result.Rand)
+
+	res := make([]byte, 8)
+	ck := make([]byte, 16)
+	ik := make([]byte, 16)
+
+	if err := udm.F2345(opc, k, randBytes, res, ck, ik, nil, nil); err != nil {
+		t.Fatalf("F2345 failed: %v", err)
+	}
+
+	resStar, err := udm.DeriveXresStar(ck, ik, intTestSN, randBytes, res)
+	if err != nil {
+		t.Fatalf("udm.DeriveXresStar failed: %v", err)
+	}
+
+	return hex.EncodeToString(resStar)
+}
+
+func TestAuthenticateBySUPIConfirmsTheSubscriber(t *testing.T) {
+	store := &internalStore{subs: map[string]*Subscriber{intTestIMSI: {PermanentKey: intTestK, Opc: intTestOPc, SequenceNumber: "000000000000"}}}
+
+	a := New(store, noopKeys)
+
+	result, err := a.Authenticate(t.Context(), "imsi-"+intTestIMSI, intTestPLMN, nil)
+	if err != nil {
+		t.Fatalf("Authenticate by SUPI failed: %v", err)
+	}
+
+	supi, kseaf, err := a.Confirm(t.Context(), result.AuthCtxID, ueResStar(t, result))
+	if err != nil {
+		t.Fatalf("Confirm failed: %v", err)
+	}
+
+	if supi.IMSI() != intTestIMSI || len(kseaf) == 0 {
+		t.Fatalf("Confirm = %s, %x, want SUPI %s and a K_SEAF", supi, kseaf, intTestIMSI)
+	}
+}
+
+func TestConcurrentAttemptsForOneSubscriberConfirmIndependently(t *testing.T) {
+	store := &internalStore{subs: map[string]*Subscriber{intTestIMSI: {PermanentKey: intTestK, Opc: intTestOPc, SequenceNumber: "000000000000"}}}
+
+	a := New(store, noopKeys)
+	ctx := t.Context()
+
+	first, err := a.Authenticate(ctx, intTestSUCI, intTestPLMN, nil)
+	if err != nil {
+		t.Fatalf("first Authenticate failed: %v", err)
+	}
+
+	second, err := a.Authenticate(ctx, "imsi-"+intTestIMSI, intTestPLMN, nil)
+	if err != nil {
+		t.Fatalf("second Authenticate failed: %v", err)
+	}
+
+	third, err := a.Authenticate(ctx, "imsi-"+intTestIMSI, intTestPLMN, nil)
+	if err != nil {
+		t.Fatalf("third Authenticate failed: %v", err)
+	}
+
+	if _, _, err := a.Confirm(ctx, third.AuthCtxID, ueResStar(t, second)); err == nil {
+		t.Fatal("an attempt confirmed with the RES* of another attempt")
+	}
+
+	for name, result := range map[string]*AuthResult{"first": first, "second": second} {
+		supi, kseaf, err := a.Confirm(ctx, result.AuthCtxID, ueResStar(t, result))
+		if err != nil {
+			t.Fatalf("Confirm of the %s attempt failed: %v", name, err)
+		}
+
+		if supi.IMSI() != intTestIMSI || len(kseaf) == 0 {
+			t.Fatalf("Confirm of the %s attempt = %s, %x", name, supi, kseaf)
+		}
+
+		if _, _, err := a.Confirm(ctx, result.AuthCtxID, ueResStar(t, result)); !errors.Is(err, ErrAuthContextNotFound) {
+			t.Fatalf("second Confirm of the %s attempt = %v, want %v", name, err, ErrAuthContextNotFound)
+		}
 	}
 }
 

@@ -138,7 +138,7 @@ func (p *trustedPartner) checkAs(certs []*x509.Certificate, now time.Time, usage
 	}
 
 	if err := checkChainKeys(chains); err != nil {
-		return peerCertError(TLSReasonWeakKey, "certificate %q chains to the trust anchor of the partner SEPP %s with a key that TS 33.310 clause 6.1.1 does not allow: %v", leaf.Subject.CommonName, p.fqdn, err)
+		return peerCertError(TLSReasonWeakKey, "certificate %q chains to the trust anchor of the partner SEPP %s with a key that fails the TS 33.310 clause 6.1.1 key size or exponent rules: %v", leaf.Subject.CommonName, p.fqdn, err)
 	}
 
 	if fqdn != "" && !slices.ContainsFunc(leaf.DNSNames, func(n string) bool { return sameFQDN(n, fqdn) }) {

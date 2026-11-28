@@ -253,14 +253,6 @@ func (amf *AMF) awaitHPLMN(ctx context.Context, ue *UeContext, conn *UeConn, key
 	})
 }
 
-func supiOrSuci(ue *UeContext) string {
-	if suci := ue.Suci(); suci != "" {
-		return suci
-	}
-
-	return ue.Supi().String()
-}
-
 func authKey(ue *UeContext) string {
 	if supi := ue.Supi(); supi.IsIMSI() {
 		return supi.IMSI()
@@ -289,7 +281,7 @@ func (amf *AMF) RequestAuthentication(ctx context.Context, ue *UeContext, conn *
 			return
 		}
 
-		result, err := amf.Ausf.Authenticate(ctx, ue.Suci(), *ue.Tai.PlmnID, resync)
+		result, err := amf.Ausf.Authenticate(ctx, ue.AuthenticationIdentity(conn), *ue.Tai.PlmnID, resync)
 		done(ctx, result, err)
 
 		return
@@ -298,7 +290,7 @@ func (amf *AMF) RequestAuthentication(ctx context.Context, ue *UeContext, conn *
 	var resyncInfo *wire.ResynchronizationInfo
 
 	if resync != nil {
-		r, err := hplmnResync(conn, resync)
+		r, err := hplmnResync(resync)
 		if err != nil {
 			done(ctx, nil, err)
 			return
@@ -307,7 +299,7 @@ func (amf *AMF) RequestAuthentication(ctx context.Context, ue *UeContext, conn *
 		resyncInfo = r
 	}
 
-	id := supiOrSuci(ue)
+	id := ue.AuthenticationIdentity(conn)
 
 	var (
 		result *ausf.AuthResult
@@ -342,12 +334,8 @@ func (amf *AMF) RequestAuthentication(ctx context.Context, ue *UeContext, conn *
 	})
 }
 
-func hplmnResync(conn *UeConn, resync *ausf.ResyncInfo) (*wire.ResynchronizationInfo, error) {
-	if conn.AuthenticationCtx == nil {
-		return nil, errors.New("amf: re-synchronisation without a previous challenge")
-	}
-
-	rand, err := hex.DecodeString(conn.AuthenticationCtx.Rand)
+func hplmnResync(resync *ausf.ResyncInfo) (*wire.ResynchronizationInfo, error) {
+	rand, err := hex.DecodeString(resync.Rand)
 	if err != nil || len(rand) != 16 {
 		return nil, errors.New("amf: re-synchronisation with a malformed RAND")
 	}
@@ -363,7 +351,12 @@ func hplmnResync(conn *UeConn, resync *ausf.ResyncInfo) (*wire.Resynchronization
 func (amf *AMF) RequestConfirmation(ctx context.Context, ue *UeContext, conn *UeConn, resStar [16]byte, done func(context.Context, etsi.SUPI, []byte, error)) {
 	v, visitor := ue.Visitor()
 	if !visitor {
-		supi, kseaf, err := amf.Ausf.Confirm(ctx, hex.EncodeToString(resStar[:]), ue.Suci())
+		if conn.AuthenticationCtx == nil {
+			done(ctx, etsi.InvalidSUPI, nil, errors.New("amf: no pending authentication"))
+			return
+		}
+
+		supi, kseaf, err := amf.Ausf.Confirm(ctx, conn.AuthenticationCtx.AuthCtxID, hex.EncodeToString(resStar[:]))
 		done(ctx, supi, kseaf, err)
 
 		return
@@ -374,7 +367,7 @@ func (amf *AMF) RequestConfirmation(ctx context.Context, ue *UeContext, conn *Ue
 		return
 	}
 
-	id := supiOrSuci(ue)
+	id := ue.AuthenticationIdentity(conn)
 
 	var (
 		supi  etsi.SUPI

@@ -42,9 +42,13 @@ func presentedGUTIs(ctx context.Context, amfInstance *amf.AMF, msg fgs.Message) 
 
 	switch msg := msg.(type) {
 	case *fgs.RegistrationRequest:
-		ids = append(ids, msg.MobileIdentity)
 		if msg.AdditionalGUTI != nil {
 			ids = append(ids, *msg.AdditionalGUTI)
+			break
+		}
+
+		if !movingFromEPC(msg) {
+			ids = append(ids, msg.MobileIdentity)
 		}
 	case *fgs.DeregistrationRequestUEOriginating:
 		ids = append(ids, msg.MobileIdentity)

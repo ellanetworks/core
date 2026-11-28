@@ -207,6 +207,7 @@ struct ipv6_chain {
 	__u8 invalid;
 	/* A fragment of a larger datagram, first or later. */
 	__u8 is_fragment;
+	__u8 has_frag_hdr;
 	__be32 id;
 };
 
@@ -235,6 +236,7 @@ __noinline __weak int ipv6_walk_chain(struct __ctx_buff *ctx_buff,
 	out->unavailable = 0;
 	out->invalid = 0;
 	out->is_fragment = 0;
+	out->has_frag_hdr = 0;
 	out->id = 0;
 
 #pragma clang loop unroll(disable)
@@ -260,6 +262,8 @@ __noinline __weak int ipv6_walk_chain(struct __ctx_buff *ctx_buff,
 			if (ctx_load_bytes(ctx_buff, chain_off + chain_len,
 					   &frag, sizeof(frag)) < 0)
 				goto unparsable;
+
+			out->has_frag_hdr = 1;
 
 			/* RFC 6946: offset 0 with M clear is a whole datagram. */
 			if (frag.frag_off &

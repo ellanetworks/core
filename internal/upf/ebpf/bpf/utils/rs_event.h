@@ -13,6 +13,8 @@
 #include "bpf/ctx/ctx.h"
 #include "bpf/utils/common.h"
 #include "bpf/utils/ringbuf_lost.h"
+#include "bpf/utils/packet_context.h"
+#include "bpf/utils/parsers.h"
 
 /* ICMPv6 type for Router Solicitation (RFC 4861 section 4.1). */
 #define ICMPV6_TYPE_ROUTER_SOLICITATION 133
@@ -40,6 +42,13 @@ struct {
 	__uint(max_entries, 65536);
 } rs_event_map SEC(".maps");
 
+struct {
+	__uint(type, BPF_MAP_TYPE_ARRAY);
+	__type(key, __u32);
+	__type(value, struct rs_event);
+	__uint(max_entries, 1);
+} rs_event_scratch SEC(".maps");
+
 static __always_inline __s32 rs_icmp_len(const struct ipv6hdr *ip6,
 					 __u32 l3_hdr_len)
 {
@@ -47,33 +56,51 @@ static __always_inline __s32 rs_icmp_len(const struct ipv6hdr *ip6,
 	       (__s32)l3_hdr_len;
 }
 
-static __always_inline int rs_event_submit(struct __ctx_buff *ctx_buff,
-					   __u32 teid,
-					   const struct ipv6hdr *ip6,
-					   __u32 icmp6_off, __u32 icmp_len)
+static __always_inline bool rs_has_frag_hdr(struct packet_context *ctx,
+					    __u32 ip6_off)
 {
-	struct rs_event *ev =
-		bpf_ringbuf_reserve(&rs_event_map, sizeof(*ev), 0);
+	if (ctx->l3_hdr_len == sizeof(struct ipv6hdr))
+		return false;
+
+	struct ipv6_chain chain = {};
+
+	return ipv6_walk_chain(ctx->ctx_buff, ip6_off, ctx->ip6->nexthdr,
+			       &chain) < 0 ||
+	       chain.has_frag_hdr;
+}
+
+__noinline __weak int rs_event_submit(struct __ctx_buff *ctx_buff, __u32 teid,
+				      __u32 ip6_off, __u32 icmp6_off,
+				      __u32 icmp_len)
+{
+	if (!ctx_buff)
+		return -1;
+
+	__u64 len = icmp_len;
+	barrier_var(len);
+	if (len < RS_HDR_LEN || len > RS_MSG_MAX)
+		return -1;
+
+	const __u32 cpu = bpf_get_smp_processor_id();
+	struct rs_event *ev = bpf_map_lookup_elem(&rs_event_scratch, &cpu);
 	if (!ev) {
 		ringbuf_count_lost(RINGBUF_RS_EVENT);
 		return 0;
 	}
 
-	ev->teid = teid;
-	ev->ue_ipv6 = ip6->saddr;
-	ev->dst_ipv6 = ip6->daddr;
-	ev->msg_len = (__u16)icmp_len;
-
-	__u64 len = icmp_len;
-	barrier_var(len);
-	if (len <= RS_MSG_MAX &&
-	    (len < RS_HDR_LEN ||
-	     ctx_load_bytes(ctx_buff, icmp6_off, ev->msg, len) < 0)) {
-		bpf_ringbuf_discard(ev, 0);
+	if (ctx_load_bytes(ctx_buff, ip6_off + offsetof(struct ipv6hdr, saddr),
+			   &ev->ue_ipv6, sizeof(ev->ue_ipv6)) < 0 ||
+	    ctx_load_bytes(ctx_buff, ip6_off + offsetof(struct ipv6hdr, daddr),
+			   &ev->dst_ipv6, sizeof(ev->dst_ipv6)) < 0 ||
+	    ctx_load_bytes(ctx_buff, icmp6_off, ev->msg, len) < 0)
 		return -1;
-	}
 
-	bpf_ringbuf_submit(ev, 0);
+	ev->teid = teid;
+	ev->msg_len = (__u16)len;
+
+	if (bpf_ringbuf_output(&rs_event_map, ev,
+			       offsetof(struct rs_event, msg) + len, 0) != 0)
+		ringbuf_count_lost(RINGBUF_RS_EVENT);
 
 	return 0;
 }
