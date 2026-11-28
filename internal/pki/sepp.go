@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
@@ -682,6 +683,22 @@ func checkAnchorKey(pub crypto.PublicKey) error {
 		return checkRSAKey(k)
 	default:
 		return fmt.Errorf("key must be ECDSA or RSA of at least 2048 bits, got %T", pub)
+	}
+
+	return nil
+}
+
+func CheckPeerKey(pub crypto.PublicKey) error {
+	switch k := pub.(type) {
+	case *ecdsa.PublicKey:
+		if k.Curve.Params().BitSize < 256 {
+			return fmt.Errorf("ECDSA key must use a curve of at least 256 bits, got %s", k.Curve.Params().Name)
+		}
+	case *rsa.PublicKey:
+		return checkRSAKey(k)
+	case ed25519.PublicKey:
+	default:
+		return fmt.Errorf("key must be ECDSA, Ed25519 or RSA of at least 2048 bits, got %T", pub)
 	}
 
 	return nil

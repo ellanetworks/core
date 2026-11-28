@@ -27,6 +27,7 @@ const (
 	TLSReasonAmbiguous       = "ambiguous_partner"
 	TLSReasonALPN            = "alpn"
 	TLSReasonNoLocalIdentity = "no_local_identity"
+	TLSReasonWeakKey         = "weak_key"
 )
 
 var ErrPeerCertificate = errors.New("sepp: peer certificate rejected")
@@ -112,7 +113,7 @@ func (p *trustedPartner) checkAs(certs []*x509.Certificate, now time.Time, usage
 		intermediates.AddCert(c)
 	}
 
-	_, err := leaf.Verify(x509.VerifyOptions{
+	chains, err := leaf.Verify(x509.VerifyOptions{
 		Roots:         p.roots,
 		Intermediates: intermediates,
 		CurrentTime:   now,
@@ -125,6 +126,10 @@ func (p *trustedPartner) checkAs(certs []*x509.Certificate, now time.Time, usage
 		}
 
 		return peerCertError(TLSReasonUnknownAnchor, "certificate %q does not chain to the trust anchor of the partner SEPP %s: %v", leaf.Subject.CommonName, p.fqdn, err)
+	}
+
+	if err := checkChainKeys(chains); err != nil {
+		return peerCertError(TLSReasonWeakKey, "certificate %q chains to the trust anchor of the partner SEPP %s with a key that TS 33.310 clause 6.1.1 does not allow: %v", leaf.Subject.CommonName, p.fqdn, err)
 	}
 
 	if fqdn != "" && !slices.ContainsFunc(leaf.DNSNames, func(n string) bool { return sameFQDN(n, fqdn) }) {
@@ -148,6 +153,33 @@ func (p *trustedPartner) checkAs(certs []*x509.Certificate, now time.Time, usage
 
 	if named == 0 {
 		return peerCertError(TLSReasonPLMNMismatch, "certificate subjectAltName %v names no PLMN", leaf.DNSNames)
+	}
+
+	return nil
+}
+
+func checkChainKeys(chains [][]*x509.Certificate) error {
+	var first error
+
+	for _, chain := range chains {
+		err := checkCertKeys(chain)
+		if err == nil {
+			return nil
+		}
+
+		if first == nil {
+			first = err
+		}
+	}
+
+	return first
+}
+
+func checkCertKeys(certs []*x509.Certificate) error {
+	for _, c := range certs {
+		if err := pki.CheckPeerKey(c.PublicKey); err != nil {
+			return fmt.Errorf("certificate %q: %w", c.Subject.CommonName, err)
+		}
 	}
 
 	return nil
@@ -194,6 +226,8 @@ func identifyPeer(partners []*trustedPartner, certs []*x509.Certificate, now tim
 
 func reasonRank(reason string) int {
 	switch reason {
+	case TLSReasonWeakKey:
+		return 5
 	case TLSReasonPLMNMismatch:
 		return 4
 	case TLSReasonSANMismatch:
