@@ -93,7 +93,7 @@ func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) (err error
 
 	peer.ID = result.(int)
 
-	db.publishOpTopics([]Topic{TopicBGPPeers})
+	db.publishOpTopics([]Topic{TopicBGPPeers}, 0)
 
 	return nil
 }
@@ -107,7 +107,7 @@ func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) (err error
 		return err
 	}
 
-	db.publishOpTopics([]Topic{TopicBGPPeers})
+	db.publishOpTopics([]Topic{TopicBGPPeers}, 0)
 
 	return nil
 }
@@ -121,7 +121,7 @@ func (db *Database) DeleteBGPPeer(ctx context.Context, id int) (err error) {
 		return err
 	}
 
-	db.publishOpTopics([]Topic{TopicBGPPeers})
+	db.publishOpTopics([]Topic{TopicBGPPeers}, 0)
 
 	return nil
 }

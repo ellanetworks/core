@@ -290,7 +290,9 @@ func TestReconcileUEAMBRAppliesTheProfile(t *testing.T) {
 	ue.SetSubscribedUEAMBR(*testAmbr("50 Mbps", "50 Mbps"))
 	ue.Conn().holdUEAMBR(new(S1APUEAMBR(ue.RANUEAMBR())))
 
-	m.ReconcileUEAMBR(context.Background())
+	if err := m.ReconcileUEAMBR(context.Background()); err != nil {
+		t.Fatalf("ReconcileUEAMBR: %v", err)
+	}
 
 	if cc.count() != 1 {
 		t.Fatalf("expected one UE Context Modification Request, got %d", cc.count())

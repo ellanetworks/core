@@ -126,16 +126,12 @@ func (r *SettingsReconciler) Start() {
 	settingsDone := make(chan struct{})
 	filtersDone := make(chan struct{})
 
-	go r.loop(ctx, settingsDone, "upf settings reconcile failed", r.reconcileSettings,
-		db.TopicDataNetworks,
-		db.TopicFlowAccountingSettings,
-		db.TopicN3Settings,
-	)
+	settingsTracker := r.track(db.TopicDataNetworks, db.TopicFlowAccountingSettings, db.TopicN3Settings)
+	filtersTracker := r.track(db.TopicPolicies, db.TopicNetworkRules)
 
-	go r.loop(ctx, filtersDone, "upf policy filter reconcile failed", r.reconcileFilters,
-		db.TopicPolicies,
-		db.TopicNetworkRules,
-	)
+	go r.loop(ctx, settingsDone, "upf settings reconcile failed", r.reconcileSettings, settingsTracker)
+
+	go r.loop(ctx, filtersDone, "upf policy filter reconcile failed", r.reconcileFilters, filtersTracker)
 
 	go func() {
 		defer close(done)
@@ -163,21 +159,43 @@ func (r *SettingsReconciler) Stop() {
 	<-done
 }
 
-func (r *SettingsReconciler) loop(ctx context.Context, done chan struct{}, failMsg string, reconcile func(context.Context) error, topics ...db.Topic) {
+func (r *SettingsReconciler) track(topics ...db.Topic) *db.Tracker {
+	if r.changefeed == nil {
+		return nil
+	}
+
+	return r.changefeed.Track(topics...)
+}
+
+func (r *SettingsReconciler) loop(ctx context.Context, done chan struct{}, failMsg string, reconcile func(context.Context) error, tracker *db.Tracker) {
 	defer close(done)
 
 	var wakeup <-chan struct{}
 
-	if r.changefeed != nil {
-		ch, stop := r.changefeed.Wakeup(topics...)
-		defer stop()
+	if tracker != nil {
+		defer tracker.Stop()
 
-		wakeup = ch
+		wakeup = tracker.C()
 	}
 
-	if err := reconcile(ctx); err != nil {
-		logger.UpfLog.Warn(failMsg, zap.Error(err))
+	pass := func() {
+		var target uint64
+
+		if tracker != nil {
+			target = tracker.Begin()
+		}
+
+		if err := reconcile(ctx); err != nil {
+			logger.UpfLog.Warn(failMsg, zap.Error(err))
+			return
+		}
+
+		if tracker != nil {
+			tracker.Done(target)
+		}
 	}
+
+	pass()
 
 	backstop := time.NewTicker(r.backstop)
 	defer backstop.Stop()
@@ -190,9 +208,7 @@ func (r *SettingsReconciler) loop(ctx context.Context, done chan struct{}, failM
 		case <-backstop.C:
 		}
 
-		if err := reconcile(ctx); err != nil {
-			logger.UpfLog.Warn(failMsg, zap.Error(err))
-		}
+		pass()
 	}
 }
 

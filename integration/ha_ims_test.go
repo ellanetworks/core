@@ -135,6 +135,8 @@ func TestIntegrationHAIMS(t *testing.T) {
 
 			fixture.New(t, ctx, haClient).Apply(sc.Fixture(scenarios.Env{}))
 
+			awaitDatapath(ctx, t, nodeClients...)
+
 			argv := []string{"core-tester", "run", tc.name}
 			for _, i := range order {
 				argv = append(argv, "--ella-core-n2-address", haIMSN2[i])

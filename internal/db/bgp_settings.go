@@ -93,7 +93,7 @@ func (db *Database) UpdateBGPSettings(ctx context.Context, settings *BGPSettings
 		return err
 	}
 
-	db.publishOpTopics([]Topic{TopicBGPSettings})
+	db.publishOpTopics([]Topic{TopicBGPSettings}, 0)
 
 	return nil
 }

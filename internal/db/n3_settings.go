@@ -51,7 +51,7 @@ func (db *Database) UpdateN3Settings(ctx context.Context, externalAddress string
 		return err
 	}
 
-	db.publishOpTopics([]Topic{TopicN3Settings})
+	db.publishOpTopics([]Topic{TopicN3Settings}, 0)
 
 	return nil
 }

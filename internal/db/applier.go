@@ -57,13 +57,13 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, log
 
 // publishOpTopics fans out wakeup events for every topic an op
 // declared via AffectsTopic. Safe to call with a nil/empty slice.
-func (db *Database) publishOpTopics(topics []Topic) {
+func (db *Database) publishOpTopics(topics []Topic, index uint64) {
 	if db.changefeed == nil || len(topics) == 0 {
 		return
 	}
 
 	for _, t := range topics {
-		db.changefeed.Publish(t)
+		db.changefeed.Publish(t, index)
 	}
 }
 
@@ -118,7 +118,13 @@ func (db *Database) Reopen(ctx context.Context) error {
 	}
 
 	if db.changefeed != nil {
-		db.changefeed.PublishAll()
+		var lastApplied uint64
+
+		if err := sqlConn.QueryRowContext(ctx, "SELECT lastApplied FROM fsm_state WHERE id = 1").Scan(&lastApplied); err != nil {
+			return fmt.Errorf("read lastApplied after reopen: %w", err)
+		}
+
+		db.changefeed.PublishAll(lastApplied)
 	}
 
 	db.signalMigrationCheck()

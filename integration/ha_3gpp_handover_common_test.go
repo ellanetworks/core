@@ -148,6 +148,8 @@ func runHA3GPPHandover(t *testing.T, rat haHandoverRAT, scenario string) {
 		}
 	}
 
+	awaitDatapath(ctx, t, nodeClients...)
+
 	argv := []string{"core-tester", "run", scenario}
 	for _, addr := range orderedN2 {
 		argv = append(argv, "--ella-core-n2-address", addr)
