@@ -108,6 +108,7 @@ type SMContext struct {
 	unrecoverableRelease     bool
 	release                  *models.SessionReleaseRequest
 	activating               bool
+	reconcileDeferred        bool
 	userPlaneStale           bool
 	n1Released               bool
 	n2Released               bool

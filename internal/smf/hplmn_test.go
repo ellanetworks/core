@@ -140,6 +140,19 @@ func testTarget() *smf.HPLMNTarget {
 	return &smf.HPLMNTarget{PartnerID: "p", HPLMN: visitorHPLMN, ServingNetwork: models.PlmnID{Mcc: "999", Mnc: "70"}, HPLMNSnssai: *testSnssai, LBO: true}
 }
 
+func acceptSetup(t *testing.T, s *smf.SMF, ref string) {
+	t.Helper()
+
+	n2, err := buildPDUSessionResourceSetupResponseTransfer(0x7001, net.ParseIP("10.3.0.9"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.UpdateSmContextN2InfoPduResSetupRsp(context.Background(), ref, n2); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func waitRegistered(t *testing.T, h *fakeHPLMNSubscription) {
 	t.Helper()
 
@@ -450,9 +463,12 @@ func TestReconcileHPLMNBoundSessionsReleasesAWithdrawnSession(t *testing.T) {
 	s, pcf, amfCb := f.s, f.pcf, f.amf
 	ctx := context.Background()
 
-	if _, _, err := s.CreateSmContext(ctx, testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, testTarget()); err != nil {
+	ref, _, err := s.CreateSmContext(ctx, testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, testTarget())
+	if err != nil {
 		t.Fatal(err)
 	}
+
+	acceptSetup(t, s, ref)
 
 	pcf.mu.Lock()
 	pcf.policy = nil
@@ -532,9 +548,12 @@ func TestReconcileReleasesASessionTheHomeNetworkWithdrew(t *testing.T) {
 	f := hplmnSMF(home)
 	ctx := context.Background()
 
-	if _, _, err := f.s.CreateSmContext(ctx, testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, testTarget()); err != nil {
+	ref, _, err := f.s.CreateSmContext(ctx, testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, testTarget())
+	if err != nil {
 		t.Fatal(err)
 	}
+
+	acceptSetup(t, f.s, ref)
 
 	h := home.session(t)
 	h.mu.Lock()

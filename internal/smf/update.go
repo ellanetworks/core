@@ -245,6 +245,8 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 		}
 	}
 
+	defer s.resumeDeferredReconcile(smContext)
+
 	return s.finishBinding(ctx, smContext, dropped, err)
 }
 
@@ -334,6 +336,8 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupFail(ctx context.Context, smContex
 	smContext.endActivation()
 
 	s.rejectUnforwardedEstablishment(ctx, smContext)
+
+	s.resumeDeferredReconcile(smContext)
 
 	if supi, pduSessionID, ref, drop := smContext.takeAbandonedMoveTo(Access5G); drop {
 		s.reportSessionNotMoved(ctx, supi, pduSessionID, ref)
