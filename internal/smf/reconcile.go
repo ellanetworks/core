@@ -254,6 +254,29 @@ func (s *SMF) UpdateNotify(ctx context.Context, ref string, d *PolicyDecision) e
 	}
 }
 
+func (s *SMF) resumeDeferredReconcile(sc *SMContext) {
+	sc.Mutex.Lock()
+
+	resume := sc.reconcileDeferred && !sc.activating && !sc.establishmentOutstanding
+	if resume {
+		sc.reconcileDeferred = false
+	}
+
+	ref := sc.Ref
+
+	sc.Mutex.Unlock()
+
+	if !resume {
+		return
+	}
+
+	s.replans.Go(func() {
+		if err := s.ReconcileSession(context.Background(), ref); err != nil {
+			logger.SmfLog.Warn("deferred session reconcile failed", logger.SMContextRef(ref), zap.Error(err))
+		}
+	})
+}
+
 func (s *SMF) replanBearers(ctx context.Context, ref string) {
 	sc := s.GetSession(ref)
 	if sc == nil {
@@ -282,7 +305,13 @@ func (s *SMF) discardPendingPolicyLocked(sc *SMContext) {
 }
 
 func (s *SMF) reconcileLocked(ctx context.Context, smContext *SMContext, policy *Policy) (reconcileDecision, error) {
-	if smContext.Tunnel == nil || smContext.PolicyData == nil || smContext.releasing || smContext.pending != nil || smContext.activating {
+	if smContext.Tunnel == nil || smContext.PolicyData == nil || smContext.releasing || smContext.pending != nil {
+		return reconcileDecision{}, nil
+	}
+
+	if smContext.activating || smContext.establishmentOutstanding {
+		smContext.reconcileDeferred = true
+
 		return reconcileDecision{}, nil
 	}
 

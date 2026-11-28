@@ -6,11 +6,13 @@ package smf_test
 import (
 	"context"
 	"errors"
+	"net"
 	"sync"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
+	"github.com/ellanetworks/core/nas/fgs"
 )
 
 func TestLocalReleaseTellsTheAMF(t *testing.T) {
@@ -298,4 +300,74 @@ func TestConcurrentPolicyUpdatesKeepTheNewestDecision(t *testing.T) {
 	if got := smf.PolicyRevisionForTest(smCtx); got != 1<<32+20 {
 		t.Fatalf("session holds decision revision %d, want the newest %d", got, uint64(1<<32+20))
 	}
+}
+
+func requireDeferredN2Release(t *testing.T, s *smf.SMF, amfCb *fakeAMF, ref string) {
+	t.Helper()
+
+	amfCb.mu.Lock()
+	before := len(amfCb.releaseCalls)
+	amfCb.mu.Unlock()
+
+	if before != 0 {
+		t.Fatalf("release calls before the setup response = %d, want the release held until the gNB answers", before)
+	}
+
+	n2, err := buildPDUSessionResourceSetupResponseTransfer(0x7001, net.ParseIP("10.3.0.9").To4())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.UpdateSmContextN2InfoPduResSetupRsp(context.Background(), ref, n2); err != nil {
+		t.Fatal(err)
+	}
+
+	s.WaitReplansForTest()
+
+	amfCb.mu.Lock()
+	calls := amfCb.releaseCalls
+	amfCb.mu.Unlock()
+
+	if len(calls) != 1 || calls[0].n2Transfer == nil {
+		t.Fatalf("release calls = %+v, want one release carrying the N2 resource release", calls)
+	}
+}
+
+func TestReconcileDuringEstablishmentReleasesTheRANResources(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	ref, _, err := s.CreateSmContext(ctx, testSUPI(), 1, testDNN, testSnssai, fgs.RequestTypeInitialRequest, buildPDUSessionEstRequest(), 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := reconcileSliceMismatch(ctx, s, pcf, ref); err != nil {
+		t.Fatal(err)
+	}
+
+	requireDeferredN2Release(t, s, amfCb, ref)
+}
+
+func TestReconcileDuringActivationReleasesTheRANResources(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	_, ref := setupSessionWithTunnel(t, s)
+
+	if err := s.DeactivateSmContext(ctx, ref, true); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.ActivateSmContext(ctx, ref); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := reconcileSliceMismatch(ctx, s, pcf, ref); err != nil {
+		t.Fatal(err)
+	}
+
+	requireDeferredN2Release(t, s, amfCb, ref)
 }

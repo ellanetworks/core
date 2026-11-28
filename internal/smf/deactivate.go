@@ -37,6 +37,8 @@ func (s *SMF) deactivateSession(ctx context.Context, smContextRef string, by Acc
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 
+	defer s.resumeDeferredReconcile(smContext)
+
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
