@@ -1,0 +1,19 @@
+# v1.19
+
+- **Release date**: September 24, 2026
+- **GitHub release**: [v1.19.0](https://github.com/ellanetworks/core/releases/tag/v1.19.0)
+
+## New features
+
+- **Manage High Availability (HA) cluster via the UI**: To form a cluster, connect to a node, click on Cluster and create a join token, then connect to another node and provide it with the token and cluster address. Nodes are identified by an automatically generated UUID and can be given a display name. The dashboard shows cluster health. You only need to interact with the config file to set up the cluster bind address.
+- **VRF awareness**: Ella Core detects Linux VRFs and binds to them. This allows users to completely isolate their user plane subscriber traffic from management.
+- **Backup integrity**: Backup archives are verified (SHA-256 digest, gzip stream and SQLite structure) before being restored.
+
+## Maintenance
+
+- Bug fixes
+- Dependency updates
+
+## Deprecations
+
+- The `cluster.node-id`, `cluster.peers`, `cluster.join-token` and `cluster.initial-suffrage` config file options are deprecated. Use the API or UI instead.
