@@ -5,16 +5,16 @@ go 1.27.3
 require (
 	github.com/cilium/ebpf v0.22.0
 	github.com/coreos/go-oidc/v3 v3.21.0
-	github.com/ellanetworks/core/diameter v0.0.0-20261022122753-8d5c8bdaaf89
+	github.com/ellanetworks/core/diameter v0.0.0-20261106235918-1d44c8b88d17
 	github.com/ellanetworks/core/lppa v0.0.0-00010101000000-000000000000
-	github.com/ellanetworks/core/nas v0.0.0-00010101000000-000000000000
+	github.com/ellanetworks/core/nas v0.0.0-20261022122753-8d5c8bdaaf89
 	github.com/ellanetworks/core/ngap v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/nrppa v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/per v0.0.0-00010101000000-000000000000
 	github.com/ellanetworks/core/s1ap v0.0.0-00010101000000-000000000000
-	github.com/ellanetworks/core/sctp v0.0.0-20260928204907-fc197c42dc3f
-	github.com/ellanetworks/ims v0.0.0-20261022130621-a2851bd8ae6a
-	github.com/ellanetworks/ims/sip v0.0.0-20261022130621-a2851bd8ae6a
+	github.com/ellanetworks/core/sctp v0.0.0-20261106235918-1d44c8b88d17
+	github.com/ellanetworks/ims v0.0.1
+	github.com/ellanetworks/ims/sip v0.0.0-20261127181719-3b730020fd3b
 	github.com/go-jose/go-jose/v4 v4.1.9
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/gopacket v1.1.19
@@ -25,7 +25,7 @@ require (
 	github.com/hashicorp/raft v1.8.0
 	github.com/hashicorp/raft-autopilot v0.3.0
 	github.com/hashicorp/raft-boltdb/v2 v2.4.2
-	github.com/mattn/go-sqlite3 v1.14.52
+	github.com/mattn/go-sqlite3 v1.14.53
 	github.com/moby/moby/api v1.57.0
 	github.com/moby/moby/client v0.6.3
 	github.com/osrg/gobgp/v4 v4.11.0
@@ -92,8 +92,9 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/orcaman/concurrent-map/v2 v2.0.1 // indirect
+	github.com/pandatix/go-abnf v0.5.3 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
-	github.com/prometheus/common v0.72.1 // indirect
+	github.com/prometheus/common v0.73.1 // indirect
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
 	github.com/segmentio/fasthash v1.0.3 // indirect
