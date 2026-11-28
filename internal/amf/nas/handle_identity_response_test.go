@@ -301,9 +301,11 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *t
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &fakeAusf{
-		AvKgAka: &ausf.AuthResult{
-			Rand: hex.EncodeToString(make([]byte, 16)),
-			Autn: hex.EncodeToString(make([]byte, 16)),
+		AvKgAka: &ausf.UEAuthenticationCtx{
+			Av5gAka: ausf.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 		Kseaf: []byte("testkey"),
@@ -338,9 +340,11 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *tes
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &fakeAusf{
-		AvKgAka: &ausf.AuthResult{
-			Rand: hex.EncodeToString(make([]byte, 16)),
-			Autn: hex.EncodeToString(make([]byte, 16)),
+		AvKgAka: &ausf.UEAuthenticationCtx{
+			Av5gAka: ausf.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 		Kseaf: []byte("testkey"),
@@ -377,9 +381,11 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &fakeAusf{
-		AvKgAka: &ausf.AuthResult{
-			Rand: hex.EncodeToString(make([]byte, 16)),
-			Autn: hex.EncodeToString(make([]byte, 16)),
+		AvKgAka: &ausf.UEAuthenticationCtx{
+			Av5gAka: ausf.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
 		},
 		Supi:  supi,
 		Kseaf: []byte("testkey"),
@@ -448,9 +454,11 @@ func TestHandleIdentityResponse_UnsolicitedIsIgnored(t *testing.T) {
 					SupportedTACs: "[\"000001\"]",
 				},
 			}, &fakeAusf{
-				AvKgAka: &ausf.AuthResult{
-					Rand: hex.EncodeToString(make([]byte, 16)),
-					Autn: hex.EncodeToString(make([]byte, 16)),
+				AvKgAka: &ausf.UEAuthenticationCtx{
+					Av5gAka: ausf.Av5gAka{
+						Rand: hex.EncodeToString(make([]byte, 16)),
+						Autn: hex.EncodeToString(make([]byte, 16)),
+					},
 				},
 				Supi:  supi,
 				Kseaf: []byte("testkey"),
@@ -527,9 +535,11 @@ func TestHandleIdentityResponse_IdentityError(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			supi := mustSUPIFromPrefixed("imsi-001019756139935")
 			amfInstance := amf.New(&fakeDBInstance{}, &fakeAusf{
-				AvKgAka: &ausf.AuthResult{
-					Rand: hex.EncodeToString(make([]byte, 16)),
-					Autn: hex.EncodeToString(make([]byte, 16)),
+				AvKgAka: &ausf.UEAuthenticationCtx{
+					Av5gAka: ausf.Av5gAka{
+						Rand: hex.EncodeToString(make([]byte, 16)),
+						Autn: hex.EncodeToString(make([]byte, 16)),
+					},
 				},
 				Supi:  supi,
 				Kseaf: []byte("testkey"),

@@ -489,9 +489,9 @@ func (h *HPLMN) startAuthentication(w http.ResponseWriter, r *http.Request, body
 		return
 	}
 
-	var resync *ausf.ResyncInfo
+	var resync *ausf.ResynchronizationInfo
 	if info.ResynchronizationInfo != nil {
-		resync = &ausf.ResyncInfo{Rand: info.ResynchronizationInfo.Rand, Auts: info.ResynchronizationInfo.Auts}
+		resync = &ausf.ResynchronizationInfo{Rand: info.ResynchronizationInfo.Rand, Auts: info.ResynchronizationInfo.Auts}
 	}
 
 	result, err := h.ausf.Authenticate(r.Context(), info.SupiOrSuci, models.PlmnID{Mcc: sn.Mcc, Mnc: sn.Mnc}, resync)
@@ -539,7 +539,9 @@ func (h *HPLMN) confirm(w http.ResponseWriter, r *http.Request, id string, body 
 	}
 
 	if data.ResStar == nil {
+		h.ausf.ReportAuthenticationFailure(r.Context(), id)
 		writeJSON(w, http.StatusOK, wire.ContentTypeJSON, wire.ConfirmationDataResponse{AuthResult: wire.AuthResultFailure})
+
 		return
 	}
 

@@ -60,9 +60,11 @@ func TestHandleSecurityMode_TimerT3560Stopped(t *testing.T) {
 			},
 		},
 		&fakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
+			AvKgAka: &ausf.UEAuthenticationCtx{
+				Av5gAka: ausf.Av5gAka{
+					Rand: hex.EncodeToString(make([]byte, 16)),
+					Autn: hex.EncodeToString(make([]byte, 16)),
+				},
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
@@ -101,9 +103,11 @@ func TestHandleSecurityMode_MsgIncludingIMEISV_UpdatesPEI(t *testing.T) {
 			},
 		},
 		&fakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
+			AvKgAka: &ausf.UEAuthenticationCtx{
+				Av5gAka: ausf.Av5gAka{
+					Rand: hex.EncodeToString(make([]byte, 16)),
+					Autn: hex.EncodeToString(make([]byte, 16)),
+				},
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
@@ -145,9 +149,11 @@ func TestHandleSecurityMode_ValidSecurityContext_UpdatesSecurityContext(t *testi
 			},
 		},
 		&fakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
+			AvKgAka: &ausf.UEAuthenticationCtx{
+				Av5gAka: ausf.Av5gAka{
+					Rand: hex.EncodeToString(make([]byte, 16)),
+					Autn: hex.EncodeToString(make([]byte, 16)),
+				},
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
@@ -191,9 +197,11 @@ func TestHandleSecurityMode_NASMessageContainer_RegistrationAccepted(t *testing.
 			},
 		},
 		&fakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
+			AvKgAka: &ausf.UEAuthenticationCtx{
+				Av5gAka: ausf.Av5gAka{
+					Rand: hex.EncodeToString(make([]byte, 16)),
+					Autn: hex.EncodeToString(make([]byte, 16)),
+				},
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
@@ -247,9 +255,11 @@ func TestHandleSecurityMode_InvalidNASMessageContainer_Error(t *testing.T) {
 			},
 		},
 		&fakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
+			AvKgAka: &ausf.UEAuthenticationCtx{
+				Av5gAka: ausf.Av5gAka{
+					Rand: hex.EncodeToString(make([]byte, 16)),
+					Autn: hex.EncodeToString(make([]byte, 16)),
+				},
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
@@ -306,9 +316,11 @@ func TestHandleSecurityMode_PlainRegistrationNotReplayed_Aborts(t *testing.T) {
 			},
 		},
 		&fakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
+			AvKgAka: &ausf.UEAuthenticationCtx{
+				Av5gAka: ausf.Av5gAka{
+					Rand: hex.EncodeToString(make([]byte, 16)),
+					Autn: hex.EncodeToString(make([]byte, 16)),
+				},
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
@@ -358,9 +370,11 @@ func TestHandleSecurityMode_ProtectedRegistrationNeedsNoReplay(t *testing.T) {
 			},
 		},
 		&fakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
+			AvKgAka: &ausf.UEAuthenticationCtx{
+				Av5gAka: ausf.Av5gAka{
+					Rand: hex.EncodeToString(make([]byte, 16)),
+					Autn: hex.EncodeToString(make([]byte, 16)),
+				},
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),
@@ -420,9 +434,11 @@ func TestHandleSecurityMode_ProtectedRegistrationWithFailedMACNeedsNoReplay(t *t
 			},
 		},
 		&fakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
+			AvKgAka: &ausf.UEAuthenticationCtx{
+				Av5gAka: ausf.Av5gAka{
+					Rand: hex.EncodeToString(make([]byte, 16)),
+					Autn: hex.EncodeToString(make([]byte, 16)),
+				},
 			},
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: []byte("testkey"),

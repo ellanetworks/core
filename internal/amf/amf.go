@@ -64,8 +64,9 @@ func localTimeZone(now time.Time) string {
 
 // Authenticator is the interface the AMF requires from the AUSF.
 type Authenticator interface {
-	Authenticate(ctx context.Context, supiOrSuci string, plmn models.PlmnID, resync *ausf.ResyncInfo) (*ausf.AuthResult, error)
+	Authenticate(ctx context.Context, supiOrSuci string, plmn models.PlmnID, resync *ausf.ResynchronizationInfo) (*ausf.UEAuthenticationCtx, error)
 	Confirm(ctx context.Context, authCtxID, resStar string) (etsi.SUPI, []byte, error)
+	ReportAuthenticationFailure(ctx context.Context, authCtxID string)
 }
 
 const (

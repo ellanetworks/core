@@ -95,7 +95,7 @@ func authenticationProcedure(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 		return false, fmt.Errorf("tai is not available in UE context")
 	}
 
-	response, err := amfInstance.Ausf.Authenticate(ctx, ue.AuthenticationIdentity(ueConn), *ue.Tai.PlmnID, nil)
+	response, err := amfInstance.AuthenticateAtAUSF(ctx, ue, ueConn, nil)
 	if err != nil {
 		return false, fmt.Errorf("ausf UE amf.Authentication Authenticate Request failed: %w", err)
 	}
@@ -109,8 +109,8 @@ func authenticationProcedure(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 	return false, nil
 }
 
-func requestChallenge(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, ueConn *amf.UeConn, resync *ausf.ResyncInfo, fail func(context.Context, error)) {
-	amfInstance.RequestAuthentication(ctx, ue, ueConn, resync, func(ctx context.Context, response *ausf.AuthResult, err error) {
+func requestChallenge(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeContext, ueConn *amf.UeConn, resync *ausf.ResynchronizationInfo, fail func(context.Context, error)) {
+	amfInstance.RequestAuthentication(ctx, ue, ueConn, resync, func(ctx context.Context, response *ausf.UEAuthenticationCtx, err error) {
 		if err != nil {
 			fail(ctx, fmt.Errorf("ausf UE amf.Authentication Authenticate Request failed: %w", err))
 			return
@@ -118,6 +118,8 @@ func requestChallenge(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConte
 
 		if ue.RegStep() != amf.RegStepAuthenticating {
 			logger.From(ctx, logger.AmfLog).Info("registration moved on while waiting for the authentication vector; dropping it")
+			ueConn.DiscardAuthentication(ctx, response)
+
 			return
 		}
 

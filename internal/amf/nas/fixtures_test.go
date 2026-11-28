@@ -173,15 +173,16 @@ type fakeAusf struct {
 	Supi    etsi.SUPI
 	Kseaf   []byte
 	Error   error
-	AvKgAka *ausf.AuthResult
+	AvKgAka *ausf.UEAuthenticationCtx
 
 	mu         sync.Mutex
 	identities []string
-	resyncs    []*ausf.ResyncInfo
+	resyncs    []*ausf.ResynchronizationInfo
 	confirmed  []string
+	failed     []string
 }
 
-func (a *fakeAusf) Authenticate(ctx context.Context, supiOrSuci string, plmn models.PlmnID, resync *ausf.ResyncInfo) (*ausf.AuthResult, error) {
+func (a *fakeAusf) Authenticate(ctx context.Context, supiOrSuci string, plmn models.PlmnID, resync *ausf.ResynchronizationInfo) (*ausf.UEAuthenticationCtx, error) {
 	a.mu.Lock()
 	a.identities = append(a.identities, supiOrSuci)
 	a.resyncs = append(a.resyncs, resync)
@@ -210,6 +211,19 @@ func (a *fakeAusf) Confirm(ctx context.Context, authCtxID, resStar string) (etsi
 	return a.Supi, a.Kseaf, nil
 }
 
+func (a *fakeAusf) ReportAuthenticationFailure(ctx context.Context, authCtxID string) {
+	a.mu.Lock()
+	a.failed = append(a.failed, authCtxID)
+	a.mu.Unlock()
+}
+
+func (a *fakeAusf) Failed() []string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	return slices.Clone(a.failed)
+}
+
 func (a *fakeAusf) Identities() []string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -217,7 +231,7 @@ func (a *fakeAusf) Identities() []string {
 	return slices.Clone(a.identities)
 }
 
-func (a *fakeAusf) Resyncs() []*ausf.ResyncInfo {
+func (a *fakeAusf) Resyncs() []*ausf.ResynchronizationInfo {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 

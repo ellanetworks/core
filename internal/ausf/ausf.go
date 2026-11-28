@@ -37,16 +37,20 @@ type (
 	AdvancedCredentials = udm.AdvancedCredentials
 )
 
-// AuthResult is returned by Authenticate to the AMF.
-type AuthResult struct {
+// UEAuthenticationCtx is returned by Authenticate to the AMF.
+type UEAuthenticationCtx struct {
 	AuthCtxID string
-	Rand      string // hex
-	Autn      string // hex
-	HxresStar string // hex
+	Av5gAka
 }
 
-// ResyncInfo carries the UE's re-synchronization data.
-type ResyncInfo struct {
+type Av5gAka struct {
+	Rand      string // hex
+	HxresStar string // hex
+	Autn      string // hex
+}
+
+// ResynchronizationInfo carries the UE's re-synchronization data.
+type ResynchronizationInfo struct {
 	Rand string
 	Auts string // hex — AUTS from the UE
 }
@@ -126,7 +130,7 @@ func (a *AUSF) evictExpired() {
 // identified by its SUCI or SUPI. It returns the authentication vector to send
 // to the UE and caches the pending context under the returned AuthCtxID for
 // later confirmation via Confirm.
-func (a *AUSF) Authenticate(ctx context.Context, supiOrSuci string, plmn models.PlmnID, resync *ResyncInfo) (*AuthResult, error) {
+func (a *AUSF) Authenticate(ctx context.Context, supiOrSuci string, plmn models.PlmnID, resync *ResynchronizationInfo) (*UEAuthenticationCtx, error) {
 	servingNetwork, err := plmn.ServingNetworkName()
 	if err != nil {
 		return nil, fmt.Errorf("invalid PLMN for serving network name: %w", err)
@@ -195,11 +199,13 @@ func (a *AUSF) Authenticate(ctx context.Context, supiOrSuci string, plmn models.
 	a.mu.Unlock()
 	span.AddEvent("context_pooled")
 
-	return &AuthResult{
+	return &UEAuthenticationCtx{
 		AuthCtxID: id,
-		Rand:      heav.RAND,
-		Autn:      heav.AUTN,
-		HxresStar: hxresStar,
+		Av5gAka: Av5gAka{
+			Rand:      heav.RAND,
+			HxresStar: hxresStar,
+			Autn:      heav.AUTN,
+		},
 	}, nil
 }
 
@@ -228,6 +234,20 @@ func (a *AUSF) Confirm(ctx context.Context, authCtxID, resStar string) (etsi.SUP
 	}
 
 	return cached.supi, cached.kseaf, nil
+}
+
+func (a *AUSF) ReportAuthenticationFailure(ctx context.Context, authCtxID string) {
+	_, span := tracer.Start(ctx, "ausf/report_authentication_failure",
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+	defer span.End()
+
+	a.mu.Lock()
+	_, ok := a.pool[authCtxID]
+	delete(a.pool, authCtxID)
+	a.mu.Unlock()
+
+	span.SetAttributes(attribute.Bool("ausf.context_found", ok))
 }
 
 func newAuthCtxID() (string, error) {

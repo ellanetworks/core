@@ -31,19 +31,21 @@ func assertAuthenticatedAs(t *testing.T, amfInstance *amf.AMF, want ...string) {
 	}
 }
 
-func zeroChallenge(authCtxID string) *ausf.AuthResult {
+func zeroChallenge(authCtxID string) *ausf.UEAuthenticationCtx {
 	zero := make([]byte, 16)
 	hresStar := sha256.Sum256(append(append([]byte{}, zero...), zero...))
 
-	return &ausf.AuthResult{
+	return &ausf.UEAuthenticationCtx{
 		AuthCtxID: authCtxID,
-		Rand:      hex.EncodeToString(zero),
-		Autn:      hex.EncodeToString(zero),
-		HxresStar: hex.EncodeToString(hresStar[16:]),
+		Av5gAka: ausf.Av5gAka{
+			Rand:      hex.EncodeToString(zero),
+			HxresStar: hex.EncodeToString(hresStar[16:]),
+			Autn:      hex.EncodeToString(zero),
+		},
 	}
 }
 
-func identityTestAMF(t *testing.T, challenge *ausf.AuthResult) (*amf.AMF, *fakeAusf) {
+func identityTestAMF(t *testing.T, challenge *ausf.UEAuthenticationCtx) (*amf.AMF, *fakeAusf) {
 	t.Helper()
 
 	fake := &fakeAusf{
@@ -180,7 +182,7 @@ func TestResynchronisationAuthenticatesTheRegistrationIdentityWithTheChallengeRA
 			ue, ngapSender := registeredIdentityTestUE(t, amfInstance, amf.RegStepAuthenticating)
 			ue.Tai = ue.Conn().Tai
 
-			previous := &ausf.AuthResult{AuthCtxID: "ctx-first", Rand: "000102030405060708090a0b0c0d0e0f", Autn: hex.EncodeToString(make([]byte, 16))}
+			previous := &ausf.UEAuthenticationCtx{AuthCtxID: "ctx-first", Av5gAka: ausf.Av5gAka{Rand: "000102030405060708090a0b0c0d0e0f", Autn: hex.EncodeToString(make([]byte, 16))}}
 			ue.Conn().AuthenticationCtx = previous
 			ue.Conn().SetIdentityTypeUsedForRegistration(uint8(tc.identity))
 

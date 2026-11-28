@@ -72,16 +72,16 @@ func TestVisitorResynchronisationSendsTheChallengeRAND(t *testing.T) {
 	ue, conn := f.visitorUE(t)
 	conn.SetIdentityTypeUsedForRegistration(uint8(fgs.IdentitySUCI))
 
-	challenges := make(chan *ausf.AuthResult, 1)
+	challenges := make(chan *ausf.UEAuthenticationCtx, 1)
 
-	f.amf.RequestAuthentication(t.Context(), ue, conn, nil, func(_ context.Context, r *ausf.AuthResult, _ error) { challenges <- r })
+	f.amf.RequestAuthentication(t.Context(), ue, conn, nil, func(_ context.Context, r *ausf.UEAuthenticationCtx, _ error) { challenges <- r })
 
 	challenge := waitDone(t, challenges)
 
 	done := make(chan error, 1)
-	resync := &ausf.ResyncInfo{Rand: challenge.Rand, Auts: "0102030405060708090a0b0c0d0e"}
+	resync := &ausf.ResynchronizationInfo{Rand: challenge.Rand, Auts: "0102030405060708090a0b0c0d0e"}
 
-	f.amf.RequestAuthentication(t.Context(), ue, conn, resync, func(_ context.Context, _ *ausf.AuthResult, err error) { done <- err })
+	f.amf.RequestAuthentication(t.Context(), ue, conn, resync, func(_ context.Context, _ *ausf.UEAuthenticationCtx, err error) { done <- err })
 
 	if err := waitDone(t, done); err == nil {
 		t.Fatal("the home network accepted a forged AUTS")

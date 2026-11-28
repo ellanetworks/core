@@ -420,7 +420,7 @@ func TestResync_AuthenticateWithResyncInfo(t *testing.T) {
 	}
 
 	// Now try resync with invalid AUTS — should fail in Milenage verification.
-	_, err = a.Authenticate(ctx, suci, testPLMN, &ausf.ResyncInfo{
+	_, err = a.Authenticate(ctx, suci, testPLMN, &ausf.ResynchronizationInfo{
 		Rand: first.Rand,
 		Auts: "aabbccddeeff0000000000000000",
 	})
@@ -440,7 +440,7 @@ func TestResync_RequiresRandAndAuts(t *testing.T) {
 	a := newTestAUSF(store)
 	ctx := context.Background()
 
-	for _, resync := range []*ausf.ResyncInfo{
+	for _, resync := range []*ausf.ResynchronizationInfo{
 		{Auts: "aabbccddeeff0000000000000000"},
 		{Rand: "00000000000000000000000000000000"},
 	} {

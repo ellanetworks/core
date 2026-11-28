@@ -194,7 +194,7 @@ func TestConfirmSuccess_ReturnsCorrectKseaf(t *testing.T) {
 //  1. Authenticate normally (issues the challenge RAND).
 //  2. Build a valid AUTS from that RAND and a known SQN_MS (simulating
 //     what the UE sends when it detects a SQN mismatch).
-//  3. Call Authenticate again with the ResyncInfo.
+//  3. Call Authenticate again with the ResynchronizationInfo.
 //  4. Assert the stored SQN equals udm.AdvanceSQN(sqnMs, 33).
 func TestResyncSuccess_SQNAdvancesBy33(t *testing.T) {
 	// UE's true SQN — the value the USIM holds.
@@ -242,7 +242,7 @@ func TestResyncSuccess_SQNAdvancesBy33(t *testing.T) {
 	auts := append(concSQN, macS...)
 
 	// Step 3: Authenticate with resync.
-	_, err = a.Authenticate(ctx, intTestSUCI, intTestPLMN, &ResyncInfo{
+	_, err = a.Authenticate(ctx, intTestSUCI, intTestPLMN, &ResynchronizationInfo{
 		Rand: result.Rand,
 		Auts: hex.EncodeToString(auts),
 	})
@@ -261,7 +261,7 @@ func TestResyncSuccess_SQNAdvancesBy33(t *testing.T) {
 	}
 }
 
-func ueResStar(t *testing.T, result *AuthResult) string {
+func ueResStar(t *testing.T, result *UEAuthenticationCtx) string {
 	t.Helper()
 
 	k, _ := hex.DecodeString(intTestK)
@@ -329,7 +329,7 @@ func TestConcurrentAttemptsForOneSubscriberConfirmIndependently(t *testing.T) {
 		t.Fatal("an attempt confirmed with the RES* of another attempt")
 	}
 
-	for name, result := range map[string]*AuthResult{"first": first, "second": second} {
+	for name, result := range map[string]*UEAuthenticationCtx{"first": first, "second": second} {
 		supi, kseaf, err := a.Confirm(ctx, result.AuthCtxID, ueResStar(t, result))
 		if err != nil {
 			t.Fatalf("Confirm of the %s attempt failed: %v", name, err)
@@ -366,4 +366,84 @@ func (f *internalStore) AdvanceSequenceNumber(_ context.Context, imsi, resyncAut
 		Opc:            sub.Opc,
 		SequenceNumber: next,
 	}, nil
+}
+
+func (a *AUSF) pooled() int {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	return len(a.pool)
+}
+
+func TestReportAuthenticationFailureReleasesOnlyThatAttempt(t *testing.T) {
+	store := &internalStore{subs: map[string]*Subscriber{intTestIMSI: {PermanentKey: intTestK, Opc: intTestOPc, SequenceNumber: "000000000000"}}}
+
+	a := New(store, noopKeys)
+	ctx := t.Context()
+
+	failed, err := a.Authenticate(ctx, intTestSUCI, intTestPLMN, nil)
+	if err != nil {
+		t.Fatalf("first Authenticate failed: %v", err)
+	}
+
+	kept, err := a.Authenticate(ctx, intTestSUCI, intTestPLMN, nil)
+	if err != nil {
+		t.Fatalf("second Authenticate failed: %v", err)
+	}
+
+	if n := a.pooled(); n != 2 {
+		t.Fatalf("pooled contexts = %d, want 2", n)
+	}
+
+	a.ReportAuthenticationFailure(ctx, failed.AuthCtxID)
+
+	if n := a.pooled(); n != 1 {
+		t.Fatalf("pooled contexts after the failure report = %d, want 1", n)
+	}
+
+	if _, _, err := a.Confirm(ctx, failed.AuthCtxID, ueResStar(t, failed)); !errors.Is(err, ErrAuthContextNotFound) {
+		t.Fatalf("Confirm of the failed attempt = %v, want %v", err, ErrAuthContextNotFound)
+	}
+
+	a.ReportAuthenticationFailure(ctx, failed.AuthCtxID)
+	a.ReportAuthenticationFailure(ctx, "unknown")
+
+	if n := a.pooled(); n != 1 {
+		t.Fatalf("pooled contexts after repeated failure reports = %d, want 1", n)
+	}
+
+	supi, kseaf, err := a.Confirm(ctx, kept.AuthCtxID, ueResStar(t, kept))
+	if err != nil {
+		t.Fatalf("Confirm of the kept attempt failed: %v", err)
+	}
+
+	if supi.IMSI() != intTestIMSI || len(kseaf) == 0 {
+		t.Fatalf("Confirm of the kept attempt = %s, %x", supi, kseaf)
+	}
+
+	if n := a.pooled(); n != 0 {
+		t.Fatalf("pooled contexts after Confirm = %d, want 0", n)
+	}
+}
+
+func TestReportAuthenticationFailureAfterConfirmIsANoOp(t *testing.T) {
+	store := &internalStore{subs: map[string]*Subscriber{intTestIMSI: {PermanentKey: intTestK, Opc: intTestOPc, SequenceNumber: "000000000000"}}}
+
+	a := New(store, noopKeys)
+	ctx := t.Context()
+
+	result, err := a.Authenticate(ctx, intTestSUCI, intTestPLMN, nil)
+	if err != nil {
+		t.Fatalf("Authenticate failed: %v", err)
+	}
+
+	if _, _, err := a.Confirm(ctx, result.AuthCtxID, ueResStar(t, result)); err != nil {
+		t.Fatalf("Confirm failed: %v", err)
+	}
+
+	a.ReportAuthenticationFailure(ctx, result.AuthCtxID)
+
+	if n := a.pooled(); n != 0 {
+		t.Fatalf("pooled contexts = %d, want 0", n)
+	}
 }

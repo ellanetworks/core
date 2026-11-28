@@ -227,7 +227,7 @@ func waitDone[T any](t *testing.T, ch <-chan T) T {
 	return zero
 }
 
-func hplmnRESStar(t *testing.T, result *ausf.AuthResult) [16]byte {
+func hplmnRESStar(t *testing.T, result *ausf.UEAuthenticationCtx) [16]byte {
 	t.Helper()
 
 	k, _ := hex.DecodeString(roamerK)
@@ -256,9 +256,9 @@ type confirmation struct {
 func (f *roamingFixture) authenticate(t *testing.T, ue *UeContext, conn *UeConn) {
 	t.Helper()
 
-	challenges := make(chan *ausf.AuthResult, 1)
+	challenges := make(chan *ausf.UEAuthenticationCtx, 1)
 
-	f.amf.RequestAuthentication(t.Context(), ue, conn, nil, func(_ context.Context, r *ausf.AuthResult, err error) {
+	f.amf.RequestAuthentication(t.Context(), ue, conn, nil, func(_ context.Context, r *ausf.UEAuthenticationCtx, err error) {
 		if err != nil {
 			t.Errorf("RequestAuthentication: %v", err)
 		}
@@ -419,9 +419,9 @@ func TestVisitorFailedAuthenticationSendsANullRESStar(t *testing.T) {
 	f := newRoamingFixture(t)
 	ue, conn := f.visitorUE(t)
 
-	challenges := make(chan *ausf.AuthResult, 1)
+	challenges := make(chan *ausf.UEAuthenticationCtx, 1)
 
-	f.amf.RequestAuthentication(t.Context(), ue, conn, nil, func(_ context.Context, r *ausf.AuthResult, _ error) { challenges <- r })
+	f.amf.RequestAuthentication(t.Context(), ue, conn, nil, func(_ context.Context, r *ausf.UEAuthenticationCtx, _ error) { challenges <- r })
 	waitDone(t, challenges)
 
 	f.amf.AuthenticationFailed(t.Context(), ue)
@@ -437,9 +437,9 @@ func TestVisitorWrongRESStarIsIllegalUE(t *testing.T) {
 	f := newRoamingFixture(t)
 	ue, conn := f.visitorUE(t)
 
-	challenges := make(chan *ausf.AuthResult, 1)
+	challenges := make(chan *ausf.UEAuthenticationCtx, 1)
 
-	f.amf.RequestAuthentication(t.Context(), ue, conn, nil, func(_ context.Context, r *ausf.AuthResult, _ error) { challenges <- r })
+	f.amf.RequestAuthentication(t.Context(), ue, conn, nil, func(_ context.Context, r *ausf.UEAuthenticationCtx, _ error) { challenges <- r })
 	waitDone(t, challenges)
 
 	confirmed := make(chan error, 1)
@@ -459,7 +459,7 @@ func TestVisitorWithoutN32IsTransient(t *testing.T) {
 
 	done := make(chan error, 1)
 
-	f.amf.RequestAuthentication(t.Context(), ue, conn, nil, func(_ context.Context, _ *ausf.AuthResult, err error) { done <- err })
+	f.amf.RequestAuthentication(t.Context(), ue, conn, nil, func(_ context.Context, _ *ausf.UEAuthenticationCtx, err error) { done <- err })
 
 	err := waitDone(t, done)
 	if !errors.Is(err, roaming.ErrHPLMNUnreachable) {

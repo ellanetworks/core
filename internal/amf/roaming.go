@@ -273,15 +273,10 @@ func (amf *AMF) waitN32(ctx context.Context, v roaming.Visitor5G) error {
 	return nil
 }
 
-func (amf *AMF) RequestAuthentication(ctx context.Context, ue *UeContext, conn *UeConn, resync *ausf.ResyncInfo, done func(context.Context, *ausf.AuthResult, error)) {
+func (amf *AMF) RequestAuthentication(ctx context.Context, ue *UeContext, conn *UeConn, resync *ausf.ResynchronizationInfo, done func(context.Context, *ausf.UEAuthenticationCtx, error)) {
 	v, visitor := ue.Visitor()
 	if !visitor {
-		if ue.Tai.PlmnID == nil {
-			done(ctx, nil, fmt.Errorf("tai is not available in UE context"))
-			return
-		}
-
-		result, err := amf.Ausf.Authenticate(ctx, ue.AuthenticationIdentity(conn), *ue.Tai.PlmnID, resync)
+		result, err := amf.AuthenticateAtAUSF(ctx, ue, conn, resync)
 		done(ctx, result, err)
 
 		return
@@ -302,7 +297,7 @@ func (amf *AMF) RequestAuthentication(ctx context.Context, ue *UeContext, conn *
 	id := ue.AuthenticationIdentity(conn)
 
 	var (
-		result *ausf.AuthResult
+		result *ausf.UEAuthenticationCtx
 		err    error
 	)
 
@@ -327,14 +322,14 @@ func (amf *AMF) RequestAuthentication(ctx context.Context, ue *UeContext, conn *
 			cur.Confirmed = false
 		})
 
-		result = &ausf.AuthResult{Rand: hex.EncodeToString(c.RAND[:]), Autn: hex.EncodeToString(c.AUTN[:]), HxresStar: hex.EncodeToString(c.HXRESStar[:])}
+		result = &ausf.UEAuthenticationCtx{Av5gAka: ausf.Av5gAka{Rand: hex.EncodeToString(c.RAND[:]), HxresStar: hex.EncodeToString(c.HXRESStar[:]), Autn: hex.EncodeToString(c.AUTN[:])}}
 	}, func(ctx context.Context) {
 		amf.noteHPLMNFailure(ctx, v, HPLMNAuthenticate, err, AuthenticationRejection)
 		done(ctx, result, err)
 	})
 }
 
-func hplmnResync(resync *ausf.ResyncInfo) (*wire.ResynchronizationInfo, error) {
+func hplmnResync(resync *ausf.ResynchronizationInfo) (*wire.ResynchronizationInfo, error) {
 	rand, err := hex.DecodeString(resync.Rand)
 	if err != nil || len(rand) != 16 {
 		return nil, errors.New("amf: re-synchronisation with a malformed RAND")
@@ -356,7 +351,10 @@ func (amf *AMF) RequestConfirmation(ctx context.Context, ue *UeContext, conn *Ue
 			return
 		}
 
-		supi, kseaf, err := amf.Ausf.Confirm(ctx, conn.AuthenticationCtx.AuthCtxID, hex.EncodeToString(resStar[:]))
+		authCtxID := conn.AuthenticationCtx.AuthCtxID
+		conn.claimAuthentication(authCtxID)
+
+		supi, kseaf, err := amf.Ausf.Confirm(ctx, authCtxID, hex.EncodeToString(resStar[:]))
 		done(ctx, supi, kseaf, err)
 
 		return
