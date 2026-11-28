@@ -27,6 +27,7 @@
 #include <bpf/bpf_helpers.h>
 #include "bpf/utils/statistics.h"
 #include "bpf/utils/traffic_class.h"
+#include "bpf/utils/runtime_settings.h"
 #include <linux/if_ether.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
@@ -53,7 +54,12 @@ volatile const int n6_vlan = 0;
 volatile const bool network_instances_enabled;
 volatile const bool network_instances_enabled = false;
 
-int reasm_veth_ifindex;
+volatile const __u32 attach_ifindex = 0;
+
+static __always_inline __u32 datapath_ifindex(struct __ctx_buff *ctx)
+{
+	return attach_ifindex ? attach_ifindex : ctx_ingress_ifindex(ctx);
+}
 
 struct vlan_hdr {
 	__be16 h_vlan_TCI;
@@ -138,14 +144,15 @@ static __always_inline __u32 n3_mtu_ifindex(void)
 
 static __always_inline bool frame_is_reassembled(struct __ctx_buff *ctx)
 {
-	return reasm_veth_ifindex != 0 &&
-	       ctx_ingress_ifindex(ctx) == (__u32)reasm_veth_ifindex;
+	__u32 reasm = reasm_veth_ifindex();
+
+	return reasm != 0 && ctx_ingress_ifindex(ctx) == reasm;
 }
 
 __noinline __weak __u32
 routing_ingress_ifindex(struct __ctx_buff *ctx, __u8 interface)
 {
-	__u32 ifindex = ctx_ingress_ifindex(ctx);
+	__u32 ifindex = datapath_ifindex(ctx);
 
 	if (interface == INTERFACE_N3 && ifindex == (__u32)n3_ifindex)
 		return n3_routing_ifindex;
@@ -290,7 +297,7 @@ __noinline __weak int downlink_ingress_ni(struct __ctx_buff *ctx)
 	vlan = ctx->vlan_present ? ctx->vlan_tci & 0x0fff : 0;
 #endif
 
-	return ingress_network_instance(ctx_ingress_ifindex(ctx), vlan);
+	return ingress_network_instance(datapath_ifindex(ctx), vlan);
 }
 
 __noinline __weak bool downlink_ni_mismatch(__u32 session_ni, __u32 frame_ni)

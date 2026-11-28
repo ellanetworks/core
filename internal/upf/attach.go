@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"slices"
 	"unsafe"
 
 	cebpf "github.com/cilium/ebpf"
@@ -154,8 +155,8 @@ func attachExtra(objs *ebpf.BpfObjects, attachedMode string, extra []datapathIfa
 	for _, iface := range extra {
 		l, err := attachInterface(objs, attachedMode, iface)
 		if err != nil {
-			for _, attached := range links {
-				_ = attached.Close()
+			for i, attached := range links {
+				detachEntry(objs, attached, extra[i].index)
 			}
 
 			return nil, fmt.Errorf("attach datapath on network instance interface %q: %w", iface.name, err)
@@ -172,14 +173,44 @@ func attachInterface(objs *ebpf.BpfObjects, attachedMode string, iface datapathI
 	case config.DatapathTCX:
 		disableMergedPackets(attachedMode, iface.name)
 
-		return attachTCX(objs.UpfEntryFunc, iface.index, iface.name)
+		return attachEntry(objs, iface.index, func(entry *cebpf.Program) (link.Link, error) {
+			return attachTCX(entry, iface.index, iface.name)
+		})
 	case config.DatapathXDPGeneric:
 		disableMergedPackets(attachedMode, iface.name)
 
-		return attachXDP(objs.UpfEntryFunc, iface.index, link.XDPGenericMode)
+		return attachEntry(objs, iface.index, func(entry *cebpf.Program) (link.Link, error) {
+			return attachXDP(entry, iface.index, link.XDPGenericMode)
+		})
 	default:
-		return attachXDP(objs.UpfEntryFunc, iface.index, link.XDPDriverMode)
+		return attachEntry(objs, iface.index, func(entry *cebpf.Program) (link.Link, error) {
+			return attachXDP(entry, iface.index, link.XDPDriverMode)
+		})
 	}
+}
+
+func attachEntry(objs *ebpf.BpfObjects, ifindex int, attach func(*cebpf.Program) (link.Link, error)) (link.Link, error) {
+	entry, created, err := objs.InterfaceEntry(ifindex)
+	if err != nil {
+		return nil, err
+	}
+
+	l, err := attach(entry)
+	if err != nil {
+		if created {
+			objs.ReleaseInterface(ifindex)
+		}
+
+		return nil, err
+	}
+
+	return l, nil
+}
+
+func detachEntry(objs *ebpf.BpfObjects, l link.Link, ifindex int) {
+	_ = l.Close()
+
+	objs.ReleaseInterface(ifindex)
 }
 
 func attachN3N6(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface, extra []datapathIface) (string, link.Link, *link.Link, error) {
@@ -226,7 +257,7 @@ func attachN3N6(objs *ebpf.BpfObjects, mode string, n3, n6 datapathIface, extra 
 			return attachChainTCX(objs, n3, n6)
 		}
 
-		if iface.tagged && vlanStrippedBeforeXDP(iface.name) {
+		if iface.tagged && slices.ContainsFunc(receivingDevices(iface.name), vlanStrippedBeforeXDP) {
 			logger.UpfLog.Info("interface strips VLAN tags before native XDP, attaching at TCX",
 				zap.String("iface", iface.name))
 
@@ -281,7 +312,9 @@ func attachChainTCX(objs *ebpf.BpfObjects, n3, n6 datapathIface) (string, link.L
 }
 
 func attachBothXDP(objs *ebpf.BpfObjects, n3, n6 datapathIface, flags link.XDPAttachFlags) (link.Link, *link.Link, error) {
-	n3Link, err := attachXDP(objs.UpfEntryFunc, n3.index, flags)
+	n3Link, err := attachEntry(objs, n3.index, func(entry *cebpf.Program) (link.Link, error) {
+		return attachXDP(entry, n3.index, flags)
+	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("attach datapath on n3 interface %q: %w", n3.name, err)
 	}
@@ -290,9 +323,11 @@ func attachBothXDP(objs *ebpf.BpfObjects, n3, n6 datapathIface, flags link.XDPAt
 		return n3Link, nil, nil
 	}
 
-	n6Link, err := attachXDP(objs.UpfEntryFunc, n6.index, flags)
+	n6Link, err := attachEntry(objs, n6.index, func(entry *cebpf.Program) (link.Link, error) {
+		return attachXDP(entry, n6.index, flags)
+	})
 	if err != nil {
-		_ = n3Link.Close()
+		detachEntry(objs, n3Link, n3.index)
 
 		return nil, nil, fmt.Errorf("attach datapath on n6 interface %q: %w", n6.name, err)
 	}
@@ -311,7 +346,9 @@ func datapathNames(n3, n6 datapathIface) []string {
 func attachBothTCX(objs *ebpf.BpfObjects, n3, n6 datapathIface) (link.Link, *link.Link, error) {
 	disableMergedPackets(config.DatapathTCX, datapathNames(n3, n6)...)
 
-	n3Link, err := attachTCX(objs.UpfEntryFunc, n3.index, n3.name)
+	n3Link, err := attachEntry(objs, n3.index, func(entry *cebpf.Program) (link.Link, error) {
+		return attachTCX(entry, n3.index, n3.name)
+	})
 	if err != nil {
 		if tcxUnavailable(err) {
 			return nil, nil, fmt.Errorf("attach datapath at TCX on %q: TCX needs kernel 6.6 or newer: %w", n3.name, err)
@@ -324,9 +361,11 @@ func attachBothTCX(objs *ebpf.BpfObjects, n3, n6 datapathIface) (link.Link, *lin
 		return n3Link, nil, nil
 	}
 
-	n6Link, err := attachTCX(objs.UpfEntryFunc, n6.index, n6.name)
+	n6Link, err := attachEntry(objs, n6.index, func(entry *cebpf.Program) (link.Link, error) {
+		return attachTCX(entry, n6.index, n6.name)
+	})
 	if err != nil {
-		_ = n3Link.Close()
+		detachEntry(objs, n3Link, n3.index)
 
 		return nil, nil, fmt.Errorf("attach datapath at TCX on n6 interface %q: %w", n6.name, err)
 	}
@@ -361,6 +400,10 @@ var mergingFeatures = []string{"rx-gro", "rx-gro-hw", "rx-lro"}
 // refuses without the peer's NAPI, so the attach succeeds and the traffic
 // disappears. A probe failure returns false and lets the attach proceed.
 func nativeXDPBlackholes(ifname string) bool {
+	return slices.ContainsFunc(receivingDevices(ifname), isVeth)
+}
+
+func isVeth(ifname string) bool {
 	l, err := netlink.LinkByName(ifname)
 	if err != nil {
 		logger.UpfLog.Warn("could not read interface type, assuming native XDP can forward redirected frames",
@@ -394,13 +437,63 @@ func vlanStrippedBeforeXDP(ifname string) bool {
 }
 
 func warnVLANStrippedBeforeXDP(iface datapathIface, mode string) {
-	if mode != config.DatapathXDPNative || !iface.tagged || !vlanStrippedBeforeXDP(iface.name) {
+	if mode != config.DatapathXDPNative || !iface.tagged {
 		return
 	}
 
-	logger.UpfLog.Warn("interface strips VLAN tags before native XDP, so the datapath cannot classify its VLANs: "+
-		"turn off rx-vlan-offload on it or use tcx",
-		zap.String("iface", iface.name), zap.String("mode", mode))
+	for _, device := range receivingDevices(iface.name) {
+		if !vlanStrippedBeforeXDP(device) {
+			continue
+		}
+
+		logger.UpfLog.Warn("interface strips VLAN tags before native XDP, so the datapath cannot classify its VLANs: "+
+			"turn off rx-vlan-offload on it or use tcx",
+			zap.String("iface", device), zap.String("datapath_iface", iface.name), zap.String("mode", mode))
+	}
+}
+
+func receivingDevices(ifname string) []string {
+	l, err := netlink.LinkByName(ifname)
+	if err != nil {
+		return []string{ifname}
+	}
+
+	links, err := netlink.LinkList()
+	if err != nil {
+		logger.UpfLog.Warn("could not list links to find the devices below a datapath interface",
+			zap.String("iface", ifname), zap.Error(err))
+
+		return []string{ifname}
+	}
+
+	return lowestDevices(l, links)
+}
+
+func lowestDevices(l netlink.Link, links []netlink.Link) []string {
+	attrs := l.Attrs()
+
+	switch l.Type() {
+	case "vlan":
+		for _, parent := range links {
+			if parent.Attrs().Index == attrs.ParentIndex && attrs.NetNsID < 0 {
+				return lowestDevices(parent, links)
+			}
+		}
+	case "bond":
+		var devices []string
+
+		for _, member := range links {
+			if member.Attrs().MasterIndex == attrs.Index {
+				devices = append(devices, lowestDevices(member, links)...)
+			}
+		}
+
+		if len(devices) > 0 {
+			return devices
+		}
+	}
+
+	return []string{attrs.Name}
 }
 
 func ethtoolValue(ifname string, cmd uint32) (uint32, error) {
@@ -632,33 +725,65 @@ func disableMergedPackets(mode string, ifnames ...string) {
 			continue
 		}
 
-		if mode != config.DatapathTCX {
-			continue
-		}
-
-		disabled, stillOn, err := disableReceiveMerging(ifname)
-		if err != nil {
-			logger.UpfLog.Warn("could not turn off packet merging on a datapath interface: "+
-				"merged packets cannot be encapsulated or decapsulated into valid GTP-U and are "+
-				"dropped, counted in app_upf_datapath_drop_total under encap_gso and decap_gso; "+
-				"turn off GRO, hardware GRO and LRO on it with ethtool",
-				zap.String("iface", ifname), zap.String("mode", mode), zap.Error(err))
-
-			continue
-		}
-
-		if len(disabled) > 0 {
-			logger.UpfLog.Info("turned off packet merging on a datapath interface",
-				zap.String("iface", ifname), zap.String("mode", mode), zap.Strings("features", disabled))
-		}
-
-		if len(stillOn) > 0 {
-			logger.UpfLog.Warn("packet merging is fixed on by the driver or hypervisor of a datapath interface "+
-				"and cannot be changed: merged packets cannot be encapsulated or decapsulated into valid "+
-				"GTP-U and are dropped, counted in app_upf_datapath_drop_total under encap_gso and decap_gso",
-				zap.String("iface", ifname), zap.String("mode", mode), zap.Strings("features", stillOn))
+		for _, device := range mergingDevices(mode, ifname) {
+			turnOffMerging(device, mode, true)
 		}
 	}
+}
+
+func mergingDevices(mode, ifname string) []string {
+	var devices []string
+
+	switch mode {
+	case config.DatapathTCX:
+		devices = []string{ifname}
+	case config.DatapathXDPGeneric:
+	default:
+		return nil
+	}
+
+	for _, device := range receivingDevices(ifname) {
+		if !slices.Contains(devices, device) && device != ifname {
+			devices = append(devices, device)
+		}
+	}
+
+	return devices
+}
+
+func turnOffMerging(ifname, mode string, warn bool) bool {
+	disabled, stillOn, err := disableReceiveMerging(ifname)
+	if err != nil {
+		if !warn {
+			return true
+		}
+
+		logger.UpfLog.Warn("could not turn off packet merging on a datapath interface: "+
+			"merged packets cannot be encapsulated or decapsulated into valid GTP-U and are "+
+			"dropped, counted in app_upf_datapath_drop_total under encap_gso and decap_gso; "+
+			"turn off GRO, hardware GRO and LRO on it with ethtool",
+			zap.String("iface", ifname), zap.String("mode", mode), zap.Error(err))
+
+		return true
+	}
+
+	if len(disabled) > 0 {
+		logger.UpfLog.Info("turned off packet merging on a datapath interface",
+			zap.String("iface", ifname), zap.String("mode", mode), zap.Strings("features", disabled))
+	}
+
+	if len(stillOn) == 0 {
+		return false
+	}
+
+	if warn {
+		logger.UpfLog.Warn("packet merging is fixed on by the driver or hypervisor of a datapath interface "+
+			"and cannot be changed: merged packets cannot be encapsulated or decapsulated into valid "+
+			"GTP-U and are dropped, counted in app_upf_datapath_drop_total under encap_gso and decap_gso",
+			zap.String("iface", ifname), zap.String("mode", mode), zap.Strings("features", stillOn))
+	}
+
+	return true
 }
 
 func mergingLowerDevice(ifname string) (string, bool) {

@@ -55,6 +55,9 @@ type flowReport struct {
 type UPF struct {
 	n3Link             link.Link
 	n6Link             *link.Link
+	n3Ifindex          int
+	n6Ifindex          int
+	mergingWarned      map[int]bool
 	instanceLinks      map[int]link.Link
 	se                 *engine.SessionEngine
 	smf                engine.SMFReportHandler
@@ -86,11 +89,11 @@ type UPF struct {
 	// Written once in Start, before this struct is returned.
 	attachedMode string
 
-	instanceMu          sync.Mutex
-	instances           []*networkInstanceState
-	datapathIfindex     map[int]bool
-	instanceWatchCancel context.CancelFunc
-	instanceWatchDone   chan struct{}
+	instanceMu      sync.Mutex
+	instances       []*networkInstanceState
+	datapathIfindex map[int]bool
+	linkWatchCancel context.CancelFunc
+	linkWatchDone   chan struct{}
 }
 
 // DatapathAttachMode is empty before the UPF is up.
@@ -235,6 +238,8 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		attachedMode:       attachedMode,
 		n3Link:             n3Link,
 		n6Link:             n6Link,
+		n3Ifindex:          n3Iface.Index,
+		n6Ifindex:          n6Iface.Index,
 		instanceLinks:      make(map[int]link.Link, len(extraLinks)),
 		instances:          newNetworkInstanceStates(instances),
 		datapathIfindex:    map[int]bool{n3Iface.Index: true, n6Iface.Index: true},
@@ -324,7 +329,8 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 
 	upf.startCleanupReaper(ctx)
 
-	upf.startNetworkInstanceWatch(ctx)
+	upf.seedMerging()
+	upf.startLinkWatch(ctx)
 
 	return upf, nil
 }
@@ -332,7 +338,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 func (u *UPF) StopDatapath() error {
 	var errs []error
 
-	u.stopNetworkInstanceWatch()
+	u.stopLinkWatch()
 
 	u.instanceMu.Lock()
 
@@ -387,7 +393,7 @@ func (u *UPF) Close(ctx context.Context) {
 	u.stopGC()
 	u.stopFlowCollection()
 	u.stopCleanupReaper()
-	u.stopNetworkInstanceWatch()
+	u.stopLinkWatch()
 
 	// Resource cleanup: BPF detach, object close, perf reader close.
 	// These are kernel-level operations that are normally fast, but run
@@ -504,19 +510,19 @@ func (u *UPF) UpdateFilters(ctx context.Context, policyID string, direction mode
 // programs. A link left on an old program keeps the previous global values.
 func (u *UPF) updateAttachedPrograms() error {
 	if u.n3Link != nil {
-		if err := u.n3Link.Update(u.se.BpfObjects.UpfEntryFunc); err != nil {
+		if err := u.updateInterfaceLink(u.n3Link, u.n3Ifindex); err != nil {
 			return err
 		}
 	}
 
 	if u.n6Link != nil {
-		if err := (*u.n6Link).Update(u.se.BpfObjects.UpfEntryFunc); err != nil {
+		if err := u.updateInterfaceLink(*u.n6Link, u.n6Ifindex); err != nil {
 			return err
 		}
 	}
 
-	for _, l := range u.instanceLinks {
-		if err := l.Update(u.se.BpfObjects.UpfEntryFunc); err != nil {
+	for index, l := range u.instanceLinks {
+		if err := u.updateInterfaceLink(l, index); err != nil {
 			return err
 		}
 	}
@@ -540,6 +546,15 @@ func (u *UPF) updateAttachedPrograms() error {
 	}
 
 	return nil
+}
+
+func (u *UPF) updateInterfaceLink(l link.Link, ifindex int) error {
+	entry, _, err := u.se.BpfObjects.InterfaceEntry(ifindex)
+	if err != nil {
+		return err
+	}
+
+	return l.Update(entry)
 }
 
 func (u *UPF) ApplyDatapathSettings(settings DatapathSettings) error {

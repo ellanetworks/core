@@ -11,15 +11,13 @@
 #include "bpf/utils/packet_context.h"
 #include "bpf/utils/pdr.h"
 
-/* Ifindex of the veth re-injected packets arrive on, 0 when the buffer responder is not running. */
-int buffer_veth_ifindex;
-
 // True when ctx ingressed on the buffer injection veth.
 static __always_inline bool
 frame_is_reinjected(struct __ctx_buff *ctx)
 {
-	return buffer_veth_ifindex != 0 &&
-	       ctx_ingress_ifindex(ctx) == (__u32)buffer_veth_ifindex;
+	__u32 buffer = buffer_veth_ifindex();
+
+	return buffer != 0 && ctx_ingress_ifindex(ctx) == buffer;
 }
 
 // Largest capturable L3 packet.

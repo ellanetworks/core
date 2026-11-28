@@ -19,17 +19,22 @@ type fakeInstanceDatapath struct {
 	ifaces   map[string]int
 	attached []int
 	closed   []string
+	released []int
 	entries  map[uint32]ebpf.NetworkInstance
 }
 
 func stubInstanceDatapath(t *testing.T, fake *fakeInstanceDatapath) {
 	t.Helper()
 
-	oldByName, oldAttach, oldPut, oldDelete := interfaceByName, attachInstanceLink, putNetworkInstance, deleteNetworkInstance
+	oldByName, oldAttach, oldPut, oldDelete, oldRelease := interfaceByName, attachInstanceLink, putNetworkInstance, deleteNetworkInstance, releaseInstanceLink
 
 	t.Cleanup(func() {
-		interfaceByName, attachInstanceLink, putNetworkInstance, deleteNetworkInstance = oldByName, oldAttach, oldPut, oldDelete
+		interfaceByName, attachInstanceLink, putNetworkInstance, deleteNetworkInstance, releaseInstanceLink = oldByName, oldAttach, oldPut, oldDelete, oldRelease
 	})
+
+	releaseInstanceLink = func(_ *ebpf.BpfObjects, index int) {
+		fake.released = append(fake.released, index)
+	}
 
 	interfaceByName = func(name string) (*net.Interface, error) {
 		index, ok := fake.ifaces[name]
@@ -97,6 +102,10 @@ func TestNetworkInstanceFollowsItsInterface(t *testing.T) {
 
 	if !slices.Equal(fake.closed, []string{"n6-ims"}) || len(u.instanceLinks) != 0 {
 		t.Fatalf("detached %v, links %v; want the removed interface detached", fake.closed, u.instanceLinks)
+	}
+
+	if !slices.Equal(fake.released, []int{7}) {
+		t.Fatalf("released %v; want the removed interface's datapath released", fake.released)
 	}
 
 	fake.ifaces["n6-ims"] = 9
