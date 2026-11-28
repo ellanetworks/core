@@ -186,6 +186,8 @@ func TestIntegration5GMultiGNB(t *testing.T) {
 		testerContainers[i] = container
 	}
 
+	awaitDatapath(ctx, t, nodeClients...)
+
 	// WaitGroup not errgroup: surface every tester's failure, not
 	// just the first.
 	var (

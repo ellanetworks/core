@@ -79,3 +79,20 @@ func TestStatusOmitsDatapathAttachModeBeforeAttach(t *testing.T) {
 		})
 	}
 }
+
+func TestStatusReportsRevisionsWithoutClustering(t *testing.T) {
+	body := statusBody(t, statusHandler(t, nil))
+
+	if _, ok := body["datapathRevision"]; !ok {
+		t.Error("datapathRevision is missing")
+	}
+
+	cluster, ok := body["cluster"].(map[string]any)
+	if !ok {
+		t.Fatalf("cluster = %v, want an object", body["cluster"])
+	}
+
+	if _, ok := cluster["appliedIndex"]; !ok {
+		t.Error("cluster.appliedIndex is missing when clustering is disabled")
+	}
+}

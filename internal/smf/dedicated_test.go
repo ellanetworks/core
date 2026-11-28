@@ -799,8 +799,8 @@ func TestTransientPolicyErrorStillPlansTheBearers(t *testing.T) {
 	pcf.err = errors.New("database is locked")
 	pcf.mu.Unlock()
 
-	if err := s.ReconcileSession(context.Background(), ref); err != nil {
-		t.Fatalf("ReconcileSession: %v", err)
+	if err := s.ReconcileSession(context.Background(), ref); err == nil {
+		t.Fatal("ReconcileSession returned nil, want the transient policy error so the reconciler retries")
 	}
 
 	if a := mmeCb.dedicatedActivations(); len(a) != 1 {

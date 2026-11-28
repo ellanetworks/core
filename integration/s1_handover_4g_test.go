@@ -108,6 +108,8 @@ func TestIntegration4GS1Handover(t *testing.T) {
 
 	for _, scenario := range scenariosToRun {
 		t.Run(scenario, func(t *testing.T) {
+			awaitDatapath(ctx, t, coreClient)
+
 			argv := []string{
 				"core-tester", "run", scenario,
 				"--ella-core-n2-address", coreN2,

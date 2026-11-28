@@ -5,6 +5,7 @@ package mme
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -123,7 +124,9 @@ func (m *MME) syncUEAMBR(ctx context.Context, ue *UeContext, send radioSend) {
 	}
 }
 
-func (m *MME) ReconcileUEAMBR(ctx context.Context) {
+func (m *MME) ReconcileUEAMBR(ctx context.Context) error {
+	var errs []error
+
 	seen := make(map[*UeContext]struct{})
 
 	for _, ue := range m.ConnectedUEs() {
@@ -142,10 +145,14 @@ func (m *MME) ReconcileUEAMBR(ctx context.Context) {
 			logger.From(ctx, logger.MmeLog).Warn("UE-AMBR reconcile: failed to resolve the subscribed UE-AMBR",
 				logger.SUPI(ue.Supi().String()), zap.Error(err))
 
+			errs = append(errs, err)
+
 			continue
 		}
 
 		ue.SetSubscribedUEAMBR(subscribed)
 		m.syncUEAMBR(ctx, ue, (*MME).SendToRadioPaced)
 	}
+
+	return errors.Join(errs...)
 }

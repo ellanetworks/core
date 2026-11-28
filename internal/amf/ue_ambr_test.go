@@ -218,7 +218,9 @@ func TestAMFReconcileUEAMBRAppliesTheProfile(t *testing.T) {
 	dbInstance := &ueAMBRDB{profile: db.Profile{ID: "p", UeAmbrUplink: "20 Mbps", UeAmbrDownlink: "40 Mbps"}}
 	amfInstance, ue, _, capture := ueAMBRConnectedUE(t, dbInstance)
 
-	amfInstance.ReconcileUEAMBR(context.Background())
+	if err := amfInstance.ReconcileUEAMBR(context.Background()); err != nil {
+		t.Fatalf("ReconcileUEAMBR: %v", err)
+	}
 
 	mods := capture.modifications(t)
 	if len(mods) != 1 {
@@ -310,7 +312,9 @@ func TestAMFReconcileUEAMBRPacesABulkUpdateToOneRadio(t *testing.T) {
 		ueConn.MarkICSCompleted()
 	}
 
-	amfInstance.ReconcileUEAMBR(context.Background())
+	if err := amfInstance.ReconcileUEAMBR(context.Background()); err != nil {
+		t.Fatalf("ReconcileUEAMBR: %v", err)
+	}
 
 	if conn.aborted.Load() {
 		t.Fatal("the bulk UE-AMBR reconcile overflowed the radio's send queue")

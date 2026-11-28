@@ -555,7 +555,7 @@ func TestReconcile_LoopWakesOnChangefeedEvent(t *testing.T) {
 	store.natEnabled = false
 	store.mu.Unlock()
 
-	feed.Publish(db.TopicDataNetworks)
+	feed.Publish(db.TopicDataNetworks, 0)
 
 	deadline = time.Now().Add(time.Second)
 
@@ -698,4 +698,59 @@ func TestReconcile_OneChangedToggleReappliesAllOfThem(t *testing.T) {
 	if !calls[1].NAT || !calls[1].FlowAccounting {
 		t.Fatalf("second apply lost a setting: %+v", calls[1])
 	}
+}
+
+func TestReconcile_LoopReportsTheRealizedRevision(t *testing.T) {
+	feed := db.NewChangefeed()
+
+	store := &fakeStore{natEnabled: true}
+	updater := &fakeUpdater{}
+
+	r := NewSettingsReconciler(updater, store, feed, netip.MustParseAddr("1.2.3.4"), netip.Addr{})
+	r.backstop = time.Hour
+
+	awaitRealized := func(applied, want uint64) {
+		t.Helper()
+
+		deadline := time.Now().Add(time.Second)
+
+		for feed.Realized(applied) != want && time.Now().Before(deadline) {
+			time.Sleep(time.Millisecond)
+		}
+
+		if got := feed.Realized(applied); got != want {
+			t.Fatalf("Realized(%d) = %d, want %d", applied, got, want)
+		}
+	}
+
+	r.Start()
+	defer r.Stop()
+
+	feed.Arm()
+
+	awaitRealized(3, 3)
+
+	updater.mu.Lock()
+	updater.settingsErr = errors.New("reload failed")
+	updater.mu.Unlock()
+
+	store.mu.Lock()
+	store.natEnabled = false
+	store.mu.Unlock()
+
+	feed.Publish(db.TopicDataNetworks, 4)
+
+	time.Sleep(50 * time.Millisecond)
+
+	if got := feed.Realized(4); got != 3 {
+		t.Fatalf("Realized(4) = %d while the apply fails, want 3", got)
+	}
+
+	updater.mu.Lock()
+	updater.settingsErr = nil
+	updater.mu.Unlock()
+
+	feed.Publish(db.TopicDataNetworks, 5)
+
+	awaitRealized(5, 5)
 }

@@ -119,3 +119,37 @@ func TestOperatorIdentityChangesWakeTheDiameterNode(t *testing.T) {
 		}
 	}
 }
+
+func TestReplicatedWriteHoldsTheDatapathRevisionUntilApplied(t *testing.T) {
+	database := setupRaftTestDB(t)
+
+	tracker := database.Changefeed().Track(db.TopicDataNetworks)
+	defer tracker.Stop()
+
+	database.Changefeed().Arm()
+	tracker.Done(tracker.Begin())
+
+	before := database.AppliedIndex()
+	if got := database.DatapathRevision(); got != before {
+		t.Fatalf("DatapathRevision() = %d with the tracker synced, want the applied index %d", got, before)
+	}
+
+	if err := database.CreateDataNetwork(t.Context(), &db.DataNetwork{Name: "revision", IPv4Pool: "10.46.0.0/24"}); err != nil {
+		t.Fatalf("CreateDataNetwork: %v", err)
+	}
+
+	applied := database.AppliedIndex()
+	if applied <= before {
+		t.Fatalf("applied index %d did not advance past %d", applied, before)
+	}
+
+	if got := database.DatapathRevision(); got != before {
+		t.Fatalf("DatapathRevision() = %d before the tracker applied the write, want %d", got, before)
+	}
+
+	tracker.Done(tracker.Begin())
+
+	if got := database.DatapathRevision(); got != applied {
+		t.Fatalf("DatapathRevision() = %d after the tracker applied the write, want %d", got, applied)
+	}
+}

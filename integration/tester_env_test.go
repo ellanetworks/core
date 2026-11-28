@@ -209,6 +209,8 @@ func bootstrapTesterCore(ctx context.Context, cl *client.Client) error {
 func (e *testerEnv) RunScenario(ctx context.Context, t *testing.T, scenario string, tr *TestResult, extraArgs ...string) string {
 	t.Helper()
 
+	awaitDatapath(ctx, t, e.Client)
+
 	argv := []string{"core-tester", "run", scenario}
 
 	for _, addr := range e.CoreN2Addresses {

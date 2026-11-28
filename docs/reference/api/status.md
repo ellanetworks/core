@@ -31,13 +31,20 @@ When clustering is enabled, the response includes an `X-Ella-Role` header with t
         "ready": true,
         "schemaVersion": 9,
         "datapathAttachMode": "xdp-native",
+        "datapathRevision": 42,
         "cluster": {
             "enabled": false,
-            "nodeId": "0199c4f1-2a7e-7b31-9c5d-1f2e3a4b5c6d"
+            "nodeId": "0199c4f1-2a7e-7b31-9c5d-1f2e3a4b5c6d",
+            "appliedIndex": 42
         }
     }
 }
 ```
+
+| Field | Description |
+| ----- | ----------- |
+| `cluster.appliedIndex` | Index of the last change this node applied to its database. |
+| `datapathRevision` | Index of the last change this node's datapath and sessions enforce. `0` until the node has started them. Lower than `cluster.appliedIndex` while the node applies a change, or while applying it fails. Never decreases while the node runs. |
 
 When clustering is enabled, the response includes a `cluster` object:
 
@@ -50,6 +57,7 @@ When clustering is enabled, the response includes a `cluster` object:
         "ready": true,
         "schemaVersion": 9,
         "datapathAttachMode": "xdp-native",
+        "datapathRevision": 42,
         "cluster": {
             "enabled": true,
             "role": "Leader",

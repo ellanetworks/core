@@ -193,6 +193,8 @@ func runHA3GPPScenario(t *testing.T, scenario string, onMarker func(ctx context.
 
 	writer := newMarkerWriter(t, "PHASE1_DONE", markerCh)
 
+	awaitDatapath(ctx, t, nodeClients...)
+
 	argv := []string{"core-tester", "run", scenario}
 	for _, addr := range orderedN2 {
 		argv = append(argv, "--ella-core-n2-address", addr)

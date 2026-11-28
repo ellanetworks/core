@@ -346,6 +346,8 @@ func (s *roamingStack) tester(node int, imsi string, args ...string) *roamingTes
 
 	o := s.rat.octet
 
+	awaitDatapath(s.ctx, s.t, s.api)
+
 	argv := []string{
 		"core-tester", "run", s.rat.scenario,
 		"--ella-core-n2-address", s.rat.nodeIP(node) + ":38412",

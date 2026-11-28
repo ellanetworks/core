@@ -566,7 +566,7 @@ func (db *Database) applyEntryRun(ctx context.Context, entries []ellaraft.Entry,
 		db.signalMigrationCheck()
 	}
 
-	db.publishOpTopics(uniqueTopics(topics))
+	db.publishOpTopics(uniqueTopics(topics), entries[len(entries)-1].Index)
 
 	return out, verified, nil
 }
