@@ -49,6 +49,8 @@ type connState struct {
 	partner  string
 	dnsNames []string
 	class    connClass
+	trust    *trustedPartner
+	local    *localIdentity
 }
 
 func (c *connState) identity() (string, []string) {
@@ -74,6 +76,32 @@ func (c *connState) fix(class connClass) bool {
 	}
 
 	return c.class == class
+}
+
+func (m *Manager) stale(snap *snapshot, cs *connState) bool {
+	cs.mu.Lock()
+	trust, local := cs.trust, cs.local
+	cs.mu.Unlock()
+
+	if trust == nil {
+		return false
+	}
+
+	p, ok := snap.partners[trust.id]
+
+	return !ok || !p.trust.sameTrust(trust) || !snap.identity.sameSession(local)
+}
+
+func (m *Manager) closeStale() {
+	snap := m.snap.Load()
+
+	m.conns.Range(func(_, v any) bool {
+		if cs, ok := v.(*connState); ok && cs.conn != nil && m.stale(snap, cs) {
+			_ = cs.conn.Close()
+		}
+
+		return true
+	})
 }
 
 type connKey struct{}
@@ -102,7 +130,9 @@ func (m *Manager) configForClient(hello *tls.ClientHelloInfo) (*tls.Config, erro
 	cfg.ClientAuth = tls.RequestClientCert
 	cfg.GetCertificate = m.getCertificate
 	cfg.VerifyConnection = func(st tls.ConnectionState) error {
-		p, err := m.verifyClient(st)
+		snap := m.snap.Load()
+
+		p, err := verifyClient(snap, st, m.now())
 		if err != nil {
 			m.logger.Warn("Rejected an N32 TLS connection", zap.String("remote", hello.Conn.RemoteAddr().String()), zap.String("reason", TLSFailureReason(err)), zap.Error(err))
 
@@ -112,7 +142,7 @@ func (m *Manager) configForClient(hello *tls.ClientHelloInfo) (*tls.Config, erro
 		names := append([]string(nil), st.PeerCertificates[0].DNSNames...)
 
 		cs.mu.Lock()
-		cs.partner, cs.dnsNames = p.id, names
+		cs.partner, cs.dnsNames, cs.trust, cs.local = p.id, names, p, snap.identity
 		cs.mu.Unlock()
 
 		return nil
@@ -121,12 +151,12 @@ func (m *Manager) configForClient(hello *tls.ClientHelloInfo) (*tls.Config, erro
 	return cfg, nil
 }
 
-func (m *Manager) verifyClient(st tls.ConnectionState) (*trustedPartner, error) {
+func verifyClient(snap *snapshot, st tls.ConnectionState, now time.Time) (*trustedPartner, error) {
 	if err := checkALPN(st); err != nil {
 		return nil, err
 	}
 
-	return identifyPeer(m.snap.Load().trusted, st.PeerCertificates, m.now(), x509.ExtKeyUsageClientAuth)
+	return identifyPeer(snap.trusted, st.PeerCertificates, now, x509.ExtKeyUsageClientAuth)
 }
 
 func (m *Manager) ListenerStatus() ListenerStatus {
@@ -285,6 +315,13 @@ func (m *Manager) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	cs := connFrom(r.Context())
 	if cs == nil {
 		m.writeProblem(w, wire.NewProblem(http.StatusForbidden, wire.CauseUnspecifiedMsgFailure, "no N32 TLS identity"))
+		return
+	}
+
+	if m.stale(m.snap.Load(), cs) {
+		w.Header().Set("Connection", "close")
+		m.writeProblem(w, wire.NewProblem(http.StatusForbidden, wire.CauseContextNotFound, "the N32 TLS connection was verified under a superseded configuration"))
+
 		return
 	}
 

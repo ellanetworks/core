@@ -59,6 +59,7 @@ These metrics are used to monitor the health of the system and the performance o
 | app_upf_nat_evictions_total | Conntrack entries the data plane found evicted under load and re-created, labeled by the `direction`. | Counter |
 | app_upf_dl_buffer_capture_attempts_total | Downlink packets for an idle UE the data plane offered to the buffer, labeled by `result`. | Counter |
 | app_upf_dl_buffer_evictions_total | Buffered downlink packets discarded before re-injection, labeled by `reason`. | Counter |
+| app_upf_router_solicitations_discarded_total | Router Solicitations the data plane passed to the RA responder that it discarded without answering, labeled by `reason` (`too_long`, `malformed`, `checksum`, `option_length`, `unspecified_source_lladdr`). | Counter |
 | app_upf_gtpu_fragmentation_total | GTP-U packets the radio fragmented (uplink) and GTP-U packets sent for fragmentation (downlink), labeled by `direction` and `result`. | Counter |
 | app_upf_ringbuf_events_lost_total | Events the data plane raised but could not place in a ring buffer, labeled by `map`. | Counter |
 | app_upf_usage_dropped_bytes_total | Subscriber usage bytes the data plane measured but never recorded, labeled by `reason` (`outcome_unknown`, `shutdown`, `stale_session`, `no_imsi`). | Counter |

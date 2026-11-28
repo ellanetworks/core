@@ -262,6 +262,65 @@ func TestReallocateGUTIReuseAndFree(t *testing.T) {
 	}
 }
 
+func TestConfirmGUTIRealloc(t *testing.T) {
+	amfInstance := amf.New(nil, nil, nil)
+
+	ue := addTestUE(t, amfInstance, "001010000000013", func(ue *amf.UeContext) {})
+
+	if amfInstance.ConfirmGUTIRealloc(testGuami(), ue, etsi.InvalidGUTI5G) {
+		t.Fatal("an invalid GUTI must not confirm anything")
+	}
+
+	if err := amfInstance.ReallocateGUTI(context.Background(), ue); err != nil {
+		t.Fatalf("ReallocateGUTI (initial): %v", err)
+	}
+
+	if err := amfInstance.ReallocateGUTI(context.Background(), ue); err != nil {
+		t.Fatalf("ReallocateGUTI (realloc): %v", err)
+	}
+
+	current := ue.TmsiForTest()
+	old := ue.OldTmsi()
+
+	oldGuti, _ := etsi.NewGUTI5G("001", "01", "cafe00", old)
+	newGuti, _ := etsi.NewGUTI5G("001", "01", "cafe00", current)
+	foreignGuti, _ := etsi.NewGUTI5G("001", "01", "cafe01", current)
+
+	for _, g := range []etsi.GUTI5G{oldGuti, foreignGuti} {
+		if amfInstance.ConfirmGUTIRealloc(testGuami(), ue, g) {
+			t.Fatalf("GUTI %s must not confirm the reallocation", g.String())
+		}
+	}
+
+	if ue.OldTmsi() != old || !amfInstance.TmsiInUseForTest(old) {
+		t.Fatal("a non-confirming GUTI changed the pending reallocation")
+	}
+
+	if !amfInstance.ConfirmGUTIRealloc(testGuami(), ue, newGuti) {
+		t.Fatal("the new GUTI must confirm the reallocation")
+	}
+
+	if ue.OldTmsi() != etsi.InvalidTMSI || amfInstance.TmsiInUseForTest(old) {
+		t.Fatal("confirmation must free the old 5G-TMSI")
+	}
+
+	if _, ok := amfInstance.LookupUeByGuti(testGuami(), oldGuti); ok {
+		t.Fatal("the old GUTI must not resolve after confirmation")
+	}
+
+	if amfInstance.ConfirmGUTIRealloc(testGuami(), ue, newGuti) {
+		t.Fatal("nothing is pending after confirmation")
+	}
+
+	if err := amfInstance.ReallocateGUTI(context.Background(), ue); err != nil {
+		t.Fatalf("ReallocateGUTI (next): %v", err)
+	}
+
+	if next := ue.TmsiForTest(); next == current || next == old {
+		t.Fatalf("the next reallocation must draw a fresh 5G-TMSI, got %v", next)
+	}
+}
+
 // TS 24.501 §5.4.4
 func TestPagingGuti_PrefersOldDuringRealloc(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)

@@ -279,6 +279,10 @@ func (r *RAResponder) listenForRSEvents() {
 			continue
 		}
 
+		if !acceptRS(&event) {
+			continue
+		}
+
 		ueIPv6 := netip.AddrFrom16(event.UEIPv6)
 		if err := r.handleRSEvent(event.TEID, ueIPv6); err != nil {
 			logger.UpfLog.Warn("failed to handle RS event",
@@ -287,6 +291,42 @@ func (r *RAResponder) listenForRSEvents() {
 				zap.Error(err),
 			)
 		}
+	}
+}
+
+func acceptRS(ev *ebpf.RSEvent) bool {
+	reason := rsDiscardReason(ev)
+	if reason == "" {
+		return true
+	}
+
+	routerSolicitationsDiscarded.WithLabelValues(reason).Inc()
+	logger.UpfLog.Debug("discarded invalid Router Solicitation",
+		logger.TEID(ev.TEID),
+		zap.String("reason", reason),
+	)
+
+	return false
+}
+
+func rsDiscardReason(ev *ebpf.RSEvent) string {
+	if int(ev.MsgLen) > len(ev.Msg) {
+		return rsDiscardTooLong
+	}
+
+	err := ndp.ValidateRouterSolicitation(netip.AddrFrom16(ev.UEIPv6), netip.AddrFrom16(ev.DstIPv6), ev.Msg[:ev.MsgLen])
+
+	switch {
+	case err == nil:
+		return ""
+	case errors.Is(err, ndp.ErrRSChecksum):
+		return rsDiscardChecksum
+	case errors.Is(err, ndp.ErrRSOptionLength):
+		return rsDiscardOptionLength
+	case errors.Is(err, ndp.ErrRSUnspecifiedSourceLLAddr):
+		return rsDiscardUnspecifiedLLSrc
+	default:
+		return rsDiscardMalformed
 	}
 }
 

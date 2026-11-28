@@ -32,6 +32,8 @@ func TestResourceManagerNonEmptyRange(t *testing.T) {
 		t.Fatalf("Expected resource manager, got nil")
 	}
 
+	allocated := make(map[uint32]uint64, teIDRange)
+
 	for i := range teIDRange {
 		seID := uint64(i)
 
@@ -40,9 +42,15 @@ func TestResourceManagerNonEmptyRange(t *testing.T) {
 			t.Fatalf("Expected nil, got %v", err)
 		}
 
-		if teID != i+1 {
-			t.Fatalf("Expected %d, got %d", i+1, teID)
+		if teID == 0 {
+			t.Fatalf("allocated TEID 0, which TS 29.281 §5.1 forbids")
 		}
+
+		if _, dup := allocated[teID]; dup {
+			t.Fatalf("TEID %d allocated twice", teID)
+		}
+
+		allocated[teID] = seID
 	}
 
 	_, err = resourceManager.AllocateTEID(uint64(teIDRange))
@@ -50,21 +58,96 @@ func TestResourceManagerNonEmptyRange(t *testing.T) {
 		t.Fatalf("Expected error, got nil")
 	}
 
-	for i := range teIDRange {
-		resourceManager.ReleaseTEID(uint64(i), i+1)
+	for teID, seID := range allocated {
+		resourceManager.ReleaseTEID(seID, teID)
 	}
 
-	for i := range teIDRange {
-		seID := uint64(i)
+	reallocated := make(map[uint32]struct{}, teIDRange)
 
-		teID, err := resourceManager.AllocateTEID(seID)
+	for i := range teIDRange {
+		teID, err := resourceManager.AllocateTEID(uint64(i))
 		if err != nil {
 			t.Fatalf("Expected nil, got %v", err)
 		}
 
-		if teID != i+1 {
-			t.Fatalf("Expected %d, got %d", i+1, teID)
+		if _, dup := reallocated[teID]; dup {
+			t.Fatalf("TEID %d allocated twice after release", teID)
 		}
+
+		reallocated[teID] = struct{}{}
+	}
+
+	if _, err := resourceManager.AllocateTEID(uint64(teIDRange)); err == nil {
+		t.Fatalf("Expected error after refilling the pool, got nil")
+	}
+}
+
+func TestResourceManagerTEIDsAreNotSequential(t *testing.T) {
+	const count = 64
+
+	m, err := engine.NewFteIDResourceManager(count)
+	if err != nil {
+		t.Fatalf("new manager: %v", err)
+	}
+
+	teids := make([]uint32, 0, count)
+
+	for range count {
+		teid, err := m.AllocateTEID(1)
+		if err != nil {
+			t.Fatalf("allocate: %v", err)
+		}
+
+		teids = append(teids, teid)
+	}
+
+	sequential := true
+
+	for i := 1; i < len(teids); i++ {
+		if teids[i] != teids[i-1]+1 {
+			sequential = false
+			break
+		}
+	}
+
+	if sequential {
+		t.Fatalf("TEIDs %v are sequential, want unpredictable allocation (TS 33.250 §4.2.3.5.1)", teids)
+	}
+
+	small := 0
+
+	for _, teid := range teids {
+		if teid <= count {
+			small++
+		}
+	}
+
+	if small == count {
+		t.Fatalf("every TEID falls in 1..%d, want values drawn from the full 32-bit space", count)
+	}
+}
+
+func TestResourceManagerReleaseByOtherSessionIgnored(t *testing.T) {
+	m, err := engine.NewFteIDResourceManager(1)
+	if err != nil {
+		t.Fatalf("new manager: %v", err)
+	}
+
+	teid, err := m.AllocateTEID(1)
+	if err != nil {
+		t.Fatalf("allocate: %v", err)
+	}
+
+	m.ReleaseTEID(2, teid)
+
+	if _, err := m.AllocateTEID(2); err == nil {
+		t.Fatal("release by a session that does not own the TEID freed it")
+	}
+
+	m.ReleaseTEID(1, teid)
+
+	if _, err := m.AllocateTEID(2); err != nil {
+		t.Fatalf("allocate after owner release: %v", err)
 	}
 }
 

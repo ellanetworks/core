@@ -65,10 +65,20 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 		__builtin_memcpy(&seq, opt, sizeof(seq));
 	}
 
+	const __be16 req_sport = ctx->udp->source;
+	const __be16 req_dport = ctx->udp->dest;
+
 	/* Resize the frame so it ends exactly after the canonical response: a
 	 * short request is grown, a longer one has its tail dropped. */
-	long delta = -ctx_tail_excess(ctx->ctx_buff, ctx->data_end, gtp,
-				      GTPU_ECHO_RESPONSE_LEN);
+	long delta;
+	if (is_ip4)
+		delta = -ctx_tail_excess(ctx->ctx_buff, ctx->data_end, ctx->ip4,
+					 sizeof(struct iphdr) +
+						 sizeof(struct udphdr) +
+						 GTPU_ECHO_RESPONSE_LEN);
+	else
+		delta = -ctx_tail_excess(ctx->ctx_buff, ctx->data_end, gtp,
+					 GTPU_ECHO_RESPONSE_LEN);
 	if (delta != 0 && ctx_adjust_tail(ctx->ctx_buff, (int)delta) < 0)
 		return drop_with(ctx, UPF_DROP_INTERNAL_RESIZE_FAILED);
 
@@ -99,12 +109,6 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 		struct iphdr *ip = l3;
 		if ((const void *)(ip + 1) > data_end)
 			return drop_with(ctx, UPF_DROP_INTERNAL_WRITE_FAILED);
-
-		/* The re-walk steps a fixed 20 octets to L4, so options
-		 * (ihl > 5, which parse_ip4 accepts) would be rewritten in
-		 * place. They do not occur on a GTP-U echo in practice. */
-		if (ip->ihl != 5)
-			return drop_with(ctx, UPF_DROP_MALFORMED_HEADER);
 
 		udp = (struct udphdr *)(ip + 1);
 	} else {
@@ -143,7 +147,8 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	p[12] = GTPU_IE_RECOVERY;
 	p[13] = 0;
 
-	swap_port(udp);
+	udp->source = req_dport;
+	udp->dest = req_sport;
 	udp->len = bpf_htons(udp_len);
 
 	if (is_ip4) {
@@ -151,8 +156,8 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 		if ((const void *)(ip + 1) > data_end)
 			return drop_with(ctx, UPF_DROP_INTERNAL_WRITE_FAILED);
 
-		swap_ip(ip);
-		ip->tot_len = bpf_htons(sizeof(*ip) + udp_len);
+		fill_ip_header(ip, ip->daddr, ip->saddr, ip->tos,
+			       sizeof(*ip) + udp_len);
 		recompute_ipv4_csum(ip);
 
 		/* Rewriting the header invalidated the UDP checksum; zero means
@@ -209,9 +214,17 @@ send_error_indication_ipv4(struct packet_context *ctx)
 	__be32 trigger_teid = gtp->teid;
 	__be32 peer_addr = ip->daddr; /* destination of the triggering packet */
 
+	udp = (struct udphdr *)(ip + 1);
+	p = (__u8 *)(udp + 1);
+	barrier_var(p);
+	if ((const void *)(p + 24) > ctx->data_end)
+		return drop_with(ctx, UPF_DROP_INTERNAL_WRITE_FAILED);
+
+	gtp = (struct gtpuhdr *)p;
+
 	swap_mac(eth);
-	swap_ip(ip);
-	ip->tot_len = bpf_htons(sizeof(*ip) + sizeof(*udp) + 24);
+	fill_ip_header(ip, peer_addr, ip->saddr, ip->tos,
+		       sizeof(*ip) + sizeof(*udp) + 24);
 	recompute_ipv4_csum(ip);
 
 	udp->source = bpf_htons(GTP_UDP_PORT);

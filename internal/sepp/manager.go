@@ -222,8 +222,10 @@ func (m *Manager) reconcile(ctx context.Context) {
 	m.logProblem(prev, next)
 
 	m.checkExpiry(next)
-	m.syncTransports(prev, next)
+	m.syncTransports(next)
 	m.syncListener(ctx)
+
+	go m.closeStale()
 
 	m.mu.Lock()
 	if m.root != nil {

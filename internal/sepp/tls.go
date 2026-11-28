@@ -77,10 +77,11 @@ func baseTLSConfig() *tls.Config {
 }
 
 type trustedPartner struct {
-	id    string
-	fqdn  string
-	plmns []pki.PLMN
-	roots *x509.CertPool
+	id        string
+	fqdn      string
+	plmns     []pki.PLMN
+	anchorPEM string
+	roots     *x509.CertPool
 }
 
 func newTrustedPartner(id, fqdn string, plmns []pki.PLMN, anchorPEM string) (*trustedPartner, error) {
@@ -94,7 +95,15 @@ func newTrustedPartner(id, fqdn string, plmns []pki.PLMN, anchorPEM string) (*tr
 		roots.AddCert(a)
 	}
 
-	return &trustedPartner{id: id, fqdn: strings.ToLower(fqdn), plmns: plmns, roots: roots}, nil
+	return &trustedPartner{id: id, fqdn: strings.ToLower(fqdn), plmns: plmns, anchorPEM: anchorPEM, roots: roots}, nil
+}
+
+func (p *trustedPartner) sameTrust(o *trustedPartner) bool {
+	if p == nil || o == nil {
+		return p == o
+	}
+
+	return p.id == o.id && p.fqdn == o.fqdn && p.anchorPEM == o.anchorPEM && slices.Equal(p.plmns, o.plmns)
 }
 
 func (p *trustedPartner) check(certs []*x509.Certificate, now time.Time, usage x509.ExtKeyUsage) error {

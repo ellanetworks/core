@@ -208,6 +208,10 @@ func readRSEvent(t *testing.T, rd *ringbuf.Reader) *RSEvent {
 		return nil
 	}
 
+	if want := (binary.Size(RSEvent{}) + 3) &^ 3; len(rec.RawSample) != want {
+		t.Fatalf("RS event is %d bytes, want %d (struct rs_event layout differs from RSEvent)", len(rec.RawSample), want)
+	}
+
 	var ev RSEvent
 	if err := binary.Read(bytes.NewReader(rec.RawSample), binary.NativeEndian, &ev); err != nil {
 		t.Fatalf("decode RS event: %v", err)
@@ -216,7 +220,7 @@ func readRSEvent(t *testing.T, rd *ringbuf.Reader) *RSEvent {
 	return &ev
 }
 
-func assertRSIntercepted(t *testing.T, obj *BpfObjects, teid uint32, inner []byte, ueSrc [16]byte) {
+func assertRSIntercepted(t *testing.T, obj *BpfObjects, teid uint32, inner []byte, ueSrc [16]byte) *RSEvent {
 	t.Helper()
 
 	rd, err := ringbuf.NewReader(obj.RsEventMap)
@@ -242,6 +246,24 @@ func assertRSIntercepted(t *testing.T, obj *BpfObjects, teid uint32, inner []byt
 	if ev.UEIPv6 != ueSrc {
 		t.Errorf("RS event UE IPv6 = %x, want %x", ev.UEIPv6, ueSrc)
 	}
+
+	if !bytes.Equal(ev.DstIPv6[:], inner[24:40]) {
+		t.Errorf("RS event destination = %x, want %x", ev.DstIPv6, inner[24:40])
+	}
+
+	return ev
+}
+
+func assertRSMessage(t *testing.T, ev *RSEvent, msg []byte) {
+	t.Helper()
+
+	if int(ev.MsgLen) != len(msg) {
+		t.Fatalf("RS event message length = %d, want %d", ev.MsgLen, len(msg))
+	}
+
+	if !bytes.Equal(ev.Msg[:ev.MsgLen], msg) {
+		t.Errorf("RS event message = % x, want % x", ev.Msg[:ev.MsgLen], msg)
+	}
 }
 
 func TestRouterSolicitationInterceptWithN6VLAN(t *testing.T) {
@@ -259,19 +281,17 @@ func TestRouterSolicitationInterceptBehindExtensionHeader(t *testing.T) {
 	requireProgTestRun(t)
 
 	const (
-		teid          = 0x52530003
-		protoHopByHop = 0
-		protoICMPv6   = 58
+		teid        = 0x52530003
+		protoICMPv6 = 58
 	)
 
 	obj := loadN3N6Program(t)
 	putForwardingUplinkPDR(t, obj, teid, 0)
 
-	allRouters := [16]byte{0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x02}
-	rs := []byte{133, 0, 0, 0, 0, 0, 0, 0}
-	inner := ipv6Packet(testUEv6, allRouters, protoHopByHop, append(hopByHopHeader(protoICMPv6), rs...))
+	msg := []byte{133, 0, 0, 0, 0, 0, 0, 0}
+	inner := routerSolicitation(testUEv6, hopByHopHeader(protoICMPv6), msg)
 
-	assertRSIntercepted(t, obj, teid, inner, testUEv6)
+	assertRSMessage(t, assertRSIntercepted(t, obj, teid, inner, testUEv6), msg)
 }
 
 func TestICMPv6EchoNotMisreadAsRouterSolicitation(t *testing.T) {
@@ -304,5 +324,106 @@ func TestICMPv6EchoNotMisreadAsRouterSolicitation(t *testing.T) {
 
 	if ev := readRSEvent(t, rd); ev != nil {
 		t.Errorf("ICMPv6 Echo Request reported as a Router Solicitation with UE IPv6 %x", ev.UEIPv6)
+	}
+}
+
+func optionedTrigger(src, dst [4]byte, options, udp []byte) []byte {
+	ip := ipv4PacketWithOptions(src, dst, 17, options, udp)
+	hdrLen := 20 + len(options)
+
+	ip[8] = 3
+	binary.BigEndian.PutUint16(ip[10:12], 0)
+	binary.BigEndian.PutUint16(ip[10:12], ipv4HeaderChecksum(ip[:hdrLen]))
+
+	return ethFrame(0x0800, ip)
+}
+
+func assertReplyIPv4Header(t *testing.T, out []byte, wantUDPPayload int, wantSrcPort, wantDstPort uint16) {
+	t.Helper()
+
+	const ipHdrLen, udpHdrLen = 20, 8
+
+	if want := ethHdrLen + ipHdrLen + udpHdrLen + wantUDPPayload; len(out) != want {
+		t.Fatalf("reply frame length = %d, want %d (no IPv4 options, tail trimmed)", len(out), want)
+	}
+
+	ip := out[ethHdrLen : ethHdrLen+ipHdrLen]
+
+	if ip[0] != 0x45 {
+		t.Errorf("IPv4 version/IHL = %#x, want 0x45 (no options, RFC 791 §3.1)", ip[0])
+	}
+
+	if got, want := binary.BigEndian.Uint16(ip[2:4]), uint16(ipHdrLen+udpHdrLen+wantUDPPayload); got != want {
+		t.Errorf("IPv4 Total Length = %d, want %d", got, want)
+	}
+
+	if got := binary.BigEndian.Uint16(ip[6:8]); got != 0x4000 {
+		t.Errorf("IPv4 flags/fragment offset = %#x, want 0x4000 (DF, unfragmented)", got)
+	}
+
+	if ip[8] != 64 {
+		t.Errorf("IPv4 TTL = %d, want 64 (fresh, not the trigger's)", ip[8])
+	}
+
+	if ip[9] != 17 {
+		t.Errorf("IPv4 protocol = %d, want 17 (UDP)", ip[9])
+	}
+
+	if !validIPv4Checksum(ip) {
+		t.Error("IPv4 header checksum does not validate over the 20-octet header")
+	}
+
+	if !bytes.Equal(ip[12:16], testUPFN3IP[:]) || !bytes.Equal(ip[16:20], testGNBIP[:]) {
+		t.Errorf("outer IPs = %v -> %v, want %v -> %v", ip[12:16], ip[16:20], testUPFN3IP, testGNBIP)
+	}
+
+	udp := out[ethHdrLen+ipHdrLen : ethHdrLen+ipHdrLen+udpHdrLen]
+
+	if src, dst := binary.BigEndian.Uint16(udp[0:2]), binary.BigEndian.Uint16(udp[2:4]); src != wantSrcPort || dst != wantDstPort {
+		t.Errorf("UDP ports = %d -> %d, want %d -> %d", src, dst, wantSrcPort, wantDstPort)
+	}
+
+	if got, want := binary.BigEndian.Uint16(udp[4:6]), uint16(udpHdrLen+wantUDPPayload); got != want {
+		t.Errorf("UDP length = %d, want %d", got, want)
+	}
+
+	if got := binary.BigEndian.Uint16(udp[6:8]); got != 0 {
+		t.Errorf("UDP checksum = %#x, want 0 (not computed over IPv4)", got)
+	}
+}
+
+// TS 29.281 §7.2.1, §4.4.2.2, §4.4.3.2
+func TestGTPEchoRequestWithOuterIPv4Options(t *testing.T) {
+	requireProgTestRun(t)
+
+	obj := loadN3N6Program(t)
+
+	const gtpEchoRequest = 1
+
+	for _, tc := range []struct {
+		name    string
+		options []byte
+	}{
+		{"record route", []byte{7, 8, 4, 0, 10, 0, 0, 1}},
+		{"maximum header", bytes.Repeat([]byte{1}, 40)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			gtp := make([]byte, 12)
+			gtp[0] = 0x32
+			gtp[1] = gtpEchoRequest
+			binary.BigEndian.PutUint16(gtp[2:4], 4)
+			binary.BigEndian.PutUint16(gtp[8:10], 0x4321)
+
+			in := optionedTrigger(testGNBIP, testUPFN3IP, tc.options, udpDatagram(3000, GTPUDPPort, gtp))
+
+			action, out := runXDPOut(t, obj.UpfEntryFunc, in)
+
+			if action != ActionTx {
+				t.Fatalf("Echo Request with outer IPv4 options got XDP action %d, want ActionTx (%d) (TS 29.281 §7.2.1)", action, ActionTx)
+			}
+
+			assertReplyIPv4Header(t, out, 14, GTPUDPPort, 3000)
+			assertEchoResponse(t, out[ethHdrLen+20+8:], 0x4321)
+		})
 	}
 }

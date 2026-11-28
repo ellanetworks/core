@@ -82,9 +82,14 @@ const MaxFragTxPkt = 9216
 // RSEvent is the Go representation of struct rs_event emitted by the N3 XDP
 // program when a Router Solicitation is detected inside a GTP-U packet.
 type RSEvent struct {
-	TEID   uint32
-	UEIPv6 [16]byte // struct in6_addr — UE source IPv6 address
+	TEID    uint32
+	UEIPv6  [16]byte // struct in6_addr — UE source IPv6 address
+	DstIPv6 [16]byte
+	MsgLen  uint16
+	Msg     [RSMsgMax]byte
 }
+
+const RSMsgMax = 1240
 
 type ErrorIndication struct {
 	TEID     uint32

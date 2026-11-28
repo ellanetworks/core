@@ -21,13 +21,18 @@ struct {
 	__uint(max_entries, RINGBUF_ID_MAX);
 } ringbuf_lost SEC(".maps");
 
+static __always_inline void ringbuf_count_lost(__u32 id)
+{
+	__u64 *lost = bpf_map_lookup_elem(&ringbuf_lost, &id);
+	if (lost)
+		*lost += 1;
+}
+
 static __always_inline void ringbuf_submit(void *ringbuf, void *data,
 					   __u64 size, __u32 id)
 {
 	if (bpf_ringbuf_output(ringbuf, data, size, 0) == 0)
 		return;
 
-	__u64 *lost = bpf_map_lookup_elem(&ringbuf_lost, &id);
-	if (lost)
-		*lost += 1;
+	ringbuf_count_lost(id);
 }

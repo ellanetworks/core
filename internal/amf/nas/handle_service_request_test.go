@@ -1221,10 +1221,14 @@ func encSR(t *testing.T, sr *fgs.ServiceRequest) []byte {
 }
 
 func buildTestServiceRequestCiphered(cipherAlg nas.CipheringAlgorithm, key [16]uint8, ulcount uint32, svcType fgs.ServiceType) (*fgs.ServiceRequest, error) {
+	return buildServiceRequestCipheredFor(cipherAlg, key, ulcount, svcType, serviceRequest5GSTMSI())
+}
+
+func buildServiceRequestCipheredFor(cipherAlg nas.CipheringAlgorithm, key [16]uint8, ulcount uint32, svcType fgs.ServiceType, id fgs.MobileIdentity) (*fgs.ServiceRequest, error) {
 	inner := &fgs.ServiceRequest{
 		ServiceType:      svcType,
 		NgKSI:            nas.KeySetIdentifier{Value: 1},
-		MobileIdentity:   serviceRequest5GSTMSI(),
+		MobileIdentity:   id,
 		UplinkDataStatus: mustBitmap([]byte{0x00, 0x10}),
 		PDUSessionStatus: mustBitmap([]byte{0x02, 0x30}),
 	}
@@ -1247,7 +1251,7 @@ func buildTestServiceRequestCiphered(cipherAlg nas.CipheringAlgorithm, key [16]u
 	return &fgs.ServiceRequest{
 		ServiceType:         fgs.ServiceTypeSignalling,
 		NgKSI:               nas.KeySetIdentifier{Value: 1},
-		MobileIdentity:      serviceRequest5GSTMSI(),
+		MobileIdentity:      id,
 		UplinkDataStatus:    mustBitmap([]byte{0x00, 0x10}),
 		PDUSessionStatus:    mustBitmap([]byte{0x02, 0x20}),
 		NASMessageContainer: container,

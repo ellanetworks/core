@@ -138,7 +138,7 @@ func (m *Manager) transportFor(snap *snapshot, p *partner, peer seppPeer) *n32fT
 	return t
 }
 
-func (m *Manager) syncTransports(prev, next *snapshot) {
+func (m *Manager) syncTransports(next *snapshot) {
 	m.transportsMu.Lock()
 	defer m.transportsMu.Unlock()
 
@@ -151,12 +151,6 @@ func (m *Manager) syncTransports(prev, next *snapshot) {
 		go t.close()
 
 		delete(m.transports, id)
-	}
-
-	if prev != nil && !prev.identity.sameSession(next.identity) {
-		for _, p := range next.partners {
-			go m.closeInbound(p.id, classN32f)
-		}
 	}
 }
 

@@ -143,6 +143,32 @@ func (a *AMF) CommitGUTIRealloc(ue *UeContext) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	a.commitGUTIReallocLocked(ue)
+}
+
+func (a *AMF) ConfirmGUTIRealloc(guami *models.Guami, ue *UeContext, presented etsi.GUTI5G) bool {
+	if ue == nil || presented == etsi.InvalidGUTI5G {
+		return false
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if ue.oldTmsi == etsi.InvalidTMSI {
+		return false
+	}
+
+	current, err := gutiFor(guami, ue.tmsi)
+	if err != nil || current != presented {
+		return false
+	}
+
+	a.commitGUTIReallocLocked(ue)
+
+	return true
+}
+
+func (a *AMF) commitGUTIReallocLocked(ue *UeContext) {
 	if ue.oldTmsi != etsi.InvalidTMSI {
 		delete(a.uesByTmsi, ue.oldTmsi)
 		a.freeTmsiLocked(ue.oldTmsi)

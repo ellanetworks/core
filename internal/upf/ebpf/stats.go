@@ -321,6 +321,7 @@ var dropReasonNames = [...]string{
 	"frag_tx_ring_full",
 	"frag_tx_too_large",
 	"internal_frag_tx_failed",
+	"rs_invalid",
 }
 
 // DropReasonNames returns every reason's label value, indexed by reason.
