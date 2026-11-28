@@ -124,8 +124,11 @@ type UeConn struct {
 
 	cipheringStarted atomic.Bool
 
-	AuthenticationCtx *ausf.AuthResult
+	AuthenticationCtx *ausf.UEAuthenticationCtx
 	AuthNgKsi         models.NgKsi
+
+	heldAuthMu sync.Mutex
+	heldAuth   heldAuthentication
 
 	RegisteredBeforeRegistration bool
 	// resyncTried records whether an SQN re-synchronisation (AUTS) has been attempted
@@ -281,6 +284,7 @@ func (ueConn *UeConn) setRanUeNgapID(ranUeNgapID models.RanUeNgapID) {
 func (ueConn *UeConn) Release(ctx context.Context) {
 	ueConn.cancelDeferredRelease()
 	ueConn.stopTimers(ctx)
+	ueConn.releaseAuthentication(ctx)
 
 	if ue := ueConn.ue.Load(); ue != nil && ue.PagingState() == PagingDelivering {
 		ue.PagingFailed(ctx, models.N1N2UENotResponding)
@@ -920,6 +924,7 @@ func (a *AMF) RemoveUeConn(ctx context.Context, ueConn *UeConn) error {
 	}
 
 	ueConn.abortHandoverOnRemoval(ctx)
+	ueConn.releaseAuthentication(ctx)
 
 	ue := ueConn.ue.Load()
 	if ue != nil {

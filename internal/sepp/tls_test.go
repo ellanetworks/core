@@ -9,7 +9,9 @@ import (
 	"crypto/x509"
 	"errors"
 	"io"
+	"net"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -110,6 +112,7 @@ type tlsFixture struct {
 	ellaCA, partnerCA testCA
 	m                 *Manager
 	addr              string
+	partner           PartnerConfig
 }
 
 func newTLSFixture(t *testing.T) *tlsFixture {
@@ -118,13 +121,15 @@ func newTLSFixture(t *testing.T) *tlsFixture {
 	f := &tlsFixture{ellaCA: newTestCA(t, "ella"), partnerCA: newTestCA(t, "partner")}
 	identity := identityFor(t, f.ellaCA, ownFQDN)
 
+	f.partner = PartnerConfig{
+		ID: "a", Name: "A", PLMNs: []wire.PlmnID{{Mcc: "001", Mnc: "01"}}, FQDN: partnerAFQDN,
+		N32cURI: "https://127.0.0.1:1", TrustAnchorPEM: f.partnerCA.pem(),
+	}
+
 	f.m = New(
 		Config{
 			Partners: func(context.Context) ([]PartnerConfig, error) {
-				return []PartnerConfig{{
-					ID: "a", Name: "A", PLMNs: []wire.PlmnID{{Mcc: "001", Mnc: "01"}}, FQDN: partnerAFQDN,
-					N32cURI: "https://127.0.0.1:1", TrustAnchorPEM: f.partnerCA.pem(),
-				}}, nil
+				return []PartnerConfig{f.partner}, nil
 			},
 			Identity: func(context.Context) (*IdentityConfig, error) { return &identity, nil },
 			Operator: func(context.Context) (wire.PlmnID, error) { return ownPLMN, nil },
@@ -316,6 +321,127 @@ func TestListenerHotReloadsIdentity(t *testing.T) {
 
 	if f.m.LocalFQDN() != "sepp2.5gc.mnc070.mcc999.3gppnetwork.org" {
 		t.Fatalf("FQDN = %s", f.m.LocalFQDN())
+	}
+}
+
+func (f *tlsFixture) openIdle(t *testing.T) *tls.Conn {
+	t.Helper()
+
+	cfg := &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: true, NextProtos: []string{ALPNH2}, Certificates: f.clientCert(t, f.partnerCA, partnerAFQDN)}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	conn, err := (&tls.Dialer{Config: cfg}).DialContext(ctx, "tcp", f.addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() { _ = conn.Close() })
+
+	if _, err := conn.Write([]byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n\x00\x00\x00\x04\x00\x00\x00\x00\x00")); err != nil {
+		t.Fatal(err)
+	}
+
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+
+	if _, err := io.ReadFull(conn, make([]byte, 9)); err != nil {
+		t.Fatal(err)
+	}
+
+	tc, _ := conn.(*tls.Conn)
+
+	return tc
+}
+
+func closedWithin(conn *tls.Conn, d time.Duration) bool {
+	_ = conn.SetReadDeadline(time.Now().Add(d))
+
+	buf := make([]byte, 512)
+
+	for {
+		if _, err := conn.Read(buf); err != nil {
+			var ne net.Error
+			return !errors.As(err, &ne) || !ne.Timeout()
+		}
+	}
+}
+
+func TestAnchorChangeClosesUnclassifiedConnections(t *testing.T) {
+	f := newTLSFixture(t)
+	conn := f.openIdle(t)
+
+	f.partner.TrustAnchorPEM = newTestCA(t, "partner-2").pem()
+	f.m.Reconcile(context.Background())
+
+	if !closedWithin(conn, 3*time.Second) {
+		t.Fatal("a connection verified under the replaced trust anchor is still open")
+	}
+}
+
+func TestTrustUnrelatedChangeKeepsConnections(t *testing.T) {
+	f := newTLSFixture(t)
+	conn := f.openIdle(t)
+
+	f.partner.Name = "renamed"
+	f.partner.N32cURI = "https://127.0.0.1:2"
+	f.partner.NRFAPIRoots = map[wire.PlmnID]string{{Mcc: "001", Mnc: "01"}: "https://nrf.example.org"}
+	f.m.Reconcile(context.Background())
+
+	if closedWithin(conn, 300*time.Millisecond) {
+		t.Fatal("a change that does not affect trust closed the connection")
+	}
+}
+
+func TestStaleConnectionRequestsAreRejected(t *testing.T) {
+	f := newTLSFixture(t)
+	snap := f.m.snap.Load()
+	cs := &connState{partner: "a", trust: snap.partners["a"].trust, local: snap.identity}
+
+	serve := func() *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequestWithContext(context.WithValue(context.Background(), connKey{}, cs), http.MethodGet, N32cExchangeCapabilityPath, nil)
+		f.m.ServeHTTP(w, r)
+
+		return w
+	}
+
+	if w := serve(); w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("current connection: %d %s", w.Code, w.Body)
+	}
+
+	for name, mutate := range map[string]func(){
+		"trust anchor": func() { f.partner.TrustAnchorPEM = newTestCA(t, "partner-2").pem() },
+		"FQDN":         func() { f.partner.FQDN = "sepp2.5gc.mnc001.mcc001.3gppnetwork.org" },
+		"PLMNs":        func() { f.partner.PLMNs = append(f.partner.PLMNs, wire.PlmnID{Mcc: "001", Mnc: "02"}) },
+		"identity": func() {
+			next := identityFor(t, newTestCA(t, "ella-2"), ownFQDN)
+			f.m.cfg.Identity = func(context.Context) (*IdentityConfig, error) { return &next, nil }
+		},
+	} {
+		prevPartner, prevIdentity := f.partner, f.m.cfg.Identity
+
+		mutate()
+		f.m.Reconcile(context.Background())
+
+		w := serve()
+		if w.Code != http.StatusForbidden || wire.ParseProblem(w.Code, w.Body.Bytes()).Cause != wire.CauseContextNotFound || w.Header().Get("Connection") != "close" {
+			t.Errorf("%s: %d %v %s", name, w.Code, w.Header(), w.Body)
+		}
+
+		f.partner, f.m.cfg.Identity = prevPartner, prevIdentity
+		f.m.Reconcile(context.Background())
+
+		if w := serve(); w.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("%s restored: %d %s", name, w.Code, w.Body)
+		}
+	}
+
+	f.partner.ID = "b"
+	f.m.Reconcile(context.Background())
+
+	if w := serve(); w.Code != http.StatusForbidden {
+		t.Fatalf("removed partner: %d %s", w.Code, w.Body)
 	}
 }
 

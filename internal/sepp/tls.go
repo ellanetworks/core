@@ -27,6 +27,7 @@ const (
 	TLSReasonAmbiguous       = "ambiguous_partner"
 	TLSReasonALPN            = "alpn"
 	TLSReasonNoLocalIdentity = "no_local_identity"
+	TLSReasonWeakKey         = "weak_key"
 )
 
 var ErrPeerCertificate = errors.New("sepp: peer certificate rejected")
@@ -76,10 +77,11 @@ func baseTLSConfig() *tls.Config {
 }
 
 type trustedPartner struct {
-	id    string
-	fqdn  string
-	plmns []pki.PLMN
-	roots *x509.CertPool
+	id        string
+	fqdn      string
+	plmns     []pki.PLMN
+	anchorPEM string
+	roots     *x509.CertPool
 }
 
 func newTrustedPartner(id, fqdn string, plmns []pki.PLMN, anchorPEM string) (*trustedPartner, error) {
@@ -93,7 +95,15 @@ func newTrustedPartner(id, fqdn string, plmns []pki.PLMN, anchorPEM string) (*tr
 		roots.AddCert(a)
 	}
 
-	return &trustedPartner{id: id, fqdn: strings.ToLower(fqdn), plmns: plmns, roots: roots}, nil
+	return &trustedPartner{id: id, fqdn: strings.ToLower(fqdn), plmns: plmns, anchorPEM: anchorPEM, roots: roots}, nil
+}
+
+func (p *trustedPartner) sameTrust(o *trustedPartner) bool {
+	if p == nil || o == nil {
+		return p == o
+	}
+
+	return p.id == o.id && p.fqdn == o.fqdn && p.anchorPEM == o.anchorPEM && slices.Equal(p.plmns, o.plmns)
 }
 
 func (p *trustedPartner) check(certs []*x509.Certificate, now time.Time, usage x509.ExtKeyUsage) error {
@@ -112,7 +122,7 @@ func (p *trustedPartner) checkAs(certs []*x509.Certificate, now time.Time, usage
 		intermediates.AddCert(c)
 	}
 
-	_, err := leaf.Verify(x509.VerifyOptions{
+	chains, err := leaf.Verify(x509.VerifyOptions{
 		Roots:         p.roots,
 		Intermediates: intermediates,
 		CurrentTime:   now,
@@ -125,6 +135,10 @@ func (p *trustedPartner) checkAs(certs []*x509.Certificate, now time.Time, usage
 		}
 
 		return peerCertError(TLSReasonUnknownAnchor, "certificate %q does not chain to the trust anchor of the partner SEPP %s: %v", leaf.Subject.CommonName, p.fqdn, err)
+	}
+
+	if err := checkChainKeys(chains); err != nil {
+		return peerCertError(TLSReasonWeakKey, "certificate %q chains to the trust anchor of the partner SEPP %s with a key that fails the TS 33.310 clause 6.1.1 key size or exponent rules: %v", leaf.Subject.CommonName, p.fqdn, err)
 	}
 
 	if fqdn != "" && !slices.ContainsFunc(leaf.DNSNames, func(n string) bool { return sameFQDN(n, fqdn) }) {
@@ -148,6 +162,33 @@ func (p *trustedPartner) checkAs(certs []*x509.Certificate, now time.Time, usage
 
 	if named == 0 {
 		return peerCertError(TLSReasonPLMNMismatch, "certificate subjectAltName %v names no PLMN", leaf.DNSNames)
+	}
+
+	return nil
+}
+
+func checkChainKeys(chains [][]*x509.Certificate) error {
+	var first error
+
+	for _, chain := range chains {
+		err := checkCertKeys(chain)
+		if err == nil {
+			return nil
+		}
+
+		if first == nil {
+			first = err
+		}
+	}
+
+	return first
+}
+
+func checkCertKeys(certs []*x509.Certificate) error {
+	for _, c := range certs {
+		if err := pki.CheckPeerKey(c.PublicKey); err != nil {
+			return fmt.Errorf("certificate %q: %w", c.Subject.CommonName, err)
+		}
 	}
 
 	return nil
@@ -194,6 +235,8 @@ func identifyPeer(partners []*trustedPartner, certs []*x509.Certificate, now tim
 
 func reasonRank(reason string) int {
 	switch reason {
+	case TLSReasonWeakKey:
+		return 5
 	case TLSReasonPLMNMismatch:
 		return 4
 	case TLSReasonSANMismatch:

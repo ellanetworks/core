@@ -113,6 +113,10 @@ func HandleEmmMessage(ctx context.Context, m *mme.MME, ue *mme.UeContext, ueConn
 		return rejectUndecodable(ctx, m, ue, ueConn, plain, err)
 	}
 
+	if integrityVerified {
+		confirmGUTIRealloc(ctx, m, ue, msg)
+	}
+
 	ctx, span := mme.Tracer.Start(ctx, "pdu/receive",
 		trace.WithAttributes(attribute.String("nas.message_type", messageName(msg))))
 	defer span.End()

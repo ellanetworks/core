@@ -24,6 +24,11 @@ var dlBufferEvicted = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Help: "Buffered downlink packets discarded before re-injection, by the limit that discarded them.",
 }, []string{"reason"})
 
+var routerSolicitationsDiscarded = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "app_upf_router_solicitations_discarded_total",
+	Help: "Router Solicitations the data plane passed to the RA responder that it discarded without answering, by reason.",
+}, []string{"reason"})
+
 var sessionsPendingCleanup = prometheus.NewGauge(prometheus.GaugeOpts{
 	Name: "app_upf_sessions_pending_cleanup",
 	Help: "UPF sessions a failed operation left awaiting teardown, as of the last cleanup retry. They hold data plane map entries and QER meters until a retry succeeds.",
@@ -38,10 +43,15 @@ const (
 	dlBufferEvictSessionDrop    = "session_drop"
 	dlBufferEvictMalformed      = "malformed"
 	dlBufferEvictReinjectFailed = "reinject_failed"
+
+	rsDiscardMalformed        = "malformed"
+	rsDiscardChecksum         = "checksum"
+	rsDiscardOptionLength     = "option_length"
+	rsDiscardUnspecifiedLLSrc = "unspecified_source_lladdr"
 )
 
 func RegisterMetrics(classes *engine.TrafficClasses, radios *engine.Radios) {
-	prometheus.MustRegister(flowReportsDropped, dlBufferEvicted, sessionsPendingCleanup)
+	prometheus.MustRegister(flowReportsDropped, dlBufferEvicted, routerSolicitationsDiscarded, sessionsPendingCleanup)
 
 	registerFragmentationMetrics()
 
@@ -56,6 +66,15 @@ func RegisterMetrics(classes *engine.TrafficClasses, radios *engine.Radios) {
 		dlBufferEvictReinjectFailed,
 	} {
 		dlBufferEvicted.WithLabelValues(reason)
+	}
+
+	for _, reason := range []string{
+		rsDiscardMalformed,
+		rsDiscardChecksum,
+		rsDiscardOptionLength,
+		rsDiscardUnspecifiedLLSrc,
+	} {
+		routerSolicitationsDiscarded.WithLabelValues(reason)
 	}
 
 	dlBufferCaptureDesc := prometheus.NewDesc(

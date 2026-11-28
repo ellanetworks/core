@@ -106,6 +106,27 @@ func (m *MME) CommitGUTIRealloc(ue *UeContext) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	m.commitGUTIReallocLocked(ue)
+}
+
+func (m *MME) ConfirmGUTIRealloc(ue *UeContext, mtmsi uint32) bool {
+	if ue == nil {
+		return false
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if ue.oldTmsi == etsi.InvalidTMSI || ue.oldTmsi == ue.tmsi || ue.tmsi == etsi.InvalidTMSI || ue.tmsi.Uint32() != mtmsi {
+		return false
+	}
+
+	m.commitGUTIReallocLocked(ue)
+
+	return true
+}
+
+func (m *MME) commitGUTIReallocLocked(ue *UeContext) {
 	if ue.oldTmsi != etsi.InvalidTMSI && ue.oldTmsi != ue.tmsi {
 		delete(m.uesByTmsi, ue.oldTmsi)
 		m.freeMTMSILocked(ue.oldTmsi)

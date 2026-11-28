@@ -33,6 +33,10 @@ func HandleGmmMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.UeConte
 		return nasreply.StatusMM(amf.GmmDecodeFailureCause(plain))
 	}
 
+	if integrityVerified {
+		confirmGUTIRealloc(ctx, amfInstance, ue, msg)
+	}
+
 	switch msg := msg.(type) {
 	case *fgs.RegistrationRequest:
 		return handleRegistrationRequest(ctx, amfInstance, ue, msg, plain, integrityVerified, arrivedPlain)

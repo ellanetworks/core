@@ -16,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/udm"
+	"github.com/ellanetworks/core/nas"
 	"github.com/ellanetworks/core/nas/fgs"
 )
 
@@ -76,7 +77,7 @@ func TestRegistrationRejectForAuthFailureUsesIdentityCauseOnlyWhenSUPIUnderivabl
 	}
 }
 
-func registrationOnAuth(t *testing.T, ausfInstance amf.Authenticator, suci string) *fakeNGAPSender {
+func registrationOnAuth(t *testing.T, ausfInstance amf.Authenticator, identity fgs.MobileIdentity) *fakeNGAPSender {
 	t.Helper()
 
 	amfInstance := amf.New(&fakeDBInstance{
@@ -92,14 +93,15 @@ func registrationOnAuth(t *testing.T, ausfInstance amf.Authenticator, suci strin
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.SetSuciForTest(suci)
-	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+	if identity.SUCI == nil {
+		ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
 
-	if err := amfInstance.CommitUEIdentity(t.Context(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
-		t.Fatalf("CommitUEIdentity: %v", err)
+		if err := amfInstance.CommitUEIdentity(t.Context(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+			t.Fatalf("CommitUEIdentity: %v", err)
+		}
 	}
 
-	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
+	m, err := buildRegReqBytes(uint8(fgs.RegistrationTypeInitial), identity, &fgs.UESecurityCapability{EA: 0xc0, IA: 0xc0}, 0, nil, 0, 0)
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
@@ -112,13 +114,13 @@ func registrationOnAuth(t *testing.T, ausfInstance amf.Authenticator, suci strin
 func registrationRejectOnAuthError(t *testing.T, ausfErr error) *fgs.RegistrationReject {
 	t.Helper()
 
-	return registrationRejectOnAuth(t, &fakeAusf{Error: ausfErr}, "testsuci")
+	return registrationRejectOnAuth(t, &fakeAusf{Error: ausfErr}, testMobileIdentity())
 }
 
-func registrationRejectOnAuth(t *testing.T, ausfInstance amf.Authenticator, suci string) *fgs.RegistrationReject {
+func registrationRejectOnAuth(t *testing.T, ausfInstance amf.Authenticator, identity fgs.MobileIdentity) *fgs.RegistrationReject {
 	t.Helper()
 
-	ngapSender := registrationOnAuth(t, ausfInstance, suci)
+	ngapSender := registrationOnAuth(t, ausfInstance, identity)
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
 		t.Fatalf("sent %d downlink NAS messages, want 1", len(ngapSender.SentDownlinkNASTransport))
@@ -136,7 +138,7 @@ func registrationRejectOnAuth(t *testing.T, ausfInstance amf.Authenticator, suci
 }
 
 func TestHandleRegistrationRequest_TransientAuthFailureReleasesWithoutRejecting(t *testing.T) {
-	ngapSender := registrationOnAuth(t, &fakeAusf{Error: fmt.Errorf("advance sqn: %w", db.ErrProposeTimeout)}, "testsuci")
+	ngapSender := registrationOnAuth(t, &fakeAusf{Error: fmt.Errorf("advance sqn: %w", db.ErrProposeTimeout)}, testMobileIdentity())
 
 	if len(ngapSender.SentDownlinkNASTransport) != 0 {
 		t.Errorf("sent %d downlink NAS messages, want 0; an unprotected reject would strand the UE on a 15-30 minute T3346", len(ngapSender.SentDownlinkNASTransport))
@@ -180,7 +182,13 @@ func TestHandleRegistrationRequest_UndecipherableSUCIRejectsWithIdentityCause(t 
 		t.Fatalf("read scheme output: %v", err)
 	}
 
-	suci := fmt.Sprintf("suci-0-001-01-0000-1-0-%s", hex.EncodeToString(schemeOutput))
+	suci := fgs.SUCIIdentity(fgs.SUCI{
+		Format:           fgs.SUPIFormatIMSI,
+		PLMN:             nas.PLMN{MCC: "001", MNC: "01"},
+		RoutingIndicator: "0000",
+		ProtectionScheme: fgs.ProtectionSchemeProfileA,
+		SchemeOutput:     schemeOutput,
+	})
 
 	ausfInstance := ausf.New(&rejectingSubscriberStore{t: t}, func(scheme string, keyID int) (string, error) {
 		return hex.EncodeToString(hnPriv.Bytes()), nil

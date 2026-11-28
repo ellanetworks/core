@@ -693,24 +693,39 @@ handle_gtp_packet(struct packet_context *ctx)
 		 * both move the ICMPv6 header. */
 		if (ctx->ip6 && ctx->l4_proto == IPPROTO_ICMPV6 &&
 		    !ctx->l4_unavailable) {
-			const __u32 icmp6_off =
-				ctx_frame_offset(ctx->ctx_buff, ctx->ip6) +
-				ctx->l3_hdr_len;
+			const __u32 ip6_off =
+				ctx_frame_offset(ctx->ctx_buff, ctx->ip6);
+			const __u32 icmp6_off = ip6_off + ctx->l3_hdr_len;
 			__u8 icmp6_type;
 
 			if (ctx_load_bytes(ctx->ctx_buff, icmp6_off,
 					   &icmp6_type, sizeof(icmp6_type)) ==
 				    0 &&
 			    icmp6_type == ICMPV6_TYPE_ROUTER_SOLICITATION) {
+				const __s32 icmp_len =
+					rs_icmp_len(ctx->ip6, ctx->l3_hdr_len);
+				__u8 icmp6_code;
+
+				if (rs_has_frag_hdr(ctx, ip6_off) ||
+				    ctx->ip6->hop_limit != RS_HOP_LIMIT ||
+				    icmp_len < RS_HDR_LEN ||
+				    icmp_len > RS_MSG_MAX ||
+				    ctx_load_bytes(ctx->ctx_buff, icmp6_off + 1,
+						   &icmp6_code,
+						   sizeof(icmp6_code)) < 0 ||
+				    icmp6_code != 0 ||
+				    rs_event_submit(ctx->ctx_buff, teid,
+						    ip6_off, icmp6_off,
+						    (__u32)icmp_len) < 0) {
+					upf_printk(
+						"upf: invalid RS for teid:%d",
+						teid);
+					PROFILE_END(PROF_N3_GTP_MANIP);
+					return drop_with(ctx,
+							 UPF_DROP_RS_INVALID);
+				}
 				upf_printk("upf: RS detected for teid:%d",
 					   teid);
-				struct rs_event ev = {
-					.teid = teid,
-				};
-				__builtin_memcpy(&ev.ue_ipv6, &ctx->ip6->saddr,
-						 sizeof(struct in6_addr));
-				ringbuf_submit(&rs_event_map, &ev,
-					       sizeof(ev), RINGBUF_RS_EVENT);
 				PROFILE_END(PROF_N3_GTP_MANIP);
 				return drop_with(ctx,
 						 UPF_DROP_RS_INTERCEPTED);

@@ -399,11 +399,39 @@ func innerIPv6ChainTooLong(dst [16]byte, dport uint16) []byte {
 	return ipv6Packet(testUEv6Src, dst, ipprotoDstOpts, chain)
 }
 
-func innerIPv6ICMPv6RS(ueSrc [16]byte) []byte {
-	allRouters := [16]byte{0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x02}
-	rs := []byte{133, 0, 0, 0, 0, 0, 0, 0}
+var allRoutersV6 = [16]byte{0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x02}
 
-	return ipv6Packet(ueSrc, allRouters, 58, rs)
+func icmpv6Checksum(src, dst [16]byte, msg []byte) uint16 {
+	pseudo := make([]byte, 40+len(msg))
+
+	copy(pseudo[0:16], src[:])
+	copy(pseudo[16:32], dst[:])
+	binary.BigEndian.PutUint32(pseudo[32:36], uint32(len(msg)))
+	pseudo[39] = 58
+	copy(pseudo[40:], msg)
+
+	return onesComplement16(pseudo)
+}
+
+func routerSolicitation(src [16]byte, chain []byte, msg []byte) []byte {
+	if len(msg) >= 4 {
+		msg[2], msg[3] = 0, 0
+		binary.BigEndian.PutUint16(msg[2:4], icmpv6Checksum(src, allRoutersV6, msg))
+	}
+
+	nextHdr := uint8(58)
+	if len(chain) > 0 {
+		nextHdr = ipprotoHopOpts
+	}
+
+	pkt := ipv6Packet(src, allRoutersV6, nextHdr, append(append([]byte{}, chain...), msg...))
+	pkt[7] = 255
+
+	return pkt
+}
+
+func innerIPv6ICMPv6RS(ueSrc [16]byte) []byte {
+	return routerSolicitation(ueSrc, nil, []byte{133, 0, 0, 0, 0, 0, 0, 0})
 }
 
 func gtpControlFrame(msgType uint8) []byte {

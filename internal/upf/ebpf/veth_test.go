@@ -35,12 +35,13 @@ func TestVethRAEncapsulation(t *testing.T) {
 	addNeigh(t, vethN3Dev, testGNBIP, "02:00:00:00:00:aa")
 
 	ueDst := netip.MustParseAddr("fe80::1")
-	putRASession(t, vobj, ueDst, ipv4OuterDownlinkPDR(teid, testUPFN3IP, testGNBIP, qfi))
+
+	putRASession(t, vobj, raSessionPrefix, ipv4OuterDownlinkPDR(teid, testUPFN3IP, testGNBIP, qfi))
 
 	capFD := openCapture(t, n3Peer.Index)
 
 	ra := ipv6Packet(testUPFN3v6, ueDst.As16(), 58, routerAdvertisement(testUPFN3v6, ueDst.As16()))
-	inject(t, injPeer.Index, ethFrame(0x86DD, ra))
+	inject(t, injPeer.Index, raInjectionFrame(raSessionPrefix, ra))
 
 	got := captureMatching(capFD, time.Second, isGTPv4Outer)
 	if got == nil {
@@ -96,12 +97,13 @@ func TestVethRAEncapsulationIPv6Transport(t *testing.T) {
 	}
 
 	ueDst := netip.MustParseAddr("fe80::2")
-	putRASession(t, vobj, ueDst, ipv6OuterDownlinkPDR(teid, testUPFN3v6, testGNBv6, qfi))
+
+	putRASession(t, vobj, raSessionPrefix, ipv6OuterDownlinkPDR(teid, testUPFN3v6, testGNBv6, qfi))
 
 	capFD := openCapture(t, n3Peer.Index)
 
 	ra := ipv6Packet(testUPFN3v6, ueDst.As16(), 58, routerAdvertisement(testUPFN3v6, ueDst.As16()))
-	inject(t, injPeer.Index, ethFrame(0x86DD, ra))
+	inject(t, injPeer.Index, raInjectionFrame(raSessionPrefix, ra))
 
 	got := captureMatching(capFD, time.Second, func(fr []byte) bool {
 		return len(fr) >= ethHdrLen+gtpV6EncapLen && fr[12] == 0x86 && fr[13] == 0xDD &&
@@ -140,17 +142,19 @@ func TestVethRAEncapsulationIPv6Transport(t *testing.T) {
 
 var raSessionPrefix = netip.MustParsePrefix("2001:db8:5::/64")
 
-func putRASession(t *testing.T, vobj *BpfObjects, ueDst netip.Addr, pdr PdrInfo) {
+func putRASession(t *testing.T, vobj *BpfObjects, prefix netip.Prefix, pdr PdrInfo) {
 	t.Helper()
 
-	if err := vobj.PutPdrDownlink(raSessionPrefix.Addr(), pdr); err != nil {
+	if err := vobj.PutPdrDownlink(prefix.Addr(), pdr); err != nil {
 		t.Fatalf("install the session's downlink PDR: %v", err)
 	}
-
-	if err := vobj.PutTunnel(ueDst, raSessionPrefix); err != nil {
-		t.Fatalf("put tunnel: %v", err)
-	}
 }
+
+func raInjectionFrame(prefix netip.Prefix, ra []byte) []byte {
+	return ethFrame(0x86DD, ipv6Packet([16]byte{0xfe, 0x80, 15: 0x01}, prefix.Addr().As16(), ipprotoIPv6, ra))
+}
+
+const ipprotoIPv6 = 41
 
 // TS 23.501 §5.8.2.7
 func TestVethRAFollowsTheSessionDownlinkFAR(t *testing.T) {
@@ -166,7 +170,7 @@ func TestVethRAFollowsTheSessionDownlinkFAR(t *testing.T) {
 	signalling := ipv4OuterDownlinkPDR(0x56455450, testUPFN3IP, testGNBIP, 1)
 	signalling.Far.TransportLevelMarking = uint16(0xA0|0x03)<<8 | 0xFC
 
-	putRASession(t, vobj, ueDst, signalling)
+	putRASession(t, vobj, raSessionPrefix, signalling)
 
 	ra := ipv6Packet(testUPFN3v6, ueDst.As16(), 58, routerAdvertisement(testUPFN3v6, ueDst.As16()))
 
@@ -175,7 +179,7 @@ func TestVethRAFollowsTheSessionDownlinkFAR(t *testing.T) {
 
 		capFD := openCapture(t, n3Peer.Index)
 
-		inject(t, injPeer.Index, ethFrame(0x86DD, ra))
+		inject(t, injPeer.Index, raInjectionFrame(raSessionPrefix, ra))
 
 		got := captureMatching(capFD, time.Second, isGTPv4Outer)
 		if got == nil {
@@ -227,7 +231,7 @@ func TestVethRADroppedWhileTheDownlinkDoesNotForward(t *testing.T) {
 	buffering := ipv4OuterDownlinkPDR(0x56455452, testUPFN3IP, testGNBIP, 1)
 	buffering.Far.Action = farBuffNocp
 
-	putRASession(t, vobj, ueDst, buffering)
+	putRASession(t, vobj, raSessionPrefix, buffering)
 
 	ra := ipv6Packet(testUPFN3v6, ueDst.As16(), 58, routerAdvertisement(testUPFN3v6, ueDst.As16()))
 
@@ -236,20 +240,78 @@ func TestVethRADroppedWhileTheDownlinkDoesNotForward(t *testing.T) {
 		wantAction = tcActShot
 	}
 
-	if action := runXDP(t, vobj.VethXdpFunc, ethFrame(0x86DD, ra)); action != wantAction {
+	if action := runXDP(t, vobj.VethXdpFunc, raInjectionFrame(raSessionPrefix, ra)); action != wantAction {
 		t.Fatalf("RA for a buffering session got action %d, want drop action %d", action, wantAction)
 	}
 
-	if err := vobj.DeleteTunnel(ueDst); err != nil {
-		t.Fatalf("delete tunnel: %v", err)
+	if action := runXDP(t, vobj.VethXdpFunc, raInjectionFrame(netip.MustParsePrefix("2001:db8:6::/64"), ra)); action != wantAction {
+		t.Fatalf("RA for a prefix with no downlink PDR got action %d, want drop action %d", action, wantAction)
+	}
+}
+
+func TestVethRAWithoutASessionHeaderDropped(t *testing.T) {
+	requireProgTestRun(t)
+
+	_, _, vobj := setupVethRA(t)
+
+	putRASession(t, vobj, raSessionPrefix, ipv4OuterDownlinkPDR(0x56455453, testUPFN3IP, testGNBIP, 1))
+
+	wantAction := uint32(ActionDrop)
+	if vobj.UseTCX {
+		wantAction = tcActShot
 	}
 
-	if err := vobj.PutTunnel(ueDst, netip.MustParsePrefix("2001:db8:6::/64")); err != nil {
-		t.Fatalf("put tunnel: %v", err)
-	}
+	session := raSessionPrefix.Addr().As16()
+	ra := ipv6Packet(testUPFN3v6, session, 58, routerAdvertisement(testUPFN3v6, session))
 
 	if action := runXDP(t, vobj.VethXdpFunc, ethFrame(0x86DD, ra)); action != wantAction {
-		t.Fatalf("RA for a prefix with no downlink PDR got action %d, want drop action %d", action, wantAction)
+		t.Fatalf("RA addressed into the session prefix without a session header got action %d, want drop action %d", action, wantAction)
+	}
+}
+
+// RFC 4861 §6.2.6
+func TestVethAllNodesRAReachesOnlyItsSession(t *testing.T) {
+	requireProgTestRun(t)
+
+	injPeer, n3Peer, vobj := setupVethRA(t)
+
+	addAddr(t, vethN3Dev, addrCIDR(testUPFN3IP))
+	addNeigh(t, vethN3Dev, testGNBIP, "02:00:00:00:00:aa")
+
+	sessions := []struct {
+		prefix netip.Prefix
+		teid   uint32
+	}{
+		{netip.MustParsePrefix("2001:db8:7::/64"), 0x56455454},
+		{netip.MustParsePrefix("2001:db8:8::/64"), 0x56455455},
+	}
+
+	for _, sess := range sessions {
+		putRASession(t, vobj, sess.prefix, ipv4OuterDownlinkPDR(sess.teid, testUPFN3IP, testGNBIP, 1))
+	}
+
+	allNodes := [16]byte{0xff, 0x02, 15: 0x01}
+
+	for _, sess := range sessions {
+		capFD := openCapture(t, n3Peer.Index)
+
+		ra := ipv6Packet(testUPFN3v6, allNodes, 58, routerAdvertisement(testUPFN3v6, allNodes))
+		inject(t, injPeer.Index, raInjectionFrame(sess.prefix, ra))
+
+		got := captureMatching(capFD, time.Second, isGTPv4Outer)
+		if got == nil {
+			t.Fatalf("did not capture the all-nodes RA for %s on the N3 side", sess.prefix)
+		}
+
+		f := parseGTPv4Frame(t, got)
+
+		if f.teid != sess.teid {
+			t.Errorf("all-nodes RA for %s tunnelled on TEID %#x, want the session's TEID %#x", sess.prefix, f.teid, sess.teid)
+		}
+
+		if !bytes.Equal(f.inner, ra) {
+			t.Errorf("inner RA altered by encapsulation:\n got %x\nwant %x", f.inner, ra)
+		}
 	}
 }
 

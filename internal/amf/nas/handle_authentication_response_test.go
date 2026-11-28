@@ -39,7 +39,7 @@ func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *test
 			}
 
 			ue.ForceRegStepForTest(amf.RegStepAuthenticating)
-			ue.Conn().AuthenticationCtx = &ausf.AuthResult{Rand: "DEADBEEF"}
+			ue.Conn().AuthenticationCtx = &ausf.UEAuthenticationCtx{Av5gAka: ausf.Av5gAka{Rand: "DEADBEEF"}}
 			ue.Conn().IdentityTypeUsedForRegistration = tc.idType
 
 			handleAuthenticationResponse(context.TODO(), amf.New(nil, nil, nil), ue, buildAuthResponse(nil))
@@ -75,7 +75,7 @@ func TestHandleAuthenticationResponse_PreconditionErrors(t *testing.T) {
 			"invalid rand in UE context",
 			func(ue *amf.UeContext) {
 				ue.ForceRegStepForTest(amf.RegStepAuthenticating)
-				ue.Conn().AuthenticationCtx = &ausf.AuthResult{Rand: "Not hex"}
+				ue.Conn().AuthenticationCtx = &ausf.UEAuthenticationCtx{Av5gAka: ausf.Av5gAka{Rand: "Not hex"}}
 			},
 		},
 	}
@@ -106,9 +106,11 @@ func TestHandleAuthenticationResponse_TimerT3560Stopped(t *testing.T) {
 
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 	conn := ue.Conn()
-	conn.AuthenticationCtx = &ausf.AuthResult{
-		Rand:      "DEADBEEF",
-		HxresStar: "not a match",
+	conn.AuthenticationCtx = &ausf.UEAuthenticationCtx{
+		Av5gAka: ausf.Av5gAka{
+			Rand:      "DEADBEEF",
+			HxresStar: "not a match",
+		},
 	}
 	conn.IdentityTypeUsedForRegistration = uint8(fgs.IdentitySUCI)
 	conn.NASGuardForTest().Arm(10*time.Minute, 5, func(e int32) {}, func() {})
@@ -148,9 +150,11 @@ func TestHandleAuthenticationResponse_hResStartMismatch(t *testing.T) {
 			}
 
 			ue.ForceRegStepForTest(amf.RegStepAuthenticating)
-			ue.Conn().AuthenticationCtx = &ausf.AuthResult{
-				Rand:      "DEADBEEF",
-				HxresStar: "not a match",
+			ue.Conn().AuthenticationCtx = &ausf.UEAuthenticationCtx{
+				Av5gAka: ausf.Av5gAka{
+					Rand:      "DEADBEEF",
+					HxresStar: "not a match",
+				},
 			}
 			ue.Conn().IdentityTypeUsedForRegistration = tc.id_type
 
@@ -198,9 +202,11 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 					SupportedTACs: "[\"1\"]",
 				},
 			}, &fakeAusf{
-				AvKgAka: &ausf.AuthResult{
-					Rand: hex.EncodeToString(make([]byte, 16)),
-					Autn: hex.EncodeToString(make([]byte, 16)),
+				AvKgAka: &ausf.UEAuthenticationCtx{
+					Av5gAka: ausf.Av5gAka{
+						Rand: hex.EncodeToString(make([]byte, 16)),
+						Autn: hex.EncodeToString(make([]byte, 16)),
+					},
 				},
 				Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 				Kseaf: []byte("testkey"),
@@ -213,9 +219,11 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 			}
 
 			ue.ForceRegStepForTest(amf.RegStepAuthenticating)
-			ue.Conn().AuthenticationCtx = &ausf.AuthResult{
-				Rand:      "DEADBEEF",
-				HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
+			ue.Conn().AuthenticationCtx = &ausf.UEAuthenticationCtx{
+				Av5gAka: ausf.Av5gAka{
+					Rand:      "DEADBEEF",
+					HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
+				},
 			}
 			ue.Conn().IdentityTypeUsedForRegistration = tc.id_type
 
@@ -241,9 +249,11 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 			Ciphering:     `["SNOW3G","NULL"]`,
 		},
 	}, &fakeAusf{
-		AvKgAka: &ausf.AuthResult{
-			Rand: hex.EncodeToString(make([]byte, 16)),
-			Autn: hex.EncodeToString(make([]byte, 16)),
+		AvKgAka: &ausf.UEAuthenticationCtx{
+			Av5gAka: ausf.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 		Kseaf: []byte{0xC0, 0xFF, 0xEE},
@@ -255,9 +265,11 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 	}
 
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
-	ue.Conn().AuthenticationCtx = &ausf.AuthResult{
-		Rand:      "DEADBEEF",
-		HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
+	ue.Conn().AuthenticationCtx = &ausf.UEAuthenticationCtx{
+		Av5gAka: ausf.Av5gAka{
+			Rand:      "DEADBEEF",
+			HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
+		},
 	}
 	ue.SetUESecurityCapabilityForTest(amf.UESecCapForTest([]uint8{0, 1}, []uint8{0, 1}))
 
@@ -292,9 +304,11 @@ func TestHandleAuthenticationResponse_SuccessMakesTheAMFServeTheUE(t *testing.T)
 			Ciphering:     `["SNOW3G","NULL"]`,
 		},
 	}, &fakeAusf{
-		AvKgAka: &ausf.AuthResult{
-			Rand: hex.EncodeToString(make([]byte, 16)),
-			Autn: hex.EncodeToString(make([]byte, 16)),
+		AvKgAka: &ausf.UEAuthenticationCtx{
+			Av5gAka: ausf.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
 		},
 		Supi:  supi,
 		Kseaf: []byte{0xC0, 0xFF, 0xEE},
@@ -306,9 +320,11 @@ func TestHandleAuthenticationResponse_SuccessMakesTheAMFServeTheUE(t *testing.T)
 	}
 
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
-	ue.Conn().AuthenticationCtx = &ausf.AuthResult{
-		Rand:      "DEADBEEF",
-		HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
+	ue.Conn().AuthenticationCtx = &ausf.UEAuthenticationCtx{
+		Av5gAka: ausf.Av5gAka{
+			Rand:      "DEADBEEF",
+			HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
+		},
 	}
 	ue.SetUESecurityCapabilityForTest(amf.UESecCapForTest([]uint8{0, 1}, []uint8{0, 1}))
 
@@ -342,9 +358,11 @@ func TestHandleAuthenticationResponse_MobilityUpdateKeepsTheSubscribersSessions(
 	}
 
 	amfInstance.Ausf = &fakeAusf{
-		AvKgAka: &ausf.AuthResult{
-			Rand: hex.EncodeToString(make([]byte, 16)),
-			Autn: hex.EncodeToString(make([]byte, 16)),
+		AvKgAka: &ausf.UEAuthenticationCtx{
+			Av5gAka: ausf.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
 		},
 		Supi:  supi,
 		Kseaf: []byte{0xC0, 0xFF, 0xEE},
@@ -355,9 +373,11 @@ func TestHandleAuthenticationResponse_MobilityUpdateKeepsTheSubscribersSessions(
 	fresh.Conn().RegistrationType5GS = fgs.RegistrationTypeMobilityUpdating
 	fresh.TransitionTo(t.Context(), amf.RegistrationInitiated)
 	fresh.ForceRegStepForTest(amf.RegStepAuthenticating)
-	fresh.Conn().AuthenticationCtx = &ausf.AuthResult{
-		Rand:      "DEADBEEF",
-		HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
+	fresh.Conn().AuthenticationCtx = &ausf.UEAuthenticationCtx{
+		Av5gAka: ausf.Av5gAka{
+			Rand:      "DEADBEEF",
+			HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
+		},
 	}
 	fresh.SetUESecurityCapabilityForTest(amf.UESecCapForTest([]uint8{0, 1}, []uint8{0, 1}))
 
@@ -388,9 +408,11 @@ func TestHandleAuthenticationResponse_InitialRegistrationFromARegisteredUEDropsT
 			Ciphering:     `["SNOW3G","NULL"]`,
 		},
 	}, &fakeAusf{
-		AvKgAka: &ausf.AuthResult{
-			Rand: hex.EncodeToString(make([]byte, 16)),
-			Autn: hex.EncodeToString(make([]byte, 16)),
+		AvKgAka: &ausf.UEAuthenticationCtx{
+			Av5gAka: ausf.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
 		},
 		Supi:  supi,
 		Kseaf: []byte{0xC0, 0xFF, 0xEE},
@@ -406,9 +428,11 @@ func TestHandleAuthenticationResponse_InitialRegistrationFromARegisteredUEDropsT
 	conn := ue.Conn()
 	conn.RegistrationType5GS = fgs.RegistrationTypeInitial
 	conn.RegisteredBeforeRegistration = true
-	conn.AuthenticationCtx = &ausf.AuthResult{
-		Rand:      "DEADBEEF",
-		HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
+	conn.AuthenticationCtx = &ausf.UEAuthenticationCtx{
+		Av5gAka: ausf.Av5gAka{
+			Rand:      "DEADBEEF",
+			HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
+		},
 	}
 
 	ue.SetUESecurityCapabilityForTest(amf.UESecCapForTest([]uint8{0, 1}, []uint8{0, 1}))

@@ -62,7 +62,7 @@ func TestHandleAuthenticationFailure_T3560Stopped(t *testing.T) {
 
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 	conn := ue.Conn()
-	conn.AuthenticationCtx = &ausf.AuthResult{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}
+	conn.AuthenticationCtx = &ausf.UEAuthenticationCtx{Av5gAka: ausf.Av5gAka{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}}
 	conn.NASGuardForTest().Arm(10*time.Minute, 5, func(e int32) {}, func() {})
 
 	msg := buildTestAuthenticationFailure(0x14, nil)
@@ -81,7 +81,7 @@ func TestHandleAuthenticationFailure_MACFailure_DeregistersAndSendsReject(t *tes
 	}
 
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
-	ue.Conn().AuthenticationCtx = &ausf.AuthResult{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}
+	ue.Conn().AuthenticationCtx = &ausf.UEAuthenticationCtx{Av5gAka: ausf.Av5gAka{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}}
 
 	msg := buildTestAuthenticationFailure(0x14, nil)
 
@@ -106,7 +106,7 @@ func TestHandleAuthenticationFailure_Non5GAuthUnacceptable_DeregistersAndSendsRe
 	}
 
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
-	ue.Conn().AuthenticationCtx = &ausf.AuthResult{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}
+	ue.Conn().AuthenticationCtx = &ausf.UEAuthenticationCtx{Av5gAka: ausf.Av5gAka{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}}
 
 	msg := buildTestAuthenticationFailure(0x1a, nil)
 
@@ -133,9 +133,11 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiIncremented_SendsAuthR
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 	ue.Conn().AuthNgKsi = models.NgKsi{Ksi: 3}
 	ue.Conn().SetResyncTried(true)
-	ue.Conn().AuthenticationCtx = &ausf.AuthResult{
-		Rand: hex.EncodeToString(make([]byte, 16)),
-		Autn: hex.EncodeToString(make([]byte, 16)),
+	ue.Conn().AuthenticationCtx = &ausf.UEAuthenticationCtx{
+		Av5gAka: ausf.Av5gAka{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
+		},
 	}
 	ue.SetABBAForTest([]uint8{0x00, 0x00})
 
@@ -169,9 +171,11 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiWrapsToZero(t *testing
 
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 	ue.Conn().AuthNgKsi = models.NgKsi{Ksi: 6}
-	ue.Conn().AuthenticationCtx = &ausf.AuthResult{
-		Rand: hex.EncodeToString(make([]byte, 16)),
-		Autn: hex.EncodeToString(make([]byte, 16)),
+	ue.Conn().AuthenticationCtx = &ausf.UEAuthenticationCtx{
+		Av5gAka: ausf.Av5gAka{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
+		},
 	}
 	ue.SetABBAForTest([]uint8{0x00, 0x00})
 
@@ -197,14 +201,16 @@ func TestHandleAuthenticationFailure_SynchFailure_FirstTime_Success(t *testing.T
 	}
 
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
-	ue.Conn().AuthenticationCtx = &ausf.AuthResult{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}
+	ue.Conn().AuthenticationCtx = &ausf.UEAuthenticationCtx{Av5gAka: ausf.Av5gAka{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}}
 	ue.Conn().SetResyncTried(false)
 	ue.SetSuciForTest("suci-0-001-01-0000-0-0-0000000001")
 	ue.Tai = ue.Conn().Tai
 
-	expectedAv := &ausf.AuthResult{
-		Rand: hex.EncodeToString(make([]byte, 16)),
-		Autn: hex.EncodeToString(make([]byte, 16)),
+	expectedAv := &ausf.UEAuthenticationCtx{
+		Av5gAka: ausf.Av5gAka{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
+		},
 	}
 
 	amfInstance := amf.New(nil, &fakeAusf{
@@ -243,7 +249,7 @@ func TestHandleAuthenticationFailure_SynchFailure_FirstTime_AusfError(t *testing
 	}
 
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
-	ue.Conn().AuthenticationCtx = &ausf.AuthResult{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}
+	ue.Conn().AuthenticationCtx = &ausf.UEAuthenticationCtx{Av5gAka: ausf.Av5gAka{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}}
 	ue.Conn().SetResyncTried(false)
 	ue.SetSuciForTest("suci-0-001-01-0000-0-0-0000000001")
 	ue.Tai = ue.Conn().Tai
@@ -269,7 +275,7 @@ func TestHandleAuthenticationFailure_SynchFailure_SecondTime_DeregistersAndSends
 	}
 
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
-	ue.Conn().AuthenticationCtx = &ausf.AuthResult{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}
+	ue.Conn().AuthenticationCtx = &ausf.UEAuthenticationCtx{Av5gAka: ausf.Av5gAka{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}}
 	ue.Conn().SetResyncTried(true)
 
 	msg := buildTestAuthenticationFailure(0x15, nil)
@@ -295,7 +301,7 @@ func TestHandleAuthenticationFailure_SynchFailure_NilAuthenticationFailureParame
 	}
 
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
-	ue.Conn().AuthenticationCtx = &ausf.AuthResult{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}
+	ue.Conn().AuthenticationCtx = &ausf.UEAuthenticationCtx{Av5gAka: ausf.Av5gAka{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}}
 	ue.Conn().SetResyncTried(false)
 
 	msg := buildTestAuthenticationFailure(0x15, nil)
@@ -316,7 +322,7 @@ func TestHandleAuthenticationFailure_OutOfEnumerationCauseIgnored(t *testing.T) 
 
 	ue.ForceRegStepForTest(amf.RegStepAuthenticating)
 	conn := ue.Conn()
-	conn.AuthenticationCtx = &ausf.AuthResult{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}
+	conn.AuthenticationCtx = &ausf.UEAuthenticationCtx{Av5gAka: ausf.Av5gAka{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}}
 	conn.NASGuardForTest().Arm(10*time.Minute, 5, func(e int32) {}, func() {})
 
 	msg := buildTestAuthenticationFailure(0x6f, nil)

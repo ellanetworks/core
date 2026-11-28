@@ -45,7 +45,7 @@ func connectedModeUe(t *testing.T, smf amf.SmfSbi) connectedModeFixture {
 			Operator: &db.Operator{Mcc: "001", Mnc: "01", SupportedTACs: `["000001"]`},
 		},
 		&fakeAusf{
-			AvKgAka: &ausf.AuthResult{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))},
+			AvKgAka: &ausf.UEAuthenticationCtx{Av5gAka: ausf.Av5gAka{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}},
 			Supi:    mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf:   []byte("testkey"),
 		},

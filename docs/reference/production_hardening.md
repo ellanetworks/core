@@ -11,6 +11,7 @@ This reference document provides guidelines for operating Ella Core in a product
 - **Deploy on a production-grade system**. Ensure your system meets the [production requirements](system_reqs.md).
 - **Deploy with the snap**: Use the [Snap installation method](../how_to/install.md#snap-recommended) to deploy Ella Core.
 - **Isolate network interfaces**: Use separate network interfaces for N2, N3, N6, and API traffic.
+- **Protect the radio backhaul**: Carry backhaul traffic over a physically secured network or an IPsec tunnel between the radios and a security gateway.
 - **Secure roaming**: Restrict N32 and S6a to your roaming partners, and use SEPP certificates issued by your CA.
 - **Use TLS**: Configure TLS for the API interface in the configuration file. Use certificates from a trusted Certificate Authority (CA).
 - **Use the fastest attach mode the interfaces allow**: set `datapath.attach-mode` to `xdp-native` where the driver supports it.

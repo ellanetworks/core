@@ -612,3 +612,70 @@ func TestGTPDecapsulationFamilyAgnosticOuterHeaderRemoval(t *testing.T) {
 		})
 	}
 }
+
+// TS 29.281 §7.3.1, §4.4.2.4, §4.4.3.4
+func TestGTPErrorIndicationOnUnknownTEIDWithOuterIPv4Options(t *testing.T) {
+	requireProgTestRun(t)
+
+	obj := loadN3N6Program(t)
+
+	const (
+		teid               = 0x21222397
+		gtpErrorIndication = 26
+	)
+
+	for _, tc := range []struct {
+		name    string
+		options []byte
+	}{
+		{"record route", []byte{7, 8, 4, 0, 10, 0, 0, 1}},
+		{"maximum header", bytes.Repeat([]byte{1}, 40)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			in := optionedTrigger(testGNBIP, testUPFN3IP, tc.options,
+				udpDatagram(GTPUDPPort, GTPUDPPort, gtpHeader(teid, innerIPv4UDP([4]byte{8, 8, 8, 8}, 53))))
+
+			action, out := runXDPOut(t, obj.UpfEntryFunc, in)
+
+			if action != ActionTx {
+				t.Fatalf("unknown-TEID G-PDU with outer IPv4 options got XDP action %d, want ActionTx (%d) (TS 29.281 §7.3.1)", action, ActionTx)
+			}
+
+			assertReplyIPv4Header(t, out, 24, GTPUDPPort, GTPUDPPort)
+
+			gtp := out[ethHdrLen+20+8:]
+
+			if gtp[0] != 0x32 {
+				t.Errorf("GTP flags = %#x, want 0x32 (version 1, PT 1, S 1)", gtp[0])
+			}
+
+			if gtp[1] != gtpErrorIndication {
+				t.Errorf("GTP message type = %d, want %d (Error Indication)", gtp[1], gtpErrorIndication)
+			}
+
+			if got := binary.BigEndian.Uint16(gtp[2:4]); got != 16 {
+				t.Errorf("GTP message length = %d, want 16", got)
+			}
+
+			if hdrTeid := binary.BigEndian.Uint32(gtp[4:8]); hdrTeid != 0 {
+				t.Errorf("Error Indication header TEID = %#x, want 0", hdrTeid)
+			}
+
+			if gtp[12] != 16 {
+				t.Errorf("first IE type = %d, want 16 (TEID Data I)", gtp[12])
+			}
+
+			if ieTeid := binary.BigEndian.Uint32(gtp[13:17]); ieTeid != teid {
+				t.Errorf("TEID Data I = %#x, want %#x (the triggering TEID)", ieTeid, uint32(teid))
+			}
+
+			if gtp[17] != 133 || binary.BigEndian.Uint16(gtp[18:20]) != 4 {
+				t.Errorf("second IE = type %d length %d, want 133 length 4 (GTP-U Peer Address)", gtp[17], binary.BigEndian.Uint16(gtp[18:20]))
+			}
+
+			if !bytes.Equal(gtp[20:24], testUPFN3IP[:]) {
+				t.Errorf("GTP-U Peer Address = %v, want %v (the UPF)", gtp[20:24], testUPFN3IP)
+			}
+		})
+	}
+}

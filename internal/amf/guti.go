@@ -52,7 +52,7 @@ func (amf *AMF) LookupUeByGuti(guami *models.Guami, guti etsi.GUTI5G) (*UeContex
 }
 
 // ReallocateGUTI allocates a new 5G-GUTI for the UE and preserves the old one
-// (resolvable until the UE acknowledges the reallocation, when CommitGUTIRealloc runs).
+// (resolvable until the UE acknowledges the reallocation or uses the new 5G-GUTI).
 // A reallocation already in flight reuses its staged 5G-TMSI, so a retransmitted
 // trigger does not burn a fresh one (TS 24.501 §5.4.4). The GUTI index is kept in
 // step under a.mu.
@@ -107,7 +107,7 @@ func (a *AMF) Guti(guami *models.Guami, ue *UeContext) (etsi.GUTI5G, error) {
 }
 
 // OldGuti rebuilds the UE's in-flight previous 5G-GUTI, valid during a reallocation
-// window (until CommitGUTIRealloc).
+// window (until CommitGUTIRealloc or ConfirmGUTIRealloc).
 func (a *AMF) OldGuti(guami *models.Guami, ue *UeContext) (etsi.GUTI5G, error) {
 	if ue == nil {
 		return etsi.InvalidGUTI5G, nil
@@ -143,6 +143,32 @@ func (a *AMF) CommitGUTIRealloc(ue *UeContext) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	a.commitGUTIReallocLocked(ue)
+}
+
+func (a *AMF) ConfirmGUTIRealloc(guami *models.Guami, ue *UeContext, presented etsi.GUTI5G) bool {
+	if ue == nil || presented == etsi.InvalidGUTI5G {
+		return false
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if ue.oldTmsi == etsi.InvalidTMSI {
+		return false
+	}
+
+	current, err := gutiFor(guami, ue.tmsi)
+	if err != nil || current != presented {
+		return false
+	}
+
+	a.commitGUTIReallocLocked(ue)
+
+	return true
+}
+
+func (a *AMF) commitGUTIReallocLocked(ue *UeContext) {
 	if ue.oldTmsi != etsi.InvalidTMSI {
 		delete(a.uesByTmsi, ue.oldTmsi)
 		a.freeTmsiLocked(ue.oldTmsi)

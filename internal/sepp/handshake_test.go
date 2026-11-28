@@ -961,3 +961,40 @@ func TestDialContextBindsTheN32Address(t *testing.T) {
 		})
 	}
 }
+
+func inboundConns(m *Manager) int {
+	n := 0
+
+	m.conns.Range(func(any, any) bool {
+		n++
+		return true
+	})
+
+	return n
+}
+
+func TestAnchorChangeClosesN32fConnectionsOfAFailedContext(t *testing.T) {
+	x, p := peerFixture(t, yFQDN, fastTuning())
+
+	p.answer(func(w http.ResponseWriter, _ *http.Request, _ SecNegotiateReqData) {
+		p.reply(w, 403, wire.NewProblem(403, CauseNegotiationNotAllowed, "no"))
+	})
+
+	x.start()
+	x.waitState("p", StateFailed)
+
+	tr := p.transport(x)
+	defer tr.CloseIdleConnections()
+
+	if status, body := p.do(x, http.MethodGet, "/nausf-auth/v1/ue-authentications", nil, tr); status != 403 || wire.ParseProblem(status, body).Cause != wire.CauseContextNotFound {
+		t.Fatalf("N32-f without a context: %d %s", status, body)
+	}
+
+	eventually(t, "one inbound connection", func() bool { return inboundConns(x.m) == 1 })
+
+	cfg := p.partnerConfig()
+	cfg.TrustAnchorPEM = newTestCA(t, "other").pem()
+	x.setPartners(cfg)
+
+	eventually(t, "the N32-f connection closed", func() bool { return inboundConns(x.m) == 0 })
+}

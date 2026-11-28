@@ -112,7 +112,8 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 
 		conn.SetResyncTried(true)
 
-		resynchronizationInfo := &ausf.ResyncInfo{
+		resynchronizationInfo := &ausf.ResynchronizationInfo{
+			Rand: conn.AuthenticationCtx.Rand,
 			Auts: hex.EncodeToString(fail.AUTS),
 		}
 

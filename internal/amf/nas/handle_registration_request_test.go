@@ -326,9 +326,11 @@ func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &fakeAusf{
-		AvKgAka: &ausf.AuthResult{
-			Rand: hex.EncodeToString(make([]byte, 16)),
-			Autn: hex.EncodeToString(make([]byte, 16)),
+		AvKgAka: &ausf.UEAuthenticationCtx{
+			Av5gAka: ausf.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 		Kseaf: []byte("testkey"),
@@ -370,9 +372,11 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 			SupportedTACs: "[\"CAFE64\"]",
 		},
 	}, &fakeAusf{
-		AvKgAka: &ausf.AuthResult{
-			Rand: hex.EncodeToString(make([]byte, 16)),
-			Autn: hex.EncodeToString(make([]byte, 16)),
+		AvKgAka: &ausf.UEAuthenticationCtx{
+			Av5gAka: ausf.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 		Kseaf: []byte("testkey"),
@@ -475,9 +479,11 @@ func TestHandleRegistrationRequest_ContextSetup_DifferingIEs_Progresses(t *testi
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &fakeAusf{
-		AvKgAka: &ausf.AuthResult{
-			Rand: hex.EncodeToString(make([]byte, 16)),
-			Autn: hex.EncodeToString(make([]byte, 16)),
+		AvKgAka: &ausf.UEAuthenticationCtx{
+			Av5gAka: ausf.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 		Kseaf: []byte("testkey"),
@@ -520,6 +526,7 @@ func TestHandleRegistrationRequest_ContextSetup_DifferingIEs_Progresses(t *testi
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
 	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgAuthenticationRequest))
+	assertAuthenticatedAs(t, amfInstance, "imsi-001019756139935")
 }
 
 // TS 24.501 §5.5.1.2.8 case d
@@ -532,9 +539,11 @@ func TestHandleRegistrationRequest_ContextSetup_UnmodeledIEDiffers_Progresses(t 
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &fakeAusf{
-		AvKgAka: &ausf.AuthResult{
-			Rand: hex.EncodeToString(make([]byte, 16)),
-			Autn: hex.EncodeToString(make([]byte, 16)),
+		AvKgAka: &ausf.UEAuthenticationCtx{
+			Av5gAka: ausf.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 		Kseaf: []byte("testkey"),
@@ -585,9 +594,11 @@ func TestHandleRegistrationRequest_Authenticating_DifferingIEs_Restarts(t *testi
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &fakeAusf{
-		AvKgAka: &ausf.AuthResult{
-			Rand: hex.EncodeToString(make([]byte, 16)),
-			Autn: hex.EncodeToString(make([]byte, 16)),
+		AvKgAka: &ausf.UEAuthenticationCtx{
+			Av5gAka: ausf.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 		Kseaf: []byte("testkey"),
@@ -642,9 +653,11 @@ func TestHandleRegistrationRequest_Authenticating_IdenticalIEs_Ignored(t *testin
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &fakeAusf{
-		AvKgAka: &ausf.AuthResult{
-			Rand: hex.EncodeToString(make([]byte, 16)),
-			Autn: hex.EncodeToString(make([]byte, 16)),
+		AvKgAka: &ausf.UEAuthenticationCtx{
+			Av5gAka: ausf.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 		Kseaf: []byte("testkey"),
@@ -692,9 +705,11 @@ func TestHandleRegistrationRequest_SecurityMode_IdenticalIEs_Ignored(t *testing.
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &fakeAusf{
-		AvKgAka: &ausf.AuthResult{
-			Rand: hex.EncodeToString(make([]byte, 16)),
-			Autn: hex.EncodeToString(make([]byte, 16)),
+		AvKgAka: &ausf.UEAuthenticationCtx{
+			Av5gAka: ausf.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 		Kseaf: []byte("testkey"),
@@ -741,9 +756,11 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &fakeAusf{
-		AvKgAka: &ausf.AuthResult{
-			Rand: hex.EncodeToString(make([]byte, 16)),
-			Autn: hex.EncodeToString(make([]byte, 16)),
+		AvKgAka: &ausf.UEAuthenticationCtx{
+			Av5gAka: ausf.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 		Kseaf: []byte("testkey"),
@@ -793,6 +810,7 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 
 	resp := ngapSender.SentDownlinkNASTransport[0]
 	assertPlainGmm(t, resp.NASPDU, uint8(fgs.MsgAuthenticationRequest))
+	assertAuthenticatedAs(t, amfInstance, "imsi-001019756139935")
 }
 
 func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T) {
@@ -807,9 +825,11 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &fakeAusf{
-		AvKgAka: &ausf.AuthResult{
-			Rand: hex.EncodeToString(rand),
-			Autn: hex.EncodeToString(autn),
+		AvKgAka: &ausf.UEAuthenticationCtx{
+			Av5gAka: ausf.Av5gAka{
+				Rand: hex.EncodeToString(rand),
+				Autn: hex.EncodeToString(autn),
+			},
 		},
 		Supi:  supi,
 		Kseaf: []byte("testkey"),
@@ -869,9 +889,11 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &fakeAusf{
-		AvKgAka: &ausf.AuthResult{
-			Rand: hex.EncodeToString(rand),
-			Autn: hex.EncodeToString(autn),
+		AvKgAka: &ausf.UEAuthenticationCtx{
+			Av5gAka: ausf.Av5gAka{
+				Rand: hex.EncodeToString(rand),
+				Autn: hex.EncodeToString(autn),
+			},
 		},
 		Supi:  supi,
 		Kseaf: []byte("testkey"),
@@ -936,9 +958,11 @@ func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testin
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &fakeAusf{
-		AvKgAka: &ausf.AuthResult{
-			Rand: hex.EncodeToString(make([]byte, 16)),
-			Autn: hex.EncodeToString(make([]byte, 16)),
+		AvKgAka: &ausf.UEAuthenticationCtx{
+			Av5gAka: ausf.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
 		},
 		Supi:  supi,
 		Kseaf: []byte("testkey"),
@@ -989,9 +1013,11 @@ func TestHandleRegistrationRequest_NgKsi_Increment(t *testing.T) {
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &fakeAusf{
-		AvKgAka: &ausf.AuthResult{
-			Rand: hex.EncodeToString(make([]byte, 16)),
-			Autn: hex.EncodeToString(make([]byte, 16)),
+		AvKgAka: &ausf.UEAuthenticationCtx{
+			Av5gAka: ausf.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 		Kseaf: []byte("testkey"),
@@ -1034,9 +1060,11 @@ func TestHandleRegistrationRequest_NgKsi_WrapAt6(t *testing.T) {
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &fakeAusf{
-		AvKgAka: &ausf.AuthResult{
-			Rand: hex.EncodeToString(make([]byte, 16)),
-			Autn: hex.EncodeToString(make([]byte, 16)),
+		AvKgAka: &ausf.UEAuthenticationCtx{
+			Av5gAka: ausf.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 		Kseaf: []byte("testkey"),
@@ -1075,9 +1103,11 @@ func TestHandleRegistrationRequest_NgKsi_NoKeyAvailable(t *testing.T) {
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &fakeAusf{
-		AvKgAka: &ausf.AuthResult{
-			Rand: hex.EncodeToString(make([]byte, 16)),
-			Autn: hex.EncodeToString(make([]byte, 16)),
+		AvKgAka: &ausf.UEAuthenticationCtx{
+			Av5gAka: ausf.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 		Kseaf: []byte("testkey"),
@@ -1160,7 +1190,7 @@ func TestHandleRegistrationRequestMessage_ContainerStoresOuterBytes(t *testing.T
 	amfInstance := amf.New(&fakeDBInstance{
 		Operator: &db.Operator{Mcc: "001", Mnc: "01", SupportedTACs: "[\"000001\"]"},
 	}, &fakeAusf{
-		AvKgAka: &ausf.AuthResult{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))},
+		AvKgAka: &ausf.UEAuthenticationCtx{Av5gAka: ausf.Av5gAka{Rand: hex.EncodeToString(make([]byte, 16)), Autn: hex.EncodeToString(make([]byte, 16))}},
 		Supi:    supi,
 		Kseaf:   []byte("testkey"),
 	}, nil)
@@ -1326,11 +1356,27 @@ func TestHandleRegistrationRequest_InitialRegistrationAbortsNetworkDeregistratio
 			Mnc:           "01",
 			SupportedTACs: "[\"000001\"]",
 		},
-	}, nil, nil)
+	}, &fakeAusf{
+		AvKgAka: &ausf.UEAuthenticationCtx{
+			Av5gAka: ausf.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
+		},
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: []byte("testkey"),
+	}, nil)
 
-	ue, _, err := buildUeAndRadio()
+	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.SetSuciForTest("suci-0-001-01-0000-0-0-9756139935")
+	ue.SetSupiForTest(mustSUPIFromPrefixed("imsi-001019756139935"))
+
+	if err := amfInstance.CommitUEIdentity(context.TODO(), ue, amf.MintAuthProofForRegistrationCommit()); err != nil {
+		t.Fatalf("CommitUEIdentity: %v", err)
 	}
 
 	ue.ForceStateForTest(amf.DeregistrationInitiated)
@@ -1345,6 +1391,13 @@ func TestHandleRegistrationRequest_InitialRegistrationAbortsNetworkDeregistratio
 	if ue.State() == amf.DeregistrationInitiated {
 		t.Fatal("network-initiated de-registration must be aborted on an initial registration collision")
 	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("expected the new registration to progress with an Authentication Request, got %d downlinks", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	assertPlainGmm(t, ngapSender.SentDownlinkNASTransport[0].NASPDU, uint8(fgs.MsgAuthenticationRequest))
+	assertAuthenticatedAs(t, amfInstance, "imsi-001019756139935")
 }
 
 func regReqFgs(t *testing.T, pdu []byte) *fgs.RegistrationRequest {
@@ -1443,9 +1496,11 @@ func TestAuthenticationTimeoutDuringAMobilityRegistrationKeepsTheRegisteredUE(t 
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &fakeAusf{
-		AvKgAka: &ausf.AuthResult{
-			Rand: hex.EncodeToString(make([]byte, 16)),
-			Autn: hex.EncodeToString(make([]byte, 16)),
+		AvKgAka: &ausf.UEAuthenticationCtx{
+			Av5gAka: ausf.Av5gAka{
+				Rand: hex.EncodeToString(make([]byte, 16)),
+				Autn: hex.EncodeToString(make([]byte, 16)),
+			},
 		},
 		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 		Kseaf: []byte("testkey"),

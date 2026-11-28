@@ -854,3 +854,68 @@ func TestGenerateSEPPCA_NameConstraints(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckPeerKey(t *testing.T) {
+	gen := func(f func() (crypto.PublicKey, error)) crypto.PublicKey {
+		pub, err := f()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		return pub
+	}
+
+	ec := func(c elliptic.Curve) crypto.PublicKey {
+		return gen(func() (crypto.PublicKey, error) {
+			k, err := ecdsa.GenerateKey(c, rand.Reader)
+			if err != nil {
+				return nil, err
+			}
+
+			return &k.PublicKey, nil
+		})
+	}
+
+	rsaKey := func(bits int) *rsa.PublicKey {
+		return gen(func() (crypto.PublicKey, error) {
+			k, err := rsa.GenerateKey(rand.Reader, bits)
+			if err != nil {
+				return nil, err
+			}
+
+			return &k.PublicKey, nil
+		}).(*rsa.PublicKey)
+	}
+
+	edPub := gen(func() (crypto.PublicKey, error) {
+		pub, _, err := ed25519.GenerateKey(rand.Reader)
+		return pub, err
+	})
+
+	rsaLowE := *rsaKey(2048)
+	rsaLowE.E = 3
+
+	for name, tc := range map[string]struct {
+		pub     crypto.PublicKey
+		wantErr string
+	}{
+		"ECDSA P-256":    {ec(elliptic.P256()), ""},
+		"ECDSA P-384":    {ec(elliptic.P384()), ""},
+		"ECDSA P-521":    {ec(elliptic.P521()), ""},
+		"Ed25519":        {edPub, ""},
+		"RSA 2048":       {rsaKey(2048), ""},
+		"ECDSA P-224":    {ec(elliptic.P224()), "at least 256 bits"},
+		"RSA 1536":       {rsaKey(1536), "at least 2048"},
+		"RSA exponent 3": {&rsaLowE, "exponent"},
+		"unsupported":    {"not a key", "got string"},
+	} {
+		err := pki.CheckPeerKey(tc.pub)
+
+		switch {
+		case tc.wantErr == "" && err != nil:
+			t.Errorf("%s: got %v, want nil", name, err)
+		case tc.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tc.wantErr)):
+			t.Errorf("%s: got %v, want error containing %q", name, err, tc.wantErr)
+		}
+	}
+}
